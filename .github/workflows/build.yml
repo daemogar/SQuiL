@@ -16,13 +16,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4.1.1
-    - name: Setup .NET
+    - name: Setup .NET 8
       uses: actions/setup-dotnet@v4.0.0
       with:
         dotnet-version: 8.0.x
-    - name: Restore dependencies
+    - name: Restore Dependencies
       run: dotnet restore
-    - name: Build
-      run: dotnet build --no-restore
-    - name: Test
-      run: dotnet test --no-build --verbosity normal
+    - name: Build Generator
+      run: dotnet build --no-restore .\SquilParser.SourceGenerator\SquilParser.SourceGenerator.csproj
+    - name: Test Generator
+      run: dotnet test --no-build --verbosity normal .\SquilParser.SourceGenerator\SquilParser.SourceGenerator.csproj
