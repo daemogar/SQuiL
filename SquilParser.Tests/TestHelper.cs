@@ -9,8 +9,6 @@ using SQuiL.Generator;
 
 using System.Collections.Immutable;
 
-using VerifyXunit;
-
 namespace SquilParser.Tests;
 
 public static class TestHelper

@@ -3,13 +3,12 @@
 
 #nullable enable
 
-namespace TestCase
+namespace TestCase;
+
+public partial record QueriesGetStudentCoursesForEvaluationDataContextQueriesGetStudentCoursesForEvaluationRequest()
 {
-	public partial record QueriesGetStudentCoursesForEvaluationDataContextQueriesGetStudentCoursesForEvaluationRequest()
-	{
-		public System.DateOnly RunAsOf { get; init; } = '2008-10-01';
-		public bool Debug { get; init; }
-		public bool Development { get; init; }
-		public System.Collections.Generic.List<QueriesGetStudentCoursesForEvaluationDataContextRequestPeopleTable> People { get; init; } = [];
-	}
+	public System.DateOnly RunAsOf { get; set; } = '2008-10-01';
+	public bool Debug { get; set; }
+	public bool Development { get; set; }
+	public System.Collections.Generic.List<QueriesGetStudentCoursesForEvaluationDataContextRequestPeopleTable> People { get; set; } = [];
 }

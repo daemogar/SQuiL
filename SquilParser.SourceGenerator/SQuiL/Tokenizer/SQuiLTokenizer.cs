@@ -1,5 +1,4 @@
 ﻿using Microsoft.CodeAnalysis;
-using Microsoft.IdentityModel.Protocols;
 
 using System.Text;
 using System.Text.RegularExpressions;

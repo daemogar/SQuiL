@@ -3,9 +3,8 @@
 
 #nullable enable
 
-namespace TestCase
+namespace TestCase;
+
+public partial record ApplicationSpecificDataContextQueriesGetStudentCoursesForEvaluationResponse()
 {
-	public partial record ApplicationSpecificDataContextQueriesGetStudentCoursesForEvaluationResponse()
-	{
-	}
 }

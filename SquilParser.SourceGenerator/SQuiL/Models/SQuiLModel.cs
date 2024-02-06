@@ -56,19 +56,16 @@ public class SQuiLModel(
 		IndentedTextWriter writer = new(text, "\t");
 		writer.WriteLine($$"""
 			{{SourceGeneratorHelper.FileHeader}}
-			namespace {{NameSpace}}
+			namespace {{NameSpace}};
+			
+			{{Modifier(ModelName)}}partial record {{ModelName}}()
 			{
-				{{Modifier(ModelName)}}partial record {{ModelName}}()
-				{
 			""");
-		writer.Indent += 2;
+		writer.Indent++;
 		foreach (var block in blocks.OrderBy(p => p.IsTable))
 			GeneratePropertyCode(writer, block);
-		writer.Indent -= 2;
-		writer.WriteLine($$"""
-			}
-		}
-		""");
+		writer.Indent--;
+		writer.WriteLine("}");
 		return (exceptions, [
 			($"{ModelType}Model", text.ToString()),
 			.. Tables
@@ -107,7 +104,7 @@ public class SQuiLModel(
 			if (!block.IsTable && (block.IsRequired || block.DefaultValue is null || block.DefaultValue == "Null"))
 				nullable = "?";
 
-			writer.Write($$"""public {{block.CSharpType(ClassName, ModelType)}}{{nullable}} {{block.Name}} { get; init; }""");
+			writer.Write($$"""public {{block.CSharpType(ClassName, ModelType)}}{{nullable}} {{block.Name}} { get; set; }""");
 
 			if (!block.IsTable)
 			{

@@ -3,15 +3,14 @@
 
 #nullable enable
 
-namespace TestCase
+namespace TestCase;
+
+public partial record ApplicationSpecificDataContextQueriesExampleResponse()
 {
-	public partial record ApplicationSpecificDataContextQueriesExampleResponse()
-	{
-		public int? Result1 { get; init; }
-		public int Result2 { get; init; } = 13;
-		public int? That { get; init; }
-		public System.Collections.Generic.List<ApplicationSpecificDataContextResponseResult3Table> Result3 { get; init; } = [];
-		public System.Collections.Generic.List<ApplicationSpecificDataContextResponseIntegerTable> Integer { get; init; } = [];
-		public System.Collections.Generic.List<ApplicationSpecificDataContextResponseResult4Table> Result4 { get; init; } = [];
-	}
+	public int? Result1 { get; set; }
+	public int Result2 { get; set; } = 13;
+	public int? That { get; set; }
+	public System.Collections.Generic.List<ApplicationSpecificDataContextResponseResult3Table> Result3 { get; set; } = [];
+	public System.Collections.Generic.List<ApplicationSpecificDataContextResponseIntegerTable> Integer { get; set; } = [];
+	public System.Collections.Generic.List<ApplicationSpecificDataContextResponseResult4Table> Result4 { get; set; } = [];
 }
