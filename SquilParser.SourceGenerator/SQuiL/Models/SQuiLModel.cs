@@ -100,9 +100,7 @@ public class SQuiLModel(
 
 		void GeneratePropertyCode(IndentedTextWriter writer, CodeBlock block)
 		{
-			var nullable = "";
-			if (!block.IsTable && (block.IsRequired || block.DefaultValue is null || block.DefaultValue == "Null"))
-				nullable = "?";
+			var nullable = block.IsNullable ? "?" : "";
 
 			writer.Write($$"""public {{block.CSharpType(ClassName, ModelType)}}{{nullable}} {{block.Name}} { get; set; }""");
 

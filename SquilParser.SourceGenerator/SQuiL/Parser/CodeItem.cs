@@ -6,7 +6,7 @@ public record CodeItem(Token Identifier, Token Type)
 {
 	public bool IsNullable { get; init; }
 
-	public string DataReader() => Type.DataReader(Identifier.Value);
+	public string DataReader() => Type.DataReader();
 	
 	public string CSharpType() => Type.CSharpType();
 

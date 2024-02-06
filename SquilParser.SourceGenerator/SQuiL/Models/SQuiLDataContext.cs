@@ -5,6 +5,7 @@ using SQuiL.Tokenizer;
 using SquilParser.SourceGenerator.Parser;
 
 using System.CodeDom.Compiler;
+
 namespace SQuiL.Models;
 
 public class SQuiLDataContext
@@ -195,7 +196,11 @@ public class SQuiLDataContext
 
 				foreach (var (block, query) in outputs)
 				{
-					writer.WriteLine($"""case "{block.Name}":""");
+					var switchCase = block.Name;
+					if ((block.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT)
+						switchCase = $"Return_{switchCase}";
+
+					writer.WriteLine($"""case "{switchCase}":""");
 					writer.Indent++;
 					if (block.IsTable)
 					{
@@ -207,7 +212,7 @@ public class SQuiLDataContext
 						foreach (var item in block.Table)
 						{
 							writer.WriteLine(comma);
-							writer.Write(item.DataReader());
+							writer.Write($"{item.DataReader()}(reader.GetOrdinal(\"{switchCase}\"))");
 							comma = ",";
 						}
 						writer.Indent--;
@@ -220,7 +225,15 @@ public class SQuiLDataContext
 						writer.WriteLine($"\"Already returned value for `{block.Name}`\");");
 						writer.Indent--;
 						writer.WriteLine();
-						writer.WriteLine($"response.{block.Name} = {block.DataReader()};");
+
+						var isNullable = "null";
+						if (!block.IsNullable)
+						{
+							var exception = $"Return value for {switchCase} cannot be null.";
+							isNullable = $"""throw new NullReferenceException("{exception}")""";
+						}
+
+						writer.WriteLine($"response.{block.Name} = !reader.IsDBNull(1) ? {block.DataReader()}(1) : {isNullable};");
 					}
 					writer.WriteLine($"is{block.Name} = true;");
 					writer.WriteLine("break;");

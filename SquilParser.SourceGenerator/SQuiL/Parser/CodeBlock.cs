@@ -8,6 +8,8 @@ public record CodeBlock(CodeType CodeType, Token DatabaseType, string Name, stri
 
 	public bool IsRequired { get; }
 
+	public bool IsNullable => !IsTable && (IsRequired || DefaultValue is null || DefaultValue == "Null");
+
 	public string? Size { get; set; }
 
 	public List<CodeItem> Table { get; } = default!;
@@ -30,7 +32,7 @@ public record CodeBlock(CodeType CodeType, Token DatabaseType, string Name, stri
 
 	public string SqlDbType() => DatabaseType.SqlDbType(Size);
 
-	public string DataReader() => DatabaseType.DataReader(Name);
+	public string DataReader() => DatabaseType.DataReader();
 
 	public string CSharpType() => DatabaseType.CSharpType();
 	public string CSharpType(string classname, string modelType)

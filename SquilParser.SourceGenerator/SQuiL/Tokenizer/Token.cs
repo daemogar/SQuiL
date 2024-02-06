@@ -12,7 +12,7 @@ public record Token(TokenType Type, int Offset, string Value)
 
 	public string Expect() => $"{Type:G} => {Value}";
 
-	public string DataReader(string name) => "reader." + Type switch
+	public string DataReader() => "reader." + Type switch
 	{
 		TokenType.TYPE_BOOLEAN => "GetBoolean",
 		TokenType.TYPE_INT => "GetInt32",
@@ -21,7 +21,7 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_TIME => "GetSqlDateTime",
 		TokenType.TYPE_DATETIME => $"GetSqlDateTime",
 		_ => throw new Exception($"Invalid database type `{Type}`")
-	} + $"""(reader.GetOrdinal("{name}"))""";
+	};
 
 	public string SqlDbType(string? size = default) => "System.Data.SqlDbType." + Type switch
 	{
