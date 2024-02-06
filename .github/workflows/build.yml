@@ -23,6 +23,6 @@ jobs:
     - name: Restore Dependencies
       run: dotnet restore
     - name: Build Generator
-      run: dotnet build --no-restore .\SquilParser.SourceGenerator\SquilParser.SourceGenerator.csproj
+      run: dotnet build --no-restore ".\SquilParser.SourceGenerator\SquilParser.SourceGenerator.csproj"
     - name: Test Generator
-      run: dotnet test --no-build --verbosity normal .\SquilParser.SourceGenerator\SquilParser.SourceGenerator.csproj
+      run: dotnet test --no-build --verbosity normal ".\SquilParser.Tests\SquilParser.Tests.csproj"
