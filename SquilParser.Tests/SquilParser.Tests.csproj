@@ -9,15 +9,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <Compile Remove="DataContextUsedTests.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="Queries\Example.sql" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <AdditionalFiles Include="Queries\Example.sql" />
+		<AdditionalFiles Include="**\Queries\*.sql" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -46,47 +38,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <None Remove="DataContextGenerationTests.AllQueries#SQuiLQueryFilesEnum.g.verified.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="DataContextGenerationTests.AllQueries#SQuiLQueryFilesEnum.g.verified.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="DataContextGenerationTests.Example#SQuiLQueryFilesEnum.g.verified.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="DataContextGenerationTests.GetStudentCoursesForEvaluation#SQuiLQueryFilesEnum.g.verified.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="DataContextGenerationTests.SplitDataContext#SQuiLQueryFilesEnum.g.verified.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="DataContextGenerationTests.SplitDataContextRenamed#SQuiLQueryFilesEnum.g.verified.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="DataContextGenerationTests.Example#SQuiLQueryFilesEnum.g.verified.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="DataContextGenerationTests.AllQueries#SQuiLQueryFilesEnum.g.verified.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="DataContextGenerationTests.GetStudentCoursesForEvaluation#SQuiLQueryFilesEnum.g.verified.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="DataContextGenerationTests.SplitDataContext#SQuiLQueryFilesEnum.g.verified.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="DataContextGenerationTests.SplitDataContextRenamed#SQuiLQueryFilesEnum.g.verified.cs" />
+	  <None Remove="*.g.verified.cs" />
 	</ItemGroup>
 
 </Project>
