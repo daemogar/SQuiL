@@ -24,5 +24,7 @@ jobs:
       run: dotnet restore
     - name: Build Generator
       run: dotnet build --no-restore ".\SquilParser.SourceGenerator\SquilParser.SourceGenerator.csproj"
+    - name: Build Tests
+      run: dotnet build --no-restore ".\SquilParser.Tests\SquilParser.Tests.csproj"
     - name: Test Generator
       run: dotnet test --no-build --verbosity normal ".\SquilParser.Tests\SquilParser.Tests.csproj"
