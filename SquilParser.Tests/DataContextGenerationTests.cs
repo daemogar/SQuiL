@@ -27,19 +27,35 @@ public class DataContextGenerationTests
 				=> GetSource(p.Attributes, useGenericName ? "ApplicationSpecific" : p.Name)),
 			files.Select(p => $"{p}.sql"));
 
-	private static string GetSource(IEnumerable<string> attributes, string name) => $$"""
+	private static string GetSource(IEnumerable<string> attributes, string name) => $$$"""
 		using Microsoft.Extensions.Configuration;
-		using {{NamespaceName}};
+		using {{{NamespaceName}}};
 
 		namespace TestCase;
 
-		{{string.Join(Environment.NewLine, attributes)}}
-		public partial class {{name}}DataContext(
+		{{{string.Join(Environment.NewLine, attributes)}}}
+		public partial class {{{name}}}DataContext(
 			IConfiguration Configuration)
-			: {{BaseDataContextClassName}}(Configuration)
+			: {{{BaseDataContextClassName}}}(Configuration)
 		{
 		}
 
-		public partial record ApplicationSpecificDataContextQueriesExampleRequest() {}
+		public partial record ApplicationSpecificDataContextQueriesExampleRequest() : BaseRecord
+		{
+			public int Sally1 { get; set; }
+		}
+
+		public partial record ApplicationSpecificDataContextQueriesExampleRequestSallyTable() : BaseRecord {}
+
+		public record BaseRecord : AnotherBaseRecord
+		{
+			public bool Bob { get; init; }		
+			public bit Sally2 { get; set; }
+		}
+
+		public record AnotherBaseRecord
+		{
+			public string Bob2 { get; set; }
+		}
 		""";
 }

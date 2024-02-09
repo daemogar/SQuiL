@@ -35,8 +35,8 @@ public record CodeBlock(CodeType CodeType, Token DatabaseType, string Name, stri
 	public string DataReader() => DatabaseType.DataReader();
 
 	public string CSharpType() => DatabaseType.CSharpType();
-	public string CSharpType(string classname, string modelType)
-		=> DatabaseType.CSharpType(() => $"{classname}{modelType}{Name}Table");
+	public string CSharpType(string modelname)
+		=> DatabaseType.CSharpType(() => $"{modelname}{Name}Table");
 
 	public string? CSharpValue() => DatabaseType.CSharpValue(DefaultValue);
 }

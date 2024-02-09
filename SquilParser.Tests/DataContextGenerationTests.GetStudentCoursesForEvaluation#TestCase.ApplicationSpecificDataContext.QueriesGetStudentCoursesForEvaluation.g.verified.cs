@@ -15,13 +15,14 @@ partial class ApplicationSpecificDataContext : SQuiLBaseDataContext
 		ApplicationSpecificDataContextQueriesGetStudentCoursesForEvaluationRequest request,
 		CancellationToken cancellationToken = default!)
 	{
-		using SqlConnection connection = new(ConnectionString);
+		using SqlConnection connection = new(ConnectionStringBuilder.ConnectionString);
 		var command = connection.CreateCommand();
 		command.CommandText = Query();
 		command.Parameters.AddRange(new SqlParameter[]
 		{
+			new("EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
+			new("Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
 			new("RunAsOf", System.Data.SqlDbType.Date) { Value = request.RunAsOf },
-			new("Debug", System.Data.SqlDbType.Bit) { Value = request.Debug },
 			new("Development", System.Data.SqlDbType.Bit) { Value = request.Development }
 		});
 		
@@ -39,7 +40,7 @@ partial class ApplicationSpecificDataContext : SQuiLBaseDataContext
 			{
 				switch (reader.GetString(0))
 				{
-					default: throw new Exception($"Invalid Table `{reader.GetString(0)}`");
+					//default: throw new Exception($"Invalid Table `{reader.GetString(0)}`");
 				}
 			}
 		}
@@ -76,7 +77,7 @@ partial class ApplicationSpecificDataContext : SQuiLBaseDataContext
 			PersonID varchar(10));
 		{inputPeople()}
 		
-		Use [coll18_live];
+		Use [{ConnectionStringBuilder.InitialCatalog}];
 		
 		If @RunAsOf Is Null Begin Set @RunAsOf = GetDate() End;
 		

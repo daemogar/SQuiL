@@ -3,7 +3,6 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 using SQuiL.Generator;
-using SQuiL.Tokenizer;
 
 using SquilParser.SourceGenerator.Parser;
 
@@ -33,8 +32,12 @@ public class SQuiLModel(
 		var response = new SQuiLModel(
 			@namespace, classname, modelname, "Response", CodeType.OUTPUT, blocks, records);
 
-		var (exceptions, sources) = request.GenerateCode();
-		var (e1, s1) = response.GenerateCode();
+		var (exceptions, sources) = request.GenerateCode(p =>
+		{
+			if (!blocks.Any(p => p.Name == "Debug"))
+				p.WriteLine("public bool Debug { get; set; }");
+		});
+		var (e1, s1) = response.GenerateCode(p => { });
 
 		return (exceptions.Union(e1), sources.Union(s1)
 			.Select(p => p with
@@ -47,7 +50,8 @@ public class SQuiLModel(
 
 	public List<(string HintName, string Text)> Tables { get; } = [];
 
-	public (List<Exception> Exceptions, (string HintName, string Text)[] Sources) GenerateCode()
+	public (List<Exception> Exceptions, (string HintName, string Text)[] Sources) GenerateCode(
+		Action<IndentedTextWriter> callback)
 	{
 		List<Exception> exceptions = [];
 		var blocks = Blocks.Where(p => (p.CodeType & CodeType) == CodeType);
@@ -58,10 +62,11 @@ public class SQuiLModel(
 			{{SourceGeneratorHelper.FileHeader}}
 			namespace {{NameSpace}};
 			
-			{{Modifier(ModelName)}}partial record {{ModelName}}()
+			{{Modifier(ModelName)}}partial record {{ModelName}}
 			{
 			""");
 		writer.Indent++;
+		callback(writer);
 		foreach (var block in blocks.OrderBy(p => p.IsTable))
 			GeneratePropertyCode(writer, block);
 		writer.Indent--;
@@ -98,17 +103,35 @@ public class SQuiLModel(
 			return default!;
 		}
 
+		bool InheritsProperty(string model, string name)
+		{
+			if (!Records.TryGetValue(model, out var record))
+				return false;
+
+			if (record.Syntax.Members.Any(p => ((PropertyDeclarationSyntax)p).Identifier.Value?.Equals(name) == true))
+				return true;
+
+			if (record.Syntax.BaseList is null)
+				return false;
+
+			var baseType = (SimpleBaseTypeSyntax)record.Syntax.BaseList.Types.FirstOrDefault(p => p is SimpleBaseTypeSyntax);
+			return baseType is not null && InheritsProperty(baseType.Type.ToString(), name);
+		}
+
 		void GeneratePropertyCode(IndentedTextWriter writer, CodeBlock block)
 		{
+			if (block.Name == SQuiLGenerator.Debug || block.Name == SQuiLGenerator.EnvironmentName) return;
+			if (InheritsProperty(ModelName, block.Name)) return;
+
 			var nullable = block.IsNullable ? "?" : "";
 
-			writer.Write($$"""public {{block.CSharpType(ClassName, ModelType)}}{{nullable}} {{block.Name}} { get; set; }""");
+			writer.Write($$"""public {{block.CSharpType(ModelName)}}{{nullable}} {{block.Name}} { get; set; }""");
 
 			if (!block.IsTable)
 			{
 				var value = block.CSharpValue();
 
-				if (value is not null)
+				if (value is not null && block.Name != "Debug")
 					writer.Write($$""" = {{value}};""");
 
 				writer.WriteLine();
@@ -127,28 +150,72 @@ public class SQuiLModel(
 
 			record.Write($$"""
 			{{SourceGeneratorHelper.FileHeader}}
-			namespace {{SourceGeneratorHelper.NamespaceName}};
+			namespace {{NameSpace}};
 			
-			{{Modifier(type)}}partial record {{type}}(
+			{{Modifier(type)}}partial record 
 			""");
-			record.Indent++;
-			var comma = "";
-			foreach (var item in block.Table)
+
+			if (Records.TryGetValue(type, out var partial) && partial.Syntax.ParameterList?.Parameters.Count == 0)
 			{
-				record.WriteLine(comma);
-				record.Write($"{item.CSharpType()} {item.Identifier.Value}");
-				comma = ",";
+				record.Block(type, () =>
+				{
+					foreach (var item in block.Table)
+					{
+						var a = partial?.Syntax.BaseList?.Types
+							.SelectMany(p => Records.TryGetValue(p.Type.ToString(), out var identifier)
+								? identifier.Syntax.Members.Select(p => (PropertyDeclarationSyntax)p)
+								: null)
+							?.FirstOrDefault(q => q.Identifier.Text == item.Identifier.Value);
+
+						if (a is not null)
+							continue;
+
+						record.WriteLine($$"""{{item.CSharpType()}} {{item.Identifier.Value}} { get; init; }""");
+						record.WriteLine();
+					}
+
+					record.Write("public ");
+					WriteParameterizedConstructor(camelCase);
+					record.Block(" : this()", () =>
+					{
+						foreach (var item in block.Table)
+						{
+							var variable = item.Identifier.Value;
+							record.WriteLine($"{variable} = {camelCase(variable)};");
+						}
+					});
+				});
 			}
-			record.WriteLine(");");
+			else
+			{
+				WriteParameterizedConstructor(p => p);
+				record.WriteLine(";");
+			}
 
 			Tables.Add((block.Name + "Table", text.ToString()));
 			writer.WriteLine($$""" = [];""");
+
+			void WriteParameterizedConstructor(Func<string, string> callback)
+			{
+				record.Write($"{type}(");
+				record.Indent++;
+				var comma = "";
+				foreach (var item in block.Table)
+				{
+					record.WriteLine(comma);
+					record.Write($"{item.CSharpType()} {callback(item.Identifier.Value)}");
+					comma = ",";
+				}
+				record.Write(")");
+			}
 		}
+
+		string camelCase(string variable) => $"{variable[0..1].ToLower()}{variable[1..]}";
 	}
 
 	protected void GenerateArgumentCode(
 		IndentedTextWriter writer, CodeBlock block)
 	{
-		writer.Write($"{block.CSharpType(ClassName, ModelType)} {block.Name}");
+		writer.Write($"{block.CSharpType(ModelName)} {block.Name}");
 	}
 }

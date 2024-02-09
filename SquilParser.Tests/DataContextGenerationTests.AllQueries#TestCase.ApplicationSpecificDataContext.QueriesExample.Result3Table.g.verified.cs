@@ -3,7 +3,7 @@
 
 #nullable enable
 
-namespace SQuiL;
+namespace TestCase;
 
 public partial record ApplicationSpecificDataContextQueriesExampleResponseResult3Table(
 	int Bob);

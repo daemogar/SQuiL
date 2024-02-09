@@ -15,11 +15,13 @@ partial class ApplicationSpecificDataContext : SQuiLBaseDataContext
 		ApplicationSpecificDataContextQueriesExampleRequest request,
 		CancellationToken cancellationToken = default!)
 	{
-		using SqlConnection connection = new(ConnectionString);
+		using SqlConnection connection = new(ConnectionStringBuilder.ConnectionString);
 		var command = connection.CreateCommand();
 		command.CommandText = Query();
 		command.Parameters.AddRange(new SqlParameter[]
 		{
+			new("EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
+			new("Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
 			new("RunAsOf", System.Data.SqlDbType.Date) { Value = request.RunAsOf },
 			new("Bob1", System.Data.SqlDbType.VarChar, 10) 
 			{
@@ -75,46 +77,46 @@ partial class ApplicationSpecificDataContext : SQuiLBaseDataContext
 			{
 				switch (reader.GetString(0))
 				{
-					case "Result1":
+					case "Return_Result1":
 						if (isResult1) throw new Exception(
 							"Already returned value for `Result1`");
 						
-						response.Result1 = reader.GetInt32(reader.GetOrdinal("Result1"));
+						response.Result1 = !reader.IsDBNull(1) ? reader.GetInt32(1) : null;
 						isResult1 = true;
 						break;
 						
-					case "Result2":
+					case "Return_Result2":
 						if (isResult2) throw new Exception(
 							"Already returned value for `Result2`");
 						
-						response.Result2 = reader.GetInt32(reader.GetOrdinal("Result2"));
+						response.Result2 = !reader.IsDBNull(1) ? reader.GetInt32(1) : throw new NullReferenceException("Return value for Return_Result2 cannot be null.");
 						isResult2 = true;
 						break;
 						
-					case "Result3":
+					case "Return_Result3":
 						response.Result3.Add(new(
 							reader.GetInt32(reader.GetOrdinal("Bob"))));
 						isResult3 = true;
 						break;
 						
-					case "Integer":
+					case "Return_Integer":
 						response.Integer.Add(new(
 							reader.GetInt32(reader.GetOrdinal("Bob"))));
 						isInteger = true;
 						break;
 						
-					case "Result4":
+					case "Return_Result4":
 						response.Result4.Add(new(
 							reader.GetInt32(reader.GetOrdinal("Bob")),
 							reader.GetBoolean(reader.GetOrdinal("Sally"))));
 						isResult4 = true;
 						break;
 						
-					case "That":
+					case "Return_That":
 						if (isThat) throw new Exception(
 							"Already returned value for `That`");
 						
-						response.That = reader.GetInt32(reader.GetOrdinal("That"));
+						response.That = !reader.IsDBNull(1) ? reader.GetInt32(1) : null;
 						isThat = true;
 						break;
 						
@@ -122,7 +124,7 @@ partial class ApplicationSpecificDataContext : SQuiLBaseDataContext
 					if (!isInteger) throw new Exception("Expected return table `Integer`)");
 					if (!isResult4) throw new Exception("Expected return table `Result4`)");
 					
-					default: throw new Exception($"Invalid Table `{reader.GetString(0)}`");
+					//default: throw new Exception($"Invalid Table `{reader.GetString(0)}`");
 				}
 			}
 		}
@@ -184,7 +186,7 @@ partial class ApplicationSpecificDataContext : SQuiLBaseDataContext
 		
 		Declare @Return_That int;
 		
-		Use [Database];
+		Use [{ConnectionStringBuilder.InitialCatalog}];
 		
 		Insert Into @Returns2(Bob, Sally) Values (42, 1);
 		Insert Into @Returns2(Bob, Sally) Values (12, 0);

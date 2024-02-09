@@ -1,5 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 
+using SQuiL.Generator;
 using SQuiL.Tokenizer;
 
 using SquilParser.SourceGenerator.Parser;
@@ -63,7 +64,7 @@ public class SQuiLDataContext
 								""", () =>
 			{
 				writer.Block($$"""
-									using SqlConnection connection = new(ConnectionString);
+									using SqlConnection connection = new(ConnectionStringBuilder.ConnectionString);
 									var command = connection.CreateCommand();
 									command.CommandText = Query();
 									""");
@@ -104,10 +105,10 @@ public class SQuiLDataContext
 									string Query() => $"""
 									"""");
 				QueryDeclareStatements();
-				writer.Block($""""
-									Use [{database}];
+				writer.Block($$""""
+									Use [{ConnectionStringBuilder.InitialCatalog}];
 							
-									{query}
+									{{query}}
 									""";
 									"""");
 			});
@@ -212,7 +213,7 @@ public class SQuiLDataContext
 						foreach (var item in block.Table)
 						{
 							writer.WriteLine(comma);
-							writer.Write($"{item.DataReader()}(reader.GetOrdinal(\"{switchCase}\"))");
+							writer.Write($"{item.DataReader()}(reader.GetOrdinal(\"{item.Identifier.Value}\"))");
 							comma = ",";
 						}
 						writer.Indent--;
@@ -248,7 +249,7 @@ public class SQuiLDataContext
 			}
 			finally
 			{
-				writer.WriteLine("""default: throw new Exception($"Invalid Table `{reader.GetString(0)}`");""");
+				writer.WriteLine("""//default: throw new Exception($"Invalid Table `{reader.GetString(0)}`");""");
 			}
 		}
 
@@ -311,20 +312,31 @@ public class SQuiLDataContext
 
 		void CommandParameters()
 		{
+			writer.WriteLine("command.Parameters.AddRange(new SqlParameter[]");
+			writer.WriteLine("{");
+			writer.Indent++;
+
+			writer.WriteLine($$"""new("{{SQuiLGenerator.EnvironmentName}}", System.Data.SqlDbType.VarChar, {{SQuiLGenerator.EnvironmentName}}.Length) { Value = {{SQuiLGenerator.EnvironmentName}} }, """);
+			writer.Write($$"""new("{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit) { Value = {{SQuiLGenerator.EnvironmentName}} != "Production" }, """);
+
 			var parameters = blocks
 				.Where(p => p.CodeType == CodeType.INPUT_ARGUMENT)
 				.ToList();
 
 			if (parameters.Count == 0)
+			{
+				writer.Indent--;
+				writer.WriteLine();
+				writer.WriteLine("});");
 				return;
-
-			writer.WriteLine("command.Parameters.AddRange(new SqlParameter[]");
-			writer.Write("{");
-			writer.Indent++;
+			}
 
 			var comma = $"";
 			foreach (var parameter in parameters)
 			{
+				if (parameter.Name.Equals(SQuiLGenerator.Debug)) continue;
+				if (parameter.Name.Equals(SQuiLGenerator.EnvironmentName)) continue;
+
 				writer.WriteLine(comma);
 				writer.Write($$"""new("{{parameter.Name}}", {{parameter.SqlDbType()}}) """);
 

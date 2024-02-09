@@ -3,9 +3,21 @@
 
 #nullable enable
 
-namespace SQuiL;
+namespace TestCase;
 
-public partial record ApplicationSpecificDataContextQueriesExampleRequestSallyTable(
-	bool Bob,
-	string Jim,
-	int Sam);
+partial record ApplicationSpecificDataContextQueriesExampleRequestSallyTable
+{
+	string Jim { get; init; }
+	
+	int Sam { get; init; }
+	
+	public ApplicationSpecificDataContextQueriesExampleRequestSallyTable(
+		bool bob,
+		string jim,
+		int sam): this()
+		{
+			Bob = bob;
+			Jim = jim;
+			Sam = sam;
+		}
+	}

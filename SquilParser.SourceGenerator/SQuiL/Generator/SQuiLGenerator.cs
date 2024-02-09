@@ -14,6 +14,10 @@ namespace SQuiL.Generator;
 [Generator]
 public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 {
+	public static string Debug { get; } = nameof(Debug);
+
+	public static string EnvironmentName { get; } = nameof(EnvironmentName);
+
 	public SQuiLGenerator() : this(false) { }
 
 	public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -266,11 +270,18 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				{{FileHeader}}
 				namespace {{NamespaceName}};
 				
+				using Microsoft.Data.SqlClient;
 				using Microsoft.Extensions.Configuration;
 
 				public abstract class {{BaseDataContextClassName}}(IConfiguration Configuration)
 				{
-					protected string ConnectionString { get; } = Configuration.GetConnectionString("SQuiLDatabase") ?? throw new Exception("Cannot find a connection string in the appsettings for SQuiLDatabase.");
+					protected string {{EnvironmentName}} { get; } = Configuration.GetSection("{{EnvironmentName}}")?.Value
+						?? Environment.GetEnvironmentVariable(Configuration.GetSection("EnvironmentVariable")?.Value ?? "ASPNETCORE_ENVIRONMENT")
+						?? "Development";
+
+					protected SqlConnectionStringBuilder ConnectionStringBuilder { get; }
+						= new(Configuration.GetConnectionString("SQuiLDatabase")
+							?? throw new Exception("Cannot find a connection string in the appsettings for SQuiLDatabase."));
 				}
 				""", Encoding.UTF8));
 		}

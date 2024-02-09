@@ -5,6 +5,6 @@
 
 namespace TestCase;
 
-public partial record ApplicationSpecificDataContextQueriesGetStudentCoursesForEvaluationResponse()
+public partial record ApplicationSpecificDataContextQueriesGetStudentCoursesForEvaluationResponse
 {
 }

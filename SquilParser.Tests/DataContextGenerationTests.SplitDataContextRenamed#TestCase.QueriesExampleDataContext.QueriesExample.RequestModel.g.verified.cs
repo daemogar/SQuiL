@@ -5,7 +5,7 @@
 
 namespace TestCase;
 
-public partial record QueriesExampleDataContextQueriesExampleRequest()
+public partial record QueriesExampleDataContextQueriesExampleRequest
 {
 	public System.DateOnly RunAsOf { get; set; } = System.DateOnly.FromDateTime(System.DateTime.Now);
 	public string? Bob1 { get; set; }
@@ -13,5 +13,5 @@ public partial record QueriesExampleDataContextQueriesExampleRequest()
 	public System.DateOnly? Sally2 { get; set; }
 	public string? Bob2 { get; set; }
 	public string Bob3 { get; set; } = "";
-	public System.Collections.Generic.List<QueriesExampleDataContextRequestSallyTable> Sally { get; set; } = [];
+	public System.Collections.Generic.List<QueriesExampleDataContextQueriesExampleRequestSallyTable> Sally { get; set; } = [];
 }

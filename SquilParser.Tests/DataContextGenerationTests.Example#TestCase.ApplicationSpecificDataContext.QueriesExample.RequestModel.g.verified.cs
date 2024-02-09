@@ -5,13 +5,10 @@
 
 namespace TestCase;
 
-partial record ApplicationSpecificDataContextQueriesExampleRequest()
+partial record ApplicationSpecificDataContextQueriesExampleRequest
 {
 	public System.DateOnly RunAsOf { get; set; } = System.DateOnly.FromDateTime(System.DateTime.Now);
 	public string? Bob1 { get; set; }
-	public int? Sally1 { get; set; }
-	public System.DateOnly? Sally2 { get; set; }
-	public string? Bob2 { get; set; }
 	public string Bob3 { get; set; } = "";
-	public System.Collections.Generic.List<ApplicationSpecificDataContextRequestSallyTable> Sally { get; set; } = [];
+	public System.Collections.Generic.List<ApplicationSpecificDataContextQueriesExampleRequestSallyTable> Sally { get; set; } = [];
 }

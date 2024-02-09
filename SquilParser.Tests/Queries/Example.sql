@@ -5,6 +5,8 @@ Declare @Sally1 int;
 Declare @Sally2 date;
 Declare @Bob2 varchar(10) = Null; ------------ Optional Nullable Parameter
 Declare @Bob3 varchar(10) = ''; -------------- Optional Non-nullable Parameter
+Declare @EnvironmentName varchar(100) = 'Beta';
+Declare @Debug bit = 1;
 
 Insert Into @Sally Select 42;
 

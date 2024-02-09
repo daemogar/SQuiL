@@ -5,10 +5,9 @@
 
 namespace TestCase;
 
-public partial record QueriesGetStudentCoursesForEvaluationDataContextQueriesGetStudentCoursesForEvaluationRequest()
+public partial record QueriesGetStudentCoursesForEvaluationDataContextQueriesGetStudentCoursesForEvaluationRequest
 {
 	public System.DateOnly RunAsOf { get; set; } = '2008-10-01';
-	public bool Debug { get; set; }
 	public bool Development { get; set; }
-	public System.Collections.Generic.List<QueriesGetStudentCoursesForEvaluationDataContextRequestPeopleTable> People { get; set; } = [];
+	public System.Collections.Generic.List<QueriesGetStudentCoursesForEvaluationDataContextQueriesGetStudentCoursesForEvaluationRequestPeopleTable> People { get; set; } = [];
 }

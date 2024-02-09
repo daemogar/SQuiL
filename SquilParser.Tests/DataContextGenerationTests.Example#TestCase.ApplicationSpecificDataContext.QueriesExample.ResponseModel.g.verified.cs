@@ -5,12 +5,12 @@
 
 namespace TestCase;
 
-public partial record ApplicationSpecificDataContextQueriesExampleResponse()
+public partial record ApplicationSpecificDataContextQueriesExampleResponse
 {
 	public int? Result1 { get; set; }
 	public int Result2 { get; set; } = 13;
 	public int? That { get; set; }
-	public System.Collections.Generic.List<ApplicationSpecificDataContextResponseResult3Table> Result3 { get; set; } = [];
-	public System.Collections.Generic.List<ApplicationSpecificDataContextResponseIntegerTable> Integer { get; set; } = [];
-	public System.Collections.Generic.List<ApplicationSpecificDataContextResponseResult4Table> Result4 { get; set; } = [];
+	public System.Collections.Generic.List<ApplicationSpecificDataContextQueriesExampleResponseResult3Table> Result3 { get; set; } = [];
+	public System.Collections.Generic.List<ApplicationSpecificDataContextQueriesExampleResponseIntegerTable> Integer { get; set; } = [];
+	public System.Collections.Generic.List<ApplicationSpecificDataContextQueriesExampleResponseResult4Table> Result4 { get; set; } = [];
 }
