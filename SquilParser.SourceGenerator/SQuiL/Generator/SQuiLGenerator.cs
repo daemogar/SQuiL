@@ -1,4 +1,5 @@
 ﻿using System.CodeDom.Compiler;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
 
@@ -40,10 +41,10 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 							if (dll is null)
 								return default;
 
-							if (dll.Equals("Microsoft.Extensions.DependencyInjection.dll"))
+							if ("Microsoft.Extensions.DependencyInjection.dll|Microsoft.Extensions.DependencyInjection.Abstractions.dll".Contains(dll))
 								return new SQuiLDependency(dll) { DependencyInjection = true };
 
-							if (dll.Equals("Microsoft.Extensions.Configuration.dll"))
+							if ("Microsoft.Extensions.Configuration.dll|Microsoft.Extensions.Configuration.Abstractions.dll".Contains(dll))
 								return new SQuiLDependency(dll) { Configuration = true };
 
 							if (dll.Equals("Microsoft.Data.SqlClient.dll"))
@@ -59,18 +60,18 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 						.Collect();
 
 		context.RegisterPostInitializationOutput(static p => p
-			.AddSource(AttributeFile, SourceText.From($$"""
+			.AddSource($"{QueryAttributeName}.g.cs", SourceText.From($$"""
 				{{FileHeader}}
 				namespace {{NamespaceName}};
 				
-				[System.AttributeUsage(System.AttributeTargets.Class)]
-				public class {{AttributeName}} : System.Attribute
+				[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
+				public class {{QueryAttributeName}} : System.Attribute
 				{
 					public QueryFiles Type { get; }
 		
 					public string Setting { get; }
 
-					public {{AttributeName}}(
+					public {{QueryAttributeName}}(
 						QueryFiles type,
 						string setting = "{{DefaultConnectionStringAppSettingName}}")
 					{
@@ -80,12 +81,29 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				}
 				""", Encoding.UTF8)));
 
+		context.RegisterPostInitializationOutput(static p => p
+			.AddSource($"{TableTypeAttributeName}", SourceText.From($$"""
+				{{FileHeader}}
+				namespace {{NamespaceName}};
+				
+				[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
+				public class {{TableTypeAttributeName}} : System.Attribute
+				{
+					public TableType Type { get; }
+		
+					public {{TableTypeAttributeName}}(TableType type)
+					{
+						Type = type;
+					}
+				}
+				""", Encoding.UTF8)));
+
 		var classes = context.SyntaxProvider
 						.CreateSyntaxProvider(
 										predicate: static (p, _) => p is ClassDeclarationSyntax { AttributeLists.Count: > 0 },
 										transform: static (p, _) => GetSemanticTargetForGeneration(p))
+						.SelectMany((p, _) => p!)
 						.Where(p => p is not null)
-						.Select((p, _) => p!)
 						.Collect();
 
 		var records = context.SyntaxProvider
@@ -122,7 +140,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					}
 
 					return p;
-				}).ToImmutableArray(), b.Left.Left.Right, records.ToImmutableDictionary(), a);
+				}).ToImmutableArray(), b.Left.Left.Right!, records.ToImmutableDictionary(), a);
 			}
 			catch (Exception e)
 			{
@@ -138,7 +156,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		return new(syntax.Identifier.Text, syntax);
 	}
 
-	private static SQuiLDefinition? GetSemanticTargetForGeneration(GeneratorSyntaxContext context)
+	private static IEnumerable<SQuiLDefinition?> GetSemanticTargetForGeneration(GeneratorSyntaxContext context)
 	{
 		var syntax = (ClassDeclarationSyntax)context.Node;
 
@@ -151,19 +169,24 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 						.FirstOrDefault() is not IMethodSymbol symbol)
 					continue;
 
+				var definition = SQuiLDefinitionType.Invalid;
 				var type = symbol.ContainingType;
 				var name = type.ToDisplayString();
 
-				if (!name.Equals(AttributeFQDN))
+				if (name.Equals($"{NamespaceName}.{QueryAttributeName}"))
+					definition = SQuiLDefinitionType.Query;
+
+				if (name.Equals($"{NamespaceName}.{TableTypeAttributeName}"))
+					definition = SQuiLDefinitionType.TableType;
+
+				if (definition == SQuiLDefinitionType.Invalid)
 					continue;
 
-				return new(syntax.Modifiers.Any(p => p.ValueText?.Equals("partial") == true), syntax, attribute);
+				yield return new(definition, syntax.Modifiers.Any(p => p.ValueText?.Equals("partial") == true), syntax, attribute);
 			}
-
-		return default;
 	}
 
-	private void Execute(Compilation compilation, ImmutableArray<SQuiLDependency> dependencies, ImmutableArray<AdditionalText> files, ImmutableArray<SQuiLDefinition> classes, ImmutableDictionary<string, SQuiLPartialModel> records, SourceProductionContext context)
+	private void Execute(Compilation compilation, ImmutableArray<SQuiLDependency> dependencies, ImmutableArray<AdditionalText> files, ImmutableArray<SQuiLDefinition> definitions, ImmutableDictionary<string, SQuiLPartialModel> records, SourceProductionContext context)
 	{
 		//if (!System.Diagnostics.Debugger.IsAttached) System.Diagnostics.Debugger.Launch();
 
@@ -180,43 +203,49 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			context.ReportNoMicrosoftDataSqlClientDll();
 
 		GenerateBaseDataContextClass();
-		GenerateQueryFilesEnum(files, context);
+		GenerateQueryFilesEnum(context, files);
+
+		var classes = definitions.Where(p => p.Type == SQuiLDefinitionType.Query).ToImmutableArray();
 
 		if (classes.IsDefaultOrEmpty || files.IsDefaultOrEmpty)
 		{
 			GenerateDependencyInjectionCode([]);
+			GenerateTablesEnum(context, []);
 			return;
 		}
 
 		List<string> contexts = [];
+		ImmutableDictionary<string, SQuiLTableMap> tableMap = classes
+			.GroupBy(p => p.Class.Identifier.ValueText)
+			.SelectMany(p => p.Select((q, i) => (
+				Key: GetValueLocation(q.Attribute.ArgumentList!).Value,
+				Value: new SQuiLTableMap(i == 0, p.Key)
+			)))
+			.ToImmutableDictionary(p => p.Key, p => p.Value);
 
-		FileGenerator generator = new(ShowDebugMessages, context);
-		foreach (var syntax in classes.Distinct())
+		// compare all models
+		FileGenerator generator = new(ShowDebugMessages, context, tableMap);
+		foreach (var definition in classes.Distinct())
 		{
 			context.CancellationToken.ThrowIfCancellationRequested();
 
-			var list = syntax.Attribute.ArgumentList!;
+			var list = definition.Attribute.ArgumentList!;
 
 			var setting = (list.Arguments.Skip(1).FirstOrDefault()?.Expression as LiteralExpressionSyntax)?.Token.ValueText.Trim()
 				?? DefaultConnectionStringAppSettingName;
 
-			var (method, location) = list.Arguments[0].Expression switch
-			{
-				MemberAccessExpressionSyntax member => (member.Name.Identifier.Text, member.GetLocation()),
-				IdentifierNameSyntax identifier => (identifier.ToString(), identifier.GetLocation()),
-				_ => ("", default(Location))
-			};
+			var (method, location) = GetValueLocation(list);
 			if (location is null) continue;
 
 			var file = files.FirstOrDefault(p => p.Path.Replace("\\", "").Replace(".sql", "").Equals(method));
 			if (file is null) return;
 
 			var text = file.GetText(context.CancellationToken);
-			var inherits = syntax.Class.BaseList?.Types
+			var inherits = definition.Class.BaseList?.Types
 				.Any(p => p.ToString() == BaseDataContextClassName
 					|| p.ToString().StartsWith($"{BaseDataContextClassName}(")) == true;
 
-			if (!syntax.HasPartialKeyword || text is null || !inherits)
+			if (!definition.HasPartialKeyword || text is null || !inherits)
 			{
 				if (text is null)
 				{
@@ -228,17 +257,17 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					context.MissingBaseDataContextDeclaration(location);
 				}
 
-				if (!syntax.HasPartialKeyword)
+				if (!definition.HasPartialKeyword)
 				{
-					location = syntax.Class.Keyword.GetLocation();
+					location = definition.Class.Keyword.GetLocation();
 					context.MissingPartialDeclaration(location);
 				}
 
 				continue;
 			}
 
-			var classname = syntax.Class.Identifier.ValueText;
-			var @namespace = syntax.Class.Parent switch
+			var classname = definition.Class.Identifier.ValueText;
+			var @namespace = definition.Class.Parent switch
 			{
 				NamespaceDeclarationSyntax p => p.Name.ToString(),
 				FileScopedNamespaceDeclarationSyntax p => p.Name.ToString(),
@@ -247,7 +276,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 			if (@namespace is null)
 			{
-				context.SQuiLClassContextMustHaveNamespace(classname, syntax.Class.GetLocation());
+				context.SQuiLClassContextMustHaveNamespace(classname, definition.Class.GetLocation());
 				GenerateDependencyInjectionCode([]);
 				return;
 			}
@@ -260,6 +289,15 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		}
 
 		GenerateDependencyInjectionCode(contexts);
+		GenerateTablesEnum(context, generator.Tables);
+
+		(string Value, Location? Location) GetValueLocation(AttributeArgumentListSyntax syntax)
+			=> syntax.Arguments[0].Expression switch
+			{
+				MemberAccessExpressionSyntax member => (member.Name.Identifier.Text, member.GetLocation()),
+				IdentifierNameSyntax identifier => (identifier.ToString(), identifier.GetLocation()),
+				_ => ("", default(Location))
+			};
 
 		void GenerateBaseDataContextClass()
 		{
@@ -275,13 +313,17 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 				public abstract class {{BaseDataContextClassName}}(IConfiguration Configuration)
 				{
+					//public virtual string SettingName { get; } = "{{DefaultConnectionStringAppSettingName}}";
+
 					protected string {{EnvironmentName}} { get; } = Configuration.GetSection("{{EnvironmentName}}")?.Value
 						?? Environment.GetEnvironmentVariable(Configuration.GetSection("EnvironmentVariable")?.Value ?? "ASPNETCORE_ENVIRONMENT")
 						?? "Development";
-
-					protected SqlConnectionStringBuilder ConnectionStringBuilder { get; }
-						= new(Configuration.GetConnectionString("SQuiLDatabase")
-							?? throw new Exception("Cannot find a connection string in the appsettings for SQuiLDatabase."));
+						
+					protected SqlConnectionStringBuilder ConnectionStringBuilder(string settingName)
+					{
+						return new SqlConnectionStringBuilder(Configuration.GetConnectionString(settingName)
+							?? throw new Exception($"Cannot find a connection string in the appsettings for {settingName}."));
+					}
 				}
 				""", Encoding.UTF8));
 		}
@@ -312,7 +354,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 							this IServiceCollection services)
 						""", () =>
 					{
-						if (contexts.Count == 0)
+						if (contexts.Count > 0)
 						{
 							foreach (var singleton in contexts.Distinct())
 								writer.WriteLine($"services.AddSingleton<{singleton}>();");
@@ -327,7 +369,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			context.AddSource($"{NamespaceName}Extensions.g.cs", SourceText.From(text.ToString(), Encoding.UTF8));
 		}
 
-		static void GenerateQueryFilesEnum(ImmutableArray<AdditionalText> files, SourceProductionContext context)
+		static void GenerateQueryFilesEnum(SourceProductionContext context, ImmutableArray<AdditionalText> files)
 		{
 			StringBuilder sb = new();
 			sb.Append($$"""
@@ -338,7 +380,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				{
 				""");
 			var comma = "";
-			foreach (var method in files.Select(p => p.Path.Replace("\\", "")))
+			foreach (var method in files.Where(p => p.Path.EndsWith(".sql")).Select(p => p.Path.Replace("\\", "")))
 			{
 				sb.AppendLine(comma);
 				sb.Append($"\t{method[..^4]}");
@@ -348,6 +390,29 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			sb.AppendLine("}");
 
 			context.AddSource($"{NamespaceName}QueryFilesEnum.g.cs", sb.ToString());
+		}
+
+		static void GenerateTablesEnum(SourceProductionContext context, IEnumerable<string> tables)
+		{
+			StringBuilder sb = new();
+			sb.Append($$"""
+				{{FileHeader}}
+				namespace {{NamespaceName}};
+				
+				public enum TableType
+				{
+				""");
+			var comma = "";
+			foreach (var table in tables)
+			{
+				sb.AppendLine(comma);
+				sb.Append($"\t{table}");
+				comma = ",";
+			}
+			sb.AppendLine();
+			sb.AppendLine("}");
+
+			context.AddSource($"{NamespaceName}TableTypeEnum.g.cs", sb.ToString());
 		}
 	}
 }

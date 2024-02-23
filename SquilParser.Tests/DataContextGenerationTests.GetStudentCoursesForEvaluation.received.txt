@@ -1,0 +1,24 @@
+﻿{
+  Diagnostics: [
+    {
+      Id: SP0009,
+      Title: Microsoft.Extensions.DependencyInjection.DLL Missing,
+      Severity: Error,
+      WarningLevel: 0,
+      Location: : (0,0)-(0,0),
+      MessageFormat: Add Microsoft.Extensions.DependencyInjection from NuGet to project.,
+      Message: Add Microsoft.Extensions.DependencyInjection from NuGet to project.,
+      Category: Design
+    },
+    {
+      Id: SP0008,
+      Title: Microsoft.Extensions.Configuration.DLL Missing,
+      Severity: Error,
+      WarningLevel: 0,
+      Location: : (0,0)-(0,0),
+      MessageFormat: Add Microsoft.Extensions.Configuration from NuGet to project.,
+      Message: Add Microsoft.Extensions.Configuration from NuGet to project.,
+      Category: Design
+    }
+  ]
+}

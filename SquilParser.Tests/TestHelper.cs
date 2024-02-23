@@ -24,7 +24,9 @@ public static class TestHelper
 		];
 
 		var additionalFiles = files
-			.Select(p => new AdditionalFile(p) as AdditionalText)
+			.Select(p => (AdditionalText)(p.StartsWith("--Name:")
+				? new AdditionalQuery(p)
+				: new AdditionalFile(p)))
 			.ToImmutableArray();
 
 		var compilation = CSharpCompilation.Create(
@@ -41,6 +43,14 @@ public static class TestHelper
 
 		return Verifier.Verify(driver);
 	}
+}
+
+file class AdditionalQuery(string Text) : AdditionalText
+{
+	public override string Path { get; } = $"{Text[0..Text.IndexOf('\n')].Split(':', 2)[1].Trim()}.sql";
+
+	public override SourceText? GetText(CancellationToken cancellationToken = default)
+		=> SourceText.From(Text[Text.IndexOf('\n')..].TrimStart());
 }
 
 file class AdditionalFile(string Path) : AdditionalText

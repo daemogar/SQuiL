@@ -17,9 +17,9 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_BOOLEAN => "GetBoolean",
 		TokenType.TYPE_INT => "GetInt32",
 		TokenType.TYPE_STRING => "GetString",
-		TokenType.TYPE_DATE => "GetSqlDateTime",
-		TokenType.TYPE_TIME => "GetSqlDateTime",
-		TokenType.TYPE_DATETIME => $"GetSqlDateTime",
+		TokenType.TYPE_DATE => "GetDateTime",
+		TokenType.TYPE_TIME => "GetDateTime",
+		TokenType.TYPE_DATETIME => $"GetDateTime",
 		_ => throw new Exception($"Invalid database type `{Type}`")
 	};
 
@@ -65,11 +65,13 @@ public record Token(TokenType Type, int Offset, string Value)
 			TokenType.TYPE_BOOLEAN => $"{property} ? '1' : '0'",
 			TokenType.TYPE_INT => property,
 			TokenType.TYPE_STRING => S(),
-			TokenType.TYPE_DATE => property,
-			TokenType.TYPE_TIME => property,
-			TokenType.TYPE_DATETIME => property,
+			TokenType.TYPE_DATE => D($"{property}:yyyy-MM-dd"),
+			TokenType.TYPE_TIME => D($"{property}:HH:mm:ss.FFFFFFF"),
+			TokenType.TYPE_DATETIME => D($"{property}:yyyy-MM-dd HH:mm:ss.FFFFFFF"),
 			_ => throw new DiagnosticException($"Invalid model {property} type `{Type}`")
 		};
+
+		string D(string property) => $"$\"'{{{property}}}'\"";
 
 		string S() => $""""
 			{property} is null || {property}.Length <= {Value}

@@ -8,7 +8,6 @@ namespace TestCase;
 partial record ApplicationSpecificDataContextQueriesExampleRequest
 {
 	public System.DateOnly RunAsOf { get; set; } = System.DateOnly.FromDateTime(System.DateTime.Now);
-	public string? Bob1 { get; set; }
 	public string Bob3 { get; set; } = "";
 	public System.Collections.Generic.List<ApplicationSpecificDataContextQueriesExampleRequestSallyTable> Sally { get; set; } = [];
 }

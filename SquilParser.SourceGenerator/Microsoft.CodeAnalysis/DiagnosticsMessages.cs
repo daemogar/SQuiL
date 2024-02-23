@@ -86,7 +86,7 @@ public static class DiagnosticsMessages
   public static void ReportNoDataContextUsage(this SourceProductionContext context)
   {
 	context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Warning, "SP0005", "No SQuiL Contexts Are Created",
-		$"There are no SQuiL contexts created. Make sure to create a partial class and add the [{SourceGeneratorHelper.AttributeName}]."));
+		$"There are no SQuiL contexts created. Make sure to create a partial class and add the [{SourceGeneratorHelper.QueryAttributeName}]."));
   }
 
   private static readonly Regex Newline = new("(\r?\n)", RegexOptions.Compiled | RegexOptions.Singleline);

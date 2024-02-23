@@ -13,7 +13,7 @@ public class SQuiLTokenizer(string Text)
 		"""^(DECLARE|SET|USE|AS|INSERT|INTO|VALUES)""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
 	private static Regex TypeRegex { get; } = new(
-		"""^(bit|int|(date|time|datetime(|2|offset))|n?(text|(var)?char\s*\(\s*(\d+|max)\s*\))|table\s*\(|identity(\s*\(\s*\d+\s*,\s*\d+\s*\))?|default\s+(\d+|'.*?'))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+		"""^(bit|int|(date(?!time)|time|datetime(|2|offset))|n?(text|(var)?char\s*\(\s*(\d+|max)\s*\))|table\s*\(|identity(\s*\(\s*\d+\s*,\s*\d+\s*\))?|default\s+(\d+|'.*?'))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
 
 	private static Regex FunctionRegex { get; } = new(
 		"""^(getdate\(\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
@@ -341,6 +341,7 @@ public class SQuiLTokenizer(string Text)
 						return false;
 
 					tokenizer.Increment(match.Value.Length);
+					var index = tokenizer.Index + 1;
 					SkipWhitespace();
 
 					if (tokenizer.Letter == '(')
@@ -348,7 +349,7 @@ public class SQuiLTokenizer(string Text)
 
 					insertIntoToken = new Token(
 						TokenType.INSERT_INTO_TABLE,
-						tokenizer.Index,
+						index,
 						match.Value[1..]);
 
 					return true;

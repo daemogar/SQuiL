@@ -6,11 +6,9 @@ public static class SourceGeneratorHelper
 
 	public static string ConfigRootPath { get; } = $"{NamespaceName}SolutionRoot";
 
-	public static string AttributeName { get; } = $"{NamespaceName}Attribute";
-
-	public static string AttributeFQDN { get; } = $"{NamespaceName}.{AttributeName}";
-
-	public static string AttributeFile { get; } = $"{AttributeName}.g.cs";
+	public static string QueryAttributeName { get; } = $"{NamespaceName}QueryAttribute";
+	
+	public static string TableTypeAttributeName { get; } = $"{NamespaceName}TableAttribute";
 
 	public static string BaseDataContextClassName { get; } = $"{NamespaceName}BaseDataContext";
 

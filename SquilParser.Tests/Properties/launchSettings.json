@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "SquilParser.Tests": {
+      "commandName": "Project"
+    },
+    "Docker": {
+      "commandName": "Docker"
+    }
+  }
+}

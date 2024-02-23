@@ -171,7 +171,7 @@ public class SQuiLParser(List<Token> Tokens)
 			Consume();
 
 			string T(string name)
-				=> $" '{name}' As [{SQuiLDataContext.SQuiLTableTypeDatabaseTagName}],";
+				=> $" '{name}' As [{SQuiLDataContext.SQuiLTableTypeDatabaseTagName}{name}__],";
 		}
 
 		void ProcessUseStatement()
