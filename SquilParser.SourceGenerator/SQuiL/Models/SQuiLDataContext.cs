@@ -1,6 +1,4 @@
-﻿using Azure.Core;
-
-using Microsoft.CodeAnalysis;
+﻿using Microsoft.CodeAnalysis;
 
 using SQuiL.Generator;
 using SQuiL.Tokenizer;
@@ -11,41 +9,40 @@ using System.CodeDom.Compiler;
 
 namespace SQuiL.Models;
 
-public class SQuiLDataContext
+public class SQuiLDataContext(
+		string NameSpace,
+		string ClassName,
+		string Method,
+		string Setting,
+		List<CodeBlock> Blocks)
 {
 	internal static string SQuiLTableTypeDatabaseTagName => "__SQuiL__Table__Type__";
 
-	internal static ExceptionOrValue<StringWriter> GenerateCode(
-		string @namespace,
-		string classname,
-		string method,
-		string setting,
-		List<CodeBlock> blocks)
+	public ExceptionOrValue<string> GenerateCode(SQuiLFileGeneration generation)
 	{
 		StringWriter text = new();
 		IndentedTextWriter writer = new(text, "\t");
 
-		var database = blocks.FirstOrDefault(p => p.CodeType == CodeType.USING)?.Name;
+		var database = Blocks.FirstOrDefault(p => p.CodeType == CodeType.USING)?.Name;
 		if (database is null)
 			return new Exception("Missing USE statement.");
 
-		var query = blocks.First(p => p.CodeType == CodeType.BODY)?.Name;
+		var query = Blocks.First(p => p.CodeType == CodeType.BODY)?.Name;
 		if (query is null)
 			return new Exception("Missing query body.");
 
-		var responseModel = $"{classname}{method}Response";
-		var requestModel = $"{classname}{method}Request";
+		var inputs = Blocks
+			.Where(p => (p.CodeType & CodeType.INPUT) == CodeType.INPUT
+				&& p.CodeType != CodeType.INPUT_ARGUMENT)
+			.Select(p => (CodeBlock: p, Query: TableDeclaration(p.DatabaseType.Original!, p)))
+			.ToList();
 
-		var inputs = blocks
-			.Where(p => p.CodeType == CodeType.INPUT_TABLE)
-			.Select(p => (CodeBlock: p, Query: TableDeclaration(p.DatabaseType.Original!, p)));
-
-		var outputs = blocks
-			.Where(p => p.CodeType == CodeType.OUTPUT_TABLE
-				|| p.CodeType == CodeType.OUTPUT_VARIABLE)
+		var outputs = Blocks
+			.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT)
 			.Select(p => (CodeBlock: p, Query: p.CodeType == CodeType.OUTPUT_VARIABLE
 				? $"Declare {p.DatabaseType.Original};"
-				: TableDeclaration(p.DatabaseType.Original!, p)));
+				: TableDeclaration(p.DatabaseType.Original!, p)))
+			.ToList();
 
 		writer.WriteLine($$"""
 			{{SourceGeneratorHelper.FileHeader}}
@@ -53,101 +50,102 @@ public class SQuiLDataContext
 
 			using {{SourceGeneratorHelper.NamespaceName}};
 		
-			namespace {{@namespace}};
+			namespace {{NameSpace}};
 
 			""");
 
-		writer.Block($$"""partial class {{classname}} : {{SourceGeneratorHelper.BaseDataContextClassName}}""", () =>
+		Process();
+		return new(text.ToString());
+
+		void Process()
 		{
-			List<string> tableChecks = [];
-
-			//if (setting != SourceGeneratorHelper.DefaultConnectionStringAppSettingName)
-			//{
-			//	writer.WriteLine($$"""public override string SettingName { get; } = "{{setting}}";""");
-			//	writer.WriteLine();
-			//}
-
-			writer.Block($$"""
-								public async Task<{{responseModel}}> Process{{method}}Async(
-									{{requestModel}} request,
-									CancellationToken cancellationToken = default!)
-								""", () =>
+			writer.Block($$"""partial class {{ClassName}} : {{SourceGeneratorHelper.BaseDataContextClassName}}""", () =>
 			{
 				writer.Block($$"""
-									var builder = ConnectionStringBuilder("{{setting}}");
+								public async Task<{{generation.Response.ModelName}}> Process{{Method}}Async(
+									{{generation.Request.ModelName}} request,
+									CancellationToken cancellationToken = default!)
+								""", () =>
+				{
+					writer.Block($$"""
+									var builder = ConnectionStringBuilder("{{Setting}}");
 									using SqlConnection connection = new(builder.ConnectionString);
 									var command = connection.CreateCommand();
-									command.CommandText = Query();
+
 									""");
-				CommandParameters();
-				writer.Block($"""
+					CommandParameters();
+					writer.Block($"""
+
+									command.CommandText = Query(parameters);
+									command.Parameters.AddRange(parameters);
 
 									await connection.OpenAsync(cancellationToken);
 
 									""");
-				if (outputs.Count() == 0)
-				{
-					writer.WriteLine("await command.ExecuteNonQueryAsync(cancellationToken)");
-					writer.WriteLine();
-					writer.WriteLine("return new();");
-				}
-				else
-				{
-					writer.Write($"{responseModel} response = new();");
-					writer.WriteLine();
-					VariableSetTracking();
-					writer.Block("""
+					if (outputs.Count() == 0)
+					{
+						writer.WriteLine("await command.ExecuteNonQueryAsync(cancellationToken)");
+						writer.WriteLine();
+						writer.WriteLine("return new();");
+					}
+					else
+					{
+						writer.WriteLine($"{generation.Response.ModelName} response = new();");
+						writer.WriteLine();
+						VariableSetTracking();
+						writer.Block("""
 
 						using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
 						do
 						""",
-						new Action(() =>
-						{
-							writer.WriteLine("var tableTag = reader.GetName(0);");
-							writer.Block($"""if(tableTag.StartsWith("{SQuiLTableTypeDatabaseTagName}"))""", () =>
+							new Action(() =>
 							{
-								writer.Block($"switch (tableTag)",
-									() => SwitchStatements(ref tableChecks));
-							});
-						}),
-						"""
+								writer.WriteLine("var tableTag = reader.GetName(0);");
+								writer.Block($"""if(tableTag.StartsWith("{SQuiLTableTypeDatabaseTagName}"))""", () =>
+								{
+									writer.Block($"switch (tableTag)", SwitchStatements);
+								});
+							}),
+							"""
 						while (await reader.NextResultAsync(cancellationToken));
 
 						""");
 
-					if (tableChecks.Count > 0)
-					{
-						foreach (var table in tableChecks)
-							writer.WriteLine($"""if (!is{table}) throw new Exception("Expected return table `{table}`)");""");
-						writer.WriteLine();
-					}
+						if (outputs.Count > 0)
+						{
+							foreach (var block in outputs.Select(p => p.CodeBlock).OrderBy(p => p.IsObject ? 1 : p.IsTable ? 2 : 0))
+								writer.WriteLine($"""if (!is{block.Name}) throw new Exception("Expected return table `{block.Name}`)");""");
+							writer.WriteLine();
+						}
 
-					writer.WriteLine("return response;");
-				}
-				InsertQueries();
-				writer.Block($""""
+						writer.WriteLine("return response;");
+					}
+					InsertQueries();
+					writer.Block($""""
 				
-									string Query() => $"""
+									string Query(List<SqlParameter> parameters) => $"""
 									"""");
-				QueryDeclareStatements();
-				writer.Block($$""""
+					QueryDeclareStatements();
+					writer.Block($$""""
 									Use [{builder.InitialCatalog}];
 							
 									{{query}}
 									""";
 									"""");
+				});
 			});
-		});
+		}
 
 		void QueryDeclareStatements()
 		{
 			foreach (var (CodeBlock, Query) in inputs)
 				writer.Block($$"""
 					{{Query}}
-					{input{{CodeBlock.Name}}()}
+					{input{{CodeBlock.Name}}(parameters)}
+
 					""");
-			
+
 			foreach (var output in outputs)
 			{
 				writer.Block(output.Query);
@@ -155,49 +153,54 @@ public class SQuiLDataContext
 			}
 		}
 
-		return text;
-
 		void VariableSetTracking()
 		{
-			foreach (var (block, query) in outputs.OrderByDescending(p => p.CodeBlock.IsTable))
+			foreach (var (block, query) in outputs
+				.OrderBy(p => p.CodeBlock.IsObject ? 1 : p.CodeBlock.IsTable ? 2 : 0))
 			{
 				writer.WriteLine($"var is{block.Name} = false;");
 			}
 		}
 
-		void SwitchStatements(ref List<string> tableChecks)
+		void SwitchStatements()
 		{
 			try
 			{
 				foreach (var (block, query) in outputs)
 				{
-					if (block.IsTable)
-						tableChecks.Add(block.Name);
-
 					var switchCase = block.Name;
 					if ((block.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT)
-						switchCase = $"Return_{switchCase}";
+						switchCase = $"{(block.IsTable ? "Returns" : "Return")}_{switchCase}";
 
 					writer.Block($"""case "{SQuiLTableTypeDatabaseTagName}{switchCase}__":""", () =>
 					{
+						if (!block.IsTable)
+						{
+							writer.WriteLine($"if (is{block.Name}) throw new Exception(");
+							writer.Indent++;
+							writer.WriteLine($"\"Already returned value for `{block.Name}`\");");
+							writer.Indent--;
+							writer.WriteLine();
+						}
 						writer.WriteLine($"is{block.Name} = true;");
 						writer.WriteLine();
 						writer.WriteLine("if (!await reader.ReadAsync(cancellationToken)) break;");
-						writer.WriteLine();
 						if (block.IsTable)
 						{
-							foreach (var item in block.Table)
+							writer.WriteLine();
+
+							foreach (var item in block.Properties)
 								writer.WriteLine($"""var index{item.Identifier.Value} = reader.GetOrdinal("{item.Identifier.Value}");""");
 
 							writer.WriteLine();
 							writer.Block("do", () =>
 							{
-								writer.Block($"""if(reader.GetString(0) == "{switchCase}")""", () =>
+								writer.Block($"""if (reader.GetString(0) == "{switchCase}")""", () =>
 								{
 									writer.Write($"response.{block.Name}.Add(new(");
 									writer.Indent++;
 									var comma = "";
-									foreach (var item in block.Table)
+									foreach (var item in block.Properties)
 									{
 										writer.WriteLine(comma);
 										writer.Write($"""{item.DataReader()}(index{item.Identifier.Value})""");
@@ -206,14 +209,42 @@ public class SQuiLDataContext
 									writer.Indent--;
 									writer.WriteLine("));");
 								});
-							}, $"""while(await reader.ReadAsync(cancellationToken));""");
+							}, $"""while (await reader.ReadAsync(cancellationToken));""");
+						}
+						else if (block.IsObject)
+						{
+							writer.Block($"""
+
+								if (response.Object is not null)
+									throw new Exception("{block.Name} was already set.");
+
+								""");
+							//writer.Block("if (await reader.ReadAsync(cancellationToken))"
+							writer.Block($"""if (reader.GetString(0) == "{switchCase}")""", () =>
+							{
+								writer.Write($"response.{block.Name} = new(");
+								writer.Indent++;
+								var comma = "";
+								foreach (var item in block.Properties)
+								{
+									writer.WriteLine(comma);
+									writer.Write($"""{item.DataReader()}(reader.GetOrdinal("{item.Identifier.Value}"))""");
+									comma = ",";
+								}
+								writer.Indent--;
+								writer.WriteLine(");");
+							});
+							writer.Block("else", () => writer.WriteLine("continue;"));
+							writer.Block($"""
+
+								if (await reader.ReadAsync(cancellationToken))
+									throw new Exception(
+										"Return object results in more than one object. Consider using a return table instead.");
+
+								""");
 						}
 						else
 						{
-							writer.WriteLine($"if (is{block.Name}) throw new Exception(");
-							writer.Indent++;
-							writer.WriteLine($"\"Already returned value for `{block.Name}`\");");
-							writer.Indent--;
 							writer.WriteLine();
 
 							var isNullable = "null";
@@ -226,13 +257,12 @@ public class SQuiLDataContext
 							writer.WriteLine($"response.{block.Name} = !reader.IsDBNull(1) ? {block.DataReader()}(1) : {isNullable};");
 						}
 						writer.WriteLine("break;");
-						writer.WriteLine();
 					});
 				}
 			}
 			finally
 			{
-				writer.WriteLine("""//default: throw new Exception($"Invalid Table `{reader.GetString(0)}`");""");
+				//writer.WriteLine("""//default: throw new Exception($"Invalid Table `{reader.GetString(0)}`");""");
 			}
 		}
 
@@ -241,75 +271,112 @@ public class SQuiLDataContext
 			foreach (var (CodeBlock, Query) in inputs)
 			{
 				writer.WriteLine();
-				writer.WriteLine($"string input{CodeBlock.Name}()");
-				writer.WriteLine("{");
-				writer.Indent++;
-				writer.WriteLine($"""if (request.{CodeBlock.Name}.Count == 0) return "";""");
-				writer.WriteLine();
-				writer.WriteLine($"System.Text.StringBuilder query = new();");
-				writer.WriteLine($"""query.Append("Insert Into @{CodeBlock.Name}({string.Join(", ", CodeBlock.Table.Select(p => p.Identifier.Value))}) Values");""");
-				writer.WriteLine($"""var comma = "";""");
-				writer.WriteLine($"foreach(var item in request.{CodeBlock.Name})");
-				writer.WriteLine("{");
-				writer.Indent++;
-				writer.WriteLine($"query.AppendLine(comma);");
-				writer.WriteLine($"""query.Append('(');""");
-				var comma = "";
-				foreach (var property in CodeBlock.Table
-					.Select(CodeItem.SqlProperty(classname, CodeBlock.Name))
-					.Select(p => p.Replace("\r", "").Split('\n')))
+				writer.Block($"string input{CodeBlock.Name}(List<SqlParameter> parameters)", () =>
 				{
-					if (comma.Length > 0)
-						writer.WriteLine($"""query.Append("{comma}");""");
+					writer.Block($"""
+						System.Text.StringBuilder query = new();
+						query.Append("Insert Into @{CodeBlock.Name}({string.Join(", ", CodeBlock.Properties.Select(p => p.Identifier.Value))})");
+						""");
+					writer.WriteLine();
 
-					writer.Write($"query.Append({property[0]}");
-
-					if (property.Length == 1)
-						writer.WriteLine($");");
-					else
+					if (CodeBlock.IsTable)
 					{
-						foreach (var line in property.Skip(1))
+						writer.Block($"""
+							if (request.{CodeBlock.Name}.Count == 0) return "";
+
+							query.AppendLine(" Values");
+
+							var comma = "";
+							var index = 0;
+
+							""");
+						writer.Block($"foreach(var item in request.{CodeBlock.Name})", () =>
 						{
-							writer.WriteLine();
-							writer.Write(line);
-						}
-						writer.WriteLine(");");
+							writer.Block("""
+								index++;
+
+								query.AppendLine(comma);
+								query.Append('(');
+								""");
+							a("s", "index", "item");
+							writer.Block("""
+								query.Append(')');
+
+								comma = ",";
+								""");
+						});
+						writer.WriteLine();
+					}
+					else if (CodeBlock.IsObject)
+					{
+						writer.Block($"""
+							if (request.{CodeBlock.Name} is null) return "";
+
+							query.AppendLine();
+							query.Append("Values (");
+
+							""");
+						a("", "0", $"request.{CodeBlock.Name}");
+						writer.Block("""
+					
+							query.Append(')');
+							""");
 					}
 
-					comma = ", ";
+					writer.Block("""						
+						query.AppendLine(';');
+						query.AppendLine();
+
+						return query.ToString();
+						""");
+				});
+
+				void a(string param, string index, string item)
+				{
+					param = $"Param{param}{CodeBlock.Name}";
+
+					var notFirst = false;
+					foreach (var property in CodeBlock.Properties)
+					{
+						if (notFirst)
+							writer.WriteLine($"""query.Append(", ");""");
+
+						writer.Write($"AddParams(query, ");
+						writer.Write($"parameters, ");
+						writer.Write($"{index}, ");
+						writer.Write($"\"{param}\", ");
+						writer.Write($"\"{property.Identifier.Value}\", ");
+						writer.Write($"{property.Type.SqlDbType(allowNullSize: true)}, ");
+						writer.Write($"{item}.{property.Identifier.Value}");
+
+						if (property.Type.Type == TokenType.TYPE_STRING)
+							writer.Write($", {property.Type.Value}");
+
+						writer.WriteLine(");");
+
+						notFirst = true;
+					}
 				}
-				writer.WriteLine($"""query.Append(')');""");
-				writer.WriteLine();
-				writer.WriteLine($"""comma = ",";""");
-				writer.Indent--;
-				writer.WriteLine("}");
-				writer.WriteLine();
-				writer.WriteLine($"""query.AppendLine(";");""");
-				writer.WriteLine($"""query.AppendLine();""");
-				writer.WriteLine();
-				writer.WriteLine("return query.ToString();");
-				writer.Indent--;
-				writer.WriteLine("}");
 			}
 		}
 
 		string TableDeclaration(string name, CodeBlock block) => $"""
 			Declare {block.DatabaseType.Original}(
 				[{SQuiLTableTypeDatabaseTagName}{name[1..^6]}__] varchar(max) default('{name[1..^6]}'),
-				{string.Join($",{writer.NewLine}\t", block.Table.Select(p
+				{string.Join($",{writer.NewLine}\t", block.Properties.Select(p
 					=> $"{p.Identifier.Value} {p.Type.Original}"))});
 			""";
 
 		void CommandParameters()
 		{
-			writer.WriteLine("command.Parameters.AddRange(new SqlParameter[]");
+			writer.WriteLine("List<SqlParameter> parameters = new()");
 			writer.WriteLine("{");
 			writer.Indent++;
 
 			writer.WriteLine($$"""new("{{SQuiLGenerator.EnvironmentName}}", System.Data.SqlDbType.VarChar, {{SQuiLGenerator.EnvironmentName}}.Length) { Value = {{SQuiLGenerator.EnvironmentName}} }, """);
 			writer.Write($$"""new("{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit) { Value = {{SQuiLGenerator.EnvironmentName}} != "Production" }, """);
 
-			var parameters = blocks
+			var parameters = Blocks
 				.Where(p => p.CodeType == CodeType.INPUT_ARGUMENT)
 				.ToList();
 
@@ -361,7 +428,7 @@ public class SQuiLDataContext
 			}
 
 			writer.Indent--;
-			writer.WriteLine("});");
+			writer.WriteLine("};");
 		}
 		/*
 		string F(IEnumerable<string> lines)

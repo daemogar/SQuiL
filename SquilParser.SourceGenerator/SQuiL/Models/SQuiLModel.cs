@@ -8,242 +8,203 @@ using SquilParser.SourceGenerator.Parser;
 
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
+using System.Diagnostics;
+using System.Reflection.Metadata;
 
 namespace SQuiL.Models;
 
 public class SQuiLModel(
 	string NameSpace,
-	string ClassName,
 	string ModelName,
 	string ModelType,
-	CodeType CodeType,
-	IEnumerable<CodeBlock> Blocks,
+	ImmutableDictionary<string, SQuiLTableMap> TableMap,
 	ImmutableDictionary<string, SQuiLPartialModel> Records)
 {
-  public static (IEnumerable<Exception> Exceptions, IEnumerable<(string HintName, string TableName, string Text)> Sources) GenerateModelCode(
-	  string @namespace,
-	  string classname,
-	  string modelname,
-	  List<CodeBlock> blocks,
-	  ImmutableDictionary<string, SQuiLTableMap> tableMap,
-	  ImmutableDictionary<string, SQuiLPartialModel> records)
-  {
-	var request = new SQuiLModel(
-		@namespace, classname, modelname, "Request", CodeType.INPUT, blocks, records);
-	var response = new SQuiLModel(
-		@namespace, classname, modelname, "Response", CodeType.OUTPUT, blocks, records);
+	public string ModelName { get; } = $"{ModelName}{ModelType}";
 
-	var (exceptions, sources) = request.GenerateCode(p =>
+	public List<SQuiLProperty> Properties { get; } = [];
+
+	public static (SQuiLModel Request, SQuiLModel Response) Create(
+		string @namespace,
+		string modelname,
+		List<CodeBlock> blocks,
+		ImmutableDictionary<string, SQuiLTableMap> tableMap,
+		ImmutableDictionary<string, SQuiLPartialModel> records)
 	{
-	  if (!blocks.Any(p => p.Name == "Debug"))
-		p.WriteLine("public bool Debug { get; set; }");
-	});
-	var (e1, s1) = response.GenerateCode(p => { });
+		//if (!Debugger.IsAttached) Debugger.Launch();
 
-	return (exceptions.Union(e1), sources.Union(s1)
-		.Select(p => (
-			$"{@namespace}.{classname}.{modelname}.{p.HintName}.g.cs",
-			p.HintName,
-			p.Text
-		)));
-  }
+		var request = new SQuiLModel(@namespace, modelname, "Request", tableMap, records)
+			.Build(blocks.Where(p => (p.CodeType & CodeType.INPUT) == CodeType.INPUT));
 
-  private string ModelName { get; } = $"{ClassName}{ModelName}{ModelType}";
+		var response = new SQuiLModel(@namespace, modelname, "Response", tableMap, records)
+			.Build(blocks.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT));
 
-  public List<(string HintName, string Text)> Tables { get; } = [];
+		return (request, response);
+	}
 
-  public (List<Exception> Exceptions, (string HintName, string Text)[] Sources) GenerateCode(
-	  Action<IndentedTextWriter> callback)
-  {
-	List<Exception> exceptions = [];
-	var blocks = Blocks.Where(p => (p.CodeType & CodeType) == CodeType);
+	public ExceptionOrValue<string> GenerateCode()
+	{
+		StringWriter text = new();
+		IndentedTextWriter writer = new(text, "\t");
 
-	StringWriter text = new();
-	IndentedTextWriter writer = new(text, "\t");
-	writer.WriteLine($$"""
+		writer.WriteLine($$"""
 			{{SourceGeneratorHelper.FileHeader}}
 			namespace {{NameSpace}};
 			
-			{{Modifier(ModelName)}}partial record {{ModelName}}
+			{{Modifier(ModelName)}} {{ModelName}}
 			{
 			""");
-	writer.Indent++;
-	callback(writer);
-	foreach (var block in blocks.OrderBy(p => p.IsTable))
-	  GeneratePropertyCode(writer, block);
-	writer.Indent--;
-	writer.WriteLine("}");
-	return (exceptions, [
-		($"{ModelType}Model", text.ToString()),
-	  .. Tables
-	]);
 
-	string Modifier(string name)
-	{
-	  if (!Records.TryGetValue(name, out var access))
-		return "public ";
+		writer.Indent++;
 
-	  if (access.Syntax.Modifiers.Any(SyntaxKind.PublicKeyword))
-		return "";
+		Action newline = () => { };
 
-	  var modifiers = "";
-
-	  if (access.Syntax.Modifiers.Any(SyntaxKind.InternalKeyword))
-		modifiers += ",internal";
-	  if (access.Syntax.Modifiers.Any(SyntaxKind.PrivateKeyword))
-		modifiers += ",private";
-	  if (access.Syntax.Modifiers.Any(SyntaxKind.ProtectedKeyword))
-		modifiers += ",protected";
-
-	  if (modifiers.Length == 0)
-		return "public ";
-
-	  var message = $"{name} cannot use keyword modifiers [{modifiers[1..]}], " +
-		  $"either use public or exlcude the use of a keyword modifier.";
-
-	  exceptions.Add(new Exception(message));
-	  return default!;
-	}
-
-	bool InheritsProperty(string model, string name)
-	{
-	  if (!Records.TryGetValue(model, out var record))
-		return false;
-
-	  foreach (var member in record.Syntax.Members)
-	  {
-		if (member is not PropertyDeclarationSyntax property)
-		  continue;
-
-		if (property.Identifier.Value?.Equals(name) == true)
-		  return true;
-	  }
-
-	  if (record.Syntax.ParameterList is not null)
-		foreach (var member in record.Syntax.ParameterList.Parameters)
+		if (ModelType == "Request")
 		{
-		  if (member.Identifier.Value?.Equals(name) == true)
-			return true;
+			writer.WriteLine("public bool Debug { get; set; }");
+			newline = writer.WriteLine;
 		}
 
-	  if (record.Syntax.BaseList is not null)
-		foreach (var type in record.Syntax.BaseList.Types)
+		foreach (var property in Properties.OrderBy(p => p is SQuiLObject ? 1 : p is SQuiLTable ? 2 : 0))
 		{
-		  if (type switch
-		  {
-			SimpleBaseTypeSyntax basic => InheritsProperty(basic.Type.ToString(), name),
-			PrimaryConstructorBaseTypeSyntax primary => InheritsProperty(primary.Type.ToString(), name),
-			_ => false
-		  }) return true;
+			newline();
+			property.GenerateCode(writer);
+			newline = writer.WriteLine;
 		}
 
-	  return false;
+		writer.Indent--;
+		writer.WriteLine('}');
+
+		return new ExceptionOrValue<string>(text.ToString());
 	}
 
-	void GeneratePropertyCode(IndentedTextWriter writer, CodeBlock block)
+	private SQuiLModel Build(IEnumerable<CodeBlock> blocks)
 	{
-	  if (block.Name == SQuiLGenerator.Debug || block.Name == SQuiLGenerator.EnvironmentName) return;
-	  if (InheritsProperty(ModelName, block.Name)) return;
+		foreach (var block in blocks)
+		{
+			if (block.Name == SQuiLGenerator.Debug
+				|| block.Name == SQuiLGenerator.EnvironmentName
+				|| InheritsProperty(ModelName, block.Name))
+				continue;
 
-	  var nullable = block.IsNullable ? "?" : "";
+			if (block.IsTable)
+				Create<SQuiLTable>(block, (p, q) => new(NameSpace, Modifier(p), p, block, TableMap, Records)
+				{
+					HasParameterizedConstructor = q
+				});
+			else if (block.IsObject)
+				Create<SQuiLObject>(block, (p, q) => new(NameSpace, Modifier(p), p, block, TableMap, Records)
+				{
+					HasParameterizedConstructor = q
+				});
+			else
+				CreateProperty(block);
+		}
 
-	  writer.Write($$"""public {{block.CSharpType(ModelName)}}{{nullable}} {{block.Name}} { get; set; }""");
+		return this;
+	}
 
-	  if (!block.IsTable)
-	  {
-		var value = block.CSharpValue();
+	private void CreateProperty(CodeBlock block)
+	{
+		var type = ModelName;
 
-		if (value is not null && block.Name != "Debug")
-		  writer.Write($$""" = {{value}};""");
+		if (TableMap.TryGetValue(ModelName, out var map))
+			type = map.TableName;
 
-		writer.WriteLine();
+		Properties.Add(new(type, block));
+	}
 
-		return;
-	  }
+	private void Create<T>(CodeBlock block, Func<string, bool, T> callback) where T : SQuiLTable
+	{
+		var type = typeof(T).Name[5..];
 
-	  var type = ModelName + block.Name + "Table";
+		if (block.Properties is null)
+			throw new DiagnosticException(
+				$"Cannot generate {type} `{block.Name}` for {ModelName}");
 
-	  if (block.Table is null)
+		type = $"{ModelName}{block.Name}{type}";
+
+		if (TableMap.TryGetValue(block.Name, out var map))
+			type = map.TableName;
+
+		var hasParameterizedConstructor = !Records.TryGetValue(type, out var partial)
+			|| partial.Syntax.ParameterList?.Parameters.Count == 0;
+
+		var table = callback(type, hasParameterizedConstructor);
+		Properties.Add(table);
+
+		if (hasParameterizedConstructor)
+			return;
+
+		table.ConstructorParameters = partial!.Syntax.BaseList?.Types
+			.SelectMany(p => Records.TryGetValue(p.Type.ToString(), out var identifier)
+				? identifier.Syntax.Members
+					.Where(p => p is PropertyDeclarationSyntax)
+					.Select(p => (PropertyDeclarationSyntax)p)
+				: null)
+			.Where(p => p is not null)
+			.Select(p => p.Identifier.Text)
+			.ToList() ?? [];
+	}
+
+	private string Modifier(string name)
+	{
+		var modifiers = "partial record";
+
+		if (!Records.TryGetValue(name, out var access))
+			return $"public {modifiers}";
+
+		if (access.Syntax.Modifiers.Any(SyntaxKind.PublicKeyword))
+			return modifiers;
+
+		var badModifiers = "";
+		if (access.Syntax.Modifiers.Any(SyntaxKind.InternalKeyword))
+			badModifiers += ",internal";
+		if (access.Syntax.Modifiers.Any(SyntaxKind.PrivateKeyword))
+			badModifiers += ",private";
+		if (access.Syntax.Modifiers.Any(SyntaxKind.ProtectedKeyword))
+			badModifiers += ",protected";
+
+		if (badModifiers.Length == 0)
+			return $"public {modifiers}";
+
 		throw new DiagnosticException(
-			$"Cannot generate table `{type}`");
-
-	  StringWriter text = new();
-	  IndentedTextWriter record = new(text, "\t");
-
-	  record.Write($$"""
-			{{SourceGeneratorHelper.FileHeader}}
-			namespace {{NameSpace}};
-			
-			{{Modifier(type)}}partial record 
-			""");
-
-	  if (Records.TryGetValue(type, out var partial) && partial.Syntax.ParameterList?.Parameters.Count == 0)
-	  {
-		
-		checked type if in tablemap and replace if so and only output if usefirst
-
-		record.Block(type, () =>
-		{
-		  foreach (var item in block.Table)
-		  {
-			var a = partial?.Syntax.BaseList?.Types
-						.SelectMany(p => Records.TryGetValue(p.Type.ToString(), out var identifier)
-							? identifier.Syntax.Members
-								.Where(p => p is PropertyDeclarationSyntax)
-								.Select(p => (PropertyDeclarationSyntax)p)
-							: null)
-						?.FirstOrDefault(q => q.Identifier.Text == item.Identifier.Value);
-
-			if (a is not null)
-			  continue;
-
-			record.WriteLine($$"""{{item.CSharpType()}} {{item.Identifier.Value}} { get; init; }""");
-			record.WriteLine();
-		  }
-
-		  record.Write("public ");
-		  WriteParameterizedConstructor(CamelCase);
-		  record.Block(" : this()", () =>
-				  {
-					foreach (var item in block.Table)
-					{
-					  var variable = item.Identifier.Value;
-					  record.WriteLine($"{variable} = {CamelCase(variable)};");
-					}
-				  });
-		});
-	  }
-	  else
-	  {
-		WriteParameterizedConstructor(p => p);
-		record.WriteLine(";");
-	  }
-
-	  Tables.Add((block.Name + "Table", text.ToString()));
-
-	  writer.WriteLine($$""" = [];""");
-
-	  void WriteParameterizedConstructor(Func<string, string> callback)
-	  {
-		record.Write($"{type}(");
-		record.Indent++;
-		var comma = "";
-		foreach (var item in block.Table)
-		{
-		  record.WriteLine(comma);
-		  record.Write($"{item.CSharpType()} {callback(item.Identifier.Value)}");
-		  comma = ",";
-		}
-		record.Write(")");
-	  }
+		$"{name} cannot use keyword modifiers [{badModifiers[1..]}], " +
+		$"either use public or exlcude the use of a keyword modifier.");
 	}
 
-	string CamelCase(string variable) => $"{variable[0..1].ToLower()}{variable[1..]}";
-  }
+	private bool InheritsProperty(string model, string name)
+	{
+		if (!Records.TryGetValue(model, out var record))
+			return false;
 
-  protected void GenerateArgumentCode(
-	  IndentedTextWriter writer, CodeBlock block)
-  {
-	writer.Write($"{block.CSharpType(ModelName)} {block.Name}");
-  }
+		foreach (var member in record.Syntax.Members)
+		{
+			if (member is not PropertyDeclarationSyntax property)
+				continue;
+
+			if (property.Identifier.Value?.Equals(name) == true)
+				return true;
+		}
+
+		if (record.Syntax.ParameterList is not null)
+			foreach (var member in record.Syntax.ParameterList.Parameters)
+			{
+				if (member.Identifier.Value?.Equals(name) == true)
+					return true;
+			}
+
+		if (record.Syntax.BaseList is not null)
+			foreach (var type in record.Syntax.BaseList.Types)
+			{
+				if (type switch
+				{
+					SimpleBaseTypeSyntax basic => InheritsProperty(basic.Type.ToString(), name),
+					PrimaryConstructorBaseTypeSyntax primary => InheritsProperty(primary.Type.ToString(), name),
+					_ => false
+				}) return true;
+			}
+
+		return false;
+	}
 }

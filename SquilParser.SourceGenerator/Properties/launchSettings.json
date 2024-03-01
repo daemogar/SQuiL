@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "SquilParser.SourceGenerator": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

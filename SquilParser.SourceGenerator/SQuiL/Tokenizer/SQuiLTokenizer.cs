@@ -315,6 +315,10 @@ public class SQuiLTokenizer(string Text)
 					if (!match.Success)
 						return false;
 
+					SkipWhitespace();
+					if (!SkipIfNot("="))
+						return false;
+
 					tokenizer.Increment(match.Value.Length);
 
 					selectVariable = new Token(

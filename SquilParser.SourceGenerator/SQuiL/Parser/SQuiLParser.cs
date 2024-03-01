@@ -39,6 +39,9 @@ public class SQuiLParser(List<Token> Tokens)
 		if (CodeBlocks is not null) return CodeBlocks;
 		CodeBlocks = [];
 
+		var ignoring = false;
+		var declaring = true;
+
 		Func<Variable> ExpectVariable;
 		{
 			var resultIndex = 0;
@@ -47,23 +50,45 @@ public class SQuiLParser(List<Token> Tokens)
 				var token = Expect(TokenType.VARIABLE);
 				var parts = token.Value.Split(['_'], 2);
 
-				if (!parts[0].StartsWith("return", StringComparison.CurrentCultureIgnoreCase))
-					return new(token, CodeType.INPUT, Current.Type == TokenType.TYPE_TABLE, parts[0]);
+				if (parts[0].StartsWith("param", StringComparison.CurrentCultureIgnoreCase))
+				{
+					var type = CodeType.INPUT_ARGUMENT;
+					var isTable = Current.Type == TokenType.TYPE_TABLE;
+					if (isTable)
+						type = "Ss".Contains(parts[0].Last()) ? CodeType.INPUT_TABLE : CodeType.INPUT_OBJECT;
 
-				string name;
+					return new(token, type, type == CodeType.INPUT_OBJECT, type == CodeType.INPUT_TABLE, parts[1]);
+				}
+
+				if (parts[0].StartsWith("return", StringComparison.CurrentCultureIgnoreCase))
+				{
+					var type = CodeType.OUTPUT_VARIABLE;
+					var isTable = Current.Type == TokenType.TYPE_TABLE;
+					if (isTable)
+						type = "Ss".Contains(parts[0].Last()) ? CodeType.OUTPUT_TABLE : CodeType.OUTPUT_OBJECT;
+
+					return new(token, type, type == CodeType.OUTPUT_OBJECT, type == CodeType.OUTPUT_TABLE, parts[1]);
+				}
+
+				if (declaring)
+					throw new DiagnosticException(
+						$"Expected a declare with @Param_<variable or object name>, @Params_<tablename>, " +
+						$"@Return_<variable or object name>, or/and @Returns_<tablename>, " +
+						$"but found @{token.Value} instead.");
+
+					string name;
 				if (parts.Length == 1 || parts[1].IsNullOrWhiteSpace())
 					name = $"Result{++resultIndex}";
 				else
 					name = parts[1];
 
-				return new(token, CodeType.OUTPUT, Current.Type == TokenType.TYPE_TABLE, name);
+				return new(token, CodeType.OUTPUT, false, Current.Type == TokenType.TYPE_TABLE, name);
 			};
 		}
 
-		List<(Variable Variable, CodeBlock CodeBlock)> tablesAndVariables = [];
+		List<(Variable Variable, CodeBlock CodeBlock)> parameters = [];
 		List<(TokenType Type, CodeBlock CodeBlock, Token InsertIntoTable)> injectables = [];
 
-		var ignoring = false;
 		while (Current != Token.END)
 		{
 			switch (Current.Type)
@@ -74,6 +99,7 @@ public class SQuiLParser(List<Token> Tokens)
 					continue;
 				case TokenType.KEYWORD_USE:
 					ignoring = false;
+					declaring = false;
 					ProcessUseStatement();
 					continue;
 				case TokenType.INSERT_INTO_TABLE:
@@ -108,7 +134,7 @@ public class SQuiLParser(List<Token> Tokens)
 
 		void ProcessInsertIntoTablesAndSelectVariables()
 		{
-			foreach (var (variable, table) in tablesAndVariables)
+			foreach (var (variable, table) in parameters)
 			{
 				if (variable.Token.Value != Current.Value)
 					continue;
@@ -137,7 +163,7 @@ public class SQuiLParser(List<Token> Tokens)
 
 				body = body[0..offset] + type switch
 				{
-					TokenType.INSERT_INTO_TABLE => $"({string.Join(", ", table.Table
+					TokenType.INSERT_INTO_TABLE => $"({string.Join(", ", table.Properties
 						.Where(q => q.Identifier is not null).Select(q => q.Identifier.Value))})",
 					TokenType.SELECT_VARIABLE => T(name),
 					_ => throw new DiagnosticException(
@@ -148,7 +174,7 @@ public class SQuiLParser(List<Token> Tokens)
 			StringBuilder sb = new();
 			sb.AppendLine(body);
 
-			foreach (var (table, code) in tablesAndVariables
+			foreach (var (table, code) in parameters
 				.Where(p => !p.Variable.IsTable
 					&& p.CodeBlock.CodeType == CodeType.OUTPUT_VARIABLE))
 			{
@@ -190,55 +216,22 @@ public class SQuiLParser(List<Token> Tokens)
 				Consume();
 
 				var variable = ExpectVariable();
-				if (variable.IsTable)
-				{
-					var code = variable.Type | CodeType.TABLE;
-					var type = Current;
-					Consume();
 
-					Expect(TokenType.SYMBOL_LPREN);
-					CodeBlock block = new(code,
-						new Token(TokenType.TYPE_TABLE, offset, variable.Name)
-						{
-							Original = $"{variable.Token.Original} table"
-						});
+				if (variable.IsTable) Process(TokenType.TYPE_TABLE);
+				else if (variable.IsObject) Process(TokenType.TYPE_OBJECT);
+				else ProcessScaler();
 
-					do
-					{
-						if (Current.Type == TokenType.SYMBOL_COMMA)
-							Consume();
-
-						var identifier = Expect(TokenType.IDENTIFIER);
-						CodeItem item = new(identifier, Expect(TokenType.TYPE));
-
-						if (Current.Type == TokenType.LITERAL_NULL)
-						{
-							item = item with { IsNullable = true };
-							Consume();
-						}
-
-						block.Table.Add(item);
-					}
-					while (Current.Type == TokenType.SYMBOL_COMMA);
-
-					Expect(TokenType.SYMBOL_RPREN);
-
-					CodeBlocks.Add(block);
-
-					tablesAndVariables.Add((variable, block));
-				}
-				else
+				void ProcessScaler()
 				{
 					CodeBlock codeBlock = default!;
 
 					try
 					{
-						var code = variable.Type | CodeType.ARGUMENT;
 						var type = Expect(TokenType.TYPE);
 
 						if (Current.Type != TokenType.SYMBOL_EQUAL)
 						{
-							codeBlock = new(code,
+							codeBlock = new(variable.Type,
 								type with
 								{
 									Value = variable.Name,
@@ -248,7 +241,8 @@ public class SQuiLParser(List<Token> Tokens)
 								Size = type.Value
 							};
 							CodeBlocks.Add(codeBlock);
-							continue;
+
+							return;
 						}
 
 						Consume();
@@ -268,7 +262,7 @@ public class SQuiLParser(List<Token> Tokens)
 
 						Consume();
 
-						CodeBlocks.Add(codeBlock = new(code, type with
+						CodeBlocks.Add(codeBlock = new(variable.Type, type with
 						{
 							Original = $"{variable.Token.Original} {type.Original}"
 						}, variable.Name, defaultValue)
@@ -279,16 +273,52 @@ public class SQuiLParser(List<Token> Tokens)
 					finally
 					{
 						if (codeBlock is not null)
-							tablesAndVariables.Add((variable, codeBlock));
+							parameters.Add((variable, codeBlock));
 					}
+				}
+
+				void Process(TokenType type)
+				{
+					Consume();
+
+					Expect(TokenType.SYMBOL_LPREN);
+					CodeBlock block = new(variable.Type,
+						new Token(type, offset, variable.Name)
+						{
+							Original = $"{variable.Token.Original} table"
+						});
+
+					do
+					{
+						if (Current.Type == TokenType.SYMBOL_COMMA)
+							Consume();
+
+						var identifier = Expect(TokenType.IDENTIFIER);
+						CodeItem item = new(identifier, Expect(TokenType.TYPE));
+
+						if (Current.Type == TokenType.LITERAL_NULL)
+						{
+							item = item with { IsNullable = true };
+							Consume();
+						}
+
+						block.Properties.Add(item);
+					}
+					while (Current.Type == TokenType.SYMBOL_COMMA);
+
+					Expect(TokenType.SYMBOL_RPREN);
+
+					CodeBlocks.Add(block);
+
+					parameters.Add((variable, block));
 				}
 			}
 			while (Current.Type == TokenType.SYMBOL_COMMA);
 		}
 	}
 
-	private Token Expect(TokenType type, TokenType range)
-		=> Expect(type, (int)range - (int)type);
+	//private Token Expect(TokenType type, TokenType range)
+	//	=> Expect(type, (int)range - (int)type);
 
 	private Token Expect(TokenType type, int range = 1000)
 	{
@@ -316,4 +346,4 @@ public class SQuiLParser(List<Token> Tokens)
 	private DiagnosticException DE(string message) => new(message);
 }
 
-file record Variable(Token Token, CodeType Type, bool IsTable, string Name);
+file record Variable(Token Token, CodeType Type, bool IsObject, bool IsTable, string Name);

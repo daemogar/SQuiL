@@ -8,13 +8,21 @@ using Microsoft.Extensions.DependencyInjection;
 using SQuiL.Generator;
 
 using System.Collections.Immutable;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace SquilParser.Tests;
 
 public static class TestHelper
 {
-	public static Task Verify(IEnumerable<string> sources, IEnumerable<string> files)
+	public static Task Verify(
+		IEnumerable<string> sources,
+		IEnumerable<string> files,
+		[CallerMemberName] string name = default!,
+		[CallerFilePath] string path = default!)
 	{
+		if (!Debugger.IsAttached) Debugger.Launch();
+
 		var syntaxTrees = sources.Select(p => CSharpSyntaxTree.ParseText(p));
 
 		IEnumerable<MetadataReference> metareferences = [
@@ -41,7 +49,18 @@ public static class TestHelper
 		driver = (CSharpGeneratorDriver)driver.AddAdditionalTexts(additionalFiles);
 		driver = (CSharpGeneratorDriver)driver.RunGenerators(compilation);
 
-		return Verifier.Verify(driver);
+		VerifySettings settings = default!;
+		if (path is not null)
+		{
+			path = path[..path.LastIndexOf('\\')] + @$"\{name}\";
+			if (!Directory.Exists(path))
+				Directory.CreateDirectory(path);
+			settings = new();
+			settings.UseDirectory(path);
+			//settings.UseTypeName("bob");
+		}
+
+		return Verifier.Verify(driver, settings);
 	}
 }
 

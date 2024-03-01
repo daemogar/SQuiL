@@ -7,7 +7,16 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SquilParser.Simple", "Squil
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SquilParser.SourceGenerator", "SquilParser.SourceGenerator\SquilParser.SourceGenerator.csproj", "{EAE151D5-A9CB-4FC6-85CA-E9EBCC82118F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SquilParser.Tests", "SquilParser.Tests\SquilParser.Tests.csproj", "{E54C3B73-34EB-47A2-B8C4-530328662506}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SquilParser.Tests", "SquilParser.Tests\SquilParser.Tests.csproj", "{E54C3B73-34EB-47A2-B8C4-530328662506}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution", "Solution", "{4AF42CE6-375B-45B3-9E89-CE3316914989}"
+	ProjectSection(SolutionItems) = preProject
+		.dockerignore = .dockerignore
+		.gitattributes = .gitattributes
+		.gitignore = .gitignore
+		LICENSE.txt = LICENSE.txt
+		README.md = README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

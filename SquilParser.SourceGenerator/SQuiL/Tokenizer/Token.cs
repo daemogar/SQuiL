@@ -23,11 +23,13 @@ public record Token(TokenType Type, int Offset, string Value)
 		_ => throw new Exception($"Invalid database type `{Type}`")
 	};
 
-	public string SqlDbType(string? size = default) => "System.Data.SqlDbType." + Type switch
+	public string SqlDbType(string? size = default, bool allowNullSize = false) => "System.Data.SqlDbType." + Type switch
 	{
 		TokenType.TYPE_BOOLEAN => "Bit",
 		TokenType.TYPE_INT => "BigInt",
-		TokenType.TYPE_STRING => size is not null ? $"VarChar, {size}" : throw new DiagnosticException("Size cannot be null."),
+		TokenType.TYPE_STRING when size is not null => $"VarChar, {size}",
+		TokenType.TYPE_STRING when allowNullSize => $"VarChar",
+		TokenType.TYPE_STRING => throw new DiagnosticException("Size cannot be null."),
 		TokenType.TYPE_DATE => "Date",
 		TokenType.TYPE_TIME => "Time",
 		TokenType.TYPE_DATETIME => $"DateTimeOffset",
@@ -42,6 +44,7 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_DATE => "System.DateOnly",
 		TokenType.TYPE_TIME => "System.TimeOnly",
 		TokenType.TYPE_DATETIME => "System.DateTime",
+		TokenType.TYPE_OBJECT when tableType is not null => tableType(),
 		TokenType.TYPE_TABLE when tableType is not null => $"System.Collections.Generic.List<{tableType()}>",
 		_ => throw new Exception($"Invalid database type `{Type}`")
 	};
@@ -54,6 +57,7 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_DATE => DateTime.TryParse(defaultValue, out var date) ? $"'{date:yyyy-MM-dd}'" : defaultValue,
 		TokenType.TYPE_TIME => DateTime.TryParse(defaultValue, out var time) ? $"'{time:HH:mm:ss.fffffff}'" : defaultValue,
 		TokenType.TYPE_DATETIME => DateTime.TryParse(defaultValue, out var date) ? $"'{date:yyyy-MM-dd} {date:HH:mm:ss.fffffff}'" : defaultValue,
+		TokenType.TYPE_OBJECT when tableType is not null => tableType(),
 		TokenType.TYPE_TABLE when tableType is not null => tableType(),
 		_ => throw new Exception($"Invalid database type `{Type}`")
 	};

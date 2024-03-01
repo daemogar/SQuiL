@@ -2,9 +2,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-using SQuiL;
+//using SQuiL;
 
-using SquilParser.Simple;
+//using SquilParser.Simple;
 
 Console.WriteLine("Hello, World!");
 
@@ -19,25 +19,30 @@ builder.AddInMemoryCollection(new Dictionary<string, string?>
 ServiceCollection services = new();
 
 services.AddSingleton<IConfiguration>(builder.Build());
-services.AddSingleton<TestDataContext>();
+//services.AddSingleton<TestDataContext>();
 
 var provider = services.BuildServiceProvider();
 
-var context = provider.GetRequiredService<TestDataContext>();
-var response = await context.ProcessQueriesExample1Async(new()
-{
+//var context = provider.GetRequiredService<TestDataContext>();
+//var response = await context.ProcessQueriesExample1Async(new()
+//{
+//
+//});
 
-});
-
-Console.WriteLine(response);
+//Console.WriteLine(response);
 Console.ReadKey();
-
+/*
 namespace SquilParser.Simple
 {
-	[SQuiL(QueryFiles.QueriesExample1, setting: "ExampleOne")]
-	[SQuiL(QueryFiles.QueriesExample2, setting: "ExampleTwo")]
+	[SQuiLQuery(QueryFiles.QueriesExample1, setting: "ExampleOne")]
+	[SQuiLQuery(QueryFiles.QueriesExample2, setting: "ExampleTwo")]
 	public partial class TestDataContext(IConfiguration configuration) : SQuiLBaseDataContext(configuration) { }
 
 	//[SQuiL(QueryFiles.QueriesExample1, setting: "ExampleOne")]
 	//public partial class TestDataContext : SQuiLBaseDataContext { }
+
+	[SQuiLTable(TableType.Participation)]
+	[SQuiLTable(TableType.Overrides)]
+	public partial class Table { }
 }
+*/

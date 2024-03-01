@@ -1,5 +1,4 @@
 ﻿using System.CodeDom.Compiler;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
 
@@ -23,14 +22,15 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
+#if DEBUG
+		if (!System.Diagnostics.Debugger.IsAttached) System.Diagnostics.Debugger.Launch();
+#endif
 		var rootPath = context.SyntaxProvider
 			.CreateSyntaxProvider(
 				predicate: static (p, _) => p.SyntaxTree.HasCompilationUnitRoot,
 				transform: (p, _) => Path.GetDirectoryName(p.SemanticModel.SyntaxTree.FilePath))
 			.Where(p => p is not null)
 			.Collect();
-
-		//if (!Debugger.IsAttached) Debugger.Launch();
 
 		IncrementalValueProvider<ImmutableArray<SQuiLDependency>> meta = context
 						.MetadataReferencesProvider
@@ -188,8 +188,6 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 	private void Execute(Compilation compilation, ImmutableArray<SQuiLDependency> dependencies, ImmutableArray<AdditionalText> files, ImmutableArray<SQuiLDefinition> definitions, ImmutableDictionary<string, SQuiLPartialModel> records, SourceProductionContext context)
 	{
-		//if (!System.Diagnostics.Debugger.IsAttached) System.Diagnostics.Debugger.Launch();
-
 		var missingDependencyInjectable = !dependencies.Any(p => p?.DependencyInjection == true);
 		if (missingDependencyInjectable)
 			context.ReportNoMicrosoftExtensionsDependencyInjectionDll();
@@ -215,7 +213,8 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		}
 
 		List<string> contexts = [];
-		ImmutableDictionary<string, SQuiLTableMap> tableMap = classes
+		ImmutableDictionary<string, SQuiLTableMap> tableMap = definitions
+			.Where(p => p.Type == SQuiLDefinitionType.TableType)
 			.GroupBy(p => p.Class.Identifier.ValueText)
 			.SelectMany(p => p.Select((q, i) => (
 				Key: GetValueLocation(q.Attribute.ArgumentList!).Value,
@@ -288,8 +287,10 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			generator.Create(@namespace, classname, method, setting, text.ToString(), records);
 		}
 
+		generator.GenerateCode();
+
 		GenerateDependencyInjectionCode(contexts);
-		GenerateTablesEnum(context, generator.Tables);
+		GenerateTablesEnum(context, tableMap.Keys);
 
 		(string Value, Location? Location) GetValueLocation(AttributeArgumentListSyntax syntax)
 			=> syntax.Arguments[0].Expression switch
@@ -304,13 +305,16 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			if (missingConfiguration)
 				return;
 
-			context.AddSource($"{BaseDataContextClassName}.g.cs", SourceText.From($$"""
+			context.AddSource($"{BaseDataContextClassName}.g.cs", SourceText.From($$""""
 				{{FileHeader}}
 				namespace {{NamespaceName}};
 				
 				using Microsoft.Data.SqlClient;
 				using Microsoft.Extensions.Configuration;
 
+				using System.Collections.Generic;
+				using System;
+				
 				public abstract class {{BaseDataContextClassName}}(IConfiguration Configuration)
 				{
 					//public virtual string SettingName { get; } = "{{DefaultConnectionStringAppSettingName}}";
@@ -318,14 +322,35 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					protected string {{EnvironmentName}} { get; } = Configuration.GetSection("{{EnvironmentName}}")?.Value
 						?? Environment.GetEnvironmentVariable(Configuration.GetSection("EnvironmentVariable")?.Value ?? "ASPNETCORE_ENVIRONMENT")
 						?? "Development";
-						
+
 					protected SqlConnectionStringBuilder ConnectionStringBuilder(string settingName)
 					{
 						return new SqlConnectionStringBuilder(Configuration.GetConnectionString(settingName)
 							?? throw new Exception($"Cannot find a connection string in the appsettings for {settingName}."));
 					}
+
+					protected void AddParams(System.Text.StringBuilder query, List<SqlParameter> parameters, int index, string table, string name, SqlDbType type, object value, int size = 0)
+					{
+						var parameter = $"@{table}_{index}_{name}";
+						query.Append(parameter);
+
+						if (size == 0)
+						{
+							parameters.Add(new(parameter, type) { Value = value });
+							return;
+						}
+
+						parameters.Add(new(parameter, type, size) {
+							Value = value is null || ((string)value).Length <= size
+								? (stringValue is null ? "Null" : $"'{value}'")
+								: throw new Exception($"""
+									ParamsTable model table property at index [2] has a string property [{name}]
+									with more than {size} characters.
+									""")
+						});
+					}
 				}
-				""", Encoding.UTF8));
+				"""", Encoding.UTF8));
 		}
 
 		void GenerateDependencyInjectionCode(List<string> contexts)
@@ -403,7 +428,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				{
 				""");
 			var comma = "";
-			foreach (var table in tables)
+			foreach (var table in tables.OrderBy(p => p))
 			{
 				sb.AppendLine(comma);
 				sb.Append($"\t{table}");

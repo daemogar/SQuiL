@@ -1,0 +1,294 @@
+﻿{
+  Diagnostics: [
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: TestCase :: SharedTableDataContext :: SQuiLDatabase :: SharedTable1 :: Declare	@Return_Bob table(ID int); Use [Database]; Select 1;,
+      Message: TestCase :: SharedTableDataContext :: SQuiLDatabase :: SharedTable1 :: Declare	@Return_Bob table(ID int); Use [Database]; Select 1;,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 0, Value = Bob, Original = @Return_Bob table }, Name = Bob, DefaultValue = , IsTable = True, IsRequired = False, IsNullable = False, Size = , Table = System.Collections.Generic.List`1[SquilParser.SourceGenerator.Parser.CodeItem] },
+      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 0, Value = Bob, Original = @Return_Bob table }, Name = Bob, DefaultValue = , IsTable = True, IsRequired = False, IsNullable = False, Size = , Table = System.Collections.Generic.List`1[SquilParser.SourceGenerator.Parser.CodeItem] },
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 40, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsTable = False, IsRequired = True, IsNullable = True, Size = , Table =  },
+      Message: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 40, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsTable = False, IsRequired = True, IsNullable = True, Size = , Table =  },
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 53, Value = Select 1; , Original = Select 1; }, Name = Select 1; , DefaultValue = , IsTable = False, IsRequired = True, IsNullable = True, Size = , Table =  },
+      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 53, Value = Select 1; , Original = Select 1; }, Name = Select 1; , DefaultValue = , IsTable = False, IsRequired = True, IsNullable = True, Size = , Table =  },
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: KEYWORD_DECLARE => ,
+      Message: KEYWORD_DECLARE => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: VARIABLE => Return_Bob,
+      Message: VARIABLE => Return_Bob,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: TYPE_TABLE => ,
+      Message: TYPE_TABLE => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: SYMBOL_LPREN => ,
+      Message: SYMBOL_LPREN => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: IDENTIFIER => ID,
+      Message: IDENTIFIER => ID,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: TYPE_INT => ,
+      Message: TYPE_INT => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: SYMBOL_RPREN => ,
+      Message: SYMBOL_RPREN => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: KEYWORD_USE => ,
+      Message: KEYWORD_USE => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: IDENTIFIER => Database,
+      Message: IDENTIFIER => Database,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: BODY => Select 1;,
+      Message: BODY => Select 1;,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: TestCase :: SharedTableDataContext :: SQuiLDatabase :: SharedTable2 :: Declare	@Return_Sally table(ID int); Use [Database]; Select 2;,
+      Message: TestCase :: SharedTableDataContext :: SQuiLDatabase :: SharedTable2 :: Declare	@Return_Sally table(ID int); Use [Database]; Select 2;,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 0, Value = Sally, Original = @Return_Sally table }, Name = Sally, DefaultValue = , IsTable = True, IsRequired = False, IsNullable = False, Size = , Table = System.Collections.Generic.List`1[SquilParser.SourceGenerator.Parser.CodeItem] },
+      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 0, Value = Sally, Original = @Return_Sally table }, Name = Sally, DefaultValue = , IsTable = True, IsRequired = False, IsNullable = False, Size = , Table = System.Collections.Generic.List`1[SquilParser.SourceGenerator.Parser.CodeItem] },
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 42, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsTable = False, IsRequired = True, IsNullable = True, Size = , Table =  },
+      Message: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 42, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsTable = False, IsRequired = True, IsNullable = True, Size = , Table =  },
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 55, Value = Select 2; , Original = Select 2; }, Name = Select 2; , DefaultValue = , IsTable = False, IsRequired = True, IsNullable = True, Size = , Table =  },
+      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 55, Value = Select 2; , Original = Select 2; }, Name = Select 2; , DefaultValue = , IsTable = False, IsRequired = True, IsNullable = True, Size = , Table =  },
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: KEYWORD_DECLARE => ,
+      Message: KEYWORD_DECLARE => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: VARIABLE => Return_Sally,
+      Message: VARIABLE => Return_Sally,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: TYPE_TABLE => ,
+      Message: TYPE_TABLE => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: SYMBOL_LPREN => ,
+      Message: SYMBOL_LPREN => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: IDENTIFIER => ID,
+      Message: IDENTIFIER => ID,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: TYPE_INT => ,
+      Message: TYPE_INT => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: SYMBOL_RPREN => ,
+      Message: SYMBOL_RPREN => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: KEYWORD_USE => ,
+      Message: KEYWORD_USE => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: IDENTIFIER => Database,
+      Message: IDENTIFIER => Database,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: BODY => Select 2;,
+      Message: BODY => Select 2;,
+      Category: Logger
+    },
+    {
+      Id: SP0014,
+      Title: Critical Generation Failure,
+      Severity: Error,
+      WarningLevel: 0,
+      Location: : (0,0)-(0,0),
+      MessageFormat: The hintName 'TestCase.SharedTableDataContext.Table.g.cs' of the added source file must be unique within a generator. (Parameter 'hintName')    at Microsoft.CodeAnalysis.AdditionalSourcesCollection.Add(String hintName, SourceText source)    at Microsoft.CodeAnalysis.SourceProductionContext.AddSource(String hintName, SourceText sourceText)    at Microsoft.CodeAnalysis.FileGenerator.AddSource(String filename, String source) in {SolutionDirectory}SquilParser.SourceGenerator\Microsoft.CodeAnalysis\FileGenerator.cs:line 23    at Microsoft.CodeAnalysis.FileGenerator.GenerateCode() in {SolutionDirectory}SquilParser.SourceGenerator\Microsoft.CodeAnalysis\FileGenerator.cs:line 80    at SQuiL.Generator.SQuiLGenerator.Execute(Compilation compilation, ImmutableArray`1 dependencies, ImmutableArray`1 files, ImmutableArray`1 definitions, ImmutableDictionary`2 records, SourceProductionContext context) in {SolutionDirectory}SquilParser.SourceGenerator\SQuiL\Generator\SQuiLGenerator.cs:line 290    at SQuiL.Generator.SQuiLGenerator.<Initialize>b__9_16(SourceProductionContext a, ValueTuple`2 b) in {SolutionDirectory}SquilParser.SourceGenerator\SQuiL\Generator\SQuiLGenerator.cs:line 129,
+      Message: The hintName 'TestCase.SharedTableDataContext.Table.g.cs' of the added source file must be unique within a generator. (Parameter 'hintName')    at Microsoft.CodeAnalysis.AdditionalSourcesCollection.Add(String hintName, SourceText source)    at Microsoft.CodeAnalysis.SourceProductionContext.AddSource(String hintName, SourceText sourceText)    at Microsoft.CodeAnalysis.FileGenerator.AddSource(String filename, String source) in {SolutionDirectory}SquilParser.SourceGenerator\Microsoft.CodeAnalysis\FileGenerator.cs:line 23    at Microsoft.CodeAnalysis.FileGenerator.GenerateCode() in {SolutionDirectory}SquilParser.SourceGenerator\Microsoft.CodeAnalysis\FileGenerator.cs:line 80    at SQuiL.Generator.SQuiLGenerator.Execute(Compilation compilation, ImmutableArray`1 dependencies, ImmutableArray`1 files, ImmutableArray`1 definitions, ImmutableDictionary`2 records, SourceProductionContext context) in {SolutionDirectory}SquilParser.SourceGenerator\SQuiL\Generator\SQuiLGenerator.cs:line 290    at SQuiL.Generator.SQuiLGenerator.<Initialize>b__9_16(SourceProductionContext a, ValueTuple`2 b) in {SolutionDirectory}SquilParser.SourceGenerator\SQuiL\Generator\SQuiLGenerator.cs:line 129,
+      Category: Design
+    }
+  ]
+}

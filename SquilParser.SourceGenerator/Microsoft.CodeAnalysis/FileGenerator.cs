@@ -16,75 +16,89 @@ public class FileGenerator(
 	SourceProductionContext Context,
 	ImmutableDictionary<string, SQuiLTableMap> TableMap)
 {
-  public List<string> Tables { get; } = [];
+	public List<SQuiLFileGeneration> Generations { get; } = [];
 
-  private void AddSource(string filename, string source)
-  {
-	Context.AddSource(filename, SourceText.From(source, Encoding.UTF8));
-  }
-
-  public void Create(string @namespace, string classname, string method, string setting, string text, ImmutableDictionary<string, SQuiLPartialModel> records)
-  {
-	try
+	private void AddSource(string filename, string source)
 	{
-	  var isFailed = false;
+		Context.AddSource(filename, SourceText.From(source, Encoding.UTF8));
+	}
 
-	  var tokens = SQuiLTokenizer.GetTokens(text);
-	  var blocks = SQuiLParser.ParseTokens(tokens);
+	public void Create(string @namespace, string classname, string method, string setting, string text, ImmutableDictionary<string, SQuiLPartialModel> records)
+	{
+		if (ShowDebugMessages)
+			Context.Debug($"{@namespace} :: {classname} :: {setting} :: {method} :: {text}");
 
-	  var (Exceptions, Sources) = SQuiLModel.GenerateModelCode(@namespace, classname, method, blocks, TableMap, records);
-	  if (Exceptions.Any())
-	  {
-		isFailed = true;
-		foreach (var exception in Exceptions)
-		  Context.ReportMissingStatement(exception);
-	  }
+		SQuiLFileGeneration generation = new(method, $"{@namespace}.{classname}");
 
-	  var context = SQuiLDataContext.GenerateCode(@namespace, classname, method, setting, blocks);
-	  if (context.IsException)
-	  {
-		isFailed = true;
-		Context.ReportMissingStatement(context.Exception);
-	  }
-
-	  if (isFailed)
-		return;
-
-	  foreach (var (hint, tableName, request) in Sources)
-	  {
-		Tables.Add(tableName);
-		AddSource(hint, request);
-	  }
-	  AddSource($"{@namespace}.{classname}.{method}.g.cs", context.Value.ToString());
-
-
-	  // [CompilerGenerated]
-	  // [EditorBrowsable(EditorBrowsableState.Never)]
-
-	  if (!ShowDebugMessages)
-		return;
-
-	  Context.Debug($"{@namespace} :: {classname} :: {setting} :: {method} :: {text}");
-
-	  foreach (var code in blocks)
 		try
 		{
-		  Context.Debug(code.Source());
+			var tokens = SQuiLTokenizer.GetTokens(text);
+			var blocks = SQuiLParser.ParseTokens(tokens);
+
+			if (ShowDebugMessages)
+			{
+				foreach (var code in blocks) Context.Debug(code.Source());
+				foreach (var token in tokens) Context.Debug(token.Expect());
+			}
+
+			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, method, blocks, TableMap, records);
+
+			foreach (var property in generation.Request.Properties.Union(generation.Response.Properties))
+				if (property is SQuiLTable table)
+					generation.Tables.Add(table);
+
+			generation.Context = new(@namespace, classname, method, setting, blocks);
 		}
-#pragma warning disable CS0168 // Variable is declared but never used
-		catch (Exception e)
-#pragma warning restore CS0168 // Variable is declared but never used
+		catch (DiagnosticException e)
 		{
-		  throw;
+			Context.ReportLexicalParseErrorDiagnostic(e, method);
 		}
 
-	  foreach (var token in tokens)
-		Context.Debug(token.Expect());
+		Generations.Add(generation);
+	}
 
-	}
-	catch (DiagnosticException e)
+	public void GenerateCode()
 	{
-	  Context.ReportLexicalParseErrorDiagnostic(e, method);
+		foreach (var generation in Generations)
+		{
+			try
+			{
+				if (generation.Request.GenerateCode().TryGetValue(out var req, out var reqe))
+					AddSource(Hint(generation.Request.ModelName), req);
+				else
+					Context.ReportMissingStatement(reqe);
+
+				if (generation.Response.GenerateCode().TryGetValue(out var res, out var rese))
+					AddSource(Hint(generation.Response.ModelName), res);
+				else
+					Context.ReportMissingStatement(rese);
+
+				foreach (var table in generation.Tables)
+				{
+					if (table.GenerateCode().TryGetValue(out var value, out var exception))
+					{
+						AddSource(Hint(table.ModelName), value);
+						continue;
+					}
+
+					if (exception is not AggregateException aggregate)
+						aggregate = new(exception);
+
+					foreach (var ex in aggregate.InnerExceptions)
+						Context.ReportMissingStatement(ex);
+				}
+
+				if (generation.Context.GenerateCode(generation).TryGetValue(out var source, out var e))
+					AddSource(Hint($"{generation.Method}DataContext"), source);
+				else
+					Context.ReportMissingStatement(e);
+			}
+			catch (DiagnosticException e)
+			{
+				Context.ReportLexicalParseErrorDiagnostic(e, generation.Method);
+			}
+
+			string Hint(string name) => $"{generation.Scope}.{name}.g.cs";
+		}
 	}
-  }
 }
