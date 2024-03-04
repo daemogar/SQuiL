@@ -11,7 +11,7 @@ on:
 
 env:
   PROJECT: SQuiL
-  DIRECTORY: SquilParser.SourceGenerator
+  DIRECTORY: SQuiL.SourceGenerator
 
 jobs:
   build:
