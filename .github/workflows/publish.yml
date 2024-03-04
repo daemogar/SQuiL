@@ -30,7 +30,7 @@ jobs:
         dotnet-version: 8.0.x
         
     - name: Restore Dependencies
-      working-directory: ./${{ env.PROJECT }}.SourceGenerator
+      working-directory: ./${{ env.PROJECT }}/${{ env.PROJECT }}.SourceGenerator
       run: dotnet restore
         
     - name: Set DotNet Version
@@ -51,7 +51,7 @@ jobs:
       #  VERSION: ${{ steps.dotnet-version.outputs.version }}-beta.${{ steps.build-number.outpus.version }}
 
     - name: Build ${{ env.PROJECT }}
-      working-directory: ./${{ env.PROJECT }}.SourceGenerator
+      working-directory: ./${{ env.PROJECT }}/${{ env.PROJECT }}.SourceGenerator
       run: dotnet build --no-restore -c Release -p:/Version=${{ env.VERSION }}
 
     - name: Create Release ${{ env.VERSION }}
@@ -68,12 +68,12 @@ jobs:
     - name: Pack ${{ env.PROJECT }}.SourceGenerator
       env:
         RELEASE_NOTE: https://github.com/daemogar/${{ env.PROJECT }}/releases/tag/${{ env.VERSION }}
-      working-directory: ./${{ env.PROJECT }}.SourceGenerator
+      working-directory: ./${{ env.PROJECT }}/${{ env.PROJECT }}.SourceGenerator
       run: dotnet pack --no-build --c Release --include-symbols -p:SymbolPackageFormat=snupkg /p:Version=${{ env.VERSION }} /p:PackageReleaseNotes="See ${{ env.RELEASE_NOTE }}"
 
     - name: Push Nuget
       env:
         NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-      working-directory: ./${{ env.PROJECT }}.SourceGenerator
+      working-directory: ./${{ env.PROJECT }}/${{ env.PROJECT }}.SourceGenerator
       run: dotnet nuget push **/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
       
