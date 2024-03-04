@@ -9,6 +9,9 @@ on:
   pull_request:
     branches: [ "master" ]
 
+env:
+  PROJECT: SQuiL
+
 jobs:
   build:
 
@@ -27,20 +30,21 @@ jobs:
         dotnet-version: 8.0.x
 
     - name: Set DotNet Version
-      id: dotnet-version
-      run: echo "::set-output name=version::$(dotnet --version)"
-    
+      #id: dotnet-version
+      run: echo "DOTNET=$(dotnet --version)" >> "$GITHUB_ENV"
+     
     - name: Set Build Number
-      id: build-number
-      run: echo "::set-output name=version::$(printf '%04f' ${{ github.run_number }})"
+      #id: build-number
+      run: echo "BUILD=$(printf '%04f' ${{ github.run_number }})" >> "$GITHUB_ENV"
 
-    - name: Set Environment Variables
-      uses: allenevans/set-env@v2.0.0
-      with:
-        PROJECT: SQuiL
-        DOTNET: ${{ steps.dotnet-version.outputs.version }}
-        BUILD: ${{ steps.build-number.outpus.version }}
-        VERSION: ${{ steps.dotnet-version.outputs.version }}-beta.${{ steps.build-number.outpus.version }}
+    - name: Set Release Version
+      run: echo "RELEASE=${{ env.DOTNET }}-beta.${{ env.BUILD }}" >> "$GITHUB_ENV"
+      #uses: allenevans/set-env@v2.0.0
+      #with:
+      #  PROJECT: SQuiL
+      #  DOTNET: ${{ steps.dotnet-version.outputs.version }}
+      #  BUILD: ${{ steps.build-number.outpus.version }}
+      #  VERSION: ${{ steps.dotnet-version.outputs.version }}-beta.${{ steps.build-number.outpus.version }}
 
     - name: Restore Dependencies
       run: dotnet restore
