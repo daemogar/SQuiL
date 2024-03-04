@@ -35,10 +35,10 @@ jobs:
      
     - name: Set Build Number
       #id: build-number
-      run: echo "BUILD=$(printf '%04f' ${{ github.run_number }})" >> "$GITHUB_ENV"
+      run: echo "BUILD=$(printf '%04d' ${{ github.run_number }})" >> "$GITHUB_ENV"
 
     - name: Set Release Version
-      run: echo "RELEASE=${{ env.DOTNET }}-beta.${{ env.BUILD }}" >> "$GITHUB_ENV"
+      run: echo "VERSION=${{ env.DOTNET }}-beta.${{ env.BUILD }}" >> "$GITHUB_ENV"
       #uses: allenevans/set-env@v2.0.0
       #with:
       #  PROJECT: SQuiL
