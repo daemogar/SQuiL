@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "SQuiL.Tests": {
+      "commandName": "Project"
+    },
+    "Docker": {
+      "commandName": "Docker"
+    }
+  }
+}
