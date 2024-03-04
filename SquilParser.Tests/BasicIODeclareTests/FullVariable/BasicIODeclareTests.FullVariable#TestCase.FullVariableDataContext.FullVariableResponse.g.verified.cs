@@ -9,7 +9,7 @@ public partial record FullVariableResponse
 {
 	public int? Scaler { get; set; }
 	
-	public FullVariableResponseObjectObject? Object { get; set; } = default!;
+	public FullVariableObjectObject? Object { get; set; } = default!;
 	
-	public System.Collections.Generic.List<FullVariableResponseTableTable> Table { get; set; } = [];
+	public System.Collections.Generic.List<FullVariableTableTable> Table { get; set; } = [];
 }

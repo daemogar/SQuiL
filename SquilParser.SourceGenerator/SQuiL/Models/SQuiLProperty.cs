@@ -1,12 +1,28 @@
-﻿using SquilParser.SourceGenerator.Parser;
+﻿using Microsoft.CodeAnalysis;
+
+using SquilParser.SourceGenerator.Parser;
 
 using System.CodeDom.Compiler;
 
 namespace SQuiL.Models;
 
-public class SQuiLProperty(string Type, CodeBlock Block)
+public class SQuiLProperty(
+	string Type,
+	CodeBlock Block,
+	SQuiLTableMap TableMap)
 {
 	public string ModelName { get; } = Type;
+
+	public string TableName()
+	{
+		if (!TableMap.TryGetName(OriginalName, out var tableName))
+			tableName = ModelName;
+		return tableName;
+	}
+
+	public string OriginalName => Block.Name;
+
+	public List<CodeItem> CodeItems => Block.Properties;
 
 	public void GenerateCode(IndentedTextWriter writer)
 	{
@@ -14,7 +30,7 @@ public class SQuiLProperty(string Type, CodeBlock Block)
 		{
 			var nullable = Block.IsNullable ? "?" : "";
 
-			writer.Write($$"""public {{Block.CSharpType(ModelName)}}{{nullable}} {{Block.Name}} { get; set; }""");
+			writer.Write($$"""public {{Block.CSharpType(TableName())}}{{nullable}} {{Block.Name}} { get; set; }""");
 
 			if (GenerateTable()) return;
 			if (GenerateObject()) return;

@@ -11,7 +11,7 @@ public partial record FullVariableRequest
 	
 	public int? Scaler { get; set; }
 	
-	public FullVariableRequestObjectObject? Object { get; set; } = default!;
+	public FullVariableObjectObject? Object { get; set; } = default!;
 	
-	public System.Collections.Generic.List<FullVariableRequestTableTable> Table { get; set; } = [];
+	public System.Collections.Generic.List<FullVariableTableTable> Table { get; set; } = [];
 }

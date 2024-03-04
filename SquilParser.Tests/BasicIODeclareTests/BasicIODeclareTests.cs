@@ -63,4 +63,22 @@ public class BasicIODeclareTests
 			Select 1;
 			"""]);
 	}
+
+	[Fact]
+	public Task CustomTableVariable()
+	{
+		var name = nameof(CustomTableVariable);
+		return TestHelper.Verify([$$"""
+			{{TestHeader([name])}}
+
+			[SQuiLTable(TableType.Table)]
+			public partial record CustomFile {}
+			"""], [$$"""
+			--Name: {{name}}
+			Declare	@Params_Table table(TableID int, IsFemale bit, LastName varchar(100));
+			Declare	@Returns_Table table(TableID int, IsBoth bit, NickName varchar(100));
+			Use [Database];
+			Select 1;
+			"""]);
+	}
 }

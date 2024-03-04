@@ -14,7 +14,7 @@ namespace Microsoft.CodeAnalysis;
 public class FileGenerator(
 	bool ShowDebugMessages,
 	SourceProductionContext Context,
-	ImmutableDictionary<string, SQuiLTableMap> TableMap)
+	SQuiLTableMap TableMap)
 {
 	public List<SQuiLFileGeneration> Generations { get; } = [];
 
@@ -73,20 +73,11 @@ public class FileGenerator(
 				else
 					Context.ReportMissingStatement(rese);
 
-				foreach (var table in generation.Tables)
-				{
-					if (table.GenerateCode().TryGetValue(out var value, out var exception))
-					{
-						AddSource(Hint(table.ModelName), value);
-						continue;
-					}
-
-					if (exception is not AggregateException aggregate)
-						aggregate = new(exception);
-
-					foreach (var ex in aggregate.InnerExceptions)
-						Context.ReportMissingStatement(ex);
-				}
+				TableMap.GenerateCode(out var tables, out var exceptions);
+				foreach (var exception in exceptions)
+					Context.ReportMissingStatement(exception);
+				foreach (var (table, text) in tables)
+					AddSource(Hint(table), text);
 
 				if (generation.Context.GenerateCode(generation).TryGetValue(out var source, out var e))
 					AddSource(Hint($"{generation.Method}DataContext"), source);

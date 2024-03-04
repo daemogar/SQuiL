@@ -8,8 +8,6 @@ using SquilParser.SourceGenerator.Parser;
 
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
-using System.Diagnostics;
-using System.Reflection.Metadata;
 
 namespace SQuiL.Models;
 
@@ -17,9 +15,11 @@ public class SQuiLModel(
 	string NameSpace,
 	string ModelName,
 	string ModelType,
-	ImmutableDictionary<string, SQuiLTableMap> TableMap,
+	SQuiLTableMap TableMap,
 	ImmutableDictionary<string, SQuiLPartialModel> Records)
 {
+	private string Scope { get; } = ModelName;
+
 	public string ModelName { get; } = $"{ModelName}{ModelType}";
 
 	public List<SQuiLProperty> Properties { get; } = [];
@@ -28,11 +28,9 @@ public class SQuiLModel(
 		string @namespace,
 		string modelname,
 		List<CodeBlock> blocks,
-		ImmutableDictionary<string, SQuiLTableMap> tableMap,
+		SQuiLTableMap tableMap,
 		ImmutableDictionary<string, SQuiLPartialModel> records)
 	{
-		//if (!Debugger.IsAttached) Debugger.Launch();
-
 		var request = new SQuiLModel(@namespace, modelname, "Request", tableMap, records)
 			.Build(blocks.Where(p => (p.CodeType & CodeType.INPUT) == CodeType.INPUT));
 
@@ -98,20 +96,10 @@ public class SQuiLModel(
 					HasParameterizedConstructor = q
 				});
 			else
-				CreateProperty(block);
+				Properties.Add(new(ModelName, block, TableMap));
 		}
 
 		return this;
-	}
-
-	private void CreateProperty(CodeBlock block)
-	{
-		var type = ModelName;
-
-		if (TableMap.TryGetValue(ModelName, out var map))
-			type = map.TableName;
-
-		Properties.Add(new(type, block));
 	}
 
 	private void Create<T>(CodeBlock block, Func<string, bool, T> callback) where T : SQuiLTable
@@ -122,16 +110,14 @@ public class SQuiLModel(
 			throw new DiagnosticException(
 				$"Cannot generate {type} `{block.Name}` for {ModelName}");
 
-		type = $"{ModelName}{block.Name}{type}";
-
-		if (TableMap.TryGetValue(block.Name, out var map))
-			type = map.TableName;
+		type = $"{Scope}{block.Name}{type}";
 
 		var hasParameterizedConstructor = !Records.TryGetValue(type, out var partial)
 			|| partial.Syntax.ParameterList?.Parameters.Count == 0;
 
 		var table = callback(type, hasParameterizedConstructor);
 		Properties.Add(table);
+		TableMap.Add(table);
 
 		if (hasParameterizedConstructor)
 			return;

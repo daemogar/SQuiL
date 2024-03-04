@@ -208,19 +208,42 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		if (classes.IsDefaultOrEmpty || files.IsDefaultOrEmpty)
 		{
 			GenerateDependencyInjectionCode([]);
-			GenerateTablesEnum(context, []);
+			GenerateTablesEnum(context, default);
 			return;
 		}
 
 		List<string> contexts = [];
-		ImmutableDictionary<string, SQuiLTableMap> tableMap = definitions
+		SQuiLTableMap tableMap = new();
+
+		foreach (var record in records)
+		{
+			foreach (var attribute in record.Value.Syntax.AttributeLists
+				.SelectMany(p => p.Attributes
+				.Select(p => p.ArgumentList?.Arguments.FirstOrDefault()))
+				.Where(p => p is not null))
+			{
+				var table = attribute!.ToString();
+				
+				if (!table.StartsWith("TableType."))
+					continue;
+
+				tableMap.Add(table[10..], record.Key, record.Value.Syntax.GetLocation());
+			}
+		}
+
+		foreach (var (classname, (attribute, location)) in definitions
 			.Where(p => p.Type == SQuiLDefinitionType.TableType)
 			.GroupBy(p => p.Class.Identifier.ValueText)
 			.SelectMany(p => p.Select((q, i) => (
-				Key: GetValueLocation(q.Attribute.ArgumentList!).Value,
-				Value: new SQuiLTableMap(i == 0, p.Key)
+				ClassName: p.Key,
+				Attribute: GetValueLocation(q.Attribute.ArgumentList!)
 			)))
-			.ToImmutableDictionary(p => p.Key, p => p.Value);
+			.Where(p => p.Attribute.Location is not null))
+		{
+			tableMap.Add(attribute, classname, location!);
+		}
+		if (tableMap.TryGetMappingIssues(out var issues))
+			context.ReportDuplicateTableMap(issues);
 
 		// compare all models
 		FileGenerator generator = new(ShowDebugMessages, context, tableMap);
@@ -249,20 +272,17 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				if (text is null)
 				{
 					context.FileNotFound(file.Path, location);
+					continue;
 				}
 
 				if (!inherits)
-				{
 					context.MissingBaseDataContextDeclaration(location);
-				}
 
-				if (!definition.HasPartialKeyword)
-				{
-					location = definition.Class.Keyword.GetLocation();
-					context.MissingPartialDeclaration(location);
-				}
+				if (definition.HasPartialKeyword)
+					continue;
 
-				continue;
+				location = definition.Class.Keyword.GetLocation();
+				context.MissingPartialDeclaration(location);
 			}
 
 			var classname = definition.Class.Identifier.ValueText;
@@ -290,7 +310,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		generator.GenerateCode();
 
 		GenerateDependencyInjectionCode(contexts);
-		GenerateTablesEnum(context, tableMap.Keys);
+		GenerateTablesEnum(context, tableMap);
 
 		(string Value, Location? Location) GetValueLocation(AttributeArgumentListSyntax syntax)
 			=> syntax.Arguments[0].Expression switch
@@ -417,7 +437,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			context.AddSource($"{NamespaceName}QueryFilesEnum.g.cs", sb.ToString());
 		}
 
-		static void GenerateTablesEnum(SourceProductionContext context, IEnumerable<string> tables)
+		static void GenerateTablesEnum(SourceProductionContext context, SQuiLTableMap? tableMap)
 		{
 			StringBuilder sb = new();
 			sb.Append($$"""
@@ -427,14 +447,17 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				public enum TableType
 				{
 				""");
-			var comma = "";
-			foreach (var table in tables.OrderBy(p => p))
+			if (tableMap is not null)
 			{
-				sb.AppendLine(comma);
-				sb.Append($"\t{table}");
-				comma = ",";
+				var comma = "";
+				foreach (var table in tableMap.TableNames)
+				{
+					sb.AppendLine(comma);
+					sb.Append($"\t{table}");
+					comma = ",";
+				}
+				sb.AppendLine();
 			}
-			sb.AppendLine();
 			sb.AppendLine("}");
 
 			context.AddSource($"{NamespaceName}TableTypeEnum.g.cs", sb.ToString());

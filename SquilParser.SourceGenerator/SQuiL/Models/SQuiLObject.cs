@@ -11,7 +11,7 @@ public class SQuiLObject(
 	string Modifiers,
 	string Type,
 	CodeBlock Block,
-	ImmutableDictionary<string, SQuiLTableMap> TableMap,
+	SQuiLTableMap TableMap,
 	ImmutableDictionary<string, Generator.SQuiLPartialModel> Records)
 	: SQuiLTable(NameSpace, Modifiers, Type, Block, TableMap, Records)
 { }

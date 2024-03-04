@@ -275,7 +275,7 @@ public class SQuiLDataContext(
 				{
 					writer.Block($"""
 						System.Text.StringBuilder query = new();
-						query.Append("Insert Into @{CodeBlock.Name}({string.Join(", ", CodeBlock.Properties.Select(p => p.Identifier.Value))})");
+						query.Append("Insert Into @Param{(CodeBlock.IsTable ? "s" : "")}_{CodeBlock.Name}({string.Join(", ", CodeBlock.Properties.Select(p => p.Identifier.Value))})");
 						""");
 					writer.WriteLine();
 
@@ -298,7 +298,7 @@ public class SQuiLDataContext(
 								query.AppendLine(comma);
 								query.Append('(');
 								""");
-							a("s", "index", "item");
+							AddParams("s", "index", "item");
 							writer.Block("""
 								query.Append(')');
 
@@ -316,7 +316,7 @@ public class SQuiLDataContext(
 							query.Append("Values (");
 
 							""");
-						a("", "0", $"request.{CodeBlock.Name}");
+						AddParams("", "0", $"request.{CodeBlock.Name}");
 						writer.Block("""
 					
 							query.Append(')');
@@ -331,7 +331,7 @@ public class SQuiLDataContext(
 						""");
 				});
 
-				void a(string param, string index, string item)
+				void AddParams(string param, string index, string item)
 				{
 					param = $"Param{param}{CodeBlock.Name}";
 

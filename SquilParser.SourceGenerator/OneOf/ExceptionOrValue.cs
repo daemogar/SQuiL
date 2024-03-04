@@ -4,12 +4,12 @@ namespace Microsoft.CodeAnalysis;
 
 public record ExceptionOrValue<T>
 {
-	public bool IsException { get; set; }
+	public bool IsException { get; }
 	private Exception ExceptionValue { get; } = default!;
 	public Exception Exception => ExceptionValue
 		?? throw new NullReferenceException($"Exception is not an Exception");
 
-	public bool IsValue { get; set; }
+	public bool IsValue { get; }
 	private T ValueValue { get; } = default!;
 	public T Value => ValueValue
 		?? throw new NullReferenceException($"Value is not type {typeof(T).Name}");
