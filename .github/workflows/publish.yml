@@ -61,7 +61,7 @@ jobs:
       env:
         RELEASE_NOTE: https://github.com/daemogar/${{ env.PROJECT }}/releases/tag/${{ env.VERSION }}
       working-directory: ./${{ env.DIRECTORY }}
-      run: dotnet pack --no-build --c Release --include-symbols -p:SymbolPackageFormat=snupkg /p:Version=${{ env.VERSION }} /p:PackageReleaseNotes="See ${{ env.RELEASE_NOTE }}"
+      run: dotnet pack --no-build -c Release --include-symbols -p:SymbolPackageFormat=snupkg /p:Version=${{ env.VERSION }} /p:PackageReleaseNotes="See ${{ env.RELEASE_NOTE }}"
 
     - name: Push Nuget
       env:
