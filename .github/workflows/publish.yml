@@ -30,15 +30,20 @@ jobs:
       with:
         dotnet-version: 8.0.x
 
-    - name: Get DotNet Version
-      id: get-dotnet-version
+    - name: Set DotNet Version
+      id: dotnet-version
       run: echo "::set-output name=version::$(dotnet --version)"
+    
+    - name: Set Build Number
+      id: build-number
+      run: echo "::set-output name=version::$(printf '%04f' ${{ githug.run_number }})"
 
-    - name: Set Release Name
+    - name: Set Environment Variables
       uses: allenevans/set-env@v2.0.0
       with:
-        DOTNET: ${{ steps.get-dotnet-version.outputs.version }}
-        VERSION: ${{ steps.get-dotnet-version.outputs.version }}-beta.${{ env.BUILD }}
+        DOTNET: ${{ steps.dotnet-version.outputs.version }}
+        BUILD: ${{ steps.build-number.outpus.version }}
+        VERSION: ${{ steps.dotnet-version.outputs.version }}-beta.${{ steps.build-number.outpus.version }}
 
     - name: Restore Dependencies
       run: dotnet restore
