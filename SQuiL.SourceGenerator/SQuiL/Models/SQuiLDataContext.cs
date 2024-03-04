@@ -77,7 +77,7 @@ public class SQuiLDataContext(
 					writer.Block($"""
 
 									command.CommandText = Query(parameters);
-									command.Parameters.AddRange(parameters);
+									command.Parameters.AddRange(parameters.ToArray());
 
 									await connection.OpenAsync(cancellationToken);
 

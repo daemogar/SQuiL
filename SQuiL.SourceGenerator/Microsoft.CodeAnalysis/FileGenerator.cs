@@ -19,14 +19,18 @@ public class FileGenerator(
 
 	private void AddSource(string filename, string source)
 	{
-		Context.AddSource(filename, SourceText.From(source, Encoding.UTF8));
+		try
+		{
+			Context.AddSource(filename, SourceText.From(source, Encoding.UTF8));
+		}
+		catch (DiagnosticException e)
+		{
+			Context.ReportLexicalParseErrorDiagnostic(e, filename);
+		}
 	}
 
 	public void Create(string @namespace, string classname, string method, string setting, string text, ImmutableDictionary<string, SQuiLPartialModel> records)
 	{
-		if (ShowDebugMessages)
-			Context.Debug($"{@namespace} :: {classname} :: {setting} :: {method} :: {text}");
-
 		try
 		{
 			SQuiLFileGeneration generation = new(method, $"{@namespace}.{classname}");
