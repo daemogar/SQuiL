@@ -34,27 +34,19 @@ jobs:
       working-directory: ./${{ env.DIRECTORY }}
       run: dotnet restore
         
+    - name: Build ${{ env.PROJECT }}
+      working-directory: ./${{ env.DIRECTORY }}
+      run: dotnet build --no-restore -c Release
+      
     - name: Set DotNet Version
-      #id: dotnet-version
       run: echo "DOTNET=$(dotnet --version)" >> "$GITHUB_ENV"
      
     - name: Set Build Number
-      #id: build-number
       run: echo "BUILD=$(printf '%04d' ${{ github.run_number }})" >> "$GITHUB_ENV"
 
     - name: Set Release Version
       run: echo "VERSION=${{ env.DOTNET }}-beta.${{ env.BUILD }}" >> "$GITHUB_ENV"
-      #uses: allenevans/set-env@v2.0.0
-      #with:
-      #  PROJECT: SQuiL
-      #  DOTNET: ${{ steps.dotnet-version.outputs.version }}
-      #  BUILD: ${{ steps.build-number.outpus.version }}
-      #  VERSION: ${{ steps.dotnet-version.outputs.version }}-beta.${{ steps.build-number.outpus.version }}
-
-    - name: Build ${{ env.PROJECT }}
-      working-directory: ./${{ env.DIRECTORY }}
-      run: dotnet build --no-restore -c Release -p:/Version=${{ env.VERSION }}
-
+      
     - name: Create Release ${{ env.VERSION }}
       id: create-release
       uses: actions/create-release@v1.1.4
