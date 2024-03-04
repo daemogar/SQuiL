@@ -47,17 +47,16 @@ jobs:
     - name: Set Release Version
       run: echo "VERSION=${{ env.DOTNET }}-beta.${{ env.BUILD }}" >> "$GITHUB_ENV"
       
-    - name: Create Release ${{ env.VERSION }}
-      id: create-release
-      uses: actions/create-release@v1.1.4
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Create Release
+      uses: ncipollo/release-action@v1.14.0
       with:
-        tag_name: ${{ env.VERSION }}
-        release_name: ${{ env.VERSION }}
+        tag: ${{ env.VERSION }}
+        name: ${{ env.VERSION }}
+        token: ${{ secrets.GITHUB_TOKEN }}
         draft: false
         prerelease: true
-    
+        artifactErrorsFailBuild: true
+        
     - name: Pack ${{ env.PROJECT }}.SourceGenerator
       env:
         RELEASE_NOTE: https://github.com/daemogar/${{ env.PROJECT }}/releases/tag/${{ env.VERSION }}
