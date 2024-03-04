@@ -52,7 +52,7 @@ public class SQuiLTableMap
 	public bool TryGetName(string value, out string tableName)
 	{
 		tableName = value;
-		if (!Mappings.TryGetValue(value, out var map))
+		if (value is null || !Mappings.TryGetValue(value, out var map))
 			return false;
 
 		tableName = map.First().Attribute;
