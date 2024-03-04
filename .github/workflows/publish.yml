@@ -36,7 +36,7 @@ jobs:
     
     - name: Set Build Number
       id: build-number
-      run: echo "::set-output name=version::$(printf '%04f' ${{ githug.run_number }})"
+      run: echo "::set-output name=version::$(printf '%04f' ${{ github.run_number }})"
 
     - name: Set Environment Variables
       uses: allenevans/set-env@v2.0.0
