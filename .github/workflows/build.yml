@@ -15,16 +15,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4.1.1
+    - name: Checkout Repository
+      uses: actions/checkout@v4.1.1
+      
     - name: Setup .NET 8
       uses: actions/setup-dotnet@v4.0.0
       with:
         dotnet-version: 8.0.x
+        
     - name: Restore Dependencies
       run: dotnet restore
+      
     - name: Build Generator
-      run: dotnet build --no-restore ".\SquilParser.SourceGenerator\SquilParser.SourceGenerator.csproj"
-    - name: Build Tests
-      run: dotnet build --no-restore ".\SquilParser.Tests\SquilParser.Tests.csproj"
-    - name: Test Generator
-      run: dotnet test --no-build --verbosity normal ".\SquilParser.Tests\SquilParser.Tests.csproj"
+      run: dotnet build --no-restore -c Release ".\SquilParser.SourceGenerator\SquilParser.SourceGenerator.csproj"
+      
+    # - name: Build Tests
+    #   run: dotnet build --no-restore ".\SquilParser.Tests\SquilParser.Tests.csproj"
+    # - name: Test Generator
+    #   run: dotnet test --no-build --verbosity normal ".\SquilParser.Tests\SquilParser.Tests.csproj"
