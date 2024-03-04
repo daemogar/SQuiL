@@ -6,6 +6,7 @@ public class SQuiLFileGeneration(string Method, string Scope)
 {
 	public string Method { get; } = Method;
 	public string Scope { get; } = Scope;
+	public string FilePath { get; set; } = default!;
 	public SQuiLDataContext Context { get; set; } = default!;
 	public SQuiLModel Request { get; set; } = default!;
 	public SQuiLModel Response { get; set; } = default!;

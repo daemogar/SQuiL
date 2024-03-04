@@ -306,7 +306,11 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				continue;
 
 			contexts.Add($"{@namespace}.{classname}");
-			generator.Create(@namespace, classname, method, setting, text.ToString(), records);
+			var generation = generator
+				.Create(@namespace, classname, method, setting, text, records);
+
+			if (generation is not null)
+				generation.FilePath = file.Path;
 		}
 
 		GenerateDependencyInjectionCode(contexts);

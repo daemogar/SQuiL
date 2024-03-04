@@ -6,6 +6,7 @@ using SQuiL.SourceGenerator.Parser;
 using SQuiL.Tokenizer;
 
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Text;
 
 namespace Microsoft.CodeAnalysis;
@@ -29,13 +30,13 @@ public class FileGenerator(
 		}
 	}
 
-	public void Create(string @namespace, string classname, string method, string setting, string text, ImmutableDictionary<string, SQuiLPartialModel> records)
+	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records)
 	{
 		try
 		{
 			SQuiLFileGeneration generation = new(method, $"{@namespace}.{classname}");
 
-			var tokens = SQuiLTokenizer.GetTokens(text);
+			var tokens = SQuiLTokenizer.GetTokens(text.ToString());
 			var blocks = SQuiLParser.ParseTokens(tokens);
 
 			if (ShowDebugMessages)
@@ -53,10 +54,13 @@ public class FileGenerator(
 			generation.Context = new(@namespace, classname, method, setting, blocks);
 
 			Generations.Add(generation);
+
+			return generation;
 		}
 		catch (DiagnosticException e)
 		{
 			Context.ReportLexicalParseErrorDiagnostic(e, method);
+			return default;
 		}
 	}
 
@@ -76,12 +80,6 @@ public class FileGenerator(
 				else
 					Context.ReportMissingStatement(rese);
 
-				TableMap.GenerateCode(out var tables, out var exceptions);
-				foreach (var exception in exceptions)
-					Context.ReportMissingStatement(exception);
-				foreach (var (table, text) in tables)
-					AddSource(Hint(table), text);
-
 				if (generation.Context.GenerateCode(generation).TryGetValue(out var source, out var e))
 					AddSource(Hint($"{generation.Method}DataContext"), source);
 				else
@@ -93,6 +91,19 @@ public class FileGenerator(
 			}
 
 			string Hint(string name) => $"{generation.Scope}.{name}.g.cs";
+		}
+
+		try
+		{
+			TableMap.GenerateCode(out var tables, out var exceptions);
+			foreach (var exception in exceptions)
+				Context.ReportMissingStatement(exception);
+			foreach (var (table, text) in tables)
+				AddSource($"{table}.g.cs", text);
+		}
+		catch (DiagnosticException e)
+		{
+			Context.ReportLexicalParseErrorDiagnostic(e, Generations[0].FilePath);
 		}
 	}
 }
