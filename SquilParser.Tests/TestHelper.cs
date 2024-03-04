@@ -21,8 +21,6 @@ public static class TestHelper
 		[CallerMemberName] string name = default!,
 		[CallerFilePath] string path = default!)
 	{
-		if (!Debugger.IsAttached) Debugger.Launch();
-
 		var syntaxTrees = sources.Select(p => CSharpSyntaxTree.ParseText(p));
 
 		IEnumerable<MetadataReference> metareferences = [

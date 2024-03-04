@@ -7,5 +7,6 @@ namespace SQuiL;
 
 public enum QueryFiles
 {
-	SharedTable1
+	TwoQueryDataContext1,
+	TwoQueryDataContext2
 }

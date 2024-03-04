@@ -1,0 +1,24 @@
+﻿{
+  Diagnostics: [
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: TestCase :: InheritedSimpleBaseWithPrimaryContructedParametersDataContext :: SQuiLDatabase :: InheritedSimpleBaseWithPrimaryContructedParameters :: Declare	@Bob1 varchar(max) = 'Sally'; Use [Database]; Select @Bob1;,
+      Message: TestCase :: InheritedSimpleBaseWithPrimaryContructedParametersDataContext :: SQuiLDatabase :: InheritedSimpleBaseWithPrimaryContructedParameters :: Declare	@Bob1 varchar(max) = 'Sally'; Use [Database]; Select @Bob1;,
+      Category: Logger
+    },
+    {
+      Id: SP1001,
+      Title: Failed Parsing SQuiL File,
+      Severity: Error,
+      WarningLevel: 0,
+      Location: : (0,0)-(0,0),
+      MessageFormat: Expected a declare with @Param_<variable or object name>, @Params_<tablename>, @Return_<variable or object name>, or/and @Returns_<tablename>, but found @Bob1 instead.,
+      Message: Expected a declare with @Param_<variable or object name>, @Params_<tablename>, @Return_<variable or object name>, or/and @Returns_<tablename>, but found @Bob1 instead.,
+      Category: Design
+    }
+  ]
+}

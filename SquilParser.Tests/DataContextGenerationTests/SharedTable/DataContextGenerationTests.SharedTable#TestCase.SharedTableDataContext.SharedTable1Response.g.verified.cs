@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record SharedTable1Response
 {
-	public System.Collections.Generic.List<Table> Bob { get; set; } = [];
+	public SharedTable1BobObject? Bob { get; set; } = default!;
 }

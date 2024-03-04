@@ -1,0 +1,14 @@
+﻿{
+  Diagnostics: [
+    {
+      Id: SP0005,
+      Title: No SQuiL Contexts Are Created,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: There are no SQuiL contexts created. Make sure to create a partial class and add the [SQuiLQueryAttribute].,
+      Message: There are no SQuiL contexts created. Make sure to create a partial class and add the [SQuiLQueryAttribute].,
+      Category: Design
+    }
+  ]
+}

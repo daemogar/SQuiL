@@ -7,5 +7,4 @@ namespace SQuiL;
 
 public enum TableType
 {
-	Object
 }

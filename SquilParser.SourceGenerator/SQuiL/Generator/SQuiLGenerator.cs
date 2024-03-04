@@ -23,7 +23,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 #if DEBUG
-		if (!System.Diagnostics.Debugger.IsAttached) System.Diagnostics.Debugger.Launch();
+		//if (!System.Diagnostics.Debugger.IsAttached) System.Diagnostics.Debugger.Launch();
 #endif
 		var rootPath = context.SyntaxProvider
 			.CreateSyntaxProvider(
@@ -145,7 +145,9 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			catch (Exception e)
 			{
 				a.CriticalGenerationFailure(e);
-				if (ShowDebugMessages && !System.Diagnostics.Debugger.IsAttached) System.Diagnostics.Debugger.Launch();
+#if DEBUG
+				//if (ShowDebugMessages && !System.Diagnostics.Debugger.IsAttached) System.Diagnostics.Debugger.Launch();
+#endif
 			}
 		});
 	}
@@ -186,7 +188,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			}
 	}
 
-	private void Execute(Compilation compilation, ImmutableArray<SQuiLDependency> dependencies, ImmutableArray<AdditionalText> files, ImmutableArray<SQuiLDefinition> definitions, ImmutableDictionary<string, SQuiLPartialModel> records, SourceProductionContext context)
+	private void Execute(Compilation _, ImmutableArray<SQuiLDependency> dependencies, ImmutableArray<AdditionalText> files, ImmutableArray<SQuiLDefinition> definitions, ImmutableDictionary<string, SQuiLPartialModel> records, SourceProductionContext context)
 	{
 		var missingDependencyInjectable = !dependencies.Any(p => p?.DependencyInjection == true);
 		if (missingDependencyInjectable)

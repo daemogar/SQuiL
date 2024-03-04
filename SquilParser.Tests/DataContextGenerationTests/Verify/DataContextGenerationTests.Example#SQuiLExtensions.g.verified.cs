@@ -12,8 +12,6 @@ public static class SQuiLExtensions
     public static IServiceCollection AddSQuiLParser(
         this IServiceCollection services)
     {
-        services.AddSingleton<TestCase.Input2VariableDataContext>();
-        
         return services;
     }
 }

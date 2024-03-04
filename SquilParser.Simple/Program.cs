@@ -1,5 +1,4 @@
-﻿using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 //using SQuiL;
@@ -21,7 +20,7 @@ ServiceCollection services = new();
 services.AddSingleton<IConfiguration>(builder.Build());
 //services.AddSingleton<TestDataContext>();
 
-var provider = services.BuildServiceProvider();
+//var provider = services.BuildServiceProvider();
 
 //var context = provider.GetRequiredService<TestDataContext>();
 //var response = await context.ProcessQueriesExample1Async(new()

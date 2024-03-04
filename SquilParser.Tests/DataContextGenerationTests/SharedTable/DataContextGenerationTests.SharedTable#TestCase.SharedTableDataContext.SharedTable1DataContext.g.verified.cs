@@ -18,16 +18,20 @@ partial class SharedTableDataContext : SQuiLBaseDataContext
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
 		using SqlConnection connection = new(builder.ConnectionString);
 		var command = connection.CreateCommand();
-		command.CommandText = Query();
-		command.Parameters.AddRange(new SqlParameter[]
+		
+		List<SqlParameter> parameters = new()
 		{
 			new("EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
 			new("Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
 		});
 		
+		command.CommandText = Query(parameters);
+		command.Parameters.AddRange(parameters);
+		
 		await connection.OpenAsync(cancellationToken);
 		
 		SharedTable1Response response = new();
+		
 		var isBob = false;
 		
 		using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -41,25 +45,32 @@ partial class SharedTableDataContext : SQuiLBaseDataContext
 				{
 					case "__SQuiL__Table__Type__Return_Bob__":
 					{
+						if (isBob) throw new Exception(
+							"Already returned value for `Bob`");
+						
 						isBob = true;
 						
 						if (!await reader.ReadAsync(cancellationToken)) break;
 						
-						var indexID = reader.GetOrdinal("ID");
+						if (response.Object is not null)
+							throw new Exception("Bob was already set.");
 						
-						do
+						if (reader.GetString(0) == "Return_Bob")
 						{
-							if(reader.GetString(0) == "Return_Bob")
-							{
-								response.Bob.Add(new(
-									reader.GetInt32(indexID)));
-							}
+							response.Bob = new(
+								reader.GetInt32(reader.GetOrdinal("ID")));
 						}
-						while(await reader.ReadAsync(cancellationToken));
-						break;
+						else
+						{
+							continue;
+						}
 						
+						if (await reader.ReadAsync(cancellationToken))
+							throw new Exception(
+								"Return object results in more than one object. Consider using a return table instead.");
+						
+						break;
 					}
-					//default: throw new Exception($"Invalid Table `{reader.GetString(0)}`");
 				}
 			}
 		}
@@ -69,7 +80,7 @@ partial class SharedTableDataContext : SQuiLBaseDataContext
 		
 		return response;
 		
-		string Query() => $"""
+		string Query(List<SqlParameter> parameters) => $"""
 		Declare @Return_Bob table(
 			[__SQuiL__Table__Type__Return_Bob__] varchar(max) default('Return_Bob'),
 			ID int);

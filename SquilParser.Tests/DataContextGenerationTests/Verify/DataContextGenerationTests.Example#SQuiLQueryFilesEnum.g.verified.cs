@@ -7,5 +7,5 @@ namespace SQuiL;
 
 public enum QueryFiles
 {
-	SharedTable1
+	QueriesExample
 }

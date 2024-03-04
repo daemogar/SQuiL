@@ -28,10 +28,10 @@ public class FileGenerator(
 		if (ShowDebugMessages)
 			Context.Debug($"{@namespace} :: {classname} :: {setting} :: {method} :: {text}");
 
-		SQuiLFileGeneration generation = new(method, $"{@namespace}.{classname}");
-
 		try
 		{
+			SQuiLFileGeneration generation = new(method, $"{@namespace}.{classname}");
+
 			var tokens = SQuiLTokenizer.GetTokens(text);
 			var blocks = SQuiLParser.ParseTokens(tokens);
 
@@ -48,13 +48,13 @@ public class FileGenerator(
 					generation.Tables.Add(table);
 
 			generation.Context = new(@namespace, classname, method, setting, blocks);
+
+			Generations.Add(generation);
 		}
 		catch (DiagnosticException e)
 		{
 			Context.ReportLexicalParseErrorDiagnostic(e, method);
 		}
-
-		Generations.Add(generation);
 	}
 
 	public void GenerateCode()

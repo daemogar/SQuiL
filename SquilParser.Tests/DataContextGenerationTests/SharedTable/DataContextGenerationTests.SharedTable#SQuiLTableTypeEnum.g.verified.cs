@@ -7,6 +7,5 @@ namespace SQuiL;
 
 public enum TableType
 {
-	Bob,
-	Sally
+	Bob
 }

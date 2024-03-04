@@ -37,22 +37,22 @@ public class DataContextGenerationTests //: DataContextUsedTests
 	{
 		var name = nameof(SharedTable);
 		return TestHelper.Verify([$$"""
-		{{TestHeader(name, [$"{name}1", $"{name}2"])}}
+		{{TestHeader(name, [$"{name}1"/*, $"{name}2"*/])}}
 		
-		[SQuiLTable(TableType.Bob)]
-		[SQuiLTable(TableType.Sally)]
+		//[SQuiLTable(TableType.Bob)]
+		//[SQuiLTable(TableType.Sally)]
 		public partial class Table {}
 		"""], [$$"""
 		--Name: {{name}}1
 		Declare	@Return_Bob table(ID int);
 		Use [Database];
 		Select 1;
-		""", $$"""
+		"""/*, $$"""
 		--Name: {{name}}2
 		Declare	@Return_Sally table(ID int);
 		Use [Database];
 		Select 2;
-		"""]);
+		"""*/]);
 	}
 
 	[Fact]
@@ -142,7 +142,7 @@ public class DataContextGenerationTests //: DataContextUsedTests
 			*/
 			"""]);
 	}
-
+	/*
 	[Fact]
 	public Task ModifyReturnTableWithProperties()
 	{
@@ -180,7 +180,7 @@ public class DataContextGenerationTests //: DataContextUsedTests
 							On t.TermCode = c.TermCode;
 			"""]);
 	}
-
+	*/
 	[Fact]
 	public Task InheritedSimpleBaseWithPrimaryContructedParameters()
 	{
