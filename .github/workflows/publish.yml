@@ -1,0 +1,71 @@
+# This workflow will build a .NET project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+
+name: Publish SQuiL
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+    PROJECT: SQuiL
+    BUILD: ${{ format('{0:04}', github.run_number) }}
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Source
+      uses: actions/checkout@v4.1.1
+
+    - name: Git Fetch
+      run: git fetch --prune --unshallow
+    
+    - name: Setup DotNet
+      uses: actions/setup-dotnet@v4.0.0
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Get DotNet Version
+      id: get-dotnet-version
+      run: echo "::set-output name=version::$(dotnet --version)"
+
+    - name: Set Release Name
+      uses: allenevans/set-env@v2.0.0
+      with:
+        DOTNET: ${{ steps.get-dotnet-version.outputs.version }}
+        VERSION: ${{ steps.get-dotnet-version.outputs.version }}-beta.${{ env.BUILD }}
+
+    - name: Restore Dependencies
+      run: dotnet restore
+        
+    - name: Build ${{ env.PROJECT }}
+      run: dotnet build --no-restore -c Release -p:/Version=${{ env.VERSION }} ".\SquilParser.SourceGenerator\SquilParser.SourceGenerator.csproj"
+
+    - name: Create Release ${{ env.VERSION }}
+      id: create-release
+      uses: actions/create-release@v1.1.4
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ env.VERSION }}
+        release_name: ${{ env.VERSION }}
+        draft: false
+        prerelease: true
+    
+    - name: Pack ${{ env.PROJECT }}.SourceGenerator
+      env:
+        RELEASE_NOTE: https://github.com/daemogar/${{ env.PROJECT }}/releases/tag/${{ env.VERSION }}
+      working-directory: ./${{ env.PROJECT }}/${{ env.PROJECT }}.SourceGenerator
+      run: dotnet pack --no-build --c Release --include-symbols -p:SymbolPackageFormat=snupkg /p:Version=${{ env.VERSION }} /p:PackageReleaseNotes="See ${{ env.RELEASE_NOTE }}"
+
+    - name: Push Nuget
+      env:
+        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      working-directory: ./${{ env.PROJECT }}/${{ env.PROJECT }}.SourceGenerator
+      run: dotnet nuget push **/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
+      
