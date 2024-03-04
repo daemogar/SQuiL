@@ -28,7 +28,10 @@ jobs:
       uses: actions/setup-dotnet@v4.0.0
       with:
         dotnet-version: 8.0.x
-
+        
+    - name: Restore Dependencies
+      run: dotnet restore
+        
     - name: Set DotNet Version
       #id: dotnet-version
       run: echo "DOTNET=$(dotnet --version)" >> "$GITHUB_ENV"
@@ -46,9 +49,6 @@ jobs:
       #  BUILD: ${{ steps.build-number.outpus.version }}
       #  VERSION: ${{ steps.dotnet-version.outputs.version }}-beta.${{ steps.build-number.outpus.version }}
 
-    - name: Restore Dependencies
-      run: dotnet restore
-        
     - name: Build ${{ env.PROJECT }}
       run: dotnet build --no-restore -c Release -p:/Version=${{ env.VERSION }} ".\SquilParser.SourceGenerator\SquilParser.SourceGenerator.csproj"
 
