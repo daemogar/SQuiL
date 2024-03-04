@@ -143,7 +143,7 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 			AddParams(query, parameters, 0, "ParamObject", "FirstName", System.Data.SqlDbType.VarChar, request.Object.FirstName, 100);
 			
 			query.Append(')');
-			query.AppendLine(';');
+			query.AppendLine(";");
 			query.AppendLine();
 			
 			return query.ToString();
@@ -177,7 +177,7 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 				comma = ",";
 			}
 			
-			query.AppendLine(';');
+			query.AppendLine(";");
 			query.AppendLine();
 			
 			return query.ToString();

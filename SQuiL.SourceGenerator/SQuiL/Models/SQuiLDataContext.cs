@@ -323,8 +323,8 @@ public class SQuiLDataContext(
 							""");
 					}
 
-					writer.Block("""						
-						query.AppendLine(';');
+					writer.Block("""
+						query.AppendLine(";");
 						query.AppendLine();
 
 						return query.ToString();

@@ -102,8 +102,8 @@ partial class CustomTableVariableDataContext : SQuiLBaseDataContext
 				
 				comma = ",";
 			}
-			
-			query.AppendLine(';');
+
+			query.AppendLine(";");
 			query.AppendLine();
 			
 			return query.ToString();
