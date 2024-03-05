@@ -22,7 +22,7 @@ public class FileGenerator(
 	{
 		try
 		{
-			Context.AddSource(filename, SourceText.From(source, Encoding.UTF8));
+			Context.AddSource($"{filename}.g.cs", SourceText.From(source, Encoding.UTF8));
 		}
 		catch (DiagnosticException e)
 		{
@@ -34,7 +34,7 @@ public class FileGenerator(
 	{
 		try
 		{
-			SQuiLFileGeneration generation = new(method, $"{@namespace}.{classname}");
+			SQuiLFileGeneration generation = new(method, "");
 
 			var tokens = SQuiLTokenizer.GetTokens(text.ToString());
 			var blocks = SQuiLParser.ParseTokens(tokens);
@@ -71,17 +71,17 @@ public class FileGenerator(
 			try
 			{
 				if (generation.Request.GenerateCode().TryGetValue(out var req, out var reqe))
-					AddSource(Hint(generation.Request.ModelName), req);
+					AddSource(generation.Request.ModelName, req);
 				else
 					Context.ReportMissingStatement(reqe);
 
 				if (generation.Response.GenerateCode().TryGetValue(out var res, out var rese))
-					AddSource(Hint(generation.Response.ModelName), res);
+					AddSource(generation.Response.ModelName, res);
 				else
 					Context.ReportMissingStatement(rese);
 
 				if (generation.Context.GenerateCode(generation).TryGetValue(out var source, out var e))
-					AddSource(Hint($"{generation.Method}DataContext"), source);
+					AddSource($"{generation.Method}DataContext", source);
 				else
 					Context.ReportMissingStatement(e);
 			}
@@ -89,8 +89,6 @@ public class FileGenerator(
 			{
 				Context.ReportLexicalParseErrorDiagnostic(e, generation.Method);
 			}
-
-			string Hint(string name) => $"{generation.Scope}.{name}.g.cs";
 		}
 
 		try
@@ -99,7 +97,7 @@ public class FileGenerator(
 			foreach (var exception in exceptions)
 				Context.ReportMissingStatement(exception);
 			foreach (var (table, text) in tables)
-				AddSource($"{table}.g.cs", text);
+				AddSource(table, text);
 		}
 		catch (DiagnosticException e)
 		{
