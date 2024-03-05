@@ -375,8 +375,8 @@ public class SQuiLDataContext(
 			writer.WriteLine("{");
 			writer.Indent++;
 
-			writer.WriteLine($$"""new("{{SQuiLGenerator.EnvironmentName}}", System.Data.SqlDbType.VarChar, {{SQuiLGenerator.EnvironmentName}}.Length) { Value = {{SQuiLGenerator.EnvironmentName}} }, """);
-			writer.Write($$"""new("{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit) { Value = {{SQuiLGenerator.EnvironmentName}} != "Production" }, """);
+			writer.WriteLine($$"""new("@{{SQuiLGenerator.EnvironmentName}}", System.Data.SqlDbType.VarChar, {{SQuiLGenerator.EnvironmentName}}.Length) { Value = {{SQuiLGenerator.EnvironmentName}} }, """);
+			writer.Write($$"""new("@{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit) { Value = {{SQuiLGenerator.EnvironmentName}} != "Production" }, """);
 
 			var parameters = Blocks
 				.Where(p => p.CodeType == CodeType.INPUT_ARGUMENT)
@@ -397,7 +397,7 @@ public class SQuiLDataContext(
 				if (parameter.Name.Equals(SQuiLGenerator.Debug)) continue;
 
 				writer.WriteLine(comma);
-				writer.Write($$"""new("Param_{{parameter.Name}}", {{parameter.SqlDbType()}}) """);
+				writer.Write($$"""new("@Param_{{parameter.Name}}", {{parameter.SqlDbType()}}) """);
 
 				var value = $"request.{parameter.Name}";
 
