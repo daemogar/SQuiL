@@ -368,7 +368,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 						parameters.Add(new(parameter, type, size) {
 							Value = value is null || ((string)value).Length <= size
-								? (value is null ? "Null" : $"'{value}'")
+								? (value ?? "Null")
 								: throw new Exception($"""
 									ParamsTable model table property at index [2] has a string property [{name}]
 									with more than {size} characters.
