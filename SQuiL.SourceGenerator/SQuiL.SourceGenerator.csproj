@@ -7,9 +7,19 @@
 		<LangVersion>latest</LangVersion>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+		<PackageId>SQuiL.SourceGenerator</PackageId>
+		<Authors>Dæmogar</Authors>
+		<Description>Source generator for turning SQL files into C# source code.</Description>
+		<PackageTags>.NET dotnet core library reusable generic server serverside SQL ORM</PackageTags>
+		<PackageProjectUrl>https://github.com/daemogar/SQuiL</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/daemogar/SQuiL</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
-		<DebugSymbols>true</DebugSymbols>
+		<Copyright>2021</Copyright>
 	</PropertyGroup>
 
 	<ItemGroup>
