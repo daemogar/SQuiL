@@ -1,5 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 
+using SQuiL.Generator;
 using SQuiL.Models;
 using SQuiL.Tokenizer;
 
@@ -22,7 +23,6 @@ public class SQuiLParser(List<Token> Tokens)
 	}
 
 	private Token Current => Peek(0);
-	private Token Next => Peek(1);
 
 	private Token Peek(int offset)
 		=> Index + offset < Tokens.Count
@@ -50,6 +50,10 @@ public class SQuiLParser(List<Token> Tokens)
 				var token = Expect(TokenType.VARIABLE);
 				var parts = token.Value.Split(['_'], 2);
 
+				if (parts[0].Equals(SQuiLGenerator.EnvironmentName)
+					|| parts[0].Equals(SQuiLGenerator.Debug))
+					return new(token, CodeType.INPUT_ARGUMENT, false, false, parts[0]);
+
 				if (parts[0].StartsWith("param", StringComparison.CurrentCultureIgnoreCase))
 				{
 					var type = CodeType.INPUT_ARGUMENT;
@@ -76,7 +80,7 @@ public class SQuiLParser(List<Token> Tokens)
 						$"@Return_<variable or object name>, or/and @Returns_<tablename>, " +
 						$"but found @{token.Value} instead.");
 
-					string name;
+				string name;
 				if (parts.Length == 1 || parts[1].IsNullOrWhiteSpace())
 					name = $"Result{++resultIndex}";
 				else

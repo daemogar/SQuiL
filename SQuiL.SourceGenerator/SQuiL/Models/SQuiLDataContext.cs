@@ -393,11 +393,11 @@ public class SQuiLDataContext(
 			var comma = $"";
 			foreach (var parameter in parameters)
 			{
-				if (parameter.Name.Equals(SQuiLGenerator.Debug)) continue;
 				if (parameter.Name.Equals(SQuiLGenerator.EnvironmentName)) continue;
+				if (parameter.Name.Equals(SQuiLGenerator.Debug)) continue;
 
 				writer.WriteLine(comma);
-				writer.Write($$"""new("{{parameter.Name}}", {{parameter.SqlDbType()}}) """);
+				writer.Write($$"""new("Param_{{parameter.Name}}", {{parameter.SqlDbType()}}) """);
 
 				var value = $"request.{parameter.Name}";
 

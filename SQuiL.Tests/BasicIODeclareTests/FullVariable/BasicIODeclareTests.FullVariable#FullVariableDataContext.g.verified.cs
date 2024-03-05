@@ -23,7 +23,7 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 		{
 			new("EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
 			new("Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
-			new("Scaler", System.Data.SqlDbType.BigInt) 
+			new("Param_Scaler", System.Data.SqlDbType.BigInt) 
 			{
 				IsNullable = true,
 				Value = request.Scaler ?? (object)System.DBNull.Value

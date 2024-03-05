@@ -47,6 +47,8 @@ public class BasicIODeclareTests
 		var name = nameof(FullVariable);
 		return TestHelper.Verify([TestHeader([name])], [$$"""
 			--Name: {{name}}
+			Declare @Debug bit = 1;
+
 			Declare	@Param_Scaler int;
 			
 			Declare	@Param_Object table(ObjectID int, IsMale bit, FirstName varchar(100));

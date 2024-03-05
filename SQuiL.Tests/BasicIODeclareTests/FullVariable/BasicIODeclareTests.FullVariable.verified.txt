@@ -6,8 +6,8 @@
       Severity: Warning,
       WarningLevel: 1,
       Location: : (0,0)-(0,0),
-      MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_INT, Offset = 22, Value = Scaler, Original = @Param_Scaler int }, Name = Scaler, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
-      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_INT, Offset = 22, Value = Scaler, Original = @Param_Scaler int }, Name = Scaler, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = 15, Value = , Original = @Debug bit }, Name = Debug, DefaultValue = 1, IsObject = False, IsTable = False, IsRequired = False, IsNullable = False, Size = , Properties =  },
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = 15, Value = , Original = @Debug bit }, Name = Debug, DefaultValue = 1, IsObject = False, IsTable = False, IsRequired = False, IsNullable = False, Size = , Properties =  },
       Category: Logger
     },
     {
@@ -16,8 +16,8 @@
       Severity: Warning,
       WarningLevel: 1,
       Location: : (0,0)-(0,0),
-      MessageFormat: CodeBlock { CodeType = INPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 30, Value = Object, Original = @Param_Object table }, Name = Object, DefaultValue = , IsObject = True, IsTable = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
-      Message: CodeBlock { CodeType = INPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 30, Value = Object, Original = @Param_Object table }, Name = Object, DefaultValue = , IsObject = True, IsTable = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_INT, Offset = 49, Value = Scaler, Original = @Param_Scaler int }, Name = Scaler, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_INT, Offset = 49, Value = Scaler, Original = @Param_Scaler int }, Name = Scaler, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
       Category: Logger
     },
     {
@@ -26,8 +26,8 @@
       Severity: Warning,
       WarningLevel: 1,
       Location: : (0,0)-(0,0),
-      MessageFormat: CodeBlock { CodeType = INPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 112, Value = Table, Original = @Params_Table table }, Name = Table, DefaultValue = , IsObject = False, IsTable = True, IsRequired = False, IsNullable = False, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
-      Message: CodeBlock { CodeType = INPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 112, Value = Table, Original = @Params_Table table }, Name = Table, DefaultValue = , IsObject = False, IsTable = True, IsRequired = False, IsNullable = False, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      MessageFormat: CodeBlock { CodeType = INPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 57, Value = Object, Original = @Param_Object table }, Name = Object, DefaultValue = , IsObject = True, IsTable = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Message: CodeBlock { CodeType = INPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 57, Value = Object, Original = @Param_Object table }, Name = Object, DefaultValue = , IsObject = True, IsTable = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
       Category: Logger
     },
     {
@@ -36,8 +36,8 @@
       Severity: Warning,
       WarningLevel: 1,
       Location: : (0,0)-(0,0),
-      MessageFormat: CodeBlock { CodeType = OUTPUT_VARIABLE, DatabaseType = Token { Type = TYPE_INT, Offset = 217, Value = Scaler, Original = @Return_Scaler int }, Name = Scaler, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
-      Message: CodeBlock { CodeType = OUTPUT_VARIABLE, DatabaseType = Token { Type = TYPE_INT, Offset = 217, Value = Scaler, Original = @Return_Scaler int }, Name = Scaler, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      MessageFormat: CodeBlock { CodeType = INPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 139, Value = Table, Original = @Params_Table table }, Name = Table, DefaultValue = , IsObject = False, IsTable = True, IsRequired = False, IsNullable = False, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Message: CodeBlock { CodeType = INPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 139, Value = Table, Original = @Params_Table table }, Name = Table, DefaultValue = , IsObject = False, IsTable = True, IsRequired = False, IsNullable = False, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
       Category: Logger
     },
     {
@@ -46,8 +46,8 @@
       Severity: Warning,
       WarningLevel: 1,
       Location: : (0,0)-(0,0),
-      MessageFormat: CodeBlock { CodeType = OUTPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 225, Value = Object, Original = @Return_Object table }, Name = Object, DefaultValue = , IsObject = True, IsTable = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
-      Message: CodeBlock { CodeType = OUTPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 225, Value = Object, Original = @Return_Object table }, Name = Object, DefaultValue = , IsObject = True, IsTable = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      MessageFormat: CodeBlock { CodeType = OUTPUT_VARIABLE, DatabaseType = Token { Type = TYPE_INT, Offset = 244, Value = Scaler, Original = @Return_Scaler int }, Name = Scaler, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Message: CodeBlock { CodeType = OUTPUT_VARIABLE, DatabaseType = Token { Type = TYPE_INT, Offset = 244, Value = Scaler, Original = @Return_Scaler int }, Name = Scaler, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
       Category: Logger
     },
     {
@@ -56,8 +56,8 @@
       Severity: Warning,
       WarningLevel: 1,
       Location: : (0,0)-(0,0),
-      MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 315, Value = Table, Original = @Returns_Table table }, Name = Table, DefaultValue = , IsObject = False, IsTable = True, IsRequired = False, IsNullable = False, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
-      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 315, Value = Table, Original = @Returns_Table table }, Name = Table, DefaultValue = , IsObject = False, IsTable = True, IsRequired = False, IsNullable = False, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      MessageFormat: CodeBlock { CodeType = OUTPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 252, Value = Object, Original = @Return_Object table }, Name = Object, DefaultValue = , IsObject = True, IsTable = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Message: CodeBlock { CodeType = OUTPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 252, Value = Object, Original = @Return_Object table }, Name = Object, DefaultValue = , IsObject = True, IsTable = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
       Category: Logger
     },
     {
@@ -66,8 +66,8 @@
       Severity: Warning,
       WarningLevel: 1,
       Location: : (0,0)-(0,0),
-      MessageFormat: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 400, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
-      Message: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 400, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 342, Value = Table, Original = @Returns_Table table }, Name = Table, DefaultValue = , IsObject = False, IsTable = True, IsRequired = False, IsNullable = False, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 342, Value = Table, Original = @Returns_Table table }, Name = Table, DefaultValue = , IsObject = False, IsTable = True, IsRequired = False, IsNullable = False, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
       Category: Logger
     },
     {
@@ -76,8 +76,68 @@
       Severity: Warning,
       WarningLevel: 1,
       Location: : (0,0)-(0,0),
-      MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 413, Value = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler , Original = Select 1; }, Name = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler , DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
-      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 413, Value = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler , Original = Select 1; }, Name = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler , DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      MessageFormat: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 427, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Message: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 427, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 440, Value = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler , Original = Select 1; }, Name = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler , DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 440, Value = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler , Original = Select 1; }, Name = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler , DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: KEYWORD_DECLARE => ,
+      Message: KEYWORD_DECLARE => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: VARIABLE => Debug,
+      Message: VARIABLE => Debug,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: TYPE_BOOLEAN => ,
+      Message: TYPE_BOOLEAN => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: SYMBOL_EQUAL => ,
+      Message: SYMBOL_EQUAL => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: LITERAL_NUMBER => 1,
+      Message: LITERAL_NUMBER => 1,
       Category: Logger
     },
     {
