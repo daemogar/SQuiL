@@ -25,7 +25,7 @@ public abstract class SQuiLBaseDataContext(IConfiguration Configuration)
 			?? throw new Exception($"Cannot find a connection string in the appsettings for {settingName}."));
 	}
 
-	protected void AddParams(System.Text.StringBuilder query, List<SqlParameter> parameters, int index, string table, string name, SqlDbType type, object value, int size = 0)
+	protected void AddParams(System.Text.StringBuilder query, List<SqlParameter> parameters, int index, string table, string name, System.Data.SqlDbType type, object value, int size = 0)
 	{
 		var parameter = $"@{table}_{index}_{name}";
 		query.Append(parameter);
@@ -38,7 +38,7 @@ public abstract class SQuiLBaseDataContext(IConfiguration Configuration)
 
 		parameters.Add(new(parameter, type, size) {
 			Value = value is null || ((string)value).Length <= size
-				? (stringValue is null ? "Null" : $"'{value}'")
+				? (value is null ? "Null" : $"'{value}'")
 				: throw new Exception($"""
 					ParamsTable model table property at index [2] has a string property [{name}]
 					with more than {size} characters.

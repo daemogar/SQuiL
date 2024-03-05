@@ -6,16 +6,6 @@
       Severity: Warning,
       WarningLevel: 1,
       Location: : (0,0)-(0,0),
-      MessageFormat: TestCase :: FullVariableDataContext :: SQuiLDatabase :: FullVariable :: Declare	@Param_Scaler int;  Declare	@Param_Object table(ObjectID int, IsMale bit, FirstName varchar(100));  Declare	@Params_Table table(TableID int, IsFemale bit, LastName varchar(100));  Declare	@Return_Scaler int;  Declare	@Return_Object table(ObjectID int, IsNeither bit, PreferredName varchar(100));  Declare	@Returns_Table table(TableID int, IsBoth bit, NickName varchar(100));  Use [Database]; Select 1;,
-      Message: TestCase :: FullVariableDataContext :: SQuiLDatabase :: FullVariable :: Declare	@Param_Scaler int;  Declare	@Param_Object table(ObjectID int, IsMale bit, FirstName varchar(100));  Declare	@Params_Table table(TableID int, IsFemale bit, LastName varchar(100));  Declare	@Return_Scaler int;  Declare	@Return_Object table(ObjectID int, IsNeither bit, PreferredName varchar(100));  Declare	@Returns_Table table(TableID int, IsBoth bit, NickName varchar(100));  Use [Database]; Select 1;,
-      Category: Logger
-    },
-    {
-      Id: SP0000,
-      Title: Development Data,
-      Severity: Warning,
-      WarningLevel: 1,
-      Location: : (0,0)-(0,0),
       MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_INT, Offset = 22, Value = Scaler, Original = @Param_Scaler int }, Name = Scaler, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
       Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_INT, Offset = 22, Value = Scaler, Original = @Param_Scaler int }, Name = Scaler, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
       Category: Logger
