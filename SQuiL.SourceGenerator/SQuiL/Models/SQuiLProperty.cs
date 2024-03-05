@@ -7,16 +7,22 @@ using System.CodeDom.Compiler;
 namespace SQuiL.Models;
 
 public class SQuiLProperty(
-	string Type,
 	CodeBlock Block,
 	SQuiLTableMap TableMap)
 {
-	public string ModelName { get; } = Type;
+	protected SQuiLProperty(
+		string type, CodeBlock Block, SQuiLTableMap TableMap)
+		: this(Block, TableMap)
+	{
+		Type = type;
+	}
+
+	public string Type { get; } = "";
 
 	public string TableName()
 	{
 		if (!TableMap.TryGetName(OriginalName, out var tableName))
-			tableName = ModelName;
+			tableName = $"{OriginalName}{Type}";
 		return tableName;
 	}
 

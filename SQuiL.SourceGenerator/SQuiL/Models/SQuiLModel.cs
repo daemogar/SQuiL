@@ -18,8 +18,6 @@ public class SQuiLModel(
 	SQuiLTableMap TableMap,
 	ImmutableDictionary<string, SQuiLPartialModel> Records)
 {
-	private string Scope { get; } = ModelName;
-
 	public string ModelName { get; } = $"{ModelName}{ModelType}";
 
 	public List<SQuiLProperty> Properties { get; } = [];
@@ -96,7 +94,7 @@ public class SQuiLModel(
 					HasParameterizedConstructor = q
 				});
 			else
-				Properties.Add(new(ModelName, block, TableMap));
+				Properties.Add(new(block, TableMap));
 		}
 
 		return this;
@@ -110,7 +108,7 @@ public class SQuiLModel(
 			throw new DiagnosticException(
 				$"Cannot generate {type} `{block.Name}` for {ModelName}");
 
-		type = $"{Scope}{block.Name}{type}";
+		//type = $"{Scope}{block.Name}{type}";
 
 		var hasParameterizedConstructor = !Records.TryGetValue(type, out var partial)
 			|| partial.Syntax.ParameterList?.Parameters.Count == 0;

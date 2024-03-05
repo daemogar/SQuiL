@@ -17,7 +17,6 @@ public class SQuiLTable(
 	ImmutableDictionary<string, Generator.SQuiLPartialModel> Records)
 	: SQuiLProperty(Type, Block, TableMap)
 {
-	public string Type { get; } = Type;
 	protected CodeBlock Block { get; } = Block;
 	public SQuiLTableMap TableMap { get; } = TableMap;
 
