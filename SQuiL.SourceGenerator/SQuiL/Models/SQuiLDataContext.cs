@@ -215,7 +215,7 @@ public class SQuiLDataContext(
 						{
 							writer.Block($"""
 
-								if (response.Object is not null)
+								if (response.{block.Name} is not null)
 									throw new Exception("{block.Name} was already set.");
 
 								""");
