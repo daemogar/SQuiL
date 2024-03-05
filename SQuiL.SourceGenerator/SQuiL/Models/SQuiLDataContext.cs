@@ -310,7 +310,9 @@ public class SQuiLDataContext(
 					else if (CodeBlock.IsObject)
 					{
 						writer.Block($"""
-							if (request.{CodeBlock.Name} is null) return "";
+							if (request.{CodeBlock.Name} is null)
+								throw new NullReferenceException(
+									"{generation.Request.ModelName} is missing the required property {CodeBlock.Name}.");
 
 							query.AppendLine();
 							query.Append("Values (");
