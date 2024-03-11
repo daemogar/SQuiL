@@ -13,7 +13,7 @@ public class SQuiLTokenizer(string Text)
 		"""^(DECLARE|SET|USE|AS|INSERT|INTO|VALUES)""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
 	private static Regex TypeRegex { get; } = new(
-		"""^(bit|int|(date(?!time)|time|datetime(|2|offset))|n?(text|(var)?char\s*\(\s*(\d+|max)\s*\))|table\s*\(|identity(\s*\(\s*\d+\s*,\s*\d+\s*\))?|default\s+(\d+|'.*?'))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+		"""^(bit|int|uniqueidentifier|(date(?!time)|time|datetime(|2|offset))|n?(text|(var)?char\s*\(\s*(\d+|max)\s*\))|table\s*\(|identity(\s*\(\s*\d+\s*,\s*\d+\s*\))?|default\s+(\d+|'.*?'))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
 
 	private static Regex FunctionRegex { get; } = new(
 		"""^(getdate\(\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
@@ -201,6 +201,8 @@ public class SQuiLTokenizer(string Text)
 					return T(TokenType.TYPE_BOOLEAN, p.Value);
 				case "int":
 					return T(TokenType.TYPE_INT, p.Value);
+				case "uniqueidentifier":
+					return T(TokenType.TYPE_GUID, p.Value);
 				case "char":
 				case "nchar":
 				case "varchar":

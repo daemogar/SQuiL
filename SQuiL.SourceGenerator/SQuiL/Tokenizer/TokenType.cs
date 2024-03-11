@@ -32,6 +32,7 @@ public enum TokenType
 	TYPE_DATE = TYPE + 4,
 	TYPE_TIME = TYPE + 5,
 	TYPE_DATETIME = TYPE + 6,
+	TYPE_GUID = TYPE + 8,
 	TYPE_TABLE = TYPE + 11,
 	TYPE_OBJECT = TYPE + 12,
 	//TYPE_RETURN = TYPE + 13,
