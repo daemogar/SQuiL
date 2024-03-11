@@ -84,7 +84,7 @@ public class SQuiLDataContext(
 									""");
 					if (outputs.Count() == 0)
 					{
-						writer.WriteLine("await command.ExecuteNonQueryAsync(cancellationToken)");
+						writer.WriteLine("await command.ExecuteNonQueryAsync(cancellationToken);");
 						writer.WriteLine();
 						writer.WriteLine("return new();");
 					}
