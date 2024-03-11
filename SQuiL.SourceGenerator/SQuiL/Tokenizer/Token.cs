@@ -16,6 +16,7 @@ public record Token(TokenType Type, int Offset, string Value)
 	{
 		TokenType.TYPE_BOOLEAN => "GetBoolean",
 		TokenType.TYPE_INT => "GetInt32",
+		TokenType.TYPE_DECIMAL => "GetDecimal",
 		TokenType.TYPE_STRING => "GetString",
 		TokenType.TYPE_DATE => "GetDateTime",
 		TokenType.TYPE_TIME => "GetDateTime",
@@ -28,6 +29,7 @@ public record Token(TokenType Type, int Offset, string Value)
 	{
 		TokenType.TYPE_BOOLEAN => "Bit",
 		TokenType.TYPE_INT => "BigInt",
+		TokenType.TYPE_DECIMAL => "Decimal",
 		TokenType.TYPE_STRING when size is not null => $"VarChar, {size}",
 		TokenType.TYPE_STRING when allowNullSize => $"VarChar",
 		TokenType.TYPE_STRING => throw new DiagnosticException("Size cannot be null."),
@@ -42,6 +44,7 @@ public record Token(TokenType Type, int Offset, string Value)
 	{
 		TokenType.TYPE_BOOLEAN => "bool",
 		TokenType.TYPE_INT => "int",
+		TokenType.TYPE_DECIMAL => "decimal",
 		TokenType.TYPE_STRING => "string",
 		TokenType.TYPE_DATE => "System.DateOnly",
 		TokenType.TYPE_TIME => "System.TimeOnly",
@@ -56,6 +59,7 @@ public record Token(TokenType Type, int Offset, string Value)
 	{
 		TokenType.TYPE_BOOLEAN => int.TryParse(defaultValue, out var value) && value == 0 ? null : "true",
 		TokenType.TYPE_INT => defaultValue,
+		TokenType.TYPE_DECIMAL => defaultValue,
 		TokenType.TYPE_STRING => defaultValue is null ? null : $"\"{defaultValue}\"",
 		TokenType.TYPE_DATE => DateTime.TryParse(defaultValue, out var date) ? $"'{date:yyyy-MM-dd}'" : defaultValue,
 		TokenType.TYPE_TIME => DateTime.TryParse(defaultValue, out var time) ? $"'{time:HH:mm:ss.fffffff}'" : defaultValue,
@@ -72,6 +76,7 @@ public record Token(TokenType Type, int Offset, string Value)
 		{
 			TokenType.TYPE_BOOLEAN => $"{property} ? '1' : '0'",
 			TokenType.TYPE_INT => property,
+			TokenType.TYPE_DECIMAL => property,
 			TokenType.TYPE_STRING => S(),
 			TokenType.TYPE_DATE => D($"{property}:yyyy-MM-dd"),
 			TokenType.TYPE_TIME => D($"{property}:HH:mm:ss.FFFFFFF"),
