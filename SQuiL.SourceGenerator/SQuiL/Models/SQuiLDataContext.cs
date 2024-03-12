@@ -282,7 +282,7 @@ public class SQuiLDataContext(
 					if (CodeBlock.IsTable)
 					{
 						writer.Block($"""
-							if (request.{CodeBlock.Name}.Count == 0) return "";
+							if (request.{CodeBlock.Name}.Count() == 0) return "";
 
 							query.AppendLine(" Values");
 
