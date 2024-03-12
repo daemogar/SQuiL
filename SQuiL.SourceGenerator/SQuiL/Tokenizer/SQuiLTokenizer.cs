@@ -203,7 +203,7 @@ public class SQuiLTokenizer(string Text)
 					return T(TokenType.TYPE_INT, p.Value);
 				case "decimal":
 					var decimalParts = p.Value.Split(',');
-					if (decimalParts.Length != 2 && decimalParts.Any(q => int.TryParse(q, out var r) ? !r : true))
+					if (decimalParts.Length != 2 && decimalParts.Any(q => !int.TryParse(q, out var r) || r > 0))
 						return $"Invalid Decimal Values: `{p.Value}`";
 					return T(TokenType.TYPE_INT, p.Value);
 				case "uniqueidentifier":
