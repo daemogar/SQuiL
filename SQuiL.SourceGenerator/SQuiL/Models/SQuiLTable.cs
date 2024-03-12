@@ -50,7 +50,14 @@ public class SQuiLTable(
 		{
 			record.Block(tableName, () =>
 			{
-				var b = partial.Syntax.BaseList?.Types
+				var fields = partial.Syntax.Members
+					.Where(p => p is PropertyDeclarationSyntax)
+					.Select(p => (PropertyDeclarationSyntax)p)
+					.Where(p => p is not null)
+					.Select(p => p.Identifier.Text)
+					.ToList() ?? [];
+
+				var baseline = partial.Syntax.BaseList?.Types
 					.SelectMany(p => Records.TryGetValue(p.Type.ToString(), out var identifier)
 						? identifier.Syntax.Members
 							.Where(p => p is PropertyDeclarationSyntax)
@@ -62,8 +69,9 @@ public class SQuiLTable(
 
 				foreach (var item in properties)
 				{
-					var constructorParameter = b.FirstOrDefault(item.Identifier.Value.Equals);
-					if (constructorParameter is not null) continue;
+					var property = baseline.FirstOrDefault(item.Identifier.Value.Equals)
+						?? fields.FirstOrDefault(item.Identifier.Value.Equals);
+					if (property is not null) continue;
 
 					var type = TableMap.TryGetName(item.Type.Value, out var tableName)
 						? item.CSharpType(() => tableName)
