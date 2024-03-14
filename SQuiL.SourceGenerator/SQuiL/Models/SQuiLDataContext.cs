@@ -6,6 +6,7 @@ using SQuiL.Tokenizer;
 using SQuiL.SourceGenerator.Parser;
 
 using System.CodeDom.Compiler;
+using System.Diagnostics;
 
 namespace SQuiL.Models;
 
@@ -38,10 +39,16 @@ public class SQuiLDataContext(
 			.ToList();
 
 		var outputs = Blocks
-			.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT)
+			.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT
+				&& !SQuiLGenerator.IsError(p.Name))
 			.Select(p => (CodeBlock: p, Query: p.CodeType == CodeType.OUTPUT_VARIABLE
 				? $"Declare {p.DatabaseType.Original};"
 				: TableDeclaration(p.DatabaseType.Original!, p)))
+			.ToList();
+
+		var errors = Blocks
+			.Where(p => SQuiLGenerator.IsError(p.Name))
+			.Select(p => (CodeBlock: p, Query: TableDeclaration(p.DatabaseType.Original!, p)))
 			.ToList();
 
 		writer.WriteLine($$"""
@@ -61,8 +68,12 @@ public class SQuiLDataContext(
 		{
 			writer.Block($$"""partial class {{ClassName}} : {{SourceGeneratorHelper.BaseDataContextClassName}}""", () =>
 			{
+				var returnType = generation.Response.ModelName;
+				if (errors.Count > 0)
+					returnType = $"{SourceGeneratorHelper.ResultTypeAttributeName}<{returnType}>";
+
 				writer.Block($$"""
-								public async Task<{{generation.Response.ModelName}}> Process{{Method}}Async(
+								public async Task<{{returnType}}> Process{{Method}}Async(
 									{{generation.Request.ModelName}} request,
 									CancellationToken cancellationToken = default!)
 								""", () =>
@@ -93,6 +104,11 @@ public class SQuiLDataContext(
 						writer.WriteLine($"{generation.Response.ModelName} response = new();");
 						writer.WriteLine();
 						VariableSetTracking();
+						if (errors.Count > 0)
+						{
+							writer.WriteLine();
+							writer.WriteLine($"List<SQuiLError> errors = [];");
+						}
 						writer.Block("""
 
 						using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -124,7 +140,12 @@ public class SQuiLDataContext(
 							writer.WriteLine();
 						}
 
-						writer.WriteLine("return response;");
+						writer.WriteLine("if(errors.Count == 0)");
+						writer.Indent++;
+						writer.WriteLine("return new(response);");
+						writer.Indent--;
+						writer.WriteLine();
+						writer.WriteLine("return new(errors);");
 					}
 					InsertQueries();
 					writer.Block($""""
@@ -156,6 +177,12 @@ public class SQuiLDataContext(
 				writer.Block(output.Query);
 				writer.WriteLine();
 			}
+
+			foreach (var error in errors)
+			{
+				writer.Block(error.Query);
+				writer.WriteLine();
+			}
 		}
 
 		void VariableSetTracking()
@@ -169,6 +196,15 @@ public class SQuiLDataContext(
 
 		void SwitchStatements()
 		{
+			writer.Block($"""case "{SQuiLTableTypeDatabaseTagName}Error__":""", () =>
+			{
+				writer.WriteLine("if (!await reader.ReadAsync(cancellationToken)) break;");
+				foreach (var error in errors)
+					LoopProperties("Error", "errors", error.CodeBlock.Properties);
+				writer.WriteLine();
+				writer.WriteLine("break;");
+			});
+
 			try
 			{
 				foreach (var (block, query) in outputs)
@@ -192,29 +228,7 @@ public class SQuiLDataContext(
 						writer.WriteLine("if (!await reader.ReadAsync(cancellationToken)) break;");
 						if (block.IsTable)
 						{
-							writer.WriteLine();
-
-							foreach (var item in block.Properties)
-								writer.WriteLine($"""var index{item.Identifier.Value} = reader.GetOrdinal("{item.Identifier.Value}");""");
-
-							writer.WriteLine();
-							writer.Block("do", () =>
-							{
-								writer.Block($"""if (reader.GetString(0) == "{switchCase}")""", () =>
-								{
-									writer.Write($"response.{block.Name}.Add(new(");
-									writer.Indent++;
-									var comma = "";
-									foreach (var item in block.Properties)
-									{
-										writer.WriteLine(comma);
-										writer.Write($"""{item.DataReader()}(index{item.Identifier.Value})""");
-										comma = ",";
-									}
-									writer.Indent--;
-									writer.WriteLine("));");
-								});
-							}, $"""while (await reader.ReadAsync(cancellationToken));""");
+							LoopProperties(switchCase, $"response.{block.Name}", block.Properties);
 						}
 						else if (block.IsObject)
 						{
@@ -268,6 +282,33 @@ public class SQuiLDataContext(
 			finally
 			{
 				//writer.WriteLine("""//default: throw new Exception($"Invalid Table `{reader.GetString(0)}`");""");
+			}
+
+			void LoopProperties(string switchCase, string model, List<CodeItem> properties)
+			{
+				writer.WriteLine();
+
+				foreach (var item in properties)
+					writer.WriteLine($"""var index{item.Identifier.Value} = reader.GetOrdinal("{item.Identifier.Value}");""");
+
+				writer.WriteLine();
+				writer.Block("do", () =>
+				{
+					writer.Block($"""if (reader.GetString(0) == "{switchCase}")""", () =>
+					{
+						writer.Write($"{model}.Add(new(");
+						writer.Indent++;
+						var comma = "";
+						foreach (var item in properties)
+						{
+							writer.WriteLine(comma);
+							writer.Write($"""{item.DataReader()}(index{item.Identifier.Value})""");
+							comma = ",";
+						}
+						writer.Indent--;
+						writer.WriteLine("));");
+					});
+				}, $"""while (await reader.ReadAsync(cancellationToken));""");
 			}
 		}
 
@@ -367,12 +408,19 @@ public class SQuiLDataContext(
 			}
 		}
 
-		string TableDeclaration(string name, CodeBlock block) => $"""
-			Declare {block.DatabaseType.Original}(
-				[{SQuiLTableTypeDatabaseTagName}{name[1..^6]}__] varchar(max) default('{name[1..^6]}'),
-				{string.Join($",{writer.NewLine}\t", block.Properties.Select(p
-					=> $"{p.Identifier.Value} {p.Type.Original}"))});
-			""";
+		string TableDeclaration(string name, CodeBlock block)
+		{
+			name = name[1..^6].Trim();
+			if (name == "Errors")
+				name = "Error";
+
+			return $"""
+				Declare {block.DatabaseType.Original}(
+					[{SQuiLTableTypeDatabaseTagName}{name}__] varchar(max) default('{name}'),
+					{string.Join($",{writer.NewLine}\t", block.Properties.Select(p
+						=> $"[{p.Identifier.Value}] {p.Type.Original}"))});
+				""";
+		}
 
 		void CommandParameters()
 		{
@@ -398,8 +446,7 @@ public class SQuiLDataContext(
 			var comma = $"";
 			foreach (var parameter in parameters)
 			{
-				if (parameter.Name.Equals(SQuiLGenerator.EnvironmentName)) continue;
-				if (parameter.Name.Equals(SQuiLGenerator.Debug)) continue;
+				if (SQuiLGenerator.IsSpecial(parameter.Name)) continue;
 
 				writer.WriteLine(comma);
 				writer.Write($$"""new("@Param_{{parameter.Name}}", {{parameter.SqlDbType()}}) """);

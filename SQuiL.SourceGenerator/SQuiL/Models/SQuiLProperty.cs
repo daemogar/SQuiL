@@ -1,5 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 
+using SQuiL.Generator;
 using SQuiL.SourceGenerator.Parser;
 
 using System.CodeDom.Compiler;
@@ -21,8 +22,12 @@ public class SQuiLProperty(
 
 	public string TableName()
 	{
+		if (SQuiLGenerator.IsError(OriginalName))
+			return $"SQuiL{OriginalName}";
+
 		if (!TableMap.TryGetName(OriginalName, out var tableName))
 			tableName = $"{OriginalName}{Type}";
+
 		return tableName;
 	}
 

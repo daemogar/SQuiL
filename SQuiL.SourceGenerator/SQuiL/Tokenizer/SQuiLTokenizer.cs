@@ -419,7 +419,7 @@ public class SQuiLTokenizer(string Text)
 		{
 			var length = Word.IndexOfAny([' ', '\t', '\r', '\n']);
 			if (length < 1) throw DE(Word.Length, $"Invalid {type}: `{Word}`");
-			throw DE(length, $"Invalid {type}: `{Word.Substring(0, length)}`");
+			throw DE(length, $"Invalid {type}: `{Word[..length]}`");
 		}
 	}
 

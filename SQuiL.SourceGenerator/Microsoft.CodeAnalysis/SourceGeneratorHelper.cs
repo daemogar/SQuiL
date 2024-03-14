@@ -10,6 +10,8 @@ public static class SourceGeneratorHelper
 	
 	public static string TableTypeAttributeName { get; } = $"{NamespaceName}TableAttribute";
 
+	public static string ResultTypeAttributeName { get; } = $"{NamespaceName}ResultType";
+
 	public static string BaseDataContextClassName { get; } = $"{NamespaceName}BaseDataContext";
 
 	public static string DefaultConnectionStringAppSettingName { get; } = $"{NamespaceName}Database";

@@ -4,6 +4,7 @@ using SQuiL.Generator;
 using SQuiL.Models;
 using SQuiL.Tokenizer;
 
+using System.Diagnostics;
 using System.Text;
 
 namespace SQuiL.SourceGenerator.Parser;
@@ -50,9 +51,19 @@ public class SQuiLParser(List<Token> Tokens)
 				var token = Expect(TokenType.VARIABLE);
 				var parts = token.Value.Split(['_'], 2);
 
-				if (parts[0].Equals(SQuiLGenerator.EnvironmentName)
-					|| parts[0].Equals(SQuiLGenerator.Debug))
-					return new(token, CodeType.INPUT_ARGUMENT, false, false, parts[0]);
+				if (SQuiLGenerator.IsSpecial(parts[0]))
+				{
+					if (!SQuiLGenerator.IsError(parts[0]))
+						return new(token, CodeType.INPUT_ARGUMENT, false, false, parts[0]);
+
+					if (Current.Type != TokenType.TYPE_TABLE)
+						ThrowError();
+
+					if(parts[0].Last() == 's')
+						return new(token, CodeType.OUTPUT_TABLE, false, true, parts[0]);
+
+					return new(token, CodeType.OUTPUT_OBJECT, true, false, parts[0]);
+				}
 
 				if (parts[0].StartsWith("param", StringComparison.CurrentCultureIgnoreCase))
 				{
@@ -74,19 +85,18 @@ public class SQuiLParser(List<Token> Tokens)
 					return new(token, type, type == CodeType.OUTPUT_OBJECT, type == CodeType.OUTPUT_TABLE, parts[1]);
 				}
 
-				if (declaring)
-					throw new DiagnosticException(
-						$"Expected a declare with @Param_<variable or object name>, @Params_<tablename>, " +
-						$"@Return_<variable or object name>, or/and @Returns_<tablename>, " +
-						$"but found @{token.Value} instead.");
+				if (declaring) ThrowError();
 
-				string name;
-				if (parts.Length == 1 || parts[1].IsNullOrWhiteSpace())
-					name = $"Result{++resultIndex}";
-				else
-					name = parts[1];
+				var name = parts.Length == 1 || parts[1].IsNullOrWhiteSpace()
+					? $"Result{++resultIndex}"
+					: parts[1];
 
 				return new(token, CodeType.OUTPUT, false, Current.Type == TokenType.TYPE_TABLE, name);
+
+				void ThrowError() => throw new DiagnosticException(
+					$"Expected a declare with @Param_<variable or object name>, @Params_<tablename>, " +
+					$"@Return_<variable or object name>, or/and @Returns_<tablename>, " +
+					$"but found @{token.Value} instead.");
 			};
 		}
 
@@ -190,7 +200,7 @@ public class SQuiLParser(List<Token> Tokens)
 				injected.Add(name);
 
 				sb.AppendLine()
-					.AppendLine($"Select{T(name)} {table.Token.Original}");
+					.AppendLine($"Select{T(name)} {table.Token.Original};");
 			}
 
 			CodeBlocks.Add(new(CodeType.BODY, Current with

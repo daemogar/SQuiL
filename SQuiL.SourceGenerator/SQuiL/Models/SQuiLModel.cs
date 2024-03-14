@@ -8,6 +8,7 @@ using SQuiL.SourceGenerator.Parser;
 
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
+using System.Diagnostics;
 
 namespace SQuiL.Models;
 
@@ -78,21 +79,11 @@ public class SQuiLModel(
 	{
 		foreach (var block in blocks)
 		{
-			if (block.Name == SQuiLGenerator.Debug
-				|| block.Name == SQuiLGenerator.EnvironmentName
+			if (SQuiLGenerator.IsSpecial(block.Name)
 				|| InheritsProperty(ModelName, block.Name))
-				continue;
-
-			if (block.IsTable)
-				Create<SQuiLTable>(block, (p, q) => new(NameSpace, Modifier(p), p, block, TableMap, Records)
-				{
-					HasParameterizedConstructor = q
-				});
-			else if (block.IsObject)
-				Create<SQuiLObject>(block, (p, q) => new(NameSpace, Modifier(p), p, block, TableMap, Records)
-				{
-					HasParameterizedConstructor = q
-				});
+				CreateSpecial(block);
+			else if (block.IsTable || block.IsObject)
+				CreateTableObject(block);
 			else
 				Properties.Add(new(block, TableMap));
 		}
@@ -100,21 +91,40 @@ public class SQuiLModel(
 		return this;
 	}
 
-	private void Create<T>(CodeBlock block, Func<string, bool, T> callback) where T : SQuiLTable
+	private void CreateSpecial(CodeBlock block)
 	{
-		var type = typeof(T).Name[5..];
+		if (!SQuiLGenerator.IsError(block.Name)) return;
+		CreateTableObject(block, false);
+	}
+
+	private void CreateTableObject(CodeBlock block, bool addProperty = true)
+	{
+		var type = (addProperty
+				? (block.IsTable ? typeof(SQuiLTable) : typeof(SQuiLObject))
+				: typeof(SQuiLProperty)).Name[5..];
 
 		if (block.Properties is null)
 			throw new DiagnosticException(
 				$"Cannot generate {type} `{block.Name}` for {ModelName}");
 
-		//type = $"{Scope}{block.Name}{type}";
-
 		var hasParameterizedConstructor = !Records.TryGetValue(type, out var partial)
 			|| partial.Syntax.ParameterList?.Parameters.Count == 0;
 
-		var table = callback(type, hasParameterizedConstructor);
-		Properties.Add(table);
+		var name = $"{block.Name}{type}";
+
+		if (addProperty) name = $"{NameSpace}{block.Name}"; else type = "";
+
+		SQuiLTable table = block.IsTable
+			? new SQuiLTable(NameSpace, Modifier(name), type, block, TableMap, Records)
+			{
+				HasParameterizedConstructor = hasParameterizedConstructor
+			}
+			: new SQuiLObject(NameSpace, Modifier(name), type, block, TableMap, Records)
+			{
+				HasParameterizedConstructor = hasParameterizedConstructor
+			};
+
+		if (addProperty) Properties.Add(table);
 		TableMap.Add(table);
 
 		if (hasParameterizedConstructor)

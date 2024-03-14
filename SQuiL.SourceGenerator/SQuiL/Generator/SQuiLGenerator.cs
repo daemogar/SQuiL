@@ -16,7 +16,19 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 {
 	public static string Debug { get; } = nameof(Debug);
 
+	public static string Error { get; } = nameof(Error);
+
 	public static string EnvironmentName { get; } = nameof(EnvironmentName);
+
+	public static bool IsError(string value)
+		=> Error.Equals(value) || $"{Error}s".Equals(value);
+
+	public static bool IsSpecial(string value)
+	{
+		if (Debug.Equals(value)) return true;
+		if (EnvironmentName.Equals(value)) return true;
+		return IsError(value);
+	}
 
 	public SQuiLGenerator() : this(false) { }
 
@@ -225,7 +237,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				.Where(p => p is not null))
 			{
 				var table = attribute!.ToString();
-				
+
 				if (!table.StartsWith("TableType."))
 					continue;
 
@@ -313,6 +325,11 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				generation.FilePath = file.Path;
 		}
 
+		if (tableMap.TableNames
+			.Where(p => p.StartsWith(NamespaceName))
+			.Select(p => p[NamespaceName.Length..])
+			.Any(IsError))
+			GenerateResultType();
 		GenerateDependencyInjectionCode(contexts);
 		GenerateTablesEnum(context, tableMap);
 
@@ -325,6 +342,51 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				IdentifierNameSyntax identifier => (identifier.ToString(), identifier.GetLocation()),
 				_ => ("", default(Location))
 			};
+
+		void GenerateResultType()
+		{
+			context.AddSource($"{ResultTypeAttributeName}.g.cs", SourceText.From($$""""
+				{{FileHeader}}
+				namespace {{NamespaceName}};
+				
+				using System.Collections.Generic;
+				using System;
+				
+				public sealed record {{ResultTypeAttributeName}}<T>
+				{
+					public bool IsValue { get; }
+					private T Value { get; } = default!;
+					public SQuiLResultType(T value)
+					{
+						Value = value;
+						IsValue = true;
+					}
+
+					public bool HasErrors { get; }
+					private IReadOnlyList<SQuiLError> Errors { get; } = default!;
+					public SQuiLResultType(IReadOnlyList<SQuiLError> errors)
+					{
+						Errors = errors;
+						HasErrors = true;
+					}
+
+					public bool TryGetValue(out T value, out IReadOnlyList<SQuiLError> errors)
+					{
+						value = default!;
+						errors = default!;
+
+						if (IsValue)
+						{
+							value = Value;
+							return true;
+						}
+
+						errors = Errors;
+						return false;
+					}
+				}
+				"""", Encoding.UTF8));
+		}
 
 		void GenerateBaseDataContextClass()
 		{
@@ -458,6 +520,8 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				var comma = "";
 				foreach (var table in tableMap.TableNames)
 				{
+					if (IsError(table)) continue;
+
 					sb.AppendLine(comma);
 					sb.Append($"\t{table}");
 					comma = ",";
