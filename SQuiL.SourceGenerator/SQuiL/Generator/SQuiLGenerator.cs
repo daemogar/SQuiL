@@ -325,10 +325,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				generation.FilePath = file.Path;
 		}
 
-		if (tableMap.TableNames
-			.Where(p => p.StartsWith(NamespaceName))
-			.Select(p => p[NamespaceName.Length..])
-			.Any(IsError))
+		if (tableMap.TableNames.Any(IsError))
 			GenerateResultType();
 		GenerateDependencyInjectionCode(contexts);
 		GenerateTablesEnum(context, tableMap);
