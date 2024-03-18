@@ -3,7 +3,7 @@
 
 #nullable enable
 
-namespace TestCase;
+namespace SQuiL;
 
 public partial record SQuiLError(
 	int Number,
