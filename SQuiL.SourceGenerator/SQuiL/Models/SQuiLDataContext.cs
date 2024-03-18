@@ -102,7 +102,6 @@ public class SQuiLDataContext(
 					else
 					{
 						writer.WriteLine($"{generation.Response.ModelName} response = new();");
-						writer.WriteLine();
 						VariableSetTracking();
 						if (errors.Count > 0)
 						{
@@ -194,6 +193,11 @@ public class SQuiLDataContext(
 
 		void VariableSetTracking()
 		{
+			if (outputs.Count == 0)
+				return;
+
+			writer.WriteLine();
+
 			foreach (var (block, query) in outputs
 				.OrderBy(p => p.CodeBlock.IsObject ? 1 : p.CodeBlock.IsTable ? 2 : 0))
 			{
