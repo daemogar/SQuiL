@@ -145,7 +145,8 @@ public class SQuiLModel(
 	{
 		var modifiers = "partial record";
 
-		if (!Records.TryGetValue(name, out var access))
+		if (!Records.TryGetValue(name, out var access)
+			&& !Records.TryGetValue($"{SourceGeneratorHelper.NamespaceName}{name}", out access))
 			return $"public {modifiers}";
 
 		if (access.Syntax.Modifiers.Any(SyntaxKind.PublicKeyword))
