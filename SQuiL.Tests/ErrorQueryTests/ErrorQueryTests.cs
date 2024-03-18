@@ -52,6 +52,8 @@ public class ErrorQueryTests
 			);
 
 			Use DataRepository;
+
+			Insert Into @Errors;
 			"""]);
 	}
 
@@ -78,6 +80,8 @@ public class ErrorQueryTests
 			);
 
 			Use DataRepository;
+
+			Insert Into @Errors;
 			"""]);
 	}
 }

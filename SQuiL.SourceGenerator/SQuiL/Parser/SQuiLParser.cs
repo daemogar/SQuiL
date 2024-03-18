@@ -59,7 +59,7 @@ public class SQuiLParser(List<Token> Tokens)
 					if (Current.Type != TokenType.TYPE_TABLE)
 						ThrowError();
 
-					if(parts[0].Last() == 's')
+					if (parts[0].Last() == 's')
 						return new(token, CodeType.OUTPUT_TABLE, false, true, parts[0]);
 
 					return new(token, CodeType.OUTPUT_OBJECT, true, false, parts[0]);
@@ -150,12 +150,12 @@ public class SQuiLParser(List<Token> Tokens)
 		{
 			foreach (var (variable, table) in parameters)
 			{
-				if (variable.Token.Value != Current.Value)
+				if (variable.Token.Value != Current.Value
+					&& (!SQuiLGenerator.IsError(variable.Token.Value)
+					|| !SQuiLGenerator.IsError(Current.Value)))
 					continue;
-
+				
 				injectables.Add((Current.Type, table, Current));
-
-				break;
 			}
 
 			Consume();
@@ -177,8 +177,8 @@ public class SQuiLParser(List<Token> Tokens)
 
 				body = body[0..offset] + type switch
 				{
-					TokenType.INSERT_INTO_TABLE => $"({string.Join(", ", table.Properties
-						.Where(q => q.Identifier is not null).Select(q => q.Identifier.Value))})",
+					TokenType.INSERT_INTO_TABLE => $"([{string.Join("], [", table.Properties
+						.Where(q => q.Identifier is not null).Select(q => q.Identifier.Value))}])",
 					TokenType.SELECT_VARIABLE => T(name),
 					_ => throw new DiagnosticException(
 						$"Invalid code block `{type}`")

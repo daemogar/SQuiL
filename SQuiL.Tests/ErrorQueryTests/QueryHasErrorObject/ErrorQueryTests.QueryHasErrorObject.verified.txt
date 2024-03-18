@@ -76,8 +76,8 @@
       Severity: Warning,
       WarningLevel: 1,
       Location: : (0,0)-(0,0),
-      MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 333, Value =   Select 'Return_SampleID' As [__SQuiL__Table__Type__Return_SampleID__], @Return_SampleID; , Original =  }, Name =   Select 'Return_SampleID' As [__SQuiL__Table__Type__Return_SampleID__], @Return_SampleID; , DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
-      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 333, Value =   Select 'Return_SampleID' As [__SQuiL__Table__Type__Return_SampleID__], @Return_SampleID; , Original =  }, Name =   Select 'Return_SampleID' As [__SQuiL__Table__Type__Return_SampleID__], @Return_SampleID; , DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 337, Value = Insert Into @Errors([Number], [Severity], [State], [Line], [Procedure], [Message]);  Select 'Return_SampleID' As [__SQuiL__Table__Type__Return_SampleID__], @Return_SampleID; , Original = Insert Into @Errors; }, Name = Insert Into @Errors([Number], [Severity], [State], [Line], [Procedure], [Message]);  Select 'Return_SampleID' As [__SQuiL__Table__Type__Return_SampleID__], @Return_SampleID; , DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 337, Value = Insert Into @Errors([Number], [Severity], [State], [Line], [Procedure], [Message]);  Select 'Return_SampleID' As [__SQuiL__Table__Type__Return_SampleID__], @Return_SampleID; , Original = Insert Into @Errors; }, Name = Insert Into @Errors([Number], [Severity], [State], [Line], [Procedure], [Message]);  Select 'Return_SampleID' As [__SQuiL__Table__Type__Return_SampleID__], @Return_SampleID; , DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
       Category: Logger
     },
     {
@@ -576,8 +576,18 @@
       Severity: Warning,
       WarningLevel: 1,
       Location: : (0,0)-(0,0),
-      MessageFormat: BODY => ,
-      Message: BODY => ,
+      MessageFormat: INSERT_INTO_TABLE => Errors,
+      Message: INSERT_INTO_TABLE => Errors,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: BODY => Insert Into @Errors;,
+      Message: BODY => Insert Into @Errors;,
       Category: Logger
     }
   ]

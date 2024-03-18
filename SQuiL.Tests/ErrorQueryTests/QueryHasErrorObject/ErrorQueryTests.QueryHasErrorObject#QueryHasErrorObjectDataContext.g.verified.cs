@@ -175,7 +175,7 @@ partial class QueryHasErrorObjectDataContext : SQuiLBaseDataContext
 		
 		Use [{builder.InitialCatalog}];
 		
-		
+		Insert Into @Errors([Number], [Severity], [State], [Line], [Procedure], [Message]);
 		
 		Select 'Return_SampleID' As [__SQuiL__Table__Type__Return_SampleID__], @Return_SampleID;
 		
