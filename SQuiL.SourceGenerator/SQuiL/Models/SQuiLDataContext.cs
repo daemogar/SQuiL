@@ -140,12 +140,19 @@ public class SQuiLDataContext(
 							writer.WriteLine();
 						}
 
-						writer.WriteLine("if(errors.Count == 0)");
-						writer.Indent++;
-						writer.WriteLine("return new(response);");
-						writer.Indent--;
-						writer.WriteLine();
-						writer.WriteLine("return new(errors);");
+						if (errors.Count == 0)
+						{
+							writer.WriteLine("return response;");
+						}
+						else
+						{
+							writer.WriteLine("if(errors.Count == 0)");
+							writer.Indent++;
+							writer.WriteLine("return new(response);");
+							writer.Indent--;
+							writer.WriteLine();
+							writer.WriteLine("return new(errors);");
+						}
 					}
 					InsertQueries();
 					writer.Block($""""
