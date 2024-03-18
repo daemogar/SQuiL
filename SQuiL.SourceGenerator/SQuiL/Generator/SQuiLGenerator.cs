@@ -417,7 +417,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					protected void AddParams(System.Text.StringBuilder query, List<SqlParameter> parameters, int index, string table, string name, System.Data.SqlDbType type, object value, int size = 0)
 					{
 						var parameter = $"@{table}_{index}_{name}";
-						query.Append($"[{parameter}]");
+						query.Append(parameter);
 
 						if (size == 0)
 						{
