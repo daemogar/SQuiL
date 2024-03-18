@@ -93,7 +93,7 @@ public class SQuiLDataContext(
 									await connection.OpenAsync(cancellationToken);
 
 									""");
-					if (outputs.Count() == 0)
+					if (outputs.Count() == 0 && errors.Count() == 0)
 					{
 						writer.WriteLine("await command.ExecuteNonQueryAsync(cancellationToken);");
 						writer.WriteLine();
