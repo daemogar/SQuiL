@@ -37,14 +37,18 @@ public class SQuiLTable(
 		StringWriter text = new();
 		IndentedTextWriter record = new(text, "\t");
 
+		var tableName = TableName();
+		var @namespace = NameSpace;
+
+		if (tableName.StartsWith(SourceGeneratorHelper.NamespaceName))
+			@namespace = SourceGeneratorHelper.NamespaceName;
+
 		record.Write($$"""
 			{{SourceGeneratorHelper.FileHeader}}
-			namespace {{NameSpace}};
+			namespace {{@namespace}};
 			
 			{{Modifiers}} 
 			""");
-
-		var tableName = TableName();
 
 		if (Records.TryGetValue(tableName, out var partial) && partial.Syntax.ParameterList?.Parameters.Count == 0)
 		{
