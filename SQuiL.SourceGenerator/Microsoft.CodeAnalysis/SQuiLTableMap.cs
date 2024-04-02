@@ -2,6 +2,8 @@
 
 using SQuiL.SourceGenerator.Parser;
 
+using System.Linq;
+
 namespace Microsoft.CodeAnalysis;
 
 public class SQuiLTableMap
@@ -60,18 +62,32 @@ public class SQuiLTableMap
 	}
 
 	public void GenerateCode(
-		out List<(string Name, string Text)> sources,
+		out Dictionary<string, string> sources,
 		out List<Exception> exceptions)
 	{
 		sources = [];
 		exceptions = [];
 
-		foreach (var (table, items) in Dictionary.Values)
+		foreach (var merge in Dictionary.Values.GroupBy(p => p.Table.TableName()))
 		{
-			var (name, text) = table.GenerateCode(items);
+			List<string> names = [];
+			List<CodeItem> items = [];
+
+			foreach (var item in merge.SelectMany(q => q.Items))
+			{
+				var unique = item.UniqueIdentifier();
+				if (names.Contains(unique))
+					continue;
+
+				names.Add(unique);
+				items.Add(item);
+			}
+
+			var (name, text) = merge.First().Table.GenerateCode(items);
+
 			if (text.TryGetValue(out var value, out var exception))
 			{
-				sources.Add((name, value));
+				sources.Add(name, value);
 				continue;
 			}
 

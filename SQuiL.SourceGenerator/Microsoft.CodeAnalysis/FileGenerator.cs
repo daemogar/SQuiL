@@ -96,7 +96,7 @@ public class FileGenerator(
 			TableMap.GenerateCode(out var tables, out var exceptions);
 			foreach (var exception in exceptions)
 				Context.ReportMissingStatement(exception);
-			foreach (var (table, text) in tables)
+			foreach (var (table, text) in tables.Select(p => (p.Key, p.Value)))
 				AddSource(table, text);
 		}
 		catch (DiagnosticException e)

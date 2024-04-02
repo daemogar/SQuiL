@@ -1,0 +1,324 @@
+﻿{
+  Diagnostics: [
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 0, Value = Questions, Original = @Returns_Questions table }, Name = Questions, DefaultValue = , IsObject = False, IsTable = True, IsRequired = False, IsNullable = False, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 0, Value = Questions, Original = @Returns_Questions table }, Name = Questions, DefaultValue = , IsObject = False, IsTable = True, IsRequired = False, IsNullable = False, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 84, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Message: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 84, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 99, Value = Select * From @Returns_Questions; , Original = Select * From @Returns_Questions; }, Name = Select * From @Returns_Questions; , DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 99, Value = Select * From @Returns_Questions; , Original = Select * From @Returns_Questions; }, Name = Select * From @Returns_Questions; , DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: KEYWORD_DECLARE => ,
+      Message: KEYWORD_DECLARE => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: VARIABLE => Returns_Questions,
+      Message: VARIABLE => Returns_Questions,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: TYPE_TABLE => ,
+      Message: TYPE_TABLE => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: SYMBOL_LPREN => ,
+      Message: SYMBOL_LPREN => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: IDENTIFIER => Number,
+      Message: IDENTIFIER => Number,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: TYPE_INT => ,
+      Message: TYPE_INT => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: SYMBOL_COMMA => ,
+      Message: SYMBOL_COMMA => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: IDENTIFIER => Message,
+      Message: IDENTIFIER => Message,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: TYPE_STRING => 4096,
+      Message: TYPE_STRING => 4096,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: SYMBOL_RPREN => ,
+      Message: SYMBOL_RPREN => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: KEYWORD_USE => ,
+      Message: KEYWORD_USE => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: IDENTIFIER => Database,
+      Message: IDENTIFIER => Database,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: BODY => Select * From @Returns_Questions;,
+      Message: BODY => Select * From @Returns_Questions;,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: CodeBlock { CodeType = INPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 0, Value = Question, Original = @Param_Question table }, Name = Question, DefaultValue = , IsObject = True, IsTable = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Message: CodeBlock { CodeType = INPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 0, Value = Question, Original = @Param_Question table }, Name = Question, DefaultValue = , IsObject = True, IsTable = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 81, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Message: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 81, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 96, Value = Select * From @Param_Question; , Original = Select * From @Param_Question; }, Name = Select * From @Param_Question; , DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 96, Value = Select * From @Param_Question; , Original = Select * From @Param_Question; }, Name = Select * From @Param_Question; , DefaultValue = , IsObject = False, IsTable = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: KEYWORD_DECLARE => ,
+      Message: KEYWORD_DECLARE => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: VARIABLE => Param_Question,
+      Message: VARIABLE => Param_Question,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: TYPE_TABLE => ,
+      Message: TYPE_TABLE => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: SYMBOL_LPREN => ,
+      Message: SYMBOL_LPREN => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: IDENTIFIER => Number,
+      Message: IDENTIFIER => Number,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: TYPE_INT => ,
+      Message: TYPE_INT => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: SYMBOL_COMMA => ,
+      Message: SYMBOL_COMMA => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: IDENTIFIER => Message,
+      Message: IDENTIFIER => Message,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: TYPE_STRING => 4096,
+      Message: TYPE_STRING => 4096,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: SYMBOL_RPREN => ,
+      Message: SYMBOL_RPREN => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: KEYWORD_USE => ,
+      Message: KEYWORD_USE => ,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: IDENTIFIER => Database,
+      Message: IDENTIFIER => Database,
+      Category: Logger
+    },
+    {
+      Id: SP0000,
+      Title: Development Data,
+      Severity: Warning,
+      WarningLevel: 1,
+      Location: : (0,0)-(0,0),
+      MessageFormat: BODY => Select * From @Param_Question;,
+      Message: BODY => Select * From @Param_Question;,
+      Category: Logger
+    }
+  ]
+}
