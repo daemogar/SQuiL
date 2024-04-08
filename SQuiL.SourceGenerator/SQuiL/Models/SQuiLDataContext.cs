@@ -450,7 +450,7 @@ public class SQuiLDataContext(
 			{
 				writer.Indent--;
 				writer.WriteLine();
-				writer.WriteLine("});");
+				writer.WriteLine("};");
 				return;
 			}
 
