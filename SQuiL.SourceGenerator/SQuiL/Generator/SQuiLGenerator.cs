@@ -400,7 +400,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				using System.Collections.Generic;
 				using System;
 				
-				public abstract class {{BaseDataContextClassName}}(IConfiguration Configuration)
+				public abstract partial class {{BaseDataContextClassName}}(IConfiguration Configuration)
 				{
 					//public virtual string SettingName { get; } = "{{DefaultConnectionStringAppSettingName}}";
 
