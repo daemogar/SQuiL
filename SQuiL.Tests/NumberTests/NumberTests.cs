@@ -1,5 +1,3 @@
-﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
@@ -41,8 +39,10 @@ public class NumberTests
 		return TestHelper.Verify([TestHeader([name])], [$$"""
 			--Name: {{name}}			
 			Declare @Param_Number1 double;
+			Declare @Param_Number4 float;
 			Use [Database];
 			Select Param_Number1;
+			Select Param_Number4;
 			"""]);
 	}
 }

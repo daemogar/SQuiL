@@ -13,7 +13,7 @@ public class SQuiLTokenizer(string Text)
 		"""^(DECLARE|SET|USE|AS|INSERT|INTO|VALUES)""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
 	private static Regex TypeRegex { get; } = new(
-		"""^(bit|int|double|decimal(|\(\d,\d\))|uniqueidentifier|(date(?!time)|time|datetime(|2|offset))|n?(text|(var)?char\s*\(\s*(\d+|max)\s*\))|table\s*\(|identity(\s*\(\s*\d+\s*,\s*\d+\s*\))?|default\s+(\d+|'.*?'))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+		"""^(bit|int|float|double|decimal(|\(\d,\d\))|uniqueidentifier|(date(?!time)|time|datetime(|2|offset))|n?(text|(var)?char\s*\(\s*(\d+|max)\s*\))|table\s*\(|identity(\s*\(\s*\d+\s*,\s*\d+\s*\))?|default\s+(\d+|'.*?'))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
 
 	private static Regex FunctionRegex { get; } = new(
 		"""^(getdate\(\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
@@ -201,8 +201,8 @@ public class SQuiLTokenizer(string Text)
 					return T(TokenType.TYPE_BOOLEAN, p.Value);
 				case "int":
 					return T(TokenType.TYPE_INT, p.Value);
-				case "double":
-					return T(TokenType.TYPE_DOUBLE, p.Value);
+				case "double" or "float":
+					return T(TokenType.TYPE_DOUBLE, "double");
 				case "decimal":
 					var decimalParts = p.Value.Split(',');
 					if (decimalParts.Length != 2 && decimalParts.Any(q => !int.TryParse(q, out var r) || r > 0))
