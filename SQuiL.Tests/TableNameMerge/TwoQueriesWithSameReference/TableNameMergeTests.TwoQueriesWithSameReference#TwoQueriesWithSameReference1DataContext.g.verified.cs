@@ -23,7 +23,7 @@ partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 		{
 			new("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
 			new("@Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
-		});
+		};
 		
 		command.CommandText = Query(parameters);
 		command.Parameters.AddRange(parameters.ToArray());

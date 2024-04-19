@@ -11,7 +11,7 @@ using Microsoft.Extensions.Configuration;
 using System.Collections.Generic;
 using System;
 
-public abstract class SQuiLBaseDataContext(IConfiguration Configuration)
+public abstract partial class SQuiLBaseDataContext(IConfiguration Configuration)
 {
 	//public virtual string SettingName { get; } = "SQuiLDatabase";
 
@@ -40,7 +40,7 @@ public abstract class SQuiLBaseDataContext(IConfiguration Configuration)
 			Value = value is null || ((string)value).Length <= size
 				? (value ?? "Null")
 				: throw new Exception($"""
-					ParamsTable model table property at index [2] has a string property [{name}]
+					ParamsTable model table property at index [{index}] has a string property [{name}]
 					with more than {size} characters.
 					""")
 		});
