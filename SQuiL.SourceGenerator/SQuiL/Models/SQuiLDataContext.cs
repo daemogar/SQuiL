@@ -6,7 +6,6 @@ using SQuiL.Tokenizer;
 using SQuiL.SourceGenerator.Parser;
 
 using System.CodeDom.Compiler;
-using System.Diagnostics;
 
 namespace SQuiL.Models;
 

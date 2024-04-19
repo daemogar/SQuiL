@@ -8,7 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 using SQuiL.Generator;
 
 using System.Collections.Immutable;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace SQuiL.Tests;
