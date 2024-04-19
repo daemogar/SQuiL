@@ -202,7 +202,7 @@ public class SQuiLTokenizer(string Text)
 				case "int":
 					return T(TokenType.TYPE_INT, p.Value);
 				case "double" or "float":
-					return T(TokenType.TYPE_DOUBLE, "double");
+					return T(TokenType.TYPE_DOUBLE, "float");
 				case "decimal":
 					var decimalParts = p.Value.Split(',');
 					if (decimalParts.Length != 2 && decimalParts.Any(q => !int.TryParse(q, out var r) || r > 0))
