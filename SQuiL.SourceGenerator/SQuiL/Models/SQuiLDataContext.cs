@@ -331,7 +331,7 @@ public class SQuiLDataContext(
 				{
 					writer.Block($"""
 						System.Text.StringBuilder query = new();
-						query.Append("Insert Into @Param{(CodeBlock.IsTable ? "s" : "")}_{CodeBlock.Name}({string.Join(", ", CodeBlock.Properties.Select(p => p.Identifier.Value))})");
+						query.Append("Insert Into @Param{(CodeBlock.IsTable ? "s" : "")}_{CodeBlock.Name}([{string.Join("], [", CodeBlock.Properties.Select(p => p.Identifier.Value))}])");
 						""");
 					writer.WriteLine();
 
