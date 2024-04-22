@@ -312,7 +312,7 @@ public class SQuiLDataContext(
 						foreach (var item in properties)
 						{
 							writer.WriteLine(comma);
-							writer.Write($"""{item.DataReader()}(index{item.Identifier.Value})""");
+							writer.Write($"""reader.IsDBNull(index{item.Identifier.Value}) ? default! : {item.DataReader()}(index{item.Identifier.Value})""");
 							comma = ",";
 						}
 						writer.Indent--;
