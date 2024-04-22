@@ -8,6 +8,15 @@ namespace SQuiL.Tests;
 
 public abstract class BaseTest
 {
+	protected static Task TestQueryParamsAndReturns(string query, [CallerMemberName] string name = default!)
+	{
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			{{query}}
+			Use [Database];
+			"""]);
+	}
+
 	protected static string TestHeader(
 		IEnumerable<string> attributes = default!,
 		Func<string, string> callback = default!,
