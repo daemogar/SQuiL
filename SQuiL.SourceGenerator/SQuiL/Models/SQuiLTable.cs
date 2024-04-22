@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 using SQuiL.SourceGenerator.Parser;
 
+using System;
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
 

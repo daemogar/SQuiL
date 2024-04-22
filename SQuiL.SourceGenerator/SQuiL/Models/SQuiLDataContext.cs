@@ -257,6 +257,8 @@ public class SQuiLDataContext(
 								foreach (var item in block.Properties)
 								{
 									writer.WriteLine(comma);
+									if (item.IsNullable)
+										writer.Write($"""reader.IsDBNull(reader.GetOrdinal("{item.Identifier.Value}")) ? default! : """);
 									writer.Write($"""{item.DataReader()}(reader.GetOrdinal("{item.Identifier.Value}"))""");
 									comma = ",";
 								}
@@ -312,7 +314,9 @@ public class SQuiLDataContext(
 						foreach (var item in properties)
 						{
 							writer.WriteLine(comma);
-							writer.Write($"""reader.IsDBNull(index{item.Identifier.Value}) ? default! : {item.DataReader()}(index{item.Identifier.Value})""");
+							if (item.IsNullable)
+								writer.Write($"""reader.IsDBNull(index{item.Identifier.Value}) ? default! : """);
+							writer.Write($"""{item.DataReader()}(index{item.Identifier.Value})""");
 							comma = ",";
 						}
 						writer.Indent--;
@@ -427,7 +431,7 @@ public class SQuiLDataContext(
 				Declare {block.DatabaseType.Original}(
 					[{SQuiLTableTypeDatabaseTagName}{name}__] varchar(max) default('{name}'),
 					{string.Join($",{writer.NewLine}\t", block.Properties.Select(p
-						=> $"[{p.Identifier.Value}] {p.Type.Original}"))});
+						=> $"[{p.Identifier.Value}] {p.Type.Original}{(p.IsNullable ? " Null" : "")}"))});
 				""";
 		}
 
