@@ -131,7 +131,7 @@ public class SQuiLDataContext(
 							foreach (var block in outputs.Select(p => p.CodeBlock).OrderBy(p => p.IsObject ? 1 : p.IsTable ? 2 : 0))
 							{
 								var type = block.IsObject ? "object" : block.IsTable ? "table" : "scaler";
-								var missingErrorMessage = $"Expected return {type} `{block.Name}`)";
+								var missingErrorMessage = $"Expected return {type} `{block.Name}`";
 
 								writer.WriteLine($"""if (!is{block.Name}) throw new Exception("{missingErrorMessage}");""");
 							}
