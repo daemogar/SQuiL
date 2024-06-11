@@ -413,6 +413,8 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 						return new SqlConnectionStringBuilder(Configuration.GetConnectionString(settingName)
 							?? throw new Exception($"Cannot find a connection string in the appsettings for {settingName}."));
 					}
+					
+					public virtual DbConnection CreateConnection(string connectionString) => new SqlConnection(connectionString);
 
 					protected void AddParams(System.Text.StringBuilder query, List<SqlParameter> parameters, int index, string table, string name, System.Data.SqlDbType type, object value, int size = 0)
 					{
