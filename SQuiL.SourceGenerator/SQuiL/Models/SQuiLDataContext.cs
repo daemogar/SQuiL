@@ -66,9 +66,14 @@ public class SQuiLDataContext(
 
 		void Process()
 		{
-			writer.WriteLine($$"""partial class {{ClassName}} : {{ClassName}}<SqlConnection> {}""");
-			writer.Block($$"""partial class {{ClassName}}<TConnection> : {{SourceGeneratorHelper.BaseDataContextClassName}} where TConnection : DbConnection, new()""", () =>
+			writer.Block($$"""partial class {{ClassName}} : {{SourceGeneratorHelper.BaseDataContextClassName}}""", () =>
 			{
+				writer.Block($$"""public virtual DbConnection CreateConnection(string connectionString = default!) => new SqlConnection()""", () =>
+				{
+					writer.WriteLine("ConnectionString = connectionString ?? builder.ConnectionString;");
+				});
+				writer.WriteLine();
+
 				var returnType = generation.Response.ModelName;
 				if (errors.Count > 0)
 					returnType = $"{SourceGeneratorHelper.ResultTypeAttributeName}<{returnType}>";
@@ -81,8 +86,8 @@ public class SQuiLDataContext(
 				{
 					writer.Block($$"""
 									var builder = ConnectionStringBuilder("{{Setting}}");
-									using TConnection connection = new();
-									connection.ConnectionString = builder.ConnectionString;
+									using var connection = CreateConnection();
+									
 									var command = connection.CreateCommand();
 
 									""");
