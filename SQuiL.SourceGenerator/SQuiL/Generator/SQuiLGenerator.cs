@@ -401,7 +401,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				
 				using Microsoft.Data.SqlClient;
 				using Microsoft.Extensions.Configuration;
-
+				
 				using System;
 				using System.Collections.Generic;
 				using System.Data.Common;
@@ -421,26 +421,35 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					}
 					
 					public virtual System.Data.Common.DbConnection CreateConnection(string connectionString) => new SqlConnection(connectionString);
+				
+					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object value) => new SqlParameter(name, type) { Value = value };
+				
+					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, int size, object value)
+					{
+						var parameter = CreateParameter(name, type, value);
+						parameter.Size = size;
+						return parameter;
+					}
 
-					protected void AddParams(System.Text.StringBuilder query, List<SqlParameter> parameters, int index, string table, string name, System.Data.SqlDbType type, object value, int size = 0)
+					protected void AddParams(System.Text.StringBuilder query, List<DbParameter> parameters, int index, string table, string name, System.Data.SqlDbType type, object value, int size = 0)
 					{
 						var parameter = $"@{table}_{index}_{name}";
 						query.Append(parameter);
 
-						if (size == 0)
-						{
-							parameters.Add(new(parameter, type) { Value = value });
-							return;
-						}
+						var variable = CreateParameter(parameter, type, value);
 
-						parameters.Add(new(parameter, type, size) {
-							Value = value is null || ((string)value).Length <= size
+						if (size > 0)
+						{
+							variable.Size = size;
+							variable.Value = value is null || ((string)value).Length <= size
 								? (value ?? "Null")
 								: throw new Exception($"""
 									ParamsTable model table property at index [{index}] has a string property [{name}]
 									with more than {size} characters.
-									""")
-						});
+									""");
+						}
+
+						parameters.Add(variable);
 					}
 				}
 				"""", Encoding.UTF8));

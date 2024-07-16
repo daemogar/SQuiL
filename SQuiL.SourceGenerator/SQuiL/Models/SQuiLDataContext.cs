@@ -157,7 +157,7 @@ public class SQuiLDataContext(
 					InsertQueries();
 					writer.Block($""""
 				
-									string Query(List<SqlParameter> parameters) => $"""
+									string Query(List<DbParameter> parameters) => $"""
 									"""");
 					QueryDeclareStatements();
 					writer.Block($$""""
@@ -333,7 +333,7 @@ public class SQuiLDataContext(
 			foreach (var (CodeBlock, Query) in inputs)
 			{
 				writer.WriteLine();
-				writer.Block($"string input{CodeBlock.Name}(List<SqlParameter> parameters)", () =>
+				writer.Block($"string input{CodeBlock.Name}(List<DbParameter> parameters)", () =>
 				{
 					writer.Block($"""
 						System.Text.StringBuilder query = new();
@@ -439,12 +439,12 @@ public class SQuiLDataContext(
 
 		void CommandParameters()
 		{
-			writer.WriteLine("List<SqlParameter> parameters = new()");
+			writer.WriteLine("List<DbParameter> parameters = new()");
 			writer.WriteLine("{");
 			writer.Indent++;
-
-			writer.WriteLine($$"""new("@{{SQuiLGenerator.EnvironmentName}}", System.Data.SqlDbType.VarChar, {{SQuiLGenerator.EnvironmentName}}.Length) { Value = {{SQuiLGenerator.EnvironmentName}} }, """);
-			writer.Write($$"""new("@{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit) { Value = {{SQuiLGenerator.EnvironmentName}} != "Production" }, """);
+			
+			writer.WriteLine($$"""CreateParameter("@{{SQuiLGenerator.EnvironmentName}}", System.Data.SqlDbType.VarChar, {{SQuiLGenerator.EnvironmentName}}.Length, {{SQuiLGenerator.EnvironmentName}}),""");
+			writer.Write($$"""CreateParameter("@{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit, {{SQuiLGenerator.EnvironmentName}} != "Production"),""");
 
 			var parameters = Blocks
 				.Where(p => p.CodeType == CodeType.INPUT_ARGUMENT)
@@ -464,22 +464,26 @@ public class SQuiLDataContext(
 				if (SQuiLGenerator.IsSpecial(parameter.Name)) continue;
 
 				writer.WriteLine(comma);
-				writer.Write($$"""new("@Param_{{parameter.Name}}", {{parameter.SqlDbType()}}) """);
+				writer.Write($$"""CreateParameter("@Param_{{parameter.Name}}", System.Data.SqlDbType.{{parameter.SqlDbType()}}, """);
 
-				var value = $"request.{parameter.Name}";
+				WriteValue();
 
-				writer.WriteLine();
-				writer.WriteLine("{");
-				writer.Indent++;
 				if (parameter.IsNullable)
-					writer.WriteLine($$"""IsNullable = true,""");
-				if (parameter.DatabaseType.Type != TokenType.TYPE_STRING)
+					writer.WriteLine($$""", p => p.IsNullable = true)""");
+
+				comma = $",";
+
+				void WriteValue()
 				{
-					writer.WriteLine($$"""Value = {{value}} ?? (object)System.DBNull.Value""");
-				}
-				else
-				{
-					writer.WriteLine($"Value = {value} switch");
+					var value = $"request.{parameter.Name}";
+
+					if (parameter.DatabaseType.Type != TokenType.TYPE_STRING)
+					{
+						writer.WriteLine($$"""{{value}} ?? (object)System.DBNull.Value""");
+						return;
+					}
+
+					writer.WriteLine($"{value} switch");
 					writer.WriteLine("{");
 					writer.Indent++;
 					writer.WriteLine("null => (object)System.DBNull.Value,");
@@ -490,10 +494,6 @@ public class SQuiLDataContext(
 					writer.Indent -= 2;
 					writer.WriteLine("}");
 				}
-				writer.Indent--;
-				writer.WriteLine("}");
-
-				comma = $",";
 			}
 
 			writer.Indent--;
