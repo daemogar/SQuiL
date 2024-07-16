@@ -397,8 +397,9 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				using Microsoft.Data.SqlClient;
 				using Microsoft.Extensions.Configuration;
 
-				using System.Collections.Generic;
 				using System;
+				using System.Collections.Generic;
+				using System.Data.Common;
 				
 				public abstract partial class {{BaseDataContextClassName}}(IConfiguration Configuration)
 				{
@@ -414,7 +415,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 							?? throw new Exception($"Cannot find a connection string in the appsettings for {settingName}."));
 					}
 					
-					public virtual DbConnection CreateConnection(string connectionString) => new SqlConnection(connectionString);
+					public virtual System.Data.Common.DbConnection CreateConnection(string connectionString) => new SqlConnection(connectionString);
 
 					protected void AddParams(System.Text.StringBuilder query, List<SqlParameter> parameters, int index, string table, string name, System.Data.SqlDbType type, object value, int size = 0)
 					{
