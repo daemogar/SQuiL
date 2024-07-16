@@ -25,8 +25,10 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 	public static bool IsSpecial(string value)
 	{
-		if (Debug.Equals(value)) return true;
-		if (EnvironmentName.Equals(value)) return true;
+		if (Debug.Equals(value))
+			return true;
+		if (EnvironmentName.Equals(value))
+			return true;
 		return IsError(value);
 	}
 
@@ -35,7 +37,8 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 #if DEBUG
-		if (!System.Diagnostics.Debugger.IsAttached) System.Diagnostics.Debugger.Launch();
+		if (!System.Diagnostics.Debugger.IsAttached)
+			System.Diagnostics.Debugger.Launch();
 #endif
 		var rootPath = context.SyntaxProvider
 			.CreateSyntaxProvider(
@@ -271,10 +274,12 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				?? DefaultConnectionStringAppSettingName;
 
 			var (method, location) = GetValueLocation(list);
-			if (location is null) continue;
+			if (location is null)
+				continue;
 
 			var file = files.FirstOrDefault(p => p.Path.Replace("\\", "").Replace(".sql", "").Equals(method));
-			if (file is null) return;
+			if (file is null)
+				return;
 
 			var text = file.GetText(context.CancellationToken);
 			var inherits = definition.Class.BaseList?.Types
@@ -520,7 +525,8 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				var comma = "";
 				foreach (var table in tableMap.TableNames)
 				{
-					if (IsError(table)) continue;
+					if (IsError(table))
+						continue;
 
 					sb.AppendLine(comma);
 					sb.Append($"\t{table}");
