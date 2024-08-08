@@ -423,11 +423,21 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					public virtual System.Data.Common.DbConnection CreateConnection(string connectionString) => new SqlConnection(connectionString);
 				
 					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object value) => new SqlParameter(name, type) { Value = value };
+
+					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object value, Action<System.Data.Common.DbParameter>? callback)
+					{
+						var parameter = CreateParameter(name, type, value);
+						callback?.invoke(parameter);
+						return parameter;
+					}
 				
-					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, int size, object value)
+					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, int size, object value) => CreateParameter(name, type, size, value, default);
+
+					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, int size, object value, Action<System.Data.Common.DbParameter>? callback)
 					{
 						var parameter = CreateParameter(name, type, value);
 						parameter.Size = size;
+						callback?.invoke(parameter);
 						return parameter;
 					}
 
