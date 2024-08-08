@@ -451,7 +451,7 @@ public class SQuiLDataContext(
 			writer.Indent++;
 			
 			writer.WriteLine($$"""CreateParameter("@{{SQuiLGenerator.EnvironmentName}}", System.Data.SqlDbType.VarChar, {{SQuiLGenerator.EnvironmentName}}.Length, {{SQuiLGenerator.EnvironmentName}}),""");
-			writer.Write($$"""CreateParameter("@{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit, request.Debug || {{SQuiLGenerator.EnvironmentName}} != "Production"),""");
+			writer.Write($$"""CreateParameter("@{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit, request.Debug || {{SQuiLGenerator.EnvironmentName}} != "Production")""");
 
 			var parameters = Blocks
 				.Where(p => p.CodeType == CodeType.INPUT_ARGUMENT)
@@ -465,20 +465,19 @@ public class SQuiLDataContext(
 				return;
 			}
 
-			var comma = $"";
 			foreach (var parameter in parameters)
 			{
 				if (SQuiLGenerator.IsSpecial(parameter.Name)) continue;
 
-				writer.WriteLine(comma);
+				writer.WriteLine(",");
 				writer.Write($$"""CreateParameter("@Param_{{parameter.Name}}", {{parameter.SqlDbType()}}, """);
 
 				WriteValue();
 
 				if (parameter.IsNullable)
-					writer.Write($$""", p => p.IsNullable = true)""");
-
-				comma = $",";
+					writer.Write($$""", p => p.IsNullable = true""");
+				
+				writer.Write(")");
 
 				void WriteValue()
 				{
@@ -499,10 +498,11 @@ public class SQuiLDataContext(
 					writer.Indent++;
 					writer.WriteLine($""" "Request model data is larger then database size for the property [{parameter.Name}].")"""[1..]);
 					writer.Indent -= 2;
-					writer.WriteLine("}");
+					writer.Write("}");
 				}
 			}
 
+			writer.WriteLine();
 			writer.Indent--;
 			writer.WriteLine("};");
 		}
