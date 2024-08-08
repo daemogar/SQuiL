@@ -471,7 +471,7 @@ public class SQuiLDataContext(
 				if (SQuiLGenerator.IsSpecial(parameter.Name)) continue;
 
 				writer.WriteLine(comma);
-				writer.Write($$"""CreateParameter("@Param_{{parameter.Name}}", System.Data.SqlDbType.{{parameter.SqlDbType()}}, """);
+				writer.Write($$"""CreateParameter("@Param_{{parameter.Name}}", {{parameter.SqlDbType()}}, """);
 
 				WriteValue();
 
