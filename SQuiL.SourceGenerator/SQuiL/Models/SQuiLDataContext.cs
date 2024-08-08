@@ -6,6 +6,7 @@ using SQuiL.Tokenizer;
 using SQuiL.SourceGenerator.Parser;
 
 using System.CodeDom.Compiler;
+using System;
 
 namespace SQuiL.Models;
 
@@ -310,15 +311,21 @@ public class SQuiLDataContext(
 				{
 					writer.Block($"""if (reader.GetString(0) == "{switchCase}")""", () =>
 					{
+						foreach (var item in properties)
+						{
+							var defaultCondition = "";
+							if (item.IsNullable)
+								defaultCondition = $"reader.IsDBNull(index{item.Identifier.Value}) ? default! : ";
+							writer.WriteLine($"""var value{item.Identifier.Value} = {defaultCondition}{item.DataReader()}(index{item.Identifier.Value});""");
+						}
+
 						writer.Write($"{model}.Add(new(");
 						writer.Indent++;
 						var comma = "";
 						foreach (var item in properties)
 						{
 							writer.WriteLine(comma);
-							if (item.IsNullable)
-								writer.Write($"""reader.IsDBNull(index{item.Identifier.Value}) ? default! : """);
-							writer.Write($"""{item.DataReader()}(index{item.Identifier.Value})""");
+							writer.Write($"value{item.Identifier.Value}");
 							comma = ",";
 						}
 						writer.Indent--;
