@@ -427,7 +427,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object value, Action<System.Data.Common.DbParameter>? callback)
 					{
 						var parameter = CreateParameter(name, type, value);
-						callback?.invoke(parameter);
+						callback?.Invoke(parameter);
 						return parameter;
 					}
 				
@@ -437,7 +437,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					{
 						var parameter = CreateParameter(name, type, value);
 						parameter.Size = size;
-						callback?.invoke(parameter);
+						callback?.Invoke(parameter);
 						return parameter;
 					}
 
