@@ -476,7 +476,7 @@ public class SQuiLDataContext(
 				WriteValue();
 
 				if (parameter.IsNullable)
-					writer.WriteLine($$""", p => p.IsNullable = true)""");
+					writer.Write($$""", p => p.IsNullable = true)""");
 
 				comma = $",";
 
