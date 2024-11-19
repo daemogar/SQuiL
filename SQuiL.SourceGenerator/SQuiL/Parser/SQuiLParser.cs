@@ -4,7 +4,6 @@ using SQuiL.Generator;
 using SQuiL.Models;
 using SQuiL.Tokenizer;
 
-using System.Diagnostics;
 using System.Text;
 
 namespace SQuiL.SourceGenerator.Parser;
