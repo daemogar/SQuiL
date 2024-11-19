@@ -10,7 +10,7 @@ public class SQuiLTokenizer(string Text)
 	private string Text { get; } = Text;
 
 	private static Regex KeywordRegex { get; } = new(
-		"""^(DECLARE|SET|USE|AS|INSERT|INTO|VALUES)""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
+		"""^(DECLARE|SET|USE|AS|INSERT|INTO|VALUES)\s""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
 	private static Regex TypeRegex { get; } = new(
 		"""^(bit|int|float|double|decimal(|\(\d,\d\))|uniqueidentifier|(date(?!time)|time|datetime(|2|offset))|n?(text|(var)?char\s*\(\s*(\d+|max)\s*\))|table\s*\(|identity(\s*\(\s*\d+\s*,\s*\d+\s*\))?|default\s+(\d+|'.*?'))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
