@@ -8,9 +8,11 @@ public record CodeBlock(CodeType CodeType, Token DatabaseType, string Name, stri
 
 	public bool IsTable { get; }
 
+	public bool IsBinary { get; }
+
 	public bool IsRequired { get; }
 
-	public bool IsNullable => !IsTable && (IsRequired || DefaultValue is null || DefaultValue == "Null");
+	public bool IsNullable => (!IsTable && (IsRequired || DefaultValue is null || DefaultValue == "Null")) || IsBinary;
 
 	public string? Size { get; set; }
 
@@ -28,6 +30,11 @@ public record CodeBlock(CodeType CodeType, Token DatabaseType, string Name, stri
 		{
 			IsObject = true;
 			Properties = [];
+		}
+		else if (Token.Type == TokenType.TYPE_BINARY || Token.Type == TokenType.TYPE_VARBINARY)
+		{
+			IsBinary = true;
+			IsRequired = true;
 		}
 		else
 		{

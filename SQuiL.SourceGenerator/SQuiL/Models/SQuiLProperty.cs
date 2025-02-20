@@ -2,6 +2,7 @@
 
 using SQuiL.Generator;
 using SQuiL.SourceGenerator.Parser;
+using SQuiL.Tokenizer;
 
 using System.CodeDom.Compiler;
 
@@ -43,6 +44,7 @@ public class SQuiLProperty(
 
 			writer.Write($$"""public {{Block.CSharpType(TableName())}}{{nullable}} {{Block.Name}} { get; set; }""");
 
+			if (Block.IsBinary) return;
 			if (GenerateTable()) return;
 			if (GenerateObject()) return;
 

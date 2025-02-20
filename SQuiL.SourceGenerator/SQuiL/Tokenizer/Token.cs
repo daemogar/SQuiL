@@ -25,6 +25,7 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_TIME => "GetDateTime",
 		TokenType.TYPE_DATETIME => "GetDateTime",
 		TokenType.TYPE_GUID => "GetGuid",
+		TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY => "GetFieldValue<byte[]>",
 		_ => throw new Exception($"Invalid database type `{Type}`")
 	};
 
@@ -41,6 +42,8 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_TIME => "Time",
 		TokenType.TYPE_DATETIME => "DateTimeOffset",
 		TokenType.TYPE_GUID => "UniqueIdentifier",
+		TokenType.TYPE_BINARY => nameof(System.Data.SqlDbType.Binary),
+		TokenType.TYPE_VARBINARY => nameof(System.Data.SqlDbType.VarBinary),
 		_ => throw new Exception($"Unsupported database type `{Type}`")
 	};
 
@@ -55,6 +58,7 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_TIME => "System.TimeOnly",
 		TokenType.TYPE_DATETIME => "System.DateTime",
 		TokenType.TYPE_GUID => "System.Guid",
+		TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY => "byte[]",
 		TokenType.TYPE_OBJECT when tableType is not null => tableType(),
 		TokenType.TYPE_TABLE when tableType is not null => $"System.Collections.Generic.List<{tableType()}>",
 		_ => throw new Exception($"Invalid database type `{Type}`")

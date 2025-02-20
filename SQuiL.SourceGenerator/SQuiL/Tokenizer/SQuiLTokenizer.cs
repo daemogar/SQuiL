@@ -13,7 +13,7 @@ public class SQuiLTokenizer(string Text)
 		"""^(DECLARE|SET|USE|AS|INSERT|INTO|VALUES)\s""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
 	private static Regex TypeRegex { get; } = new(
-		"""^(bit|int|float|double|decimal(|\(\d,\d\))|uniqueidentifier|(date(?!time)|time|datetime(|2|offset))|n?(text|(var)?char\s*\(\s*(\d+|max)\s*\))|table\s*\(|identity(\s*\(\s*\d+\s*,\s*\d+\s*\))?|default\s+(\d+|'.*?'))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+		"""^(bit|int|float|double|decimal(|\(\d,\d\))|uniqueidentifier|(date(?!time)|time|datetime(|2|offset))|n?(text|(var)?char\s*\(\s*(\d+|max)\s*\))|table\s*\(|identity(\s*\(\s*\d+\s*,\s*\d+\s*\))?|default\s+(\d+|'.*?')|(varbinary\s*\(\s*max\s*\)|binary\s*\(\s*\d+\s*\)\s*))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
 
 	private static Regex FunctionRegex { get; } = new(
 		"""^(getdate\(\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
@@ -45,7 +45,8 @@ public class SQuiLTokenizer(string Text)
 
 	public List<Token> GetTokens()
 	{
-		if (Tokens is not null) return Tokens;
+		if (Tokens is not null)
+			return Tokens;
 		Tokens = [];
 
 		var token = default(Token);
@@ -53,14 +54,21 @@ public class SQuiLTokenizer(string Text)
 		{
 			WhileWhiteSpace();
 
-			if (UseStatement()) break;
+			if (UseStatement())
+				break;
 
-			if (Keyword()) continue;
-			if (Type()) continue;
-			if (Symbol()) continue;
-			if (Function()) continue;
-			if (Literal()) continue;
-			if (Identifier()) continue;
+			if (Keyword())
+				continue;
+			if (Type())
+				continue;
+			if (Symbol())
+				continue;
+			if (Function())
+				continue;
+			if (Literal())
+				continue;
+			if (Identifier())
+				continue;
 
 			WhileWhiteSpace();
 			if (Word.Length > 0)
@@ -77,9 +85,12 @@ public class SQuiLTokenizer(string Text)
 
 		bool Literal()
 		{
-			if (NullLiteral()) return true;
-			if (StringLiteral()) return true;
-			if (NumberLiteral()) return true;
+			if (NullLiteral())
+				return true;
+			if (StringLiteral())
+				return true;
+			if (NumberLiteral())
+				return true;
 			return false;
 
 			bool NullLiteral()
@@ -147,11 +158,17 @@ public class SQuiLTokenizer(string Text)
 
 			switch (value[0])
 			{
-				case ';': Increment(); return default(Token);
-				case ',': return T(TokenType.SYMBOL_COMMA, p.Value);
-				case '(': return T(TokenType.SYMBOL_LPREN, p.Value);
-				case ')': return T(TokenType.SYMBOL_RPREN, p.Value);
-				case '=': return T(TokenType.SYMBOL_EQUAL, p.Value);
+				case ';':
+					Increment();
+					return default(Token);
+				case ',':
+					return T(TokenType.SYMBOL_COMMA, p.Value);
+				case '(':
+					return T(TokenType.SYMBOL_LPREN, p.Value);
+				case ')':
+					return T(TokenType.SYMBOL_RPREN, p.Value);
+				case '=':
+					return T(TokenType.SYMBOL_EQUAL, p.Value);
 				case '-':
 					switch (value[1])
 					{
@@ -216,6 +233,10 @@ public class SQuiLTokenizer(string Text)
 				case "nvarchar":
 					return T(TokenType.TYPE_STRING, p.Value,
 						Value().Replace("max", "4096"));
+				case "binary":
+					return T(TokenType.TYPE_BINARY, p.Value, Value());
+				case "varbinary":
+					return T(TokenType.TYPE_VARBINARY, p.Value, "max");
 				case "text":
 				case "ntext":
 					return T(TokenType.TYPE_STRING, p.Value, p.Value);
@@ -283,7 +304,8 @@ public class SQuiLTokenizer(string Text)
 				return false;
 
 			var name = Identifier();
-			if (!name) Throw("Identifier");
+			if (!name)
+				Throw("Identifier");
 
 			WhileWhiteSpace();
 
@@ -312,12 +334,14 @@ public class SQuiLTokenizer(string Text)
 				{
 					selectVariable = default!;
 
-					if (SkipIfNot("select")) return false;
+					if (SkipIfNot("select"))
+						return false;
 					SkipWhitespace();
 
 					var offset = tokenizer.Index;
 
-					if (SkipIfNot("@", false)) return false;
+					if (SkipIfNot("@", false))
+						return false;
 
 					var variableName = tokenizer.Word;
 					var match = IdentifierRegex.Match(variableName);
@@ -342,11 +366,14 @@ public class SQuiLTokenizer(string Text)
 				{
 					insertIntoToken = default!;
 
-					if (SkipIfNot("insert")) return false;
+					if (SkipIfNot("insert"))
+						return false;
 					SkipWhitespace();
-					if (SkipIfNot("into")) return false;
+					if (SkipIfNot("into"))
+						return false;
 					SkipWhitespace();
-					if (SkipIfNot("@", false)) return false;
+					if (SkipIfNot("@", false))
+						return false;
 
 					var tableName = tokenizer.Word;
 					var match = IdentifierRegex.Match(tableName);
@@ -404,7 +431,8 @@ public class SQuiLTokenizer(string Text)
 		bool Try(Regex regex, Func<Match, ExceptionOrValue<Token?>> callback)
 		{
 			var match = regex.Match(Word);
-			if (!match.Success) return false;
+			if (!match.Success)
+				return false;
 
 			if (!callback(match).TryGetValue(out token, out var exception))
 				throw DE(match.Length, exception.Message);
@@ -420,7 +448,8 @@ public class SQuiLTokenizer(string Text)
 		void Throw(string type)
 		{
 			var length = Word.IndexOfAny([' ', '\t', '\r', '\n']);
-			if (length < 1) throw DE(Word.Length, $"Invalid {type}: `{Word}`");
+			if (length < 1)
+				throw DE(Word.Length, $"Invalid {type}: `{Word}`");
 			throw DE(length, $"Invalid {type}: `{Word[..length]}`");
 		}
 	}
