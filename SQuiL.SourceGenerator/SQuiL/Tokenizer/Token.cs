@@ -40,7 +40,7 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_STRING => throw new DiagnosticException("Size cannot be null."),
 		TokenType.TYPE_DATE => "Date",
 		TokenType.TYPE_TIME => "Time",
-		TokenType.TYPE_DATETIME => "DateTimeOffset",
+		TokenType.TYPE_DATETIME => "DateTime",
 		TokenType.TYPE_GUID => "UniqueIdentifier",
 		TokenType.TYPE_BINARY => nameof(System.Data.SqlDbType.Binary),
 		TokenType.TYPE_VARBINARY => nameof(System.Data.SqlDbType.VarBinary),
