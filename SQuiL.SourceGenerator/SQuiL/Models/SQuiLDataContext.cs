@@ -319,6 +319,7 @@ public class SQuiLDataContext(
 							writer.WriteLine($"""var value{item.Identifier.Value} = {defaultCondition}{item.DataReader()}(index{item.Identifier.Value});""");
 						}
 
+						writer.WriteLine();
 						writer.Write($"{model}.Add(new(");
 						writer.Indent++;
 						var comma = "";
