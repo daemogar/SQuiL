@@ -422,7 +422,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					
 					public virtual System.Data.Common.DbConnection CreateConnection(string connectionString) => new SqlConnection(connectionString);
 				
-					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object value) => new SqlParameter(name, type) { Value = value };
+					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object value) => new SqlParameter(name, type) { Value = value ?? (object)System.DBNull.Value };
 
 					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object value, Action<System.Data.Common.DbParameter>? callback)
 					{
@@ -451,12 +451,12 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 						if (size > 0)
 						{
 							variable.Size = size;
-							variable.Value = value is null || ((string)value).Length <= size
-								? (value ?? "Null")
-								: throw new Exception($"""
-									ParamsTable model table property at index [{index}] has a string property [{name}]
-									with more than {size} characters.
-									""");
+							
+							if(((string)value).Length > size)
+								throw new Exception($"""
+													ParamsTable model table property at index [{index}] has a string property [{name}]
+													with more than {size} characters.
+													""");
 						}
 
 						parameters.Add(variable);
