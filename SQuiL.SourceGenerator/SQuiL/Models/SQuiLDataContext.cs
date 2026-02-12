@@ -69,9 +69,13 @@ public class SQuiLDataContext(
 		{
 			writer.Block($$"""partial class {{ClassName}} : {{SourceGeneratorHelper.BaseDataContextClassName}}""", () =>
 			{
+				var errorReturnType = false;
 				var returnType = generation.Response.ModelName;
-				if (errors.Count > 0)
+				if (outputs.Count() == 0 && errors.Count() == 0)
+				{
+					errorReturnType = true;
 					returnType = $"{SourceGeneratorHelper.ResultTypeAttributeName}<{returnType}>";
+				}
 
 				writer.Block($$"""
 								public async Task<{{returnType}}> Process{{Method}}Async(
@@ -95,7 +99,7 @@ public class SQuiLDataContext(
 									await connection.OpenAsync(cancellationToken);
 
 									""");
-					if (outputs.Count() == 0 && errors.Count() == 0)
+					if (!errorReturnType)
 					{
 						writer.WriteLine("await command.ExecuteNonQueryAsync(cancellationToken);");
 						writer.WriteLine();
