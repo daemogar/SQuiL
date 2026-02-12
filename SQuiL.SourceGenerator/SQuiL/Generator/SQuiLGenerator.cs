@@ -423,18 +423,18 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					
 					public virtual System.Data.Common.DbConnection CreateConnection(string connectionString) => new SqlConnection(connectionString);
 				
-					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object value) => new SqlParameter(name, type) { Value = value ?? (object)System.DBNull.Value };
+					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object? value) => new SqlParameter(name, type) { Value = value ?? (object)System.DBNull.Value };
 
-					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object value, Action<System.Data.Common.DbParameter>? callback)
+					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object? value, Action<System.Data.Common.DbParameter>? callback)
 					{
 						var parameter = CreateParameter(name, type, value);
 						callback?.Invoke(parameter);
 						return parameter;
 					}
 				
-					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, int size, object value) => CreateParameter(name, type, size, value, default);
+					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, int size, object? value) => CreateParameter(name, type, size, value, default);
 
-					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, int size, object value, Action<System.Data.Common.DbParameter>? callback)
+					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, int size, object? value, Action<System.Data.Common.DbParameter>? callback)
 					{
 						var parameter = CreateParameter(name, type, value);
 						parameter.Size = size;
@@ -442,7 +442,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 						return parameter;
 					}
 
-					protected void AddParams(System.Text.StringBuilder query, List<DbParameter> parameters, int index, string table, string name, System.Data.SqlDbType type, object value, int size = 0)
+					protected void AddParams(System.Text.StringBuilder query, List<DbParameter> parameters, int index, string table, string name, System.Data.SqlDbType type, object? value, int size = 0)
 					{
 						var parameter = $"@{table}_{index}_{name}";
 						query.Append(parameter);
