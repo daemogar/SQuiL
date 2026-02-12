@@ -114,7 +114,6 @@ public class SQuiLDataContext(
 						writer.Block("try", () =>
 						{
 							writer.Block("""
-
 							using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
 							do
@@ -129,12 +128,11 @@ public class SQuiLDataContext(
 									}),
 									"""
 							while (await reader.NextResultAsync(cancellationToken));
-
 							""");
 						}, new IndentedTextWriterBlock("catch(SqlException e)", () =>
 						{
 							writer.WriteLine("errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));");
-						}));
+						}), new IndentedTextWriterBlock(null, writer.WriteLine));
 
 						if (outputs.Count > 0)
 						{
