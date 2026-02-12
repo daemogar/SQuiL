@@ -4,6 +4,8 @@ namespace Microsoft.CodeAnalysis;
 
 public static class DiagnosticsMessages
 {
+	public static readonly Regex Newline = new("(\r?\n)", RegexOptions.Compiled | RegexOptions.Singleline);
+
 	public static void CriticalGenerationFailure(this SourceProductionContext context, Exception e)
 	{
 		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0014", "Critical Generation Failure", e.Message + " " + e.StackTrace.Replace("\r", "").Replace("\t", "").Replace("\n", " ")));
@@ -98,8 +100,6 @@ public static class DiagnosticsMessages
 		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Warning, "SP0005", "No SQuiL Contexts Are Created",
 			$"There are no SQuiL contexts created. Make sure to create a partial class and add the [{SourceGeneratorHelper.QueryAttributeName}]."));
 	}
-
-	private static readonly Regex Newline = new("(\r?\n)", RegexOptions.Compiled | RegexOptions.Singleline);
 
 	public static void ReportMissingStatement(this SourceProductionContext context, Exception exception)
 	{
