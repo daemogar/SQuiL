@@ -69,11 +69,11 @@ public class SQuiLDataContext(
 		{
 			writer.Block($$"""partial class {{ClassName}} : {{SourceGeneratorHelper.BaseDataContextClassName}}""", () =>
 			{
-				var errorReturnType = false;
+				var errorReturnType = true;
 				var returnType = generation.Response.ModelName;
 				if (outputs.Count() == 0 && errors.Count() == 0)
 				{
-					errorReturnType = true;
+					errorReturnType = false;
 					returnType = $"{SourceGeneratorHelper.ResultTypeAttributeName}<{returnType}>";
 				}
 
