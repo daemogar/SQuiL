@@ -452,12 +452,12 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 						if (size > 0)
 						{
 							variable.Size = size;
-							
-							if(((string)value).Length > size)
-								throw new Exception($"""
-													ParamsTable model table property at index [{index}] has a string property [{name}]
-													with more than {size} characters.
-													""");
+							variable.Value = value is null || ((string)value).Length <= size
+								? (value ?? "Null")
+								: throw new Exception($"""
+									ParamsTable model table property at index [{index}] has a string property [{name}]
+									with more than {size} characters.
+									""");
 						}
 
 						parameters.Add(variable);
