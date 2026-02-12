@@ -71,11 +71,11 @@ public class SQuiLDataContext(
 			{
 				var errorReturnType = true;
 				var returnType = generation.Response.ModelName;
+
 				if (outputs.Count() == 0 && errors.Count() == 0)
-				{
 					errorReturnType = false;
+				else
 					returnType = $"{SourceGeneratorHelper.ResultTypeAttributeName}<{returnType}>";
-				}
 
 				writer.Block($$"""
 								public async Task<{{returnType}}> Process{{Method}}Async(
