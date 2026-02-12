@@ -190,16 +190,17 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				var type = symbol.ContainingType;
 				var name = type.ToDisplayString();
 
-				if (name.Equals($"{NamespaceName}.{QueryAttributeName}"))
+				if (name.Equals(NamespacedQueryAttributeValue))
 					definition = SQuiLDefinitionType.Query;
 
-				if (name.Equals($"{NamespaceName}.{TableTypeAttributeName}"))
+				else if (name.Equals(NamespacedTableTypeAttributeName))
 					definition = SQuiLDefinitionType.TableType;
 
-				if (definition == SQuiLDefinitionType.Invalid)
+				else
 					continue;
 
-				yield return new(definition, syntax.Modifiers.Any(p => p.ValueText?.Equals("partial") == true), syntax, attribute);
+				yield return new(definition, syntax.Modifiers
+					.Any(p => p.ValueText?.Equals("partial") == true), syntax, attribute);
 			}
 	}
 
@@ -422,7 +423,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					
 					public virtual System.Data.Common.DbConnection CreateConnection(string connectionString) => new SqlConnection(connectionString);
 				
-					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object value) => new SqlParameter(name, type) { Value = value };
+					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object value) => new SqlParameter(name, type) { Value = value ?? (object)System.DBNull.Value };
 
 					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object value, Action<System.Data.Common.DbParameter>? callback)
 					{
@@ -445,18 +446,18 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					{
 						var parameter = $"@{table}_{index}_{name}";
 						query.Append(parameter);
-
+						
 						var variable = CreateParameter(parameter, type, value);
 
 						if (size > 0)
 						{
 							variable.Size = size;
-							variable.Value = value is null || ((string)value).Length <= size
-								? (value ?? "Null")
-								: throw new Exception($"""
-									ParamsTable model table property at index [{index}] has a string property [{name}]
-									with more than {size} characters.
-									""");
+							
+							if(((string)value).Length > size)
+								throw new Exception($"""
+													ParamsTable model table property at index [{index}] has a string property [{name}]
+													with more than {size} characters.
+													""");
 						}
 
 						parameters.Add(variable);

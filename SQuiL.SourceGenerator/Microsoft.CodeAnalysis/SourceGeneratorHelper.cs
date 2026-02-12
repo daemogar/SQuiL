@@ -7,8 +7,12 @@ public static class SourceGeneratorHelper
 	public static string ConfigRootPath { get; } = $"{NamespaceName}SolutionRoot";
 
 	public static string QueryAttributeName { get; } = $"{NamespaceName}QueryAttribute";
-	
+
 	public static string TableTypeAttributeName { get; } = $"{NamespaceName}TableAttribute";
+
+	public static string NamespacedQueryAttributeValue { get; } = $"{NamespaceName}.{QueryAttributeName}";
+
+	public static string NamespacedTableTypeAttributeName { get; } = $"{NamespaceName}.{TableTypeAttributeName}";
 
 	public static string ResultTypeAttributeName { get; } = $"{NamespaceName}ResultType";
 
