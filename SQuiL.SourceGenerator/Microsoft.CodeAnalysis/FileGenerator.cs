@@ -98,6 +98,21 @@ public class FileGenerator(
 				Context.ReportMissingStatement(exception);
 			foreach (var (table, text) in tables.Select(p => (p.Key, p.Value)))
 				AddSource(table, text);
+
+			if (!TableMap.TableNames.Any(SQuiLGenerator.IsError))
+				AddSource("SQuiLError", $$"""
+					{{SourceGeneratorHelper.FileHeader}}
+
+					namespace {{SourceGeneratorHelper.NamespaceName}};
+
+					public partial record SQuiLError(
+						int Number,
+						int Severity,
+						int State,
+						int Line,
+						string Procedure,
+						string Message);
+					""");
 		}
 		catch (DiagnosticException e)
 		{
