@@ -4,6 +4,7 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 using SQuiL;
 
@@ -11,18 +12,19 @@ namespace TestCase;
 
 partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 {
-	public async Task<TwoQueriesWithSameReference1Response> ProcessTwoQueriesWithSameReference1Async(
+	public async Task<SQuiLResultType<TwoQueriesWithSameReference1Response>> ProcessTwoQueriesWithSameReference1Async(
 		TwoQueriesWithSameReference1Request request,
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
-		using SqlConnection connection = new(builder.ConnectionString);
+		using var connection = CreateConnection(builder.ConnectionString);
+		
 		var command = connection.CreateCommand();
 		
-		List<SqlParameter> parameters = new()
+		List<DbParameter> parameters = new()
 		{
-			new("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
-			new("@Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
+			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, request.Debug || EnvironmentName != "Production")
 		};
 		
 		command.CommandText = Query(parameters);
@@ -34,52 +36,66 @@ partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 		
 		var isQuestions = false;
 		
-		using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		
-		do
+		List<SQuiLError> errors = [];
+		try
 		{
-			var tableTag = reader.GetName(0);
-			if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			
+			do
 			{
-				switch (tableTag)
+				var tableTag = reader.GetName(0);
+				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
 				{
-					case "__SQuiL__Table__Type__Error__":
+					switch (tableTag)
 					{
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						break;
-					}
-					case "__SQuiL__Table__Type__Returns_Questions__":
-					{
-						isQuestions = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						var indexNumber = reader.GetOrdinal("Number");
-						var indexMessage = reader.GetOrdinal("Message");
-						
-						do
+						case "__SQuiL__Table__Type__Error__":
 						{
-							if (reader.GetString(0) == "Returns_Questions")
-							{
-								response.Questions.Add(new(
-									reader.GetInt32(indexNumber),
-									reader.GetString(indexMessage)));
-							}
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							break;
 						}
-						while (await reader.ReadAsync(cancellationToken));
-						break;
+						case "__SQuiL__Table__Type__Returns_Questions__":
+						{
+							isQuestions = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							var indexNumber = reader.GetOrdinal("Number");
+							var indexMessage = reader.GetOrdinal("Message");
+							
+							do
+							{
+								if (reader.GetString(0) == "Returns_Questions")
+								{
+										var valueNumber = reader.GetInt32(indexNumber);
+										var valueMessage = reader.GetString(indexMessage);
+										
+									response.Questions.Add(new(
+											valueNumber,
+											valueMessage));
+								}
+							}
+							while (await reader.ReadAsync(cancellationToken));
+							break;
+						}
 					}
 				}
 			}
+			while (await reader.NextResultAsync(cancellationToken));
 		}
-		while (await reader.NextResultAsync(cancellationToken));
+		catch(SqlException e)
+		{
+			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+		}
 		
-		if (!isQuestions) throw new Exception("Expected return table `Questions`)");
+		if (!isQuestions) errors.Add(new(51001, 12, 1, 90, "Questions", "Expected return table `Questions`"));
 		
-		return response;
+		if(errors.Count == 0)
+			return new(response);
 		
-		string Query(List<SqlParameter> parameters) => $"""
+		return new(errors);
+		
+		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Questions table(
 			[__SQuiL__Table__Type__Returns_Questions__] varchar(max) default('Returns_Questions'),
 			[Number] int,

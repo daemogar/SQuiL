@@ -35,6 +35,7 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_INT => "BigInt",
 		TokenType.TYPE_FLOAT or TokenType.TYPE_DOUBLE => nameof(System.Data.SqlDbType.Float),
 		TokenType.TYPE_DECIMAL => "Decimal",
+		TokenType.TYPE_STRING when size?.Equals("max", StringComparison.OrdinalIgnoreCase) == true => $"VarChar, -1",
 		TokenType.TYPE_STRING when size is not null => $"VarChar, {size}",
 		TokenType.TYPE_STRING when allowNullSize => $"VarChar",
 		TokenType.TYPE_STRING => throw new DiagnosticException("Size cannot be null."),
