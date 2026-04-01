@@ -132,7 +132,9 @@ public class SQuiLDataContext(
 						}, new IndentedTextWriterBlock("catch(SqlException e)", () =>
 						{
 							writer.WriteLine("errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));");
-						}), new IndentedTextWriterBlock(null, writer.WriteLine));
+						}));
+
+						writer.WriteLine();
 
 						if (outputs.Count > 0)
 						{
@@ -350,6 +352,7 @@ public class SQuiLDataContext(
 					writer.Block($"""
 						System.Text.StringBuilder query = new();
 						query.Append("Insert Into @Param{(CodeBlock.IsTable ? "s" : "")}_{CodeBlock.Name}([{string.Join("], [", CodeBlock.Properties.Select(p => p.Identifier.Value))}])");
+						
 						""");
 
 					if (CodeBlock.IsTable)
