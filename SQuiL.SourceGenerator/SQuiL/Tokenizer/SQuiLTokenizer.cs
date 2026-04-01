@@ -231,8 +231,8 @@ public class SQuiLTokenizer(string Text)
 				case "nchar":
 				case "varchar":
 				case "nvarchar":
-					return T(TokenType.TYPE_STRING, p.Value,
-						Value().Replace("max", "4096"));
+					return T(TokenType.TYPE_STRING, p.Value, Value());
+				//Value().Replace("max", "4096"));
 				case "binary":
 					return T(TokenType.TYPE_BINARY, p.Value, Value());
 				case "varbinary":

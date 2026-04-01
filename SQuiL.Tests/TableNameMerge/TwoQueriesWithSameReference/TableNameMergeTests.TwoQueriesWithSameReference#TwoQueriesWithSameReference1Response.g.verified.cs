@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record TwoQueriesWithSameReference1Response
 {
-	public System.Collections.Generic.List<MergedData> Questions { get; set; } = [];
+	public System.Collections.Generic.List<QuestionsTable> Questions { get; set; } = [];
 }

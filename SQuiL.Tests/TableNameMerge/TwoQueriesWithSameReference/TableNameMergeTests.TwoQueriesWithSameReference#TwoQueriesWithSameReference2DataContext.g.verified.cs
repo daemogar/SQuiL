@@ -4,6 +4,7 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 using SQuiL;
 
@@ -16,13 +17,14 @@ partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
-		using SqlConnection connection = new(builder.ConnectionString);
+		using var connection = CreateConnection(builder.ConnectionString);
+
 		var command = connection.CreateCommand();
 		
-		List<SqlParameter> parameters = new()
+		List<DbParameter> parameters = new()
 		{
-			new("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
-			new("@Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
+			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, request.Debug || EnvironmentName != "Production")
 		};
 		
 		command.CommandText = Query(parameters);
@@ -34,11 +36,11 @@ partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 		
 		return new();
 		
-		string inputQuestion(List<SqlParameter> parameters)
+		string inputQuestion(List<DbParameter> parameters)
 		{
 			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Param_Question(Number, Message)");
-			
+			query.Append("Insert Into @Param_Question([Number], [Message])");
+
 			if (request.Question is null)
 				throw new NullReferenceException(
 					"TwoQueriesWithSameReference2Request is missing the required property Question.");
@@ -48,7 +50,7 @@ partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 			
 			AddParams(query, parameters, 0, "ParamQuestion", "Number", System.Data.SqlDbType.BigInt, request.Question.Number);
 			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamQuestion", "Message", System.Data.SqlDbType.VarChar, request.Question.Message, 4096);
+			AddParams(query, parameters, 0, "ParamQuestion", "Message", System.Data.SqlDbType.VarChar, request.Question.Message, request.Question.Message?.Length ?? 4096);
 			
 			query.Append(')');
 			query.AppendLine(";");
@@ -57,7 +59,7 @@ partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 			return query.ToString();
 		}
 		
-		string Query(List<SqlParameter> parameters) => $"""
+		string Query(List<DbParameter> parameters) => $"""
 		Declare @Param_Question table(
 			[__SQuiL__Table__Type__Param_Question__] varchar(max) default('Param_Question'),
 			[Number] int,

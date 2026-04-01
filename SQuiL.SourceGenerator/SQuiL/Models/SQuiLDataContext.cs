@@ -425,10 +425,17 @@ public class SQuiLDataContext(
 						writer.Write($"\"{param}\", ");
 						writer.Write($"\"{property.Identifier.Value}\", ");
 						writer.Write($"{property.Type.SqlDbType(allowNullSize: true)}, ");
-						writer.Write($"{item}.{property.Identifier.Value}");
+
+						var propertyName = $"{item}.{property.Identifier.Value}";
+						writer.Write(propertyName);
 
 						if (property.Type.Type == TokenType.TYPE_STRING)
-							writer.Write($", {property.Type.Value}");
+						{
+							if (property.Type.Value?.Equals("max", StringComparison.InvariantCultureIgnoreCase) == true)
+								writer.Write($", {propertyName}?.Length ?? 4096");
+							else
+								writer.Write($", {property.Type.Value}");
+						}
 
 						writer.WriteLine(");");
 

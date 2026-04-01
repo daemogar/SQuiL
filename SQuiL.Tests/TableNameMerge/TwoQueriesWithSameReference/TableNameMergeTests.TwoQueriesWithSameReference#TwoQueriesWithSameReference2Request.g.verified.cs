@@ -9,5 +9,5 @@ public partial record TwoQueriesWithSameReference2Request
 {
 	public bool Debug { get; set; }
 	
-	public MergedData? Question { get; set; } = default!;
+	public QuestionObject? Question { get; set; } = default!;
 }
