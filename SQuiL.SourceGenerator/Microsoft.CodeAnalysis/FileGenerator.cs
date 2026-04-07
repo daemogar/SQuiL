@@ -109,10 +109,11 @@ public class FileGenerator(
 
 			if (!TableMap.TableNames.Any(SQuiLGenerator.IsError))
 			{
+				var squilAggregateException = $"{SourceGeneratorHelper.NamespaceName}AggregateException";
 				var squilException = $"{SourceGeneratorHelper.NamespaceName}Exception";
 				var squilError = $"{SourceGeneratorHelper.NamespaceName}Error";
 
-				AddSource("", $$"""
+				AddSource(squilException, $$"""
 					{{SourceGeneratorHelper.FileHeader}}
 					namespace {{SourceGeneratorHelper.NamespaceName}};
 							 
@@ -175,7 +176,16 @@ public class FileGenerator(
 					}
 					""");
 
-				AddSource("SQuiLError", $$"""
+				AddSource(squilAggregateException, $$"""
+					{{SourceGeneratorHelper.FileHeader}}
+					namespace {{SourceGeneratorHelper.NamespaceName}};
+										
+					public class {{squilAggregateException}}(IReadOnlyList<{{squilError}}> Errors)
+						: System.AggregateException(Errors.Select(p => p.AsException()))
+					{ }
+					""");
+
+				AddSource(squilError, $$"""
 					{{SourceGeneratorHelper.FileHeader}}
 					namespace {{SourceGeneratorHelper.NamespaceName}};
 
