@@ -100,7 +100,7 @@ public class FileGenerator(
 		try
 		{
 			TableMap.GenerateCode(out var tables, out var exceptions);
-			
+
 			foreach (var exception in exceptions)
 				Context.ReportMissingStatement(exception);
 
@@ -109,19 +109,21 @@ public class FileGenerator(
 
 			if (!TableMap.TableNames.Any(SQuiLGenerator.IsError))
 			{
+				var squilException = $"{SourceGeneratorHelper.NamespaceName}Exception";
+				var squilError = $"{SourceGeneratorHelper.NamespaceName}Error";
+
 				AddSource("", $$"""
 					{{SourceGeneratorHelper.FileHeader}}
-
 					namespace {{SourceGeneratorHelper.NamespaceName}};
 							 
-					public sealed class SQuiLException(SQuiLError Error) : System.Data.Common.DbException(Error.Message, Error.Number)
+					public sealed class {{squilException}}({{squilError}} Error) : System.Data.Common.DbException(Error.Message, Error.Number)
 					{
-						private SQuiLError Error { get; init; } = Error;
+						private {{squilError}} Error { get; init; } = Error;
 
 						public override Exception GetBaseException() => this;
 
 						public override bool Equals(object obj)
-							=> Error.Equals(obj is SQuiLException error ? error.Error : obj);
+							=> Error.Equals(obj is {{squilException}} error ? error.Error : obj);
 
 						public override int GetHashCode() => Error.GetHashCode();
 
@@ -175,10 +177,9 @@ public class FileGenerator(
 
 				AddSource("SQuiLError", $$"""
 					{{SourceGeneratorHelper.FileHeader}}
-
 					namespace {{SourceGeneratorHelper.NamespaceName}};
 
-					public partial record SQuiLError(
+					public partial record {{squilError}}(
 						int Number,
 						int Severity,
 						int State,
@@ -186,7 +187,8 @@ public class FileGenerator(
 						string Procedure,
 						string Message)
 					{
-						public SQuiLException AsException() => new(this);
+						public Exception AsException() => new(this);
+						public {{squilException}} As{{squilException}}() => new(this);
 					}
 					""");
 			}
