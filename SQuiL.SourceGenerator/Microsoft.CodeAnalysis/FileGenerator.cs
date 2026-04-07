@@ -114,7 +114,7 @@ public class FileGenerator(
 
 					namespace {{SourceGeneratorHelper.NamespaceName}};
 							 
-					public sealed class SQuiLException(SQuiLError Error) : DbException(Error.Message, Error.Number)
+					public sealed class SQuiLException(SQuiLError Error) : System.Data.Common.DbException(Error.Message, Error.Number)
 					{
 						private SQuiLError Error { get; init; } = Error;
 
