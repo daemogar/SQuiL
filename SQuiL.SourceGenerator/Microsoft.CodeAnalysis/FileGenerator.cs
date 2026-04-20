@@ -128,15 +128,11 @@ public class FileGenerator(
 
 						public override int GetHashCode() => Error.GetHashCode();
 
-						public override void GetObjectData(
-							SerializationInfo info, StreamingContext context)
-							=> throw new NotSupportedException();
-
 						public override string HelpLink => "https://github.com/daemogar/SQuiL";
 
 						public override string ToString()
 						{
-							StringBuilder sb = new();
+							System.Text.StringBuilder sb = new();
 
 							sb.AppendFormat($"{GetType().FullName} (0x{HResult:X8}): {Message}");
 
@@ -159,7 +155,7 @@ public class FileGenerator(
 							return sb.ToString();
 						}
 
-						public override IDictionary Data
+						public override System.Collections.IDictionary Data
 							=> new System.Collections.Generic.Dictionary<string, object>()
 							{
 								{ "Number", Error.Number },
@@ -172,7 +168,7 @@ public class FileGenerator(
 
 						public override string StackTrace => base.StackTrace;
 
-						public override string Source => {{SourceGeneratorHelper.NamespaceName}};
+						public override string Source => "{{SourceGeneratorHelper.NamespaceName}}";
 					}
 					""");
 
@@ -197,7 +193,7 @@ public class FileGenerator(
 						string Procedure,
 						string Message)
 					{
-						public Exception AsException() => new(this);
+						public Exception AsException() => new(Message);
 						public {{squilException}} As{{squilException}}() => new(this);
 					}
 					""");
