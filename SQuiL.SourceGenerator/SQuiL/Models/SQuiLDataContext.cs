@@ -497,7 +497,9 @@ public class SQuiLDataContext(
 			writer.Indent++;
 
 			writer.WriteLine($$"""CreateParameter("@{{SQuiLGenerator.EnvironmentName}}", System.Data.SqlDbType.VarChar, {{SQuiLGenerator.EnvironmentName}}.Length, {{SQuiLGenerator.EnvironmentName}}),""");
-			writer.Write($$"""CreateParameter("@{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit, request.Debug || {{SQuiLGenerator.EnvironmentName}} != "Production")""");
+
+			var debug = $$"""!request.DebugOnly && (request.Debug || {{SQuiLGenerator.EnvironmentName}} != "Production")""";
+			writer.Write($$"""CreateParameter("@{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit, {{debug}})""");
 
 			var parameters = Blocks
 				.Where(p => p.CodeType == CodeType.INPUT_ARGUMENT)
