@@ -1,0 +1,17 @@
+<Solution>
+	<Folder Name="/Solution/">
+		<File Path=".dockerignore" />
+		<File Path=".gitattributes" />
+		<File Path=".gitignore" />
+		<File Path="LICENSE.txt" />
+		<File Path="README.md" />
+	</Folder>
+	<Folder Name="/Solution/workflows/">
+		<File Path=".github/workflows/build.yml" />
+		<File Path=".github/workflows/publish.yml" />
+	</Folder>
+	<Project Path="SQuiL.Library/SQuiL.Library.csproj" />
+	<Project Path="SQuiL.Simple/SQuiL.Application.csproj" />
+	<Project Path="SQuiL.SourceGenerator/SQuiL.SourceGenerator.csproj" />
+	<Project Path="SQuiL.Tests/SQuiL.Tests.csproj" />
+</Solution>

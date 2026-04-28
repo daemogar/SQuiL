@@ -8,7 +8,7 @@ public enum TokenType
 	BODY = 3,
 	INSERT_INTO_TABLE = 4,
 	SELECT_VARIABLE = 5,
-	// Keywords
+	// Keywords (1000–1999)
 	KEYWORD = 1000,
 	KEYWORD_DECLARE = KEYWORD + 1,
 	KEYWORD_USE = KEYWORD + 2,
@@ -18,12 +18,14 @@ public enum TokenType
 	KEYWORD_INTO = KEYWORD_IGNORED + 2,
 	KEYWORD_VALUES = KEYWORD_IGNORED + 3,
 	KEYWORD_SET = KEYWORD_IGNORED + 4,
-	// Literals
+	// Literals (2000–2999)
 	LITERAL = 2000,
 	LITERAL_NULL = LITERAL + 1,
+	LITERAL_NOT_NULL = LITERAL + 1,
+	LITERAL_NULL = LITERAL + 2,
 	LITERAL_STRING = LITERAL + 11,
 	LITERAL_NUMBER = LITERAL + 12,
-	// Types
+	// Types (3000–3999) — see https://learn.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql
 	// https://learn.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-ver16
 	TYPE = 3000,
 	TYPE_BOOLEAN = TYPE + 1,
@@ -41,18 +43,16 @@ public enum TokenType
 	TYPE_TABLE = TYPE + 21,
 	TYPE_OBJECT = TYPE + 22,
 	//TYPE_RETURN = TYPE + 13,
-	//TYPE_RETURNSS = TYPE + 14,
-	//TYPE_RETURNS = TYPE + 12,
 	TYPE_FUNCTIONS = TYPE + 31,
 	TYPE_IDENTITY = TYPE + 101,
 	TYPE_DEFAULT = TYPE + 102,
-	// Symbols
+	// Symbols (4000–4999)
 	SYMBOL = 4000,
 	SYMBOL_EQUAL = SYMBOL + '=',
 	SYMBOL_COMMA = SYMBOL + ',',
 	SYMBOL_LPREN = SYMBOL + '(',
 	SYMBOL_RPREN = SYMBOL + ')',
-	// Comments
+	// Comments (5000–5999)
 	COMMENT = 5000,
 	COMMENT_SINGLELINE = COMMENT + 1,
 	COMMENT_MULTILINE = COMMENT + 2

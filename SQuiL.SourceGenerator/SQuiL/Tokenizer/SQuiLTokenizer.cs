@@ -36,6 +36,16 @@ public class SQuiLTokenizer(string Text)
 
 	private char Letter => Word?.Length > 0 ? Word[0] : '\0';
 
+	private char Peek(int index, out string word)
+	{
+		word = Word;
+
+		if (index < word.Length)
+			return word[index];
+
+		return '\0';
+	}
+
 	private string Word => Index < Text.Length ? Text[Index..] : "";
 
 	private List<Token>? Tokens { get; set; }
@@ -85,6 +95,8 @@ public class SQuiLTokenizer(string Text)
 
 		bool Literal()
 		{
+			if (NotNullLiteral())
+				return true;
 			if (NullLiteral())
 				return true;
 			if (StringLiteral())
@@ -92,6 +104,38 @@ public class SQuiLTokenizer(string Text)
 			if (NumberLiteral())
 				return true;
 			return false;
+
+			bool NotNullLiteral()
+			{
+				if (!Word.StartsWith("not", StringComparison.CurrentCultureIgnoreCase))
+					return false;
+
+				var index = 3;
+				while (true)
+				{
+					var next = Peek(index, out var word);
+
+					if (next == '\0')
+						return false;
+
+					if (char.IsWhiteSpace(next))
+					{
+						index++;
+						continue;
+					}
+
+					if (word.StartsWith("null", StringComparison.CurrentCultureIgnoreCase))
+						return false;
+
+					index += 4;
+					break;
+				}
+
+				Tokens.Add(T(TokenType.LITERAL_NOT_NULL, Word));
+				Increment(index);
+
+				return true;
+			}
 
 			bool NullLiteral()
 			{

@@ -1,16 +1,11 @@
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.Data.SqlClient;
 
 using SQuiL.Generator;
 using SQuiL.Models;
 using SQuiL.SourceGenerator.Parser;
 using SQuiL.Tokenizer;
 
-using System.Collections;
 using System.Collections.Immutable;
-using System.Data.Common;
-using System.Diagnostics;
-using System.Runtime.Serialization;
 using System.Text;
 
 namespace Microsoft.CodeAnalysis;
@@ -38,7 +33,7 @@ public class FileGenerator(
 	{
 		try
 		{
-			SQuiLFileGeneration generation = new(method, "");
+			SQuiLFileGeneration generation = new(method);
 
 			var tokens = SQuiLTokenizer.GetTokens(text.ToString());
 			var blocks = SQuiLParser.ParseTokens(tokens);
@@ -106,98 +101,6 @@ public class FileGenerator(
 
 			foreach (var (table, text) in tables.Select(p => (p.Key, p.Value)))
 				AddSource(table, text);
-
-			if (!TableMap.TableNames.Any(SQuiLGenerator.IsError))
-			{
-				var squilAggregateException = $"{SourceGeneratorHelper.NamespaceName}AggregateException";
-				var squilException = $"{SourceGeneratorHelper.NamespaceName}Exception";
-				var squilError = $"{SourceGeneratorHelper.NamespaceName}Error";
-
-				AddSource(squilException, $$"""
-					{{SourceGeneratorHelper.FileHeader}}
-					namespace {{SourceGeneratorHelper.NamespaceName}};
-							 
-					public sealed class {{squilException}}({{squilError}} Error) : System.Data.Common.DbException(Error.Message, Error.Number)
-					{
-						private {{squilError}} Error { get; init; } = Error;
-
-						public override Exception GetBaseException() => this;
-
-						public override bool Equals(object obj)
-							=> Error.Equals(obj is {{squilException}} error ? error.Error : obj);
-
-						public override int GetHashCode() => Error.GetHashCode();
-
-						public override string HelpLink => "https://github.com/daemogar/SQuiL";
-
-						public override string ToString()
-						{
-							System.Text.StringBuilder sb = new();
-
-							sb.AppendFormat($"{GetType().FullName} (0x{HResult:X8}): {Message}");
-
-							sb.AppendLine();
-
-							sb.AppendFormat($"   Number: {Error.Number}, Severity: {Error.Severity}, State: {Error.State}");
-
-							if (!string.IsNullOrWhiteSpace(Error.Procedure))
-								sb.AppendFormat($", Procedure: {Error.Procedure}");
-
-							sb.AppendFormat($", Line {Error.Line}");
-
-							var trace = StackTrace;
-							if (trace is not null)
-							{
-								sb.AppendLine();
-								sb.Append(trace);
-							}
-
-							return sb.ToString();
-						}
-
-						public override System.Collections.IDictionary Data
-							=> new System.Collections.Generic.Dictionary<string, object>()
-							{
-								{ "Number", Error.Number },
-								{ "Severity", Error.Severity },
-								{ "State", Error.State },
-								{ "Line", Error.Line },
-								{ "Procedure", Error.Procedure },
-								{ "Message", Error.Message }
-							};
-
-						public override string StackTrace => base.StackTrace;
-
-						public override string Source => "{{SourceGeneratorHelper.NamespaceName}}";
-					}
-					""");
-
-				AddSource(squilAggregateException, $$"""
-					{{SourceGeneratorHelper.FileHeader}}
-					namespace {{SourceGeneratorHelper.NamespaceName}};
-										
-					public class {{squilAggregateException}}(IReadOnlyList<{{squilError}}> Errors)
-						: System.AggregateException(Errors.Select(p => p.AsException()))
-					{ }
-					""");
-
-				AddSource(squilError, $$"""
-					{{SourceGeneratorHelper.FileHeader}}
-					namespace {{SourceGeneratorHelper.NamespaceName}};
-
-					public partial record {{squilError}}(
-						int Number,
-						int Severity,
-						int State,
-						int Line,
-						string Procedure,
-						string Message)
-					{
-						public Exception AsException() => new(Message);
-						public {{squilException}} As{{squilException}}() => new(this);
-					}
-					""");
-			}
 		}
 		catch (DiagnosticException e)
 		{

@@ -367,3 +367,4 @@ FodyWeavers.xsd
 
 # Verify
 *.received.*
+/.claude/settings.local.json

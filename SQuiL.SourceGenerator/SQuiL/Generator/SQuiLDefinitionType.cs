@@ -1,6 +1,6 @@
 ﻿namespace SQuiL.Generator;
 
-public enum SQuiLDefinitionType
+internal enum SQuiLDefinitionType
 {
 	Invalid = 0,
 	Query = 'Q',

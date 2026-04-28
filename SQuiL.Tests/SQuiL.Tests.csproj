@@ -14,13 +14,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<AdditionalFiles Remove="CourseEvaluation\**" />
-		<Compile Remove="CourseEvaluation\**" />
-		<EmbeddedResource Remove="CourseEvaluation\**" />
-		<None Remove="CourseEvaluation\**" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.3.0" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.0" />
@@ -43,11 +36,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\SQuiL.Library\SQuiL.Library.csproj" />
 		<ProjectReference Include="..\SQuiL.SourceGenerator\SQuiL.SourceGenerator.csproj" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <Folder Include="CourseEvaluationTests\RealExample\" />
 	</ItemGroup>
 
 </Project>

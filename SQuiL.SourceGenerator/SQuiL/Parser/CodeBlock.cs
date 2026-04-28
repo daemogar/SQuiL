@@ -12,8 +12,19 @@ public record CodeBlock(CodeType CodeType, Token DatabaseType, string Name, stri
 
 	public bool IsRequired { get; }
 
-	public bool IsNullable => (!IsTable && (IsRequired || DefaultValue is null || DefaultValue == "Null")) || IsBinary;
+	public bool IsNullable
+	{
+		get
+		{
+			if (IsTable || IsBinary)
+				return true;
 
+			if (IsRequired || DefaultValue is null || DefaultValue == "Null")
+				return true;
+
+			return false;
+		}
+	}
 	public string? Size { get; set; }
 
 	public List<CodeItem> Properties { get; } = default!;

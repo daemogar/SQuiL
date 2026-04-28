@@ -2,7 +2,6 @@
 
 using SQuiL.Generator;
 using SQuiL.SourceGenerator.Parser;
-using SQuiL.Tokenizer;
 
 using System.CodeDom.Compiler;
 

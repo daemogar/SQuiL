@@ -137,6 +137,19 @@ Required NuGet packages:
 - `Microsoft.Extensions.Configuration` - Configuration/connection string handling
 - `Microsoft.Extensions.DependencyInjection` - DI support
 
+### Package structure (single-package distribution)
+
+The `SQuiL.SourceGenerator` NuGet bundles both the generator DLL (into
+`analyzers/dotnet/cs`) **and** the `SQuiL.Library.dll` runtime assembly (into
+`lib/netstandard2.0`). Because the library DLL is embedded rather than pulled
+in via a NuGet dependency, its transitive `PackageReference`s are **not**
+resolved for consumers automatically.
+
+**Rule:** any `PackageReference` added to `SQuiL.Library.csproj` that is needed
+at consumer runtime (e.g. `Microsoft.Extensions.Configuration`) must be mirrored
+in `SQuiL.SourceGenerator.csproj` so it flows through to the consumer. Keep
+the two dependency lists in sync.
+
 Test dependencies:
 - `xunit` - Test framework
 - `Verify.SourceGenerators` - Snapshot testing for generated code

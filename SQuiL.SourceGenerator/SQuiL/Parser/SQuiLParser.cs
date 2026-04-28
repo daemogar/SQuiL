@@ -263,6 +263,7 @@ public class SQuiLParser(List<Token> Tokens)
 						string? defaultValue = Current.Type switch
 						{
 							TokenType.LITERAL_NULL => default,
+							TokenType.LITERAL_NOT_NULL => default,
 							TokenType.LITERAL_STRING => Current.Value,
 							TokenType.LITERAL_NUMBER => Current.Value,
 							TokenType.TYPE_FUNCTIONS => Current.Value switch
@@ -312,6 +313,11 @@ public class SQuiLParser(List<Token> Tokens)
 						if (Current.Type == TokenType.LITERAL_NULL)
 						{
 							item = item with { IsNullable = true };
+							Consume();
+						}
+						else if (Current.Type == TokenType.LITERAL_NOT_NULL)
+						{
+							item = item with { IsNullable = false };
 							Consume();
 						}
 

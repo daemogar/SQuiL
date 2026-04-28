@@ -24,10 +24,8 @@ public readonly struct Index : IEquatable<Index>
 	public Index(int value, bool fromEnd = false)
 	{
 		if (value < 0)
-		{
 			throw new ArgumentOutOfRangeException(nameof(value), "value must be non-negative");
-		}
-
+	
 		if (fromEnd)
 			_value = ~value;
 		else
@@ -41,10 +39,10 @@ public readonly struct Index : IEquatable<Index>
 	}
 
 	/// <summary>Create an Index pointing at first element.</summary>
-	public static Index Start => new Index(0);
+	public static Index Start => new(0);
 
 	/// <summary>Create an Index pointing at beyond last element.</summary>
-	public static Index End => new Index(~0);
+	public static Index End => new(~0);
 
 	/// <summary>Create an Index from the start at the position indicated by the value.</summary>
 	/// <param name="value">The index value from the start.</param>
@@ -52,11 +50,9 @@ public readonly struct Index : IEquatable<Index>
 	public static Index FromStart(int value)
 	{
 		if (value < 0)
-		{
 			throw new ArgumentOutOfRangeException(nameof(value), "value must be non-negative");
-		}
-
-		return new Index(value);
+	
+		return new(value);
 	}
 
 	/// <summary>Create an Index from the end at the position indicated by the value.</summary>
@@ -65,28 +61,13 @@ public readonly struct Index : IEquatable<Index>
 	public static Index FromEnd(int value)
 	{
 		if (value < 0)
-		{
 			throw new ArgumentOutOfRangeException(nameof(value), "value must be non-negative");
-		}
-
+		
 		return new Index(~value);
 	}
 
 	/// <summary>Returns the index value.</summary>
-	public int Value
-	{
-		get
-		{
-			if (_value < 0)
-			{
-				return ~_value;
-			}
-			else
-			{
-				return _value;
-			}
-		}
-	}
+	public int Value => _value < 0 ? ~_value : _value;
 
 	/// <summary>Indicates whether the index is from the start or the end.</summary>
 	public bool IsFromEnd => _value < 0;
@@ -116,7 +97,7 @@ public readonly struct Index : IEquatable<Index>
 
 	/// <summary>Indicates whether the current Index object is equal to another object of the same type.</summary>
 	/// <param name="value">An object to compare with this object</param>
-	public override bool Equals(object? value) => value is Index && _value == ((Index)value)._value;
+	public override bool Equals(object? value) => value is Index index && _value == index._value;
 
 	/// <summary>Indicates whether the current Index object is equal to another Index object.</summary>
 	/// <param name="other">An object to compare with this object</param>

@@ -5,6 +5,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<LangVersion>latest</LangVersion>
+		<RootNamespace />
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
 		<PackageId>SQuiL.SourceGenerator</PackageId>
@@ -27,12 +28,19 @@
 		<None Include="..\LICENSE.txt" Pack="true" PackagePath="\" />
 	</ItemGroup>
 	
+	<!--
+	NOTE: Because SQuiL.Library.dll is packed into lib/netstandard2.0 below (single-package
+	distribution), its runtime dependencies are NOT resolved transitively by NuGet. Any
+	PackageReference added to SQuiL.Library.csproj that consumers need at runtime must be
+	mirrored here so it flows to the consumer. Keep this list in sync with SQuiL.Library.csproj.
+	-->
 	<ItemGroup>
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.3.0" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.5" />
 	</ItemGroup>
-	
+
 	<ItemGroup>
 	  <None Remove="bin\Debug\netstandard2.0\\SQuiL.SourceGenerator.dll" />
 	</ItemGroup>
@@ -41,5 +49,7 @@
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 		<None Remove="bin\Debug\netstandard2.0\\SQuiL.SourceGenerator.pdb" />
 		<None Include="$(OutputPath)\$(AssemblyName).pdb" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<!-- Pack the library DLL into lib/ so a single NuGet provides both generator and runtime types -->
+		<None Include="..\SQuiL.Library\bin\$(Configuration)\netstandard2.0\SQuiL.Library.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
 	</ItemGroup>
 </Project>

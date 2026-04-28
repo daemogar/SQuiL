@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>latest</LangVersion>
+		<RootNamespace>SQuiL</RootNamespace>
+		<PackageId>SQuiL</PackageId>
+		<Authors>Dæmogar</Authors>
+		<Description>Runtime library for SQuiL — attributes, base classes, and types used by SQuiL-generated code.</Description>
+		<PackageTags>.NET dotnet core library reusable generic server serverside SQL ORM</PackageTags>
+		<PackageProjectUrl>https://github.com/daemogar/SQuiL</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/daemogar/SQuiL</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+		<Copyright>2021</Copyright>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\README.md" Pack="true" PackagePath="\" />
+		<None Include="..\LICENSE.txt" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<!--
+	NOTE: This library's DLL is bundled into the SQuiL.SourceGenerator NuGet package
+	(see SQuiL.SourceGenerator.csproj, lib/netstandard2.0 entry). Because the DLL is
+	embedded rather than referenced via a NuGet dependency, consumers do NOT receive
+	the PackageReferences below transitively. Any runtime dependency added here must
+	also be added to SQuiL.SourceGenerator.csproj to flow through to consumers.
+	-->
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.5" />
+	</ItemGroup>
+
+</Project>

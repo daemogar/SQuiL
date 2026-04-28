@@ -74,7 +74,7 @@ public class SQuiLDataContext(
 
 				if (outputs.Count() == 0 && errors.Count() == 0)
 					errorReturnType = false;
-				else
+				//else
 					returnType = $"{SourceGeneratorHelper.ResultTypeAttributeName}<{returnType}>";
 
 				writer.Block($$"""
@@ -101,9 +101,20 @@ public class SQuiLDataContext(
 									""");
 					if (!errorReturnType)
 					{
+						writer.Block("try", () =>
+						{
 						writer.WriteLine("await command.ExecuteNonQueryAsync(cancellationToken);");
-						writer.WriteLine();
-						writer.WriteLine("return new();");
+							WriteReturn(generation.Response.ModelName, "");
+						});
+						writer.Block("catch(Microsoft.Data.SqlClient.SqlException e)", () =>
+						{
+							WriteReturn("SQuiLError", "e");
+						});
+
+						void WriteReturn(string model, string parameter)
+						{
+							writer.WriteLine($"""return new {returnType}(new {model}({parameter}));""");
+						}
 					}
 					else
 					{
@@ -502,7 +513,11 @@ public class SQuiLDataContext(
 					if (parameter.DatabaseType.Type != TokenType.TYPE_STRING
 						|| parameter.Size?.Equals("max", StringComparison.OrdinalIgnoreCase) == true)
 					{
-						writer.WriteLine($$"""{{value}} ?? (object)System.DBNull.Value""");
+						writer.Write(value);
+
+						if (parameter.IsNullable)
+							writer.WriteLine($" ?? (object)System.DBNull.Value");
+
 						return;
 					}
 

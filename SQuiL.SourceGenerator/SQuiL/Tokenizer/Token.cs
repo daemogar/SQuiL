@@ -15,23 +15,23 @@ public record Token(TokenType Type, int Offset, string Value)
 
 	public string DataReader() => "reader." + Type switch
 	{
-		TokenType.TYPE_BOOLEAN => "GetBoolean",
-		TokenType.TYPE_INT => "GetInt32",
+		TokenType.TYPE_BOOLEAN => nameof(SqlDataReader.GetBoolean),
+		TokenType.TYPE_INT => nameof(SqlDataReader.GetInt32),
 		TokenType.TYPE_FLOAT => nameof(SqlDataReader.GetFloat),
 		TokenType.TYPE_DOUBLE => nameof(SqlDataReader.GetDouble),
-		TokenType.TYPE_DECIMAL => "GetDecimal",
-		TokenType.TYPE_STRING => "GetString",
-		TokenType.TYPE_DATE => "GetDateTime",
-		TokenType.TYPE_TIME => "GetDateTime",
-		TokenType.TYPE_DATETIME => "GetDateTime",
-		TokenType.TYPE_GUID => "GetGuid",
-		TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY => "GetFieldValue<byte[]>",
+		TokenType.TYPE_DECIMAL => nameof(SqlDataReader.GetDecimal),
+		TokenType.TYPE_STRING => nameof(SqlDataReader.GetString),
+		TokenType.TYPE_DATE => $"{nameof(SqlDataReader.GetFieldValue)}<System.DateOnly>",
+		TokenType.TYPE_TIME => $"{nameof(SqlDataReader.GetFieldValue)}<System.TimeOnly>",
+		TokenType.TYPE_DATETIME => nameof(SqlDataReader.GetDateTime),
+		TokenType.TYPE_GUID => nameof(SqlDataReader.GetGuid),
+		TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY => $"{nameof(SqlDataReader.GetFieldValue)}<byte[]>",
 		_ => throw new Exception($"Invalid database type `{Type}`")
 	};
 
 	public string SqlDbType(string? size = default, bool allowNullSize = false) => "System.Data.SqlDbType." + Type switch
 	{
-		TokenType.TYPE_BOOLEAN => "Bit",
+		TokenType.TYPE_BOOLEAN => nameof(System.Data.SqlDbType.Bit),
 		TokenType.TYPE_INT => "BigInt",
 		TokenType.TYPE_FLOAT or TokenType.TYPE_DOUBLE => nameof(System.Data.SqlDbType.Float),
 		TokenType.TYPE_DECIMAL => "Decimal",

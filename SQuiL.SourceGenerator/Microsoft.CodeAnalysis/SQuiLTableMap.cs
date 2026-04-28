@@ -2,8 +2,6 @@
 
 using SQuiL.SourceGenerator.Parser;
 
-using System.Linq;
-
 namespace Microsoft.CodeAnalysis;
 
 public class SQuiLTableMap

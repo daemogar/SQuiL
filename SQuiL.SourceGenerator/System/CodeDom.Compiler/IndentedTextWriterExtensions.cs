@@ -1,7 +1,13 @@
 ﻿namespace System.CodeDom.Compiler;
 
+/// <summary>Extension methods on <see cref="IndentedTextWriter"/> for emitting indented code blocks.</summary>
 public static class IndentedTextWriterExtensions
 {
+	/// <summary>
+	/// Writes <paramref name="header"/> line(s) respecting leading-tab indentation, then invokes
+	/// <paramref name="callback"/> (if provided) surrounded by <c>{</c> / <c>}</c>, and repeats
+	/// the same pattern for any additional <paramref name="blocks"/>.
+	/// </summary>
 	public static void Block(
 		this IndentedTextWriter writer,
 		string header,
