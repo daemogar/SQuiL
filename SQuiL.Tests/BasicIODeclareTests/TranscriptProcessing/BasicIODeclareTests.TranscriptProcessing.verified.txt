@@ -1,0 +1,1148 @@
+﻿{
+  Diagnostics: [
+    {
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = 43, Value = , Original = @Param_IncludeCompletedTranscripts bit }, Name = IncludeCompletedTranscripts, DefaultValue = 0, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = False, Size = , Properties =  },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = 43, Value = , Original = @Param_IncludeCompletedTranscripts bit }, Name = IncludeCompletedTranscripts, DefaultValue = 0, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = False, Size = , Properties =  },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = 70, Value = , Original = @Debug bit }, Name = Debug, DefaultValue = 1, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = False, Size = , Properties =  },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = 70, Value = , Original = @Debug bit }, Name = Debug, DefaultValue = 1, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = False, Size = , Properties =  },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_INT, Offset = 109, Value = ReferenceID, Original = @Param_ReferenceID int }, Name = ReferenceID, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_INT, Offset = 109, Value = ReferenceID, Original = @Param_ReferenceID int }, Name = ReferenceID, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATETIME, Offset = 149, Value = IssueDate, Original = @Param_IssueDate datetime }, Name = IssueDate, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATETIME, Offset = 149, Value = IssueDate, Original = @Param_IssueDate datetime }, Name = IssueDate, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = INPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 162, Value = Student, Original = @Param_Student table }, Name = Student, DefaultValue = , IsObject = True, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = INPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 162, Value = Student, Original = @Param_Student table }, Name = Student, DefaultValue = , IsObject = True, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = INPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 336, Value = Institution, Original = @Param_Institution table }, Name = Institution, DefaultValue = , IsObject = True, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = INPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 336, Value = Institution, Original = @Param_Institution table }, Name = Institution, DefaultValue = , IsObject = True, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = INPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 464, Value = Courses, Original = @Params_Courses table }, Name = Courses, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = INPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 464, Value = Courses, Original = @Params_Courses table }, Name = Courses, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 627, Value = TranscriptProcessing, Original = TranscriptProcessing }, Name = TranscriptProcessing, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 627, Value = TranscriptProcessing, Original = TranscriptProcessing }, Name = TranscriptProcessing, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 652, Value = Begin Transaction;  Begin Try  	If (Select 1 From TranscriptImports Where ReferenceID = @Param_ReferenceID) = 1 Begin  		Update    TranscriptImports 		Set            IssueDate = @Param_IssueDate, 						ReceivedAt = SysDateTimeOffset() 		Where        ReferenceID = @Param_ReferenceID;  	End 	Else Begin  		Insert Into TranscriptImports (ReferenceID, IssueDate, ReceivedAt) 		Values (@Param_ReferenceID, @Param_IssueDate, SysDateTimeOffset());  	End;  	Update    TranscriptImports 	Set            ColleagueID = ColleagueID, 					FirstName = FirstName, 					LastName = LastName , 					MiddleName = MiddleName , 					DateOfBirth = DateOfBirth 	From        TranscriptImports 					Cross Join @Param_Student 	Where        ReferenceID = @Param_ReferenceID;  	Update    InstitutionalRecords 	Set            InstitutionID = InstitutionID , 					SchoolName = SchoolName , 					CEEB = CEEB 	From        TranscriptImports 					Cross Join @Param_Institution 	Where        ReferenceID = @Param_ReferenceID;  	Delete    From TranscriptImportCourses 	Where        ReferenceID = @Param_ReferenceID;  	Insert Into TranscriptImportCourses (Term, Code, Number, Title, Score, Credits, ReferenceID) 	Select Term, Code, Number, Title, Score, Credits, @Param_ReferenceID 	From        @Params_Courses  	If @@TRANCOUNT > 0 Begin 		If @Debug = 1 Begin 			Rollback Transaction; 		End 		Else Begin 			Commit Transaction; 		End; 	End; End Try Begin Catch 	If @@TRANCOUNT > 0 Begin 		Rollback Transaction; 	End;  	Throw; End Catch , Original = Begin Transaction;  Begin Try  	If (Select 1 From TranscriptImports Where ReferenceID = @Param_ReferenceID) = 1 Begin  		Update    TranscriptImports 		Set            IssueDate = @Param_IssueDate, 						ReceivedAt = SysDateTimeOffset() 		Where        ReferenceID = @Param_ReferenceID;  	End 	Else Begin  		Insert Into TranscriptImports (ReferenceID, IssueDate, ReceivedAt) 		Values (@Param_ReferenceID, @Param_IssueDate, SysDateTimeOffset());  	End;  	Update    TranscriptImports 	Set            ColleagueID = ColleagueID, 					FirstName = FirstName, 					LastName = LastName , 					MiddleName = MiddleName , 					DateOfBirth = DateOfBirth 	From        TranscriptImports 					Cross Join @Param_Student 	Where        ReferenceID = @Param_ReferenceID;  	Update    InstitutionalRecords 	Set            InstitutionID = InstitutionID , 					SchoolName = SchoolName , 					CEEB = CEEB 	From        TranscriptImports 					Cross Join @Param_Institution 	Where        ReferenceID = @Param_ReferenceID;  	Delete    From TranscriptImportCourses 	Where        ReferenceID = @Param_ReferenceID;  	Insert Into TranscriptImportCourses (Term, Code, Number, Title, Score, Credits, ReferenceID) 	Select Term, Code, Number, Title, Score, Credits, @Param_ReferenceID 	From        @Params_Courses  	If @@TRANCOUNT > 0 Begin 		If @Debug = 1 Begin 			Rollback Transaction; 		End 		Else Begin 			Commit Transaction; 		End; 	End; End Try Begin Catch 	If @@TRANCOUNT > 0 Begin 		Rollback Transaction; 	End;  	Throw; End Catch }, Name = Begin Transaction;  Begin Try  	If (Select 1 From TranscriptImports Where ReferenceID = @Param_ReferenceID) = 1 Begin  		Update    TranscriptImports 		Set            IssueDate = @Param_IssueDate, 						ReceivedAt = SysDateTimeOffset() 		Where        ReferenceID = @Param_ReferenceID;  	End 	Else Begin  		Insert Into TranscriptImports (ReferenceID, IssueDate, ReceivedAt) 		Values (@Param_ReferenceID, @Param_IssueDate, SysDateTimeOffset());  	End;  	Update    TranscriptImports 	Set            ColleagueID = ColleagueID, 					FirstName = FirstName, 					LastName = LastName , 					MiddleName = MiddleName , 					DateOfBirth = DateOfBirth 	From        TranscriptImports 					Cross Join @Param_Student 	Where        ReferenceID = @Param_ReferenceID;  	Update    InstitutionalRecords 	Set            InstitutionID = InstitutionID , 					SchoolName = SchoolName , 					CEEB = CEEB 	From        TranscriptImports 					Cross Join @Param_Institution 	Where        ReferenceID = @Param_ReferenceID;  	Delete    From TranscriptImportCourses 	Where        ReferenceID = @Param_ReferenceID;  	Insert Into TranscriptImportCourses (Term, Code, Number, Title, Score, Credits, ReferenceID) 	Select Term, Code, Number, Title, Score, Credits, @Param_ReferenceID 	From        @Params_Courses  	If @@TRANCOUNT > 0 Begin 		If @Debug = 1 Begin 			Rollback Transaction; 		End 		Else Begin 			Commit Transaction; 		End; 	End; End Try Begin Catch 	If @@TRANCOUNT > 0 Begin 		Rollback Transaction; 	End;  	Throw; End Catch , DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 652, Value = Begin Transaction;  Begin Try  	If (Select 1 From TranscriptImports Where ReferenceID = @Param_ReferenceID) = 1 Begin  		Update    TranscriptImports 		Set            IssueDate = @Param_IssueDate, 						ReceivedAt = SysDateTimeOffset() 		Where        ReferenceID = @Param_ReferenceID;  	End 	Else Begin  		Insert Into TranscriptImports (ReferenceID, IssueDate, ReceivedAt) 		Values (@Param_ReferenceID, @Param_IssueDate, SysDateTimeOffset());  	End;  	Update    TranscriptImports 	Set            ColleagueID = ColleagueID, 					FirstName = FirstName, 					LastName = LastName , 					MiddleName = MiddleName , 					DateOfBirth = DateOfBirth 	From        TranscriptImports 					Cross Join @Param_Student 	Where        ReferenceID = @Param_ReferenceID;  	Update    InstitutionalRecords 	Set            InstitutionID = InstitutionID , 					SchoolName = SchoolName , 					CEEB = CEEB 	From        TranscriptImports 					Cross Join @Param_Institution 	Where        ReferenceID = @Param_ReferenceID;  	Delete    From TranscriptImportCourses 	Where        ReferenceID = @Param_ReferenceID;  	Insert Into TranscriptImportCourses (Term, Code, Number, Title, Score, Credits, ReferenceID) 	Select Term, Code, Number, Title, Score, Credits, @Param_ReferenceID 	From        @Params_Courses  	If @@TRANCOUNT > 0 Begin 		If @Debug = 1 Begin 			Rollback Transaction; 		End 		Else Begin 			Commit Transaction; 		End; 	End; End Try Begin Catch 	If @@TRANCOUNT > 0 Begin 		Rollback Transaction; 	End;  	Throw; End Catch , Original = Begin Transaction;  Begin Try  	If (Select 1 From TranscriptImports Where ReferenceID = @Param_ReferenceID) = 1 Begin  		Update    TranscriptImports 		Set            IssueDate = @Param_IssueDate, 						ReceivedAt = SysDateTimeOffset() 		Where        ReferenceID = @Param_ReferenceID;  	End 	Else Begin  		Insert Into TranscriptImports (ReferenceID, IssueDate, ReceivedAt) 		Values (@Param_ReferenceID, @Param_IssueDate, SysDateTimeOffset());  	End;  	Update    TranscriptImports 	Set            ColleagueID = ColleagueID, 					FirstName = FirstName, 					LastName = LastName , 					MiddleName = MiddleName , 					DateOfBirth = DateOfBirth 	From        TranscriptImports 					Cross Join @Param_Student 	Where        ReferenceID = @Param_ReferenceID;  	Update    InstitutionalRecords 	Set            InstitutionID = InstitutionID , 					SchoolName = SchoolName , 					CEEB = CEEB 	From        TranscriptImports 					Cross Join @Param_Institution 	Where        ReferenceID = @Param_ReferenceID;  	Delete    From TranscriptImportCourses 	Where        ReferenceID = @Param_ReferenceID;  	Insert Into TranscriptImportCourses (Term, Code, Number, Title, Score, Credits, ReferenceID) 	Select Term, Code, Number, Title, Score, Credits, @Param_ReferenceID 	From        @Params_Courses  	If @@TRANCOUNT > 0 Begin 		If @Debug = 1 Begin 			Rollback Transaction; 		End 		Else Begin 			Commit Transaction; 		End; 	End; End Try Begin Catch 	If @@TRANCOUNT > 0 Begin 		Rollback Transaction; 	End;  	Throw; End Catch }, Name = Begin Transaction;  Begin Try  	If (Select 1 From TranscriptImports Where ReferenceID = @Param_ReferenceID) = 1 Begin  		Update    TranscriptImports 		Set            IssueDate = @Param_IssueDate, 						ReceivedAt = SysDateTimeOffset() 		Where        ReferenceID = @Param_ReferenceID;  	End 	Else Begin  		Insert Into TranscriptImports (ReferenceID, IssueDate, ReceivedAt) 		Values (@Param_ReferenceID, @Param_IssueDate, SysDateTimeOffset());  	End;  	Update    TranscriptImports 	Set            ColleagueID = ColleagueID, 					FirstName = FirstName, 					LastName = LastName , 					MiddleName = MiddleName , 					DateOfBirth = DateOfBirth 	From        TranscriptImports 					Cross Join @Param_Student 	Where        ReferenceID = @Param_ReferenceID;  	Update    InstitutionalRecords 	Set            InstitutionID = InstitutionID , 					SchoolName = SchoolName , 					CEEB = CEEB 	From        TranscriptImports 					Cross Join @Param_Institution 	Where        ReferenceID = @Param_ReferenceID;  	Delete    From TranscriptImportCourses 	Where        ReferenceID = @Param_ReferenceID;  	Insert Into TranscriptImportCourses (Term, Code, Number, Title, Score, Credits, ReferenceID) 	Select Term, Code, Number, Title, Score, Credits, @Param_ReferenceID 	From        @Params_Courses  	If @@TRANCOUNT > 0 Begin 		If @Debug = 1 Begin 			Rollback Transaction; 		End 		Else Begin 			Commit Transaction; 		End; 	End; End Try Begin Catch 	If @@TRANCOUNT > 0 Begin 		Rollback Transaction; 	End;  	Throw; End Catch , DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_DECLARE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: VARIABLE => Param_IncludeCompletedTranscripts,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => Param_IncludeCompletedTranscripts,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_BOOLEAN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_BOOLEAN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_EQUAL => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_EQUAL => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: LITERAL_NUMBER => 0,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: LITERAL_NUMBER => 0,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_DECLARE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: VARIABLE => Debug,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => Debug,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_BOOLEAN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_BOOLEAN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_EQUAL => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_EQUAL => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: LITERAL_NUMBER => 1,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: LITERAL_NUMBER => 1,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_DECLARE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: VARIABLE => Param_ReferenceID,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => Param_ReferenceID,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_INT => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_INT => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: LITERAL_NOT_NULL => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: LITERAL_NOT_NULL => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_DECLARE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: VARIABLE => Param_IssueDate,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => Param_IssueDate,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_DATETIME => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_DATETIME => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_DECLARE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: VARIABLE => Param_Student,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => Param_Student,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_TABLE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_TABLE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_LPREN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_LPREN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => ColleagueID,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => ColleagueID,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => 50,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => 50,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: LITERAL_NULL => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: LITERAL_NULL => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => FirstName,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => FirstName,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => 100,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => 100,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => LastName,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => LastName,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => 100,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => 100,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => MiddleName,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => MiddleName,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => 100,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => 100,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: LITERAL_NULL => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: LITERAL_NULL => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => DateOfBirth,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => DateOfBirth,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_DATE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_DATE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: LITERAL_NULL => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: LITERAL_NULL => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_RPREN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_RPREN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_DECLARE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: VARIABLE => Param_Institution,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => Param_Institution,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_TABLE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_TABLE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_LPREN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_LPREN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => InstitutionID,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => InstitutionID,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => 50,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => 50,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: LITERAL_NULL => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: LITERAL_NULL => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => SchoolName,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => SchoolName,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => 200,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => 200,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => CEEB,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => CEEB,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => 20,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => 20,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: LITERAL_NOT_NULL => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: LITERAL_NOT_NULL => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_RPREN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_RPREN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_DECLARE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: VARIABLE => Params_Courses,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => Params_Courses,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_TABLE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_TABLE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_LPREN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_LPREN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => Term,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => Term,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => 10,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => 10,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => Code,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => Code,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => 20,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => 20,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => Number,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => Number,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => 20,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => 20,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => Title,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => Title,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => 200,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => 200,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => Score,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => Score,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => 5,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => 5,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => Credits,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => Credits,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_DECIMAL => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_DECIMAL => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_RPREN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_RPREN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_USE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_USE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => TranscriptProcessing,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => TranscriptProcessing,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: BODY => Begin Transaction;  Begin Try  	If (Select 1 From TranscriptImports Where ReferenceID = @Param_ReferenceID) = 1 Begin  		Update    TranscriptImports 		Set            IssueDate = @Param_IssueDate, 						ReceivedAt = SysDateTimeOffset() 		Where        ReferenceID = @Param_ReferenceID;  	End 	Else Begin  		Insert Into TranscriptImports (ReferenceID, IssueDate, ReceivedAt) 		Values (@Param_ReferenceID, @Param_IssueDate, SysDateTimeOffset());  	End;  	Update    TranscriptImports 	Set            ColleagueID = ColleagueID, 					FirstName = FirstName, 					LastName = LastName , 					MiddleName = MiddleName , 					DateOfBirth = DateOfBirth 	From        TranscriptImports 					Cross Join @Param_Student 	Where        ReferenceID = @Param_ReferenceID;  	Update    InstitutionalRecords 	Set            InstitutionID = InstitutionID , 					SchoolName = SchoolName , 					CEEB = CEEB 	From        TranscriptImports 					Cross Join @Param_Institution 	Where        ReferenceID = @Param_ReferenceID;  	Delete    From TranscriptImportCourses 	Where        ReferenceID = @Param_ReferenceID;  	Insert Into TranscriptImportCourses (Term, Code, Number, Title, Score, Credits, ReferenceID) 	Select Term, Code, Number, Title, Score, Credits, @Param_ReferenceID 	From        @Params_Courses  	If @@TRANCOUNT > 0 Begin 		If @Debug = 1 Begin 			Rollback Transaction; 		End 		Else Begin 			Commit Transaction; 		End; 	End; End Try Begin Catch 	If @@TRANCOUNT > 0 Begin 		Rollback Transaction; 	End;  	Throw; End Catch,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: BODY => Begin Transaction;  Begin Try  	If (Select 1 From TranscriptImports Where ReferenceID = @Param_ReferenceID) = 1 Begin  		Update    TranscriptImports 		Set            IssueDate = @Param_IssueDate, 						ReceivedAt = SysDateTimeOffset() 		Where        ReferenceID = @Param_ReferenceID;  	End 	Else Begin  		Insert Into TranscriptImports (ReferenceID, IssueDate, ReceivedAt) 		Values (@Param_ReferenceID, @Param_IssueDate, SysDateTimeOffset());  	End;  	Update    TranscriptImports 	Set            ColleagueID = ColleagueID, 					FirstName = FirstName, 					LastName = LastName , 					MiddleName = MiddleName , 					DateOfBirth = DateOfBirth 	From        TranscriptImports 					Cross Join @Param_Student 	Where        ReferenceID = @Param_ReferenceID;  	Update    InstitutionalRecords 	Set            InstitutionID = InstitutionID , 					SchoolName = SchoolName , 					CEEB = CEEB 	From        TranscriptImports 					Cross Join @Param_Institution 	Where        ReferenceID = @Param_ReferenceID;  	Delete    From TranscriptImportCourses 	Where        ReferenceID = @Param_ReferenceID;  	Insert Into TranscriptImportCourses (Term, Code, Number, Title, Score, Credits, ReferenceID) 	Select Term, Code, Number, Title, Score, Credits, @Param_ReferenceID 	From        @Params_Courses  	If @@TRANCOUNT > 0 Begin 		If @Debug = 1 Begin 			Rollback Transaction; 		End 		Else Begin 			Commit Transaction; 		End; 	End; End Try Begin Catch 	If @@TRANCOUNT > 0 Begin 		Rollback Transaction; 	End;  	Throw; End Catch,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

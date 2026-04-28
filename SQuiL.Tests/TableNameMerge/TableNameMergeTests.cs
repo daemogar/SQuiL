@@ -7,7 +7,7 @@ public class TableNameMergeTests : BaseTest
 	[Fact]
 	public Task TwoQueriesWithSameReference()
 	{
-		Debugger.Launch();
+		//Debugger.Launch();
 
 		var name = nameof(TwoQueriesWithSameReference);
 		return TestHelper.Verify([TestHeader([$"{name}1", $"{name}2"])], [$$"""

@@ -33,7 +33,7 @@ public class NumberTests
 	[Fact]
 	public Task DoubleNumberTest()
 	{
-		Debugger.Launch();
+		//Debugger.Launch();
 
 		var name = nameof(DoubleNumberTest);
 		return TestHelper.Verify([TestHeader([name])], [$$"""

@@ -7,7 +7,7 @@ public class VarcharMaxTests : BaseTest
 	[Fact]
 	public Task InputParameterTakesMaxStringConvertToTableArray()
 	{
-		Debugger.Launch();
+		//Debugger.Launch();
 
 		//--Declare	@Params_LongText table ([Error] varchar(max));
 
