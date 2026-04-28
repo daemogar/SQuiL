@@ -80,6 +80,18 @@ public class BasicIODeclareTests
 	}
 
 	[Fact]
+	public Task TypeKeywordAsColumnName()
+	{
+		var name = nameof(TypeKeywordAsColumnName);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Returns_Records table(RecordID int, Date date, Time time, DateTime datetime);
+			Use [Database];
+			Select 1;
+			"""]);
+	}
+
+	[Fact]
 	public Task TranscriptProcessing()
 	{
 		var name = nameof(TranscriptProcessing);
