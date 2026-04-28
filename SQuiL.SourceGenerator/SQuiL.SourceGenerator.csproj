@@ -41,6 +41,18 @@
 		<PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.5" />
 	</ItemGroup>
 
+	<!--
+	Build SQuiL.Library before this project so its DLL exists at the path the pack target
+	references below. ReferenceOutputAssembly=false keeps the library's runtime-only types
+	(SqlClient, Configuration, etc.) out of this analyzer's compile so the extended analyzer
+	rules still hold. PrivateAssets=all prevents the project reference from showing up as a
+	NuGet dependency on the consumer side — the library's DLL is shipped inline via the
+	lib/netstandard2.0 entry below.
+	-->
+	<ItemGroup>
+		<ProjectReference Include="..\SQuiL.Library\SQuiL.Library.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+	</ItemGroup>
+
 	<ItemGroup>
 	  <None Remove="bin\Debug\netstandard2.0\\SQuiL.SourceGenerator.dll" />
 	</ItemGroup>
