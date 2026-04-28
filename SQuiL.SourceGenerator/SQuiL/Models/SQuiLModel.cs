@@ -12,6 +12,16 @@ using System.Diagnostics;
 
 namespace SQuiL.Models;
 
+/// <summary>
+/// Represents one half of a query's strongly-typed C# interface: either the request model
+/// (built from <c>@Param_*</c> blocks) or the response model (built from <c>@Return_*</c>
+/// blocks).  Drives generation of the corresponding <c>record</c> source file.
+/// </summary>
+/// <param name="NameSpace">The C# namespace the model record will be emitted into.</param>
+/// <param name="ModelName">The base query name; combined with <paramref name="ModelType"/> to form the full type name.</param>
+/// <param name="ModelType">Either <c>"Request"</c> or <c>"Response"</c>.</param>
+/// <param name="TableMap">The shared table-name-to-C#-type mapping for resolving table properties.</param>
+/// <param name="Records">All partial record declarations visible in the compilation.</param>
 public class SQuiLModel(
 	string NameSpace,
 	string ModelName,
@@ -19,10 +29,21 @@ public class SQuiLModel(
 	SQuiLTableMap TableMap,
 	ImmutableDictionary<string, SQuiLPartialModel> Records)
 {
+	/// <summary>Full model type name, e.g. <c>MyQueryRequest</c> or <c>MyQueryResponse</c>.</summary>
 	public string ModelName { get; } = $"{ModelName}{ModelType}";
 
+	/// <summary>All properties (scalar, table, and object) belonging to this model.</summary>
 	public List<SQuiLProperty> Properties { get; } = [];
 
+	/// <summary>
+	/// Builds the request and response models for a query from its parsed <paramref name="blocks"/>.
+	/// </summary>
+	/// <param name="namespace">The C# namespace the models will be emitted into.</param>
+	/// <param name="modelname">Base name of the query (used to form the model type names).</param>
+	/// <param name="blocks">All parsed code blocks from the SQL file.</param>
+	/// <param name="tableMap">Shared table-name mapping for resolving cross-query types.</param>
+	/// <param name="records">All partial record declarations visible in the compilation.</param>
+	/// <returns>The request model and the response model as a tuple.</returns>
 	public static (SQuiLModel Request, SQuiLModel Response) Create(
 		string @namespace,
 		string modelname,
@@ -39,6 +60,11 @@ public class SQuiLModel(
 		return (request, response);
 	}
 
+	/// <summary>
+	/// Emits the complete C# source for this model record, ordering properties so scalars
+	/// appear before objects and objects before tables.
+	/// </summary>
+	/// <returns>The generated source text, or an exception if generation failed.</returns>
 	public ExceptionOrValue<string> GenerateCode()
 	{
 		StringWriter text = new();

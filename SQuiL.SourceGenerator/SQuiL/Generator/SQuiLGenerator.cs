@@ -11,18 +11,35 @@ using static Microsoft.CodeAnalysis.SourceGeneratorHelper;
 
 namespace SQuiL.Generator;
 
+/// <summary>
+/// Roslyn incremental source generator that reads <c>[SQuiLQueryAttribute]</c>-decorated classes
+/// and <c>.sql</c> additional files, then emits data-context classes, request/response models,
+/// table-type records, and DI extension methods.
+/// </summary>
+/// <param name="ShowDebugMessages">When <c>true</c>, each parsed token and code block is emitted as an SP0000 debug diagnostic during generation.</param>
 [Generator]
 public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 {
+	/// <summary>SQL variable name for the debug-mode flag: <c>Debug</c>.</summary>
 	public static string Debug { get; } = nameof(Debug);
 
+	/// <summary>SQL variable name for the error table: <c>Error</c>.</summary>
 	public static string Error { get; } = nameof(Error);
 
+	/// <summary>SQL variable name for the environment name: <c>EnvironmentName</c>.</summary>
 	public static string EnvironmentName { get; } = nameof(EnvironmentName);
 
+	/// <summary>
+	/// Returns <c>true</c> if <paramref name="value"/> is the singular or plural error variable name
+	/// (<c>Error</c> or <c>Errors</c>).
+	/// </summary>
 	public static bool IsError(string value)
 		=> Error.Equals(value) || $"{Error}s".Equals(value);
 
+	/// <summary>
+	/// Returns <c>true</c> if <paramref name="value"/> is any of the special reserved variable
+	/// names: <c>Debug</c>, <c>EnvironmentName</c>, <c>Error</c>, or <c>Errors</c>.
+	/// </summary>
 	public static bool IsSpecial(string value)
 	{
 		if (Debug.Equals(value))
@@ -32,13 +49,19 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		return IsError(value);
 	}
 
+	/// <summary>Parameterless constructor used by Roslyn when activating the generator.</summary>
 	public SQuiLGenerator() : this(false) { }
 
+	/// <summary>
+	/// Called by Roslyn to wire up all incremental value providers.  Registers syntax and
+	/// metadata scanners, emits the attribute and enum post-initialization sources, and connects
+	/// the combined pipeline to <see cref="Execute"/>.
+	/// </summary>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 #if DEBUG
-		if (!System.Diagnostics.Debugger.IsAttached)
-			System.Diagnostics.Debugger.Launch();
+		//if (!System.Diagnostics.Debugger.IsAttached)
+		//	System.Diagnostics.Debugger.Launch();
 #endif
 		var rootPath = context.SyntaxProvider
 			.CreateSyntaxProvider(
@@ -167,12 +190,21 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		});
 	}
 
+	/// <summary>
+	/// Syntax-provider transform: if <paramref name="context"/> is a record declaration,
+	/// returns a <see cref="SQuiLPartialModel"/> snapshot; otherwise returns <c>null</c>.
+	/// </summary>
 	private static SQuiLPartialModel? GetSemanticRecordForGeneratation(GeneratorSyntaxContext context)
 	{
 		var syntax = (RecordDeclarationSyntax)context.Node;
 		return new(syntax.Identifier.Text, syntax);
 	}
 
+	/// <summary>
+	/// Syntax-provider transform: inspects every attribute list on the class node and yields one
+	/// <see cref="SQuiLDefinition"/> per recognized SQuiL attribute (<c>[SQuiLQueryAttribute]</c>
+	/// or <c>[SQuiLTableAttribute]</c>).
+	/// </summary>
 	private static IEnumerable<SQuiLDefinition?> GetSemanticTargetForGeneration(GeneratorSyntaxContext context)
 	{
 		var syntax = (ClassDeclarationSyntax)context.Node;
@@ -204,6 +236,12 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			}
 	}
 
+	/// <summary>
+	/// Main generation entry point called by Roslyn after all incremental providers combine.
+	/// Validates required assembly references, generates the <c>QueryFiles</c> and <c>TableType</c>
+	/// enums, resolves table-type mappings, and drives <see cref="FileGenerator"/> for each
+	/// SQL file / data-context pair.
+	/// </summary>
 	private void Execute(Compilation _, ImmutableArray<SQuiLDependency> dependencies, ImmutableArray<AdditionalText> files, ImmutableArray<SQuiLDefinition> definitions, ImmutableDictionary<string, SQuiLPartialModel> records, SourceProductionContext context)
 	{
 		var missingDependencyInjectable = !dependencies.Any(p => p?.DependencyInjection == true);
@@ -218,7 +256,6 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		if (missingDataClient)
 			context.ReportNoMicrosoftDataSqlClientDll();
 
-		GenerateBaseDataContextClass();
 		GenerateQueryFilesEnum(context, files);
 
 		var classes = definitions.Where(p => p.Type == SQuiLDefinitionType.Query).ToImmutableArray();
@@ -331,9 +368,6 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				generation.FilePath = file.Path;
 		}
 
-		//if (tableMap.TableNames.Any(IsError))
-		GenerateResultType();
-
 		GenerateDependencyInjectionCode(contexts);
 		GenerateTablesEnum(context, tableMap);
 
@@ -346,126 +380,6 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				IdentifierNameSyntax identifier => (identifier.ToString(), identifier.GetLocation()),
 				_ => ("", default(Location))
 			};
-
-		void GenerateResultType()
-		{
-			context.AddSource($"{ResultTypeAttributeName}.g.cs", SourceText.From($$""""
-				{{FileHeader}}
-				namespace {{NamespaceName}};
-				
-				using System.Collections.Generic;
-				using System;
-				
-				public sealed record {{ResultTypeAttributeName}}<T>
-				{
-					public bool IsValue { get; }
-					private T Value { get; } = default!;
-					public SQuiLResultType(T value)
-					{
-						Value = value;
-						IsValue = true;
-					}
-
-					public bool HasErrors { get; }
-					private IReadOnlyList<SQuiLError> Errors { get; } = default!;
-					public SQuiLResultType(IReadOnlyList<SQuiLError> errors)
-					{
-						Errors = errors;
-						HasErrors = true;
-					}
-
-					public bool TryGetValue(out T value, out IReadOnlyList<SQuiLError> errors)
-					{
-						value = default!;
-						errors = default!;
-
-						if (IsValue)
-						{
-							value = Value;
-							return true;
-						}
-
-						errors = Errors;
-						return false;
-					}
-				}
-				"""", Encoding.UTF8));
-		}
-
-		void GenerateBaseDataContextClass()
-		{
-			if (missingConfiguration)
-				return;
-
-			context.AddSource($"{BaseDataContextClassName}.g.cs", SourceText.From($$""""
-				{{FileHeader}}
-				namespace {{NamespaceName}};
-				
-				using Microsoft.Data.SqlClient;
-				using Microsoft.Extensions.Configuration;
-				
-				using System;
-				using System.Collections.Generic;
-				using System.Data.Common;
-				
-				public abstract partial class {{BaseDataContextClassName}}(IConfiguration Configuration)
-				{
-					//public virtual string SettingName { get; } = "{{DefaultConnectionStringAppSettingName}}";
-
-					protected string {{EnvironmentName}} { get; } = Configuration.GetSection("{{EnvironmentName}}")?.Value
-						?? Environment.GetEnvironmentVariable(Configuration.GetSection("EnvironmentVariable")?.Value ?? "ASPNETCORE_ENVIRONMENT")
-						?? "Development";
-
-					protected SqlConnectionStringBuilder ConnectionStringBuilder(string settingName)
-					{
-						return new SqlConnectionStringBuilder(Configuration.GetConnectionString(settingName)
-							?? throw new Exception($"Cannot find a connection string in the appsettings for {settingName}."));
-					}
-					
-					public virtual System.Data.Common.DbConnection CreateConnection(string connectionString) => new SqlConnection(connectionString);
-				
-					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object? value) => new SqlParameter(name, type) { Value = value ?? (object)System.DBNull.Value };
-
-					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, object? value, Action<System.Data.Common.DbParameter>? callback)
-					{
-						var parameter = CreateParameter(name, type, value);
-						callback?.Invoke(parameter);
-						return parameter;
-					}
-				
-					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, int size, object? value) => CreateParameter(name, type, size, value, default);
-
-					public virtual System.Data.Common.DbParameter CreateParameter(string name, System.Data.SqlDbType type, int size, object? value, Action<System.Data.Common.DbParameter>? callback)
-					{
-						var parameter = CreateParameter(name, type, value);
-						parameter.Size = size;
-						callback?.Invoke(parameter);
-						return parameter;
-					}
-
-					protected void AddParams(System.Text.StringBuilder query, List<DbParameter> parameters, int index, string table, string name, System.Data.SqlDbType type, object? value, int size = 0)
-					{
-						var parameter = $"@{table}_{index}_{name}";
-						query.Append(parameter);
-						
-						var variable = CreateParameter(parameter, type, value);
-
-						if (size > 0)
-						{
-							variable.Size = size;
-							variable.Value = value is null || ((string)value).Length <= size
-								? (value ?? "Null")
-								: throw new Exception($"""
-									ParamsTable model table property at index [{index}] has a string property [{name}]
-									with more than {size} characters.
-									""");
-						}
-
-						parameters.Add(variable);
-					}
-				}
-				"""", Encoding.UTF8));
-		}
 
 		void GenerateDependencyInjectionCode(List<string> contexts)
 		{
@@ -562,12 +476,21 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 	}
 }
 
+/// <summary>
+/// File-scoped wrapper around an <see cref="AdditionalText"/> that replaces the file path
+/// with a root-relative path so the generator can match SQL file names consistently
+/// regardless of absolute solution layout.
+/// </summary>
+/// <param name="Path">The root-relative path to expose on this wrapper.</param>
+/// <param name="Original">The original <see cref="AdditionalText"/> whose content is delegated to.</param>
 file class SQuiLAdditionalText(
 	string Path,
 	AdditionalText Original) : AdditionalText
 {
+	/// <inheritdoc/>
 	public override string Path { get; } = Path;
 
+	/// <inheritdoc/>
 	public override SourceText? GetText(CancellationToken cancellationToken = default)
 		=> Original.GetText(cancellationToken);
 }

@@ -10,13 +10,27 @@ using System.Text;
 
 namespace Microsoft.CodeAnalysis;
 
+/// <summary>
+/// Orchestrates per-query source generation: tokenizes and parses each SQL file,
+/// creates the request/response model pair, and then emits all C# source files
+/// (request, response, data-context, and shared table types) into the Roslyn
+/// <see cref="SourceProductionContext"/>.
+/// </summary>
+/// <param name="ShowDebugMessages">When <c>true</c>, each parsed token and code block is emitted as an SP0000 debug diagnostic.</param>
+/// <param name="Context">The Roslyn production context used to add sources and report diagnostics.</param>
+/// <param name="TableMap">The shared table-name mapping accumulated across all queries in the compilation.</param>
 public class FileGenerator(
 	bool ShowDebugMessages,
 	SourceProductionContext Context,
 	SQuiLTableMap TableMap)
 {
+	/// <summary>All successfully parsed query generations queued for code emission.</summary>
 	public List<SQuiLFileGeneration> Generations { get; } = [];
 
+	/// <summary>
+	/// Writes <paramref name="source"/> as a <c>.g.cs</c> additional source file,
+	/// reporting any <see cref="DiagnosticException"/> as a structured diagnostic instead of throwing.
+	/// </summary>
 	private void AddSource(string filename, string source)
 	{
 		try
@@ -29,6 +43,17 @@ public class FileGenerator(
 		}
 	}
 
+	/// <summary>
+	/// Tokenizes and parses one SQL <paramref name="text"/>, builds the request/response models,
+	/// collects table types, and registers a <see cref="SQuiLFileGeneration"/> for later emission.
+	/// </summary>
+	/// <param name="namespace">The C# namespace of the data-context class.</param>
+	/// <param name="classname">The data-context class name.</param>
+	/// <param name="method">The SQL method/query name (file name without extension).</param>
+	/// <param name="setting">The connection-string configuration key.</param>
+	/// <param name="text">The SQL source text to parse.</param>
+	/// <param name="records">All partial record declarations visible in the current compilation.</param>
+	/// <returns>The new <see cref="SQuiLFileGeneration"/>, or <c>null</c> if parsing failed.</returns>
 	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records)
 	{
 		try
@@ -65,6 +90,11 @@ public class FileGenerator(
 		}
 	}
 
+	/// <summary>
+	/// Emits all accumulated source files: request model, response model, and data-context class
+	/// for each registered generation, then emits all shared table-type records via
+	/// <see cref="SQuiLTableMap.GenerateCode"/>.
+	/// </summary>
 	public void GenerateCode()
 	{
 		foreach (var generation in Generations)

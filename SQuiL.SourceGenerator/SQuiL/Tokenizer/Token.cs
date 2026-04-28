@@ -3,16 +3,29 @@ using Microsoft.Data.SqlClient;
 
 namespace SQuiL.Tokenizer;
 
+/// <summary>
+/// Represents a single lexeme produced by <see cref="SQuiLTokenizer"/>.
+/// Carries the classified <see cref="TokenType"/>, the character offset in the source,
+/// the normalized value, and (optionally) the verbatim original text.
+/// </summary>
+/// <param name="Type">The classified token type.</param>
+/// <param name="Offset">Character offset of the token's first character in the source text.</param>
+/// <param name="Value">Normalized value (e.g. trimmed, case-adjusted, or stripped of delimiters).</param>
 public record Token(TokenType Type, int Offset, string Value)
 {
+	/// <summary>The verbatim source text for this token, preserved for diagnostic and SQL-emit purposes.</summary>
 	public string? Original { get; init; }
 
+	/// <summary>Creates a token with no value (used for punctuation tokens whose value is implicit).</summary>
 	public Token(TokenType Type, int Offset) : this(Type, Offset, default!) { }
 
+	/// <summary>Sentinel token returned when the token stream is exhausted.</summary>
 	public static Token END { get; } = new(TokenType.END, -1);
 
+	/// <summary>Returns a human-readable description of this token, used in parse-error messages.</summary>
 	public string Expect() => $"{Type:G} => {Value}";
 
+	/// <summary>Returns the <c>reader.GetXxx</c> method fragment used to read this token's SQL type from a <see cref="System.Data.Common.DbDataReader"/>.</summary>
 	public string DataReader() => "reader." + Type switch
 	{
 		TokenType.TYPE_BOOLEAN => nameof(SqlDataReader.GetBoolean),
@@ -29,6 +42,11 @@ public record Token(TokenType Type, int Offset, string Value)
 		_ => throw new Exception($"Invalid database type `{Type}`")
 	};
 
+	/// <summary>
+	/// Returns a <c>System.Data.SqlDbType.*</c> expression (optionally with size) for this token's SQL type.
+	/// </summary>
+	/// <param name="size">The size string to embed (e.g. <c>"50"</c> or <c>"max"</c>), or <c>null</c>.</param>
+	/// <param name="allowNullSize">When <c>true</c>, a <c>string</c> type without a size emits <c>VarChar</c> instead of throwing.</param>
 	public string SqlDbType(string? size = default, bool allowNullSize = false) => "System.Data.SqlDbType." + Type switch
 	{
 		TokenType.TYPE_BOOLEAN => nameof(System.Data.SqlDbType.Bit),
@@ -48,6 +66,8 @@ public record Token(TokenType Type, int Offset, string Value)
 		_ => throw new Exception($"Unsupported database type `{Type}`")
 	};
 
+	/// <summary>Returns the C# type keyword or full type name for this SQL type token.</summary>
+	/// <param name="tableType">Optional callback that supplies the record type name for object/table tokens.</param>
 	public string CSharpType(Func<string>? tableType = default) => Type switch
 	{
 		TokenType.TYPE_BOOLEAN => "bool",
@@ -65,6 +85,12 @@ public record Token(TokenType Type, int Offset, string Value)
 		_ => throw new Exception($"Invalid database type `{Type}`")
 	};
 
+	/// <summary>
+	/// Returns the C# literal or expression to use as the property's default value, or <c>null</c>
+	/// if no default should be emitted.
+	/// </summary>
+	/// <param name="defaultValue">The raw default-value string from the SQL DECLARE statement.</param>
+	/// <param name="tableType">Optional callback for object/table column types.</param>
 	public string? CSharpValue(string? defaultValue, Func<string>? tableType = default) => Type switch
 	{
 		TokenType.TYPE_BOOLEAN => int.TryParse(defaultValue, out var value) && value == 0 ? null : "true",
@@ -81,6 +107,15 @@ public record Token(TokenType Type, int Offset, string Value)
 		_ => throw new Exception($"Invalid database type `{Type}`")
 	};
 
+	/// <summary>
+	/// Generates an inline C# expression for embedding a property value into a parameterized SQL
+	/// string, handling type-specific formatting (dates, strings with length guards, etc.).
+	/// </summary>
+	/// <param name="classname">The enclosing class name, used in overflow error messages.</param>
+	/// <param name="model">The model name, used in overflow error messages.</param>
+	/// <param name="index">The zero-based position of this property in the table row, for error context.</param>
+	/// <param name="name">The property name, for error messages.</param>
+	/// <param name="property">The C# expression that accesses the property value.</param>
 	public string SqlProperty(string classname, string model, int index, string name, string property)
 	{
 		return Type switch

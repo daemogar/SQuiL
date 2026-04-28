@@ -5,25 +5,43 @@ using System.Text.RegularExpressions;
 
 namespace SQuiL.Tokenizer;
 
+/// <summary>
+/// Lexer for SQuiL SQL files.  Scans raw SQL source text character-by-character and emits
+/// a flat list of <see cref="Token"/>s that the <see cref="SQuiLParser"/> then structures
+/// into <see cref="SQuiL.SourceGenerator.Parser.CodeBlock"/>s.
+/// </summary>
+/// <param name="Text">The raw SQL source text to tokenize.</param>
 public class SQuiLTokenizer(string Text)
 {
 	private string Text { get; } = Text;
 
+	/// <summary>Matches SQL keywords that drive the parse: <c>DECLARE</c>, <c>SET</c>, <c>USE</c>, etc.</summary>
 	private static Regex KeywordRegex { get; } = new(
 		"""^(DECLARE|SET|USE|AS|INSERT|INTO|VALUES)\s""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
+	/// <summary>
+	/// Matches SQL data-type tokens including size specifiers and compound types like <c>varbinary(max)</c>.
+	/// Bare keywords (no parens) are anchored with <c>\b</c> so column names such as
+	/// <c>DateOfBirth</c> or <c>TimeStamp</c> are not misidentified as types; <c>decimal</c> and
+	/// <c>identity</c> use <c>(\b|(...))</c> so both the bare and parenthesized forms match but
+	/// a prefix like <c>decimals</c> does not.
+	/// </summary>
 	private static Regex TypeRegex { get; } = new(
-		"""^(bit|int|float|double|decimal(\(\d,\d\)|)|uniqueidentifier|(date(?!time)|time|datetime(2|offset|))|n?(text|(var)?char\s*\(\s*(\d+|max)\s*\))|table\s*\(|identity(\s*\(\s*\d+\s*,\s*\d+\s*\))?|default\s+(\d+|'.*?')|(varbinary\s*\(\s*max\s*\)|binary\s*\(\s*\d+\s*\)\s*))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+		"""^((bit|int|float|double|uniqueidentifier|date(?!time)|time|datetime(2|offset|)|n?text)\b|decimal(\(\d,\d\)|\b)|identity(\s*\(\s*\d+\s*,\s*\d+\s*\)|\b)|n?(var)?char\s*\(\s*(\d+|max)\s*\)|table\s*\(|default\s+(\d+|'.*?')|varbinary\s*\(\s*max\s*\)|binary\s*\(\s*\d+\s*\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
 
+	/// <summary>Matches built-in SQL function calls such as <c>GETDATE()</c>.</summary>
 	private static Regex FunctionRegex { get; } = new(
 		"""^(getdate\(\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
 
+	/// <summary>Matches single-character punctuation and two-character comment openers.</summary>
 	private static Regex SymbolRegex { get; } = new(
 		"""^(;|=|,|\(|\)|--|/\*)""", RegexOptions.Compiled | RegexOptions.Singleline);
 
+	/// <summary>Matches a sequence of decimal digits (integer literals).</summary>
 	private static Regex NumberRegex { get; } = new(
 		"""^(\d+)""", RegexOptions.Compiled | RegexOptions.Singleline);
 
+	/// <summary>Matches SQL identifiers, <c>@variable</c> names, bracket-quoted names, and the internal SQuiL sentinel.</summary>
 	private static Regex IdentifierRegex { get; } = new(
 		"""^(@?([A-Z][A-Z0-9_]*)|\[([A-Z][A-Z0-9_]*)\]|__SQuiL__Type__)""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
@@ -50,9 +68,15 @@ public class SQuiLTokenizer(string Text)
 
 	private List<Token>? Tokens { get; set; }
 
+	/// <summary>Static entry point: tokenizes <paramref name="text"/> and returns the token list.</summary>
 	public static List<Token> GetTokens(string text)
 		=> new SQuiLTokenizer(text).GetTokens();
 
+	/// <summary>
+	/// Tokenizes the SQL source text, stopping at the <c>USE</c> statement boundary where the
+	/// remainder of the text is captured as a single <c>BODY</c> token.
+	/// Results are cached so repeated calls are free.
+	/// </summary>
 	public List<Token> GetTokens()
 	{
 		if (Tokens is not null)
@@ -500,15 +524,18 @@ public class SQuiLTokenizer(string Text)
 		}
 	}
 
+	/// <summary>Advances the cursor by <paramref name="value"/> characters, updating the column counter.</summary>
 	private void Increment(int value = 1)
 	{
 		_index += value;
 		Column += value;
 	}
 
+	/// <summary>Creates a <see cref="DiagnosticException"/> spanning <paramref name="length"/> characters at the current position.</summary>
 	private DiagnosticException DE(int length, string message)
 		=> DE(length, Line, Column, message);
 
+	/// <summary>Creates a <see cref="DiagnosticException"/> spanning from <paramref name="line"/>/<paramref name="column"/> to the current position.</summary>
 	private DiagnosticException DE(int length, int line, int column, string message)
 		=> new(Index, length, line, column, Line, Column, message);
 }

@@ -9,6 +9,17 @@ using System.Collections.Immutable;
 
 namespace SQuiL.Models;
 
+/// <summary>
+/// Models a SQL table-valued parameter or return table (e.g. <c>@Params_Name table(...)</c>
+/// or <c>@Returns_Name table(...)</c>) and drives generation of the corresponding C# record type.
+/// Inherits property-level code generation from <see cref="SQuiLProperty"/>.
+/// </summary>
+/// <param name="NameSpace">The C# namespace the generated record will be emitted into.</param>
+/// <param name="Modifiers">The C# access and type modifiers for the record (e.g. <c>public partial record</c>).</param>
+/// <param name="Type">The type-name suffix appended when building the record name (e.g. <c>"Table"</c>).</param>
+/// <param name="Block">The parsed SQL code block that defines this table's columns and metadata.</param>
+/// <param name="TableMap">The shared table-name-to-C#-type mapping used to resolve cross-query type names.</param>
+/// <param name="Records">All partial record declarations visible in the compilation, used to merge hand-written properties.</param>
 public class SQuiLTable(
 	string NameSpace,
 	string Modifiers,
@@ -18,19 +29,37 @@ public class SQuiLTable(
 	ImmutableDictionary<string, Generator.SQuiLPartialModel> Records)
 	: SQuiLProperty(Type, Block, TableMap)
 {
+	/// <summary>The parsed SQL block that defines this table's columns and metadata.</summary>
 	protected CodeBlock Block { get; } = Block;
+
+	/// <summary>The shared table-name-to-C#-type mapping used to resolve cross-query type names.</summary>
 	public SQuiLTableMap TableMap { get; } = TableMap;
 
+	/// <summary>Creates a shallow clone of this table model with a fresh database-type token copy.</summary>
 	public SQuiLTable Clone()
 		=> new(NameSpace, Modifiers, Type, Block with
 		{
 			DatabaseType = Block.DatabaseType with { }
 		}, TableMap, Records);
 
+	/// <summary>
+	/// <c>true</c> when the user has NOT declared an explicit primary constructor on the partial
+	/// record, so the generator must emit all constructor parameters itself.
+	/// </summary>
 	public bool HasParameterizedConstructor { get; init; }
 
+	/// <summary>
+	/// When the user provides their own parameterized constructor, lists the property names
+	/// inherited from the base type that the generated constructor should pass through.
+	/// </summary>
 	public List<string> ConstructorParameters { get; set; } = default!;
 
+	/// <summary>
+	/// Generates the C# source text for this table's record type, merging <paramref name="properties"/>
+	/// with any hand-written properties found on the user's partial record.
+	/// </summary>
+	/// <param name="properties">The complete merged column list for this table type.</param>
+	/// <returns>The type name and the generated source (or an exception on failure).</returns>
 	public virtual (string TableName, ExceptionOrValue<string> Exception) GenerateCode(List<CodeItem> properties)
 	{
 		List<Exception> exceptions = [];

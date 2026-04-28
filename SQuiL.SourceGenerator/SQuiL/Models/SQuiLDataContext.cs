@@ -1,4 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.Data.SqlClient;
 
 using SQuiL.Generator;
 using SQuiL.SourceGenerator.Parser;
@@ -9,6 +10,16 @@ using System.Text;
 
 namespace SQuiL.Models;
 
+/// <summary>
+/// Generates the data-context partial class for a single SQL query file.  The emitted class
+/// contains one <c>async Task&lt;…&gt;</c> method that builds the SQL command, sends parameters,
+/// executes the query, and maps result sets back to the response model.
+/// </summary>
+/// <param name="NameSpace">The C# namespace of the data-context class.</param>
+/// <param name="ClassName">The data-context class name.</param>
+/// <param name="Method">The query method name (SQL file name without extension).</param>
+/// <param name="Setting">The connection-string configuration key passed to <c>ConnectionStringBuilder</c>.</param>
+/// <param name="Blocks">All parsed code blocks from the SQL file (USE, DECLARE, BODY).</param>
 public class SQuiLDataContext(
 		string NameSpace,
 		string ClassName,
@@ -16,8 +27,17 @@ public class SQuiLDataContext(
 		string Setting,
 		List<CodeBlock> Blocks)
 {
+	/// <summary>
+	/// Sentinel column name prefix injected into every result-set SELECT so the reader can
+	/// identify which table tag each row belongs to at runtime.
+	/// </summary>
 	internal static string SQuiLTableTypeDatabaseTagName => "__SQuiL__Table__Type__";
 
+	/// <summary>
+	/// Generates the full C# source for the data-context partial class.
+	/// </summary>
+	/// <param name="generation">The aggregated models (request, response, tables) for this query.</param>
+	/// <returns>The generated source text, or an exception if a required SQL block is missing.</returns>
 	public ExceptionOrValue<string> GenerateCode(SQuiLFileGeneration generation)
 	{
 		StringBuilder builder = new();
@@ -75,7 +95,7 @@ public class SQuiLDataContext(
 				if (outputs.Count() == 0 && errors.Count() == 0)
 					errorReturnType = false;
 				//else
-					returnType = $"{SourceGeneratorHelper.ResultTypeAttributeName}<{returnType}>";
+				returnType = $"{SourceGeneratorHelper.ResultTypeAttributeName}<{returnType}>";
 
 				writer.Block($$"""
 								public async Task<{{returnType}}> Process{{Method}}Async(
@@ -103,7 +123,7 @@ public class SQuiLDataContext(
 					{
 						writer.Block("try", () =>
 						{
-						writer.WriteLine("await command.ExecuteNonQueryAsync(cancellationToken);");
+							writer.WriteLine("await command.ExecuteNonQueryAsync(cancellationToken);");
 							WriteReturn(generation.Response.ModelName, "");
 						});
 						writer.Block("catch(Microsoft.Data.SqlClient.SqlException e)", () =>

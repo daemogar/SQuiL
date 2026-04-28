@@ -8,9 +8,18 @@ using System.Text;
 
 namespace SQuiL.SourceGenerator.Parser;
 
+/// <summary>
+/// Transforms a flat list of <see cref="Token"/>s produced by <see cref="SQuiLTokenizer"/> into
+/// a structured list of <see cref="CodeBlock"/>s that the model builders can consume.
+/// Recognises <c>DECLARE</c>, <c>USE</c>, and the query body, and classifies each block
+/// with the appropriate <see cref="CodeType"/> flags.
+/// </summary>
+/// <param name="Tokens">The token list to parse, typically returned by <see cref="SQuiLTokenizer.GetTokens()"/>.</param>
 public class SQuiLParser(List<Token> Tokens)
 {
 	private int Index { get; set; }
+
+	/// <summary>Advances the cursor by <paramref name="count"/> positions, skipping comment tokens.</summary>
 	private void Consume(int count = 1)
 	{
 		Increment(count);
@@ -22,8 +31,10 @@ public class SQuiLParser(List<Token> Tokens)
 		void Increment(int i) => Index = Math.Min(Index + i, Tokens.Count);
 	}
 
+	/// <summary>The token at the current cursor position.</summary>
 	private Token Current => Peek(0);
 
+	/// <summary>Returns the token at <c>Index + offset</c>, or <see cref="Token.END"/> if past the end.</summary>
 	private Token Peek(int offset)
 		=> Index + offset < Tokens.Count
 			? Tokens[Index + offset]
@@ -31,9 +42,14 @@ public class SQuiLParser(List<Token> Tokens)
 
 	private List<CodeBlock>? CodeBlocks { get; set; }
 
+	/// <summary>Static entry point: parses <paramref name="tokens"/> and returns the resulting code blocks.</summary>
 	public static List<CodeBlock> ParseTokens(List<Token> tokens)
 		=> new SQuiLParser(tokens).ParseTokens();
 
+	/// <summary>
+	/// Parses the token stream and returns all recognized <see cref="CodeBlock"/>s.
+	/// Results are cached so repeated calls are free.
+	/// </summary>
 	public List<CodeBlock> ParseTokens()
 	{
 		if (CodeBlocks is not null) return CodeBlocks;
@@ -336,9 +352,11 @@ public class SQuiLParser(List<Token> Tokens)
 		}
 	}
 
-	//private Token Expect(TokenType type, TokenType range)
-	//	=> Expect(type, (int)range - (int)type);
-
+	/// <summary>
+	/// Consumes and returns the current token if it matches <paramref name="type"/> exactly,
+	/// or if its integer value falls within the same thousand-range (i.e. the same token family).
+	/// Throws a <see cref="DiagnosticException"/> on mismatch.
+	/// </summary>
 	private Token Expect(TokenType type, int range = 1000)
 	{
 		if (Current.Type == type)
@@ -362,6 +380,7 @@ public class SQuiLParser(List<Token> Tokens)
 		}
 	}
 
+	/// <summary>Creates a position-less <see cref="DiagnosticException"/> with the given message.</summary>
 	private DiagnosticException DE(string message) => new(message);
 }
 
