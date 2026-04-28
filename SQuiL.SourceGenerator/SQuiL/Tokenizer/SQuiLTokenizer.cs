@@ -93,7 +93,7 @@ public class SQuiLTokenizer(string Text)
 
 			if (Keyword())
 				continue;
-			if (Type())
+			if (CanBeType() && Type())
 				continue;
 			if (Symbol())
 				continue;
@@ -496,6 +496,28 @@ public class SQuiLTokenizer(string Text)
 					Column = 1;
 				}
 			}
+		}
+
+		// A SQL data type is grammatically valid only after a @variable (scaler decl),
+		// an identifier (column name in a TABLE block), or another type token (modifiers
+		// like `identity` or size/precision). After `(`, `,`, or `=`, the slot is a
+		// column name or default value — gate `Type()` so words like `Date`/`Time` fall
+		// through to `Identifier()` rather than tokenizing as TYPE_DATE/TYPE_TIME.
+		bool CanBeType()
+		{
+			for (var i = Tokens.Count - 1; i >= 0; i--)
+			{
+				var type = (int)Tokens[i].Type;
+				
+				if (type >= (int)TokenType.COMMENT)
+					continue;
+
+				if (Tokens[i].Type is TokenType.VARIABLE or TokenType.IDENTIFIER)
+					return true;
+				
+				return type >= (int)TokenType.TYPE && type < (int)TokenType.SYMBOL;
+			}
+			return false;
 		}
 
 		bool Try(Regex regex, Func<Match, ExceptionOrValue<Token?>> callback)

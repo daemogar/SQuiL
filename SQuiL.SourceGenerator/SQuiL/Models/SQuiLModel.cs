@@ -85,6 +85,7 @@ public class SQuiLModel(
 		if (ModelType == "Request")
 		{
 			writer.WriteLine("public bool Debug { get; set; }");
+			writer.WriteLine("public bool DebugOnly { get; set; }");
 			newline = writer.WriteLine;
 		}
 
