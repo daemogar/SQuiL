@@ -400,13 +400,16 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				""",
 				() =>
 				{
-					writer.WriteLine("public static bool IsLoaded => true;");
+					writer.WriteLine("public static bool IsLoaded { get; private set; }");
 					writer.WriteLine();
 					writer.Block("""
 						public static IServiceCollection AddSQuiL(
 							this IServiceCollection services)
 						""", () =>
 					{
+						writer.WriteLine("if (IsLoaded) return;");
+						writer.WriteLine("IsLoaded = true;");
+
 						if (contexts.Count > 0)
 						{
 							foreach (var singleton in contexts.Distinct())
