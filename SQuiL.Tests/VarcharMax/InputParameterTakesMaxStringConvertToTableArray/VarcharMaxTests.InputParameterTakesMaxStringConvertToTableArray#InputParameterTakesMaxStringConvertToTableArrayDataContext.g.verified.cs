@@ -12,7 +12,7 @@ namespace TestCase;
 
 partial class InputParameterTakesMaxStringConvertToTableArrayDataContext : SQuiLBaseDataContext
 {
-	public async Task<InputParameterTakesMaxStringConvertToTableArrayResponse> ProcessInputParameterTakesMaxStringConvertToTableArrayAsync(
+	public async Task<SQuiLResultType> ProcessInputParameterTakesMaxStringConvertToTableArrayAsync(
 		InputParameterTakesMaxStringConvertToTableArrayRequest request,
 		CancellationToken cancellationToken = default!)
 	{
@@ -24,7 +24,7 @@ partial class InputParameterTakesMaxStringConvertToTableArrayDataContext : SQuiL
 		List<DbParameter> parameters = new()
 		{
 			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, request.Debug || EnvironmentName != "Production"),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
 			CreateParameter("@Param_LongText", System.Data.SqlDbType.VarChar, -1, request.LongText ?? (object)System.DBNull.Value
 			, p => p.IsNullable = true)
 		};
@@ -34,9 +34,15 @@ partial class InputParameterTakesMaxStringConvertToTableArrayDataContext : SQuiL
 		
 		await connection.OpenAsync(cancellationToken);
 		
+		try
+		{
 		await command.ExecuteNonQueryAsync(cancellationToken);
-		
-		return new();
+			return SQuiLResultType.Success;
+		}
+		catch(Microsoft.Data.SqlClient.SqlException e)
+		{
+			return new SQuiLResultType(new SQuiLError(e));
+		}
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Use [{builder.InitialCatalog}];

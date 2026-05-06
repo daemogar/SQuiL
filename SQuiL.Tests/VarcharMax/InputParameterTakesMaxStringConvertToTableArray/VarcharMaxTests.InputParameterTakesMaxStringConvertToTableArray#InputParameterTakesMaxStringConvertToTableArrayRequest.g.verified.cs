@@ -8,6 +8,7 @@ namespace TestCase;
 public partial record InputParameterTakesMaxStringConvertToTableArrayRequest
 {
 	public bool Debug { get; set; }
+	public bool DebugOnly { get; set; }
 	
 	public string? LongText { get; set; }
 }

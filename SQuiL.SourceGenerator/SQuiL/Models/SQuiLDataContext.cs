@@ -91,11 +91,14 @@ public class SQuiLDataContext(
 			{
 				var errorReturnType = true;
 				var returnType = generation.Response.ModelName;
+				var noResponse = outputs.Count() == 0;
 
-				if (outputs.Count() == 0 && errors.Count() == 0)
+				if (noResponse && errors.Count() == 0)
 					errorReturnType = false;
 				//else
-				returnType = $"{SourceGeneratorHelper.ResultTypeAttributeName}<{returnType}>";
+				returnType = noResponse
+					? SourceGeneratorHelper.ResultTypeAttributeName
+					: $"{SourceGeneratorHelper.ResultTypeAttributeName}<{returnType}>";
 
 				writer.Block($$"""
 								public async Task<{{returnType}}> Process{{Method}}Async(
@@ -124,7 +127,10 @@ public class SQuiLDataContext(
 						writer.Block("try", () =>
 						{
 							writer.WriteLine("await command.ExecuteNonQueryAsync(cancellationToken);");
-							WriteReturn(generation.Response.ModelName, "");
+							if (noResponse)
+								writer.WriteLine($"return {returnType}.Success;");
+							else
+								WriteReturn(generation.Response.ModelName, "");
 						});
 						writer.Block("catch(Microsoft.Data.SqlClient.SqlException e)", () =>
 						{
@@ -187,7 +193,10 @@ public class SQuiLDataContext(
 
 						writer.WriteLine("if(errors.Count == 0)");
 						writer.Indent++;
-						writer.WriteLine("return new(response);");
+						if (noResponse)
+							writer.WriteLine($"return {returnType}.Success;");
+						else
+							writer.WriteLine("return new(response);");
 						writer.Indent--;
 						writer.WriteLine();
 						writer.WriteLine("return new(errors);");

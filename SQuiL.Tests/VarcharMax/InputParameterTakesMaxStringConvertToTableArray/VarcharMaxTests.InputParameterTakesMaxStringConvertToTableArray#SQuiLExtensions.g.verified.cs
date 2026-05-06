@@ -7,11 +7,14 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 public static class SQuiLExtensions
 {
-    public static bool IsLoaded => true;
+    public static bool IsLoaded { get; private set; }
     
     public static IServiceCollection AddSQuiL(
         this IServiceCollection services)
     {
+        if (IsLoaded) return;
+        IsLoaded = true;
+        
         services.AddSingleton<TestCase.InputParameterTakesMaxStringConvertToTableArrayDataContext>();
         
         return services;
