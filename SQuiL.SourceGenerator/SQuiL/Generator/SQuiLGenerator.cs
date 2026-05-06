@@ -409,6 +409,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					{
 						writer.WriteLine("if (IsLoaded) return;");
 						writer.WriteLine("IsLoaded = true;");
+						writer.WriteLine();
 
 						if (contexts.Count > 0)
 						{
