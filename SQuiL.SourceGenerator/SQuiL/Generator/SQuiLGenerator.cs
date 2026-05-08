@@ -407,7 +407,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 							this IServiceCollection services)
 						""", () =>
 					{
-						writer.WriteLine("if (IsLoaded) return;");
+						writer.WriteLine("if (IsLoaded) return services;");
 						writer.WriteLine("IsLoaded = true;");
 						writer.WriteLine();
 
