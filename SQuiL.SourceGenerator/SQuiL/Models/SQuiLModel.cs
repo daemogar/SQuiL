@@ -106,9 +106,11 @@ public class SQuiLModel(
 	{
 		foreach (var block in blocks)
 		{
+			if (SQuiLGenerator.IsError(block.Name))
+				continue;
 			if (SQuiLGenerator.IsSpecial(block.Name)
 				|| InheritsProperty(ModelName, block.Name))
-				CreateSpecial(block);
+				CreateTableObject(block, false);
 			else if (block.IsTable || block.IsObject)
 				CreateTableObject(block);
 			else
@@ -116,12 +118,6 @@ public class SQuiLModel(
 		}
 
 		return this;
-	}
-
-	private void CreateSpecial(CodeBlock block)
-	{
-		if (!SQuiLGenerator.IsError(block.Name)) return;
-		CreateTableObject(block, false);
 	}
 
 	private void CreateTableObject(CodeBlock block, bool addProperty = true)

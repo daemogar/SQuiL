@@ -46,7 +46,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			return true;
 		if (EnvironmentName.Equals(value))
 			return true;
-		return IsError(value);
+		return false;
 	}
 
 	/// <summary>Parameterless constructor used by Roslyn when activating the generator.</summary>
