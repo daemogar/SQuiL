@@ -4,6 +4,7 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 using SQuiL;
 
@@ -11,29 +12,26 @@ namespace CourseEvaluation.Application.Data;
 
 partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 {
-	public async Task<GetCourseForEvaluationByEvaluationIDResponse> ProcessGetCourseForEvaluationByEvaluationIDAsync(
+	public async Task<SQuiLResultType<GetCourseForEvaluationByEvaluationIDResponse>> ProcessGetCourseForEvaluationByEvaluationIDAsync(
 		GetCourseForEvaluationByEvaluationIDRequest request,
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("Warehouse");
-		using SqlConnection connection = new(builder.ConnectionString);
+		using var connection = CreateConnection(builder.ConnectionString);
+		
 		var command = connection.CreateCommand();
 		
-		List<SqlParameter> parameters = new()
+		List<DbParameter> parameters = new()
 		{
-			new("EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
-			new("Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
-			new("EvaluationID", System.Data.SqlDbType.VarChar, 21) 
+			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
+			CreateParameter("@Param_EvaluationID", System.Data.SqlDbType.VarChar, 21, request.EvaluationID switch
 			{
-				IsNullable = true,
-				Value = request.EvaluationID switch
-				{
-					null => (object)System.DBNull.Value,
-					{ Length: <= 21 } => request.EvaluationID,
-					_ => throw new Exception(
-						"Request model data is larger then database size for the property [EvaluationID].")
-				}
-			}
+				null => (object)System.DBNull.Value,
+				{ Length: <= 21 } => request.EvaluationID,
+				_ => throw new Exception(
+					"Request model data is larger then database size for the property [EvaluationID].")
+			}, p => p.IsNullable = true)
 		};
 		
 		command.CommandText = Query(parameters);
@@ -47,63 +45,80 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		var isPersonID = false;
 		var isTermCode = false;
 		
-		using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		
-		do
+		List<SQuiLError> errors = [];
+		try
 		{
-			var tableTag = reader.GetName(0);
-			if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			
+			do
 			{
-				switch (tableTag)
+				var tableTag = reader.GetName(0);
+				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
 				{
-					case "__SQuiL__Table__Type__Return_SectionID__":
+					switch (tableTag)
 					{
-						if (isSectionID) throw new Exception(
-							"Already returned value for `SectionID`");
-						
-						isSectionID = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						response.SectionID = !reader.IsDBNull(1) ? reader.GetString(1) : throw new NullReferenceException("Return value for Return_SectionID cannot be null.");
-						break;
-					}
-					case "__SQuiL__Table__Type__Return_PersonID__":
-					{
-						if (isPersonID) throw new Exception(
-							"Already returned value for `PersonID`");
-						
-						isPersonID = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						response.PersonID = !reader.IsDBNull(1) ? reader.GetString(1) : throw new NullReferenceException("Return value for Return_PersonID cannot be null.");
-						break;
-					}
-					case "__SQuiL__Table__Type__Return_TermCode__":
-					{
-						if (isTermCode) throw new Exception(
-							"Already returned value for `TermCode`");
-						
-						isTermCode = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						response.TermCode = !reader.IsDBNull(1) ? reader.GetString(1) : throw new NullReferenceException("Return value for Return_TermCode cannot be null.");
-						break;
+						case "__SQuiL__Table__Type__Error__":
+						{
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							break;
+						}
+						case "__SQuiL__Table__Type__Return_SectionID__":
+						{
+							if (isSectionID) throw new Exception(
+								"Already returned value for `SectionID`");
+							
+							isSectionID = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							response.SectionID = !reader.IsDBNull(1) ? reader.GetString(1) : throw new NullReferenceException("Return value for Return_SectionID cannot be null.");
+							break;
+						}
+						case "__SQuiL__Table__Type__Return_PersonID__":
+						{
+							if (isPersonID) throw new Exception(
+								"Already returned value for `PersonID`");
+							
+							isPersonID = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							response.PersonID = !reader.IsDBNull(1) ? reader.GetString(1) : throw new NullReferenceException("Return value for Return_PersonID cannot be null.");
+							break;
+						}
+						case "__SQuiL__Table__Type__Return_TermCode__":
+						{
+							if (isTermCode) throw new Exception(
+								"Already returned value for `TermCode`");
+							
+							isTermCode = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							response.TermCode = !reader.IsDBNull(1) ? reader.GetString(1) : throw new NullReferenceException("Return value for Return_TermCode cannot be null.");
+							break;
+						}
 					}
 				}
 			}
+			while (await reader.NextResultAsync(cancellationToken));
 		}
-		while (await reader.NextResultAsync(cancellationToken));
+		catch(SqlException e)
+		{
+			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+		}
 		
-		if (!isSectionID) throw new Exception("Expected return table `SectionID`)");
-		if (!isPersonID) throw new Exception("Expected return table `PersonID`)");
-		if (!isTermCode) throw new Exception("Expected return table `TermCode`)");
+		if (!isSectionID) errors.Add(new(51001, 12, 1, 111, "SectionID", "Expected return scaler `SectionID`"));
+		if (!isPersonID) errors.Add(new(51001, 12, 1, 112, "PersonID", "Expected return scaler `PersonID`"));
+		if (!isTermCode) errors.Add(new(51001, 12, 1, 113, "TermCode", "Expected return scaler `TermCode`"));
 		
-		return response;
+		if(errors.Count == 0)
+			return new(response);
 		
-		string Query(List<SqlParameter> parameters) => $"""
+		return new(errors);
+		
+		string Query(List<DbParameter> parameters) => $"""
 		Declare @Return_SectionID varchar(10);
 		
 		Declare @Return_PersonID varchar(10);

@@ -7,7 +7,4 @@ namespace SQuiL;
 
 public enum TableType
 {
-	Courses,
-	Institution,
-	Student
 }

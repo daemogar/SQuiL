@@ -1,13 +1,13 @@
 ﻿{
   Diagnostics: [
     {
-      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 0, Value = Questions, Original = @Returns_Questions table }, Name = Questions, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = False, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 0, Value = Questions, Original = @Returns_Questions table }, Name = Questions, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 0, Value = Questions, Original = @Returns_Questions table }, Name = Questions, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = False, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 0, Value = Questions, Original = @Returns_Questions table }, Name = Questions, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -31,8 +31,8 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
+        Id: SP0000,
+        Title: Development Data,
         MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 99, Value = Select * From @Returns_Questions; , Original = Select * From @Returns_Questions; }, Name = Select * From @Returns_Questions; , DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
@@ -44,9 +44,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: KEYWORD_DECLARE => ,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -57,9 +57,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: VARIABLE => Returns_Questions,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => Returns_Questions,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -70,9 +70,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: TYPE_TABLE => ,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_TABLE => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -83,9 +83,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: SYMBOL_LPREN => ,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_LPREN => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -96,9 +96,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: IDENTIFIER => Number,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => Number,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -109,9 +109,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: TYPE_INT => ,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_INT => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -122,9 +122,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: SYMBOL_COMMA => ,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -135,9 +135,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: IDENTIFIER => Message,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => Message,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -148,8 +148,8 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
+        Id: SP0000,
+        Title: Development Data,
         MessageFormat: TYPE_STRING => max,
         Category: Logger,
         DefaultSeverity: Warning,
@@ -161,9 +161,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: SYMBOL_RPREN => ,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_RPREN => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -174,9 +174,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: KEYWORD_USE => ,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_USE => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -187,9 +187,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: IDENTIFIER => Database,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => Database,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -200,9 +200,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: BODY => Select * From @Returns_Questions;,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: BODY => Select * From @Returns_Questions;,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -213,8 +213,8 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
+        Id: SP0000,
+        Title: Development Data,
         MessageFormat: CodeBlock { CodeType = INPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = 0, Value = Question, Original = @Param_Question table }, Name = Question, DefaultValue = , IsObject = True, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
         Category: Logger,
         DefaultSeverity: Warning,
@@ -239,8 +239,8 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
+        Id: SP0000,
+        Title: Development Data,
         MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 96, Value = Select * From @Param_Question; , Original = Select * From @Param_Question; }, Name = Select * From @Param_Question; , DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
@@ -252,9 +252,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: KEYWORD_DECLARE => ,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -265,9 +265,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: VARIABLE => Param_Question,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => Param_Question,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -278,9 +278,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: TYPE_TABLE => ,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_TABLE => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -291,9 +291,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: SYMBOL_LPREN => ,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_LPREN => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -304,9 +304,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: IDENTIFIER => Number,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => Number,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -317,9 +317,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: TYPE_INT => ,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_INT => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -330,9 +330,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: SYMBOL_COMMA => ,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -343,9 +343,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: IDENTIFIER => Message,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => Message,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -356,8 +356,8 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
+        Id: SP0000,
+        Title: Development Data,
         MessageFormat: TYPE_STRING => max,
         Category: Logger,
         DefaultSeverity: Warning,
@@ -369,9 +369,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: SYMBOL_RPREN => ,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_RPREN => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -382,9 +382,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: KEYWORD_USE => ,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_USE => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -395,9 +395,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: IDENTIFIER => Database,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => Database,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -408,9 +408,9 @@
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-      Id: SP0000,
-      Title: Development Data,
-      MessageFormat: BODY => Select * From @Param_Question;,
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: BODY => Select * From @Param_Question;,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true

@@ -7,5 +7,5 @@ namespace CourseEvaluation.Application.Data;
 
 public partial record GetActiveTermsForStudentEvaluationsResponse
 {
-	public System.Collections.Generic.List<TermTable> Terms { get; set; } = [];
+	public System.Collections.Generic.List<TermTable>? Terms { get; set; } = [];
 }

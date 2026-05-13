@@ -12,7 +12,7 @@ namespace TestCase;
 
 partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 {
-	public async Task<UseStatementFailsWhenAddingDeclareTestResponse> ProcessUseStatementFailsWhenAddingDeclareTestAsync(
+	public async Task<SQuiLResultType<UseStatementFailsWhenAddingDeclareTestResponse>> ProcessUseStatementFailsWhenAddingDeclareTestAsync(
 		UseStatementFailsWhenAddingDeclareTestRequest request,
 		CancellationToken cancellationToken = default!)
 	{
@@ -24,7 +24,7 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 		List<DbParameter> parameters = new()
 		{
 			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, request.Debug || EnvironmentName != "Production")
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production"))
 		};
 		
 		command.CommandText = Query(parameters);
@@ -36,52 +36,64 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 		
 		var isExtendedCourses = false;
 		
-		using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		
-		do
+		List<SQuiLError> errors = [];
+		try
 		{
-			var tableTag = reader.GetName(0);
-			if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			
+			do
 			{
-				switch (tableTag)
+				var tableTag = reader.GetName(0);
+				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
 				{
-					case "__SQuiL__Table__Type__Error__":
+					switch (tableTag)
 					{
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						break;
-					}
-					case "__SQuiL__Table__Type__Returns_ExtendedCourses__":
-					{
-						isExtendedCourses = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						var indexProfessorID = reader.GetOrdinal("ProfessorID");
-						var indexUsername = reader.GetOrdinal("Username");
-						
-						do
+						case "__SQuiL__Table__Type__Error__":
 						{
-							if (reader.GetString(0) == "Returns_ExtendedCourses")
-							{
-								var valueProfessorID = reader.GetString(indexProfessorID);
-								var valueUsername = reader.GetString(indexUsername);
-								response.ExtendedCourses.Add(new(
-									valueProfessorID,
-									valueUsername));
-							}
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							break;
 						}
-						while (await reader.ReadAsync(cancellationToken));
-						break;
+						case "__SQuiL__Table__Type__Returns_ExtendedCourses__":
+						{
+							isExtendedCourses = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							var indexProfessorID = reader.GetOrdinal("ProfessorID");
+							var indexUsername = reader.GetOrdinal("Username");
+							
+							do
+							{
+								if (reader.GetString(0) == "Returns_ExtendedCourses")
+								{
+									var valueProfessorID = reader.GetString(indexProfessorID);
+									var valueUsername = reader.GetString(indexUsername);
+									
+									response.ExtendedCourses.Add(new(
+										valueProfessorID,
+										valueUsername));
+								}
+							}
+							while (await reader.ReadAsync(cancellationToken));
+							break;
+						}
 					}
 				}
 			}
+			while (await reader.NextResultAsync(cancellationToken));
 		}
-		while (await reader.NextResultAsync(cancellationToken));
+		catch(SqlException e)
+		{
+			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+		}
 		
-		if (!isExtendedCourses) throw new Exception("Expected return table `ExtendedCourses`");
+		if (!isExtendedCourses) errors.Add(new(51001, 12, 1, 90, "ExtendedCourses", "Expected return table `ExtendedCourses`"));
 		
-		return response;
+		if(errors.Count == 0)
+			return new(response);
+		
+		return new(errors);
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_ExtendedCourses table(

@@ -4,6 +4,7 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 using SQuiL;
 
@@ -11,23 +12,21 @@ namespace CourseEvaluation.Application.Data;
 
 partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 {
-	public async Task<GetActiveTermsForStudentEvaluationsResponse> ProcessGetActiveTermsForStudentEvaluationsAsync(
+	public async Task<SQuiLResultType<GetActiveTermsForStudentEvaluationsResponse>> ProcessGetActiveTermsForStudentEvaluationsAsync(
 		GetActiveTermsForStudentEvaluationsRequest request,
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("Warehouse");
-		using SqlConnection connection = new(builder.ConnectionString);
+		using var connection = CreateConnection(builder.ConnectionString);
+		
 		var command = connection.CreateCommand();
 		
-		List<SqlParameter> parameters = new()
+		List<DbParameter> parameters = new()
 		{
-			new("EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
-			new("Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
-			new("AsOfDate", System.Data.SqlDbType.Date) 
-			{
-				IsNullable = true,
-				Value = request.AsOfDate ?? (object)System.DBNull.Value
-			}
+			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
+			CreateParameter("@Param_AsOfDate", System.Data.SqlDbType.Date, request.AsOfDate ?? (object)System.DBNull.Value
+			, p => p.IsNullable = true)
 		};
 		
 		command.CommandText = Query(parameters);
@@ -39,53 +38,72 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		var isTerms = false;
 		
-		using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		
-		do
+		List<SQuiLError> errors = [];
+		try
 		{
-			var tableTag = reader.GetName(0);
-			if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			
+			do
 			{
-				switch (tableTag)
+				var tableTag = reader.GetName(0);
+				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
 				{
-					case "__SQuiL__Table__Type__Returns_Terms__":
+					switch (tableTag)
 					{
-						isTerms = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						var indexTermCode = reader.GetOrdinal("TermCode");
-						
-						do
+						case "__SQuiL__Table__Type__Error__":
 						{
-							if (reader.GetString(0) == "Returns_Terms")
-							{
-								response.Terms.Add(new(
-									reader.GetString(indexTermCode)));
-							}
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							break;
 						}
-						while (await reader.ReadAsync(cancellationToken));
-						break;
+						case "__SQuiL__Table__Type__Returns_Terms__":
+						{
+							isTerms = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							var indexTermCode = reader.GetOrdinal("TermCode");
+							
+							do
+							{
+								if (reader.GetString(0) == "Returns_Terms")
+								{
+									var valueTermCode = reader.GetString(indexTermCode);
+									
+									response.Terms.Add(new(
+										valueTermCode));
+								}
+							}
+							while (await reader.ReadAsync(cancellationToken));
+							break;
+						}
 					}
 				}
 			}
+			while (await reader.NextResultAsync(cancellationToken));
 		}
-		while (await reader.NextResultAsync(cancellationToken));
+		catch(SqlException e)
+		{
+			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+		}
 		
-		if (!isTerms) throw new Exception("Expected return table `Terms`)");
+		if (!isTerms) errors.Add(new(51001, 12, 1, 89, "Terms", "Expected return table `Terms`"));
 		
-		return response;
+		if(errors.Count == 0)
+			return new(response);
 		
-		string Query(List<SqlParameter> parameters) => $"""
+		return new(errors);
+		
+		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Terms table(
 			[__SQuiL__Table__Type__Returns_Terms__] varchar(max) default('Returns_Terms'),
-			TermCode varchar(10));
+			[TermCode] varchar(10));
 		
 		Use [{builder.InitialCatalog}];
 		
 		If @Param_AsOfDate Is Null Set @Param_AsOfDate = GetDate();
 		
-		Insert Into @Returns_Terms(TermCode)
+		Insert Into @Returns_Terms([TermCode])
 		Select		t.Term
 		From		pub.Terms t
 		Where		@Param_AsOfDate Between t.RegStartDate And IsNull(t.GradesDueDate, DateAdd(week, 1, t.EndDate))

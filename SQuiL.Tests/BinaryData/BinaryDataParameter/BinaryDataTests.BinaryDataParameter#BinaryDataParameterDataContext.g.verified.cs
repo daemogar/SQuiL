@@ -12,7 +12,7 @@ namespace TestCase;
 
 partial class BinaryDataParameterDataContext : SQuiLBaseDataContext
 {
-	public async Task<BinaryDataParameterResponse> ProcessBinaryDataParameterAsync(
+	public async Task<SQuiLResultType<BinaryDataParameterResponse>> ProcessBinaryDataParameterAsync(
 		BinaryDataParameterRequest request,
 		CancellationToken cancellationToken = default!)
 	{
@@ -24,7 +24,7 @@ partial class BinaryDataParameterDataContext : SQuiLBaseDataContext
 		List<DbParameter> parameters = new()
 		{
 			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, request.Debug || EnvironmentName != "Production"),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
 			CreateParameter("@Param_BinaryDataField", System.Data.SqlDbType.Binary, request.BinaryDataField ?? (object)System.DBNull.Value
 			, p => p.IsNullable = true),
 			CreateParameter("@Param_VarBinaryDataField", System.Data.SqlDbType.VarBinary, request.VarBinaryDataField ?? (object)System.DBNull.Value
@@ -40,52 +40,64 @@ partial class BinaryDataParameterDataContext : SQuiLBaseDataContext
 		
 		var isBinaryTable = false;
 		
-		using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		
-		do
+		List<SQuiLError> errors = [];
+		try
 		{
-			var tableTag = reader.GetName(0);
-			if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			
+			do
 			{
-				switch (tableTag)
+				var tableTag = reader.GetName(0);
+				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
 				{
-					case "__SQuiL__Table__Type__Error__":
+					switch (tableTag)
 					{
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						break;
-					}
-					case "__SQuiL__Table__Type__Returns_BinaryTable__":
-					{
-						isBinaryTable = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						var indexDataBinary = reader.GetOrdinal("DataBinary");
-						var indexDataVarBinary = reader.GetOrdinal("DataVarBinary");
-						
-						do
+						case "__SQuiL__Table__Type__Error__":
 						{
-							if (reader.GetString(0) == "Returns_BinaryTable")
-							{
-								var valueDataBinary = reader.GetFieldValue<byte[]>(indexDataBinary);
-								var valueDataVarBinary = reader.GetFieldValue<byte[]>(indexDataVarBinary);
-								response.BinaryTable.Add(new(
-									valueDataBinary,
-									valueDataVarBinary));
-							}
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							break;
 						}
-						while (await reader.ReadAsync(cancellationToken));
-						break;
+						case "__SQuiL__Table__Type__Returns_BinaryTable__":
+						{
+							isBinaryTable = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							var indexDataBinary = reader.GetOrdinal("DataBinary");
+							var indexDataVarBinary = reader.GetOrdinal("DataVarBinary");
+							
+							do
+							{
+								if (reader.GetString(0) == "Returns_BinaryTable")
+								{
+									var valueDataBinary = reader.GetFieldValue<byte[]>(indexDataBinary);
+									var valueDataVarBinary = reader.GetFieldValue<byte[]>(indexDataVarBinary);
+									
+									response.BinaryTable.Add(new(
+										valueDataBinary,
+										valueDataVarBinary));
+								}
+							}
+							while (await reader.ReadAsync(cancellationToken));
+							break;
+						}
 					}
 				}
 			}
+			while (await reader.NextResultAsync(cancellationToken));
 		}
-		while (await reader.NextResultAsync(cancellationToken));
+		catch(SqlException e)
+		{
+			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+		}
 		
-		if (!isBinaryTable) throw new Exception("Expected return table `BinaryTable`");
+		if (!isBinaryTable) errors.Add(new(51001, 12, 1, 94, "BinaryTable", "Expected return table `BinaryTable`"));
 		
-		return response;
+		if(errors.Count == 0)
+			return new(response);
+		
+		return new(errors);
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_BinaryTable table(

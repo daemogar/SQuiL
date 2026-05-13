@@ -8,6 +8,7 @@ namespace TestCase;
 public partial record TwoQueriesWithSameReference2Request
 {
 	public bool Debug { get; set; }
+	public bool DebugOnly { get; set; }
 	
 	public QuestionObject? Question { get; set; } = default!;
 }

@@ -24,7 +24,7 @@ partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 		List<DbParameter> parameters = new()
 		{
 			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, request.Debug || EnvironmentName != "Production")
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production"))
 		};
 		
 		command.CommandText = Query(parameters);
@@ -67,12 +67,12 @@ partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 							{
 								if (reader.GetString(0) == "Returns_Questions")
 								{
-										var valueNumber = reader.GetInt32(indexNumber);
-										var valueMessage = reader.GetString(indexMessage);
-										
+									var valueNumber = reader.GetInt32(indexNumber);
+									var valueMessage = reader.GetString(indexMessage);
+									
 									response.Questions.Add(new(
-											valueNumber,
-											valueMessage));
+										valueNumber,
+										valueMessage));
 								}
 							}
 							while (await reader.ReadAsync(cancellationToken));

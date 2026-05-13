@@ -4,6 +4,7 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 using SQuiL;
 
@@ -11,18 +12,19 @@ namespace TestCase;
 
 partial class DoubleNumberTestDataContext : SQuiLBaseDataContext
 {
-	public async Task<DoubleNumberTestResponse> ProcessDoubleNumberTestAsync(
+	public async Task<SQuiLResultType<DoubleNumberTestResponse>> ProcessDoubleNumberTestAsync(
 		DoubleNumberTestRequest request,
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
-		using SqlConnection connection = new(builder.ConnectionString);
+		using var connection = CreateConnection(builder.ConnectionString);
+		
 		var command = connection.CreateCommand();
 		
-		List<SqlParameter> parameters = new()
+		List<DbParameter> parameters = new()
 		{
-			new("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
-			new("@Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
+			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production"))
 		};
 		
 		command.CommandText = Query(parameters);
@@ -34,50 +36,63 @@ partial class DoubleNumberTestDataContext : SQuiLBaseDataContext
 		
 		var isAnswers = false;
 		
-		using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		
-		do
+		List<SQuiLError> errors = [];
+		try
 		{
-			var tableTag = reader.GetName(0);
-			if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			
+			do
 			{
-				switch (tableTag)
+				var tableTag = reader.GetName(0);
+				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
 				{
-					case "__SQuiL__Table__Type__Error__":
+					switch (tableTag)
 					{
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						break;
-					}
-					case "__SQuiL__Table__Type__Returns_Answers__":
-					{
-						isAnswers = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						var indexResponse = reader.GetOrdinal("Response");
-						
-						do
+						case "__SQuiL__Table__Type__Error__":
 						{
-							if (reader.GetString(0) == "Returns_Answers")
-							{
-								response.Answers.Add(new(
-									reader.GetDouble(indexResponse)));
-							}
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							break;
 						}
-						while (await reader.ReadAsync(cancellationToken));
-						break;
+						case "__SQuiL__Table__Type__Returns_Answers__":
+						{
+							isAnswers = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							var indexResponse = reader.GetOrdinal("Response");
+							
+							do
+							{
+								if (reader.GetString(0) == "Returns_Answers")
+								{
+									var valueResponse = reader.GetDouble(indexResponse);
+									
+									response.Answers.Add(new(
+										valueResponse));
+								}
+							}
+							while (await reader.ReadAsync(cancellationToken));
+							break;
+						}
 					}
 				}
 			}
+			while (await reader.NextResultAsync(cancellationToken));
 		}
-		while (await reader.NextResultAsync(cancellationToken));
+		catch(SqlException e)
+		{
+			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+		}
 		
-		if (!isAnswers) throw new Exception("Expected return table `Answers`)");
+		if (!isAnswers) errors.Add(new(51001, 12, 1, 87, "Answers", "Expected return table `Answers`"));
 		
-		return response;
+		if(errors.Count == 0)
+			return new(response);
 		
-		string Query(List<SqlParameter> parameters) => $"""
+		return new(errors);
+		
+		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Answers table(
 			[__SQuiL__Table__Type__Returns_Answers__] varchar(max) default('Returns_Answers'),
 			[Response] float);

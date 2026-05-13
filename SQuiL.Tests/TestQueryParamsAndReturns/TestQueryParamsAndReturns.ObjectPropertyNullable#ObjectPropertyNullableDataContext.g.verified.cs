@@ -4,6 +4,7 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 using SQuiL;
 
@@ -11,18 +12,19 @@ namespace TestCase;
 
 partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 {
-	public async Task<ObjectPropertyNullableResponse> ProcessObjectPropertyNullableAsync(
+	public async Task<SQuiLResultType<ObjectPropertyNullableResponse>> ProcessObjectPropertyNullableAsync(
 		ObjectPropertyNullableRequest request,
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
-		using SqlConnection connection = new(builder.ConnectionString);
+		using var connection = CreateConnection(builder.ConnectionString);
+		
 		var command = connection.CreateCommand();
 		
-		List<SqlParameter> parameters = new()
+		List<DbParameter> parameters = new()
 		{
-			new("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
-			new("@Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
+			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production"))
 		};
 		
 		command.CommandText = Query(parameters);
@@ -35,88 +37,104 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 		var isStudent = false;
 		var isParents = false;
 		
-		using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		
-		do
+		List<SQuiLError> errors = [];
+		try
 		{
-			var tableTag = reader.GetName(0);
-			if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			
+			do
 			{
-				switch (tableTag)
+				var tableTag = reader.GetName(0);
+				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
 				{
-					case "__SQuiL__Table__Type__Error__":
+					switch (tableTag)
 					{
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						break;
-					}
-					case "__SQuiL__Table__Type__Return_Student__":
-					{
-						if (isStudent) throw new Exception(
-							"Already returned value for `Student`");
-						
-						isStudent = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						if (response.Student is not null)
-							throw new Exception("Student was already set.");
-						
-						if (reader.GetString(0) == "Return_Student")
+						case "__SQuiL__Table__Type__Error__":
 						{
-							response.Student = new(
-								reader.GetInt32(reader.GetOrdinal("ID")),
-								reader.IsDBNull(reader.GetOrdinal("FirstName")) ? default! : reader.GetString(reader.GetOrdinal("FirstName")),
-								reader.GetString(reader.GetOrdinal("LastName")),
-								reader.IsDBNull(reader.GetOrdinal("Age")) ? default! : reader.GetInt32(reader.GetOrdinal("Age")));
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							break;
 						}
-						else
+						case "__SQuiL__Table__Type__Return_Student__":
 						{
-							continue;
-						}
-						
-						if (await reader.ReadAsync(cancellationToken))
-							throw new Exception(
-								"Return object results in more than one object. Consider using a return table instead.");
-						
-						break;
-					}
-					case "__SQuiL__Table__Type__Returns_Parents__":
-					{
-						isParents = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						var indexID = reader.GetOrdinal("ID");
-						var indexFirstName = reader.GetOrdinal("FirstName");
-						var indexLastName = reader.GetOrdinal("LastName");
-						var indexAge = reader.GetOrdinal("Age");
-						
-						do
-						{
-							if (reader.GetString(0) == "Returns_Parents")
+							if (isStudent) throw new Exception(
+								"Already returned value for `Student`");
+							
+							isStudent = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							if (response.Student is not null)
+								throw new Exception("Student was already set.");
+							
+							if (reader.GetString(0) == "Return_Student")
 							{
-								response.Parents.Add(new(
-									reader.GetInt32(indexID),
-									reader.IsDBNull(indexFirstName) ? default! : reader.GetString(indexFirstName),
-									reader.GetString(indexLastName),
-									reader.IsDBNull(indexAge) ? default! : reader.GetInt32(indexAge)));
+								response.Student = new(
+									reader.GetInt32(reader.GetOrdinal("ID")),
+									reader.IsDBNull(reader.GetOrdinal("FirstName")) ? default! : reader.GetString(reader.GetOrdinal("FirstName")),
+									reader.GetString(reader.GetOrdinal("LastName")),
+									reader.IsDBNull(reader.GetOrdinal("Age")) ? default! : reader.GetInt32(reader.GetOrdinal("Age")));
 							}
+							else
+							{
+								continue;
+							}
+							
+							if (await reader.ReadAsync(cancellationToken))
+								throw new Exception(
+									"Return object results in more than one object. Consider using a return table instead.");
+							
+							break;
 						}
-						while (await reader.ReadAsync(cancellationToken));
-						break;
+						case "__SQuiL__Table__Type__Returns_Parents__":
+						{
+							isParents = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							var indexID = reader.GetOrdinal("ID");
+							var indexFirstName = reader.GetOrdinal("FirstName");
+							var indexLastName = reader.GetOrdinal("LastName");
+							var indexAge = reader.GetOrdinal("Age");
+							
+							do
+							{
+								if (reader.GetString(0) == "Returns_Parents")
+								{
+									var valueID = reader.GetInt32(indexID);
+									var valueFirstName = reader.IsDBNull(indexFirstName) ? default! : reader.GetString(indexFirstName);
+									var valueLastName = reader.GetString(indexLastName);
+									var valueAge = reader.IsDBNull(indexAge) ? default! : reader.GetInt32(indexAge);
+									
+									response.Parents.Add(new(
+										valueID,
+										valueFirstName,
+										valueLastName,
+										valueAge));
+								}
+							}
+							while (await reader.ReadAsync(cancellationToken));
+							break;
+						}
 					}
 				}
 			}
+			while (await reader.NextResultAsync(cancellationToken));
 		}
-		while (await reader.NextResultAsync(cancellationToken));
+		catch(SqlException e)
+		{
+			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+		}
 		
-		if (!isStudent) throw new Exception("Expected return object `Student`)");
-		if (!isParents) throw new Exception("Expected return table `Parents`)");
+		if (!isStudent) errors.Add(new(51001, 12, 1, 128, "Student", "Expected return object `Student`"));
+		if (!isParents) errors.Add(new(51001, 12, 1, 129, "Parents", "Expected return table `Parents`"));
 		
-		return response;
+		if(errors.Count == 0)
+			return new(response);
 		
-		string Query(List<SqlParameter> parameters) => $"""
+		return new(errors);
+		
+		string Query(List<DbParameter> parameters) => $"""
 		Declare @Return_Student table(
 			[__SQuiL__Table__Type__Return_Student__] varchar(max) default('Return_Student'),
 			[ID] int,

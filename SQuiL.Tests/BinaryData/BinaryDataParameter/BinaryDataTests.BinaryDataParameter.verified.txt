@@ -27,13 +27,13 @@
       }
     },
     {
-      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 99, Value = BinaryTable, Original = @Returns_BinaryTable table }, Name = BinaryTable, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = False, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 99, Value = BinaryTable, Original = @Returns_BinaryTable table }, Name = BinaryTable, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 99, Value = BinaryTable, Original = @Returns_BinaryTable table }, Name = BinaryTable, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = False, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+        MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 99, Value = BinaryTable, Original = @Returns_BinaryTable table }, Name = BinaryTable, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true

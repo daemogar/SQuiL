@@ -7,6 +7,4 @@ namespace SQuiL;
 
 public enum TableType
 {
-	SampleEntity,
-	Samples
 }

@@ -12,19 +12,19 @@ namespace TestCase;
 
 partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 {
-	public async Task<TwoQueriesWithSameReference2Response> ProcessTwoQueriesWithSameReference2Async(
+	public async Task<SQuiLResultType> ProcessTwoQueriesWithSameReference2Async(
 		TwoQueriesWithSameReference2Request request,
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
 		using var connection = CreateConnection(builder.ConnectionString);
-
+		
 		var command = connection.CreateCommand();
 		
 		List<DbParameter> parameters = new()
 		{
 			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, request.Debug || EnvironmentName != "Production")
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production"))
 		};
 		
 		command.CommandText = Query(parameters);
@@ -32,15 +32,21 @@ partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 		
 		await connection.OpenAsync(cancellationToken);
 		
-		await command.ExecuteNonQueryAsync(cancellationToken);
-		
-		return new();
+		try
+		{
+			await command.ExecuteNonQueryAsync(cancellationToken);
+			return SQuiLResultType.Success;
+		}
+		catch(Microsoft.Data.SqlClient.SqlException e)
+		{
+			return new SQuiLResultType(new SQuiLError(e));
+		}
 		
 		string inputQuestion(List<DbParameter> parameters)
 		{
 			System.Text.StringBuilder query = new();
 			query.Append("Insert Into @Param_Question([Number], [Message])");
-
+			
 			if (request.Question is null)
 				throw new NullReferenceException(
 					"TwoQueriesWithSameReference2Request is missing the required property Question.");

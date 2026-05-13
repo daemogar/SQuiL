@@ -8,4 +8,5 @@ namespace TestCase;
 public partial record DoubleNumberTestRequest
 {
 	public bool Debug { get; set; }
+	public bool DebugOnly { get; set; }
 }
