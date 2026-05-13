@@ -36,7 +36,7 @@ partial class InputParameterTakesMaxStringConvertToTableArrayDataContext : SQuiL
 		
 		try
 		{
-		await command.ExecuteNonQueryAsync(cancellationToken);
+			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
 		catch(Microsoft.Data.SqlClient.SqlException e)

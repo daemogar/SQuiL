@@ -12,7 +12,7 @@ public static class SQuiLExtensions
     public static IServiceCollection AddSQuiL(
         this IServiceCollection services)
     {
-        if (IsLoaded) return;
+        if (IsLoaded) return services;
         IsLoaded = true;
         
         services.AddSingleton<TestCase.InputParameterTakesMaxStringConvertToTableArrayDataContext>();
