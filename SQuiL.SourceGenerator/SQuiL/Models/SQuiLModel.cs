@@ -106,14 +106,12 @@ public class SQuiLModel(
 	{
 		foreach (var block in blocks)
 		{
-			if (SQuiLGenerator.IsError(block.Name))
+			if (SQuiLGenerator.IsSpecial(block.Name))
 				continue;
-			if (SQuiLGenerator.IsSpecial(block.Name)
-				|| InheritsProperty(ModelName, block.Name))
-				CreateTableObject(block, false);
-			else if (block.IsTable || block.IsObject)
-				CreateTableObject(block);
-			else
+			var inherits = InheritsProperty(ModelName, block.Name);
+			if (block.IsTable || block.IsObject)
+				CreateTableObject(block, !inherits);
+			else if (!inherits)
 				Properties.Add(new(block, TableMap));
 		}
 
