@@ -212,10 +212,8 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		foreach (var attributeLists in syntax.AttributeLists)
 			foreach (AttributeSyntax attribute in attributeLists.Attributes)
 			{
-				if (context.SemanticModel
-						.GetSymbolInfo(attribute)
-						.CandidateSymbols
-						.FirstOrDefault() is not IMethodSymbol symbol)
+				var symbolInfo = context.SemanticModel.GetSymbolInfo(attribute);
+				if ((symbolInfo.Symbol ?? symbolInfo.CandidateSymbols.FirstOrDefault()) is not IMethodSymbol symbol)
 					continue;
 
 				var definition = SQuiLDefinitionType.Invalid;
