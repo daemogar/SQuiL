@@ -190,6 +190,23 @@ public class BasicIODeclareTests
 	}
 
 	[Fact]
+	public Task NotPrefixedColumnNames()
+	{
+		var name = nameof(NotPrefixedColumnNames);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Returns_Records table(
+				RecordID int,
+				Notes varchar(100),
+				NotEnrolled bit Not Null,
+				Notification varchar(100) Null,
+				NullableFlag bit Null);
+			Use [Database];
+			Select 1;
+			"""]);
+	}
+
+	[Fact]
 	public Task CustomTableVariable()
 	{
 		var name = nameof(CustomTableVariable);

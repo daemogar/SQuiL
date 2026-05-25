@@ -134,29 +134,24 @@ public class SQuiLTokenizer(string Text)
 				if (!Word.StartsWith("not", StringComparison.CurrentCultureIgnoreCase))
 					return false;
 
+				if (Word.Length <= 3 || IsIdentifierChar(Word[3]))
+					return false;
+
 				var index = 3;
-				while (true)
-				{
-					var next = Peek(index, out var word);
+				while (index < Word.Length && char.IsWhiteSpace(Word[index]))
+					index++;
 
-					if (next == '\0')
-						return false;
+				if (index + 4 > Word.Length)
+					return false;
 
-					if (char.IsWhiteSpace(next))
-					{
-						index++;
-						continue;
-					}
+				if (!Word.Substring(index, 4).Equals("null", StringComparison.CurrentCultureIgnoreCase))
+					return false;
 
-					if (word.StartsWith("null", StringComparison.CurrentCultureIgnoreCase))
-						return false;
-
-					index += 4;
-					break;
-				}
+				if (index + 4 < Word.Length && IsIdentifierChar(Word[index + 4]))
+					return false;
 
 				Tokens.Add(T(TokenType.LITERAL_NOT_NULL, Word));
-				Increment(index);
+				Increment(index + 4);
 
 				return true;
 			}
@@ -166,11 +161,17 @@ public class SQuiLTokenizer(string Text)
 				if (!Word.StartsWith("null", StringComparison.CurrentCultureIgnoreCase))
 					return false;
 
+				if (Word.Length > 4 && IsIdentifierChar(Word[4]))
+					return false;
+
 				Tokens.Add(T(TokenType.LITERAL_NULL, Word));
 				Increment(4);
 
 				return true;
 			}
+
+			static bool IsIdentifierChar(char c)
+				=> char.IsLetterOrDigit(c) || c == '_';
 
 			bool StringLiteral()
 			{
