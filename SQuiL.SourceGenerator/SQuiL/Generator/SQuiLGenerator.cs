@@ -20,6 +20,36 @@ namespace SQuiL.Generator;
 [Generator]
 public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 {
+	/// <summary>
+	/// Recognized SQuiL source file extensions, ordered longest-first so the full extension is
+	/// stripped when both would match a suffix.
+	/// </summary>
+	private static readonly string[] SqlFileExtensions = [".squil", ".sql"];
+
+	/// <summary>
+	/// Returns <c>true</c> if <paramref name="path"/> ends with a recognized SQuiL source extension
+	/// (<c>.sql</c> or <c>.squil</c>).
+	/// </summary>
+	private static bool IsSqlFile(string path)
+	{
+		foreach (var extension in SqlFileExtensions)
+			if (path.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+				return true;
+		return false;
+	}
+
+	/// <summary>
+	/// Strips a recognized SQuiL source extension (<c>.sql</c> or <c>.squil</c>) from the end of
+	/// <paramref name="path"/>; returns the path unchanged when no known extension matches.
+	/// </summary>
+	private static string StripSqlExtension(string path)
+	{
+		foreach (var extension in SqlFileExtensions)
+			if (path.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+				return path[..^extension.Length];
+		return path;
+	}
+
 	/// <summary>SQL variable name for the debug-mode flag: <c>Debug</c>.</summary>
 	public static string Debug { get; } = nameof(Debug);
 
@@ -313,7 +343,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			if (location is null)
 				continue;
 
-			var file = files.FirstOrDefault(p => p.Path.Replace("\\", "").Replace(".sql", "").Equals(method));
+			var file = files.FirstOrDefault(p => StripSqlExtension(p.Path.Replace("\\", "")).Equals(method));
 			if (file is null)
 				return;
 
@@ -435,10 +465,10 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				{
 				""");
 			var comma = "";
-			foreach (var method in files.Where(p => p.Path.EndsWith(".sql")).Select(p => p.Path.Replace("\\", "")))
+			foreach (var method in files.Where(p => IsSqlFile(p.Path)).Select(p => StripSqlExtension(p.Path.Replace("\\", ""))))
 			{
 				sb.AppendLine(comma);
-				sb.Append($"\t{method[..^4]}");
+				sb.Append($"\t{method}");
 				comma = ",";
 			}
 			sb.AppendLine();
