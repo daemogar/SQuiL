@@ -18,35 +18,43 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    # Expose the computed release version so the Windows SSMS job can attach
+    # its assets to the very same release/tag this job creates.
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
     steps:
     - name: Checkout Source
       uses: actions/checkout@v4.1.1
 
     - name: Git Fetch
       run: git fetch --prune --unshallow
-    
+
     - name: Setup DotNet
       uses: actions/setup-dotnet@v4.0.0
       with:
         dotnet-version: 10.0.x
-        
+
     - name: Restore Dependencies
       working-directory: ./${{ env.DIRECTORY }}
       run: dotnet restore
-        
+
     - name: Build ${{ env.PROJECT }}
       working-directory: ./${{ env.DIRECTORY }}
       run: dotnet build --no-restore -c Release
-      
+
     - name: Set DotNet Version
       run: echo "DOTNET=$(dotnet --version)" >> "$GITHUB_ENV"
-     
+
     - name: Set Build Number
       run: echo "BUILD=$(printf '%04d' ${{ github.run_number }})" >> "$GITHUB_ENV"
 
     - name: Set Release Version
-      run: echo "VERSION=${{ env.DOTNET }}.${{ env.BUILD }}-beta" >> "$GITHUB_ENV"
-      
+      id: version
+      run: |
+        echo "VERSION=${{ env.DOTNET }}.${{ env.BUILD }}-beta" >> "$GITHUB_ENV"
+        echo "version=${{ env.DOTNET }}.${{ env.BUILD }}-beta" >> "$GITHUB_OUTPUT"
+
     - name: Create Release
       uses: ncipollo/release-action@v1.14.0
       with:
@@ -56,7 +64,7 @@ jobs:
         draft: false
         prerelease: true
         artifactErrorsFailBuild: true
-        
+
     - name: Pack ${{ env.PROJECT }}.SourceGenerator
       env:
         RELEASE_NOTE: https://github.com/daemogar/${{ env.PROJECT }}/releases/tag/${{ env.VERSION }}
@@ -68,4 +76,72 @@ jobs:
         NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
       working-directory: ./${{ env.DIRECTORY }}
       run: dotnet nuget push **/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
-      
+
+  # ───────────────────────────────────────────────────────────────────────
+  # Build the SSMS extension VSIX and attach it — plus INSTALL.md and
+  # install.ps1 — to the release created above.
+  #
+  # This runs on Windows because the VSIX is a classic net472 VSPackage:
+  # CreateVsixContainer / GeneratePkgDef / VSCTCompile are VSSDK targets that
+  # only run under full MSBuild.exe (not `dotnet build` on Linux). VSSDK comes
+  # from the Microsoft.VSSDK.BuildTools NuGet package, so no VS "extension
+  # development" workload needs to be pre-installed on the runner.
+  #
+  # It must be a separate job rather than a separate workflow: a release
+  # created with GITHUB_TOKEN does NOT trigger `on: release` workflows, so a
+  # release-triggered workflow would never fire. `needs: build` shares the
+  # version/tag and guarantees the release exists before we upload to it.
+  # ───────────────────────────────────────────────────────────────────────
+  ssms-extension:
+
+    needs: build
+    runs-on: windows-latest
+
+    env:
+      SSMS_PROJECT: SQuiL.SsmsExtension/SQuiL.SsmsExtension.csproj
+      SSMS_OUTPUT: SQuiL.SsmsExtension/bin/Release
+
+    steps:
+    - name: Checkout Source
+      uses: actions/checkout@v4.1.1
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Setup DotNet
+      uses: actions/setup-dotnet@v4.0.0
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Restore SSMS Extension
+      run: msbuild ${{ env.SSMS_PROJECT }} /t:Restore /p:Configuration=Release
+
+    - name: Build SSMS Extension (VSIX)
+      run: msbuild ${{ env.SSMS_PROJECT }} /t:Build /p:Configuration=Release /p:DeployExtension=false
+
+    # The build copies Distribution\INSTALL.md and Distribution\install.ps1 to
+    # the output root (see the .csproj), so all three assets sit side by side.
+    - name: Verify release assets exist
+      shell: pwsh
+      run: |
+        $files = @(
+          "${{ env.SSMS_OUTPUT }}/SQuiL.SsmsExtension.vsix",
+          "${{ env.SSMS_OUTPUT }}/INSTALL.md",
+          "${{ env.SSMS_OUTPUT }}/install.ps1"
+        )
+        $missing = $files | Where-Object { -not (Test-Path $_) }
+        if ($missing) { throw "Missing expected release asset(s): $($missing -join ', ')" }
+        Get-ChildItem $files | Select-Object Name, Length
+
+    - name: Attach SSMS assets to release
+      uses: ncipollo/release-action@v1.14.0
+      with:
+        tag: ${{ needs.build.outputs.version }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+        allowUpdates: true
+        omitNameDuringUpdate: true
+        omitBodyDuringUpdate: true
+        replacesArtifacts: true
+        prerelease: true
+        artifactErrorsFailBuild: true
+        artifacts: "${{ env.SSMS_OUTPUT }}/SQuiL.SsmsExtension.vsix,${{ env.SSMS_OUTPUT }}/INSTALL.md,${{ env.SSMS_OUTPUT }}/install.ps1"

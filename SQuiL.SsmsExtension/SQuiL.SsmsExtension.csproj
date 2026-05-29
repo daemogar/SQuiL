@@ -1,0 +1,176 @@
+<Project>
+
+  <!--
+       SQuiL SSMS 22.6 Extension
+
+       SSMS 22.6 is built on the Visual Studio 2026 shell.  Extensions for this
+       generation target Microsoft.VisualStudio.Community [18.0,) — the legacy
+       IntegratedShell install target was removed.
+
+       The project still uses the classic VSPackage + MEF model (net472), which
+       is what the 2026 shell loads for compiled-VSIX extensions.  We use the
+       17.x Microsoft.VisualStudio.SDK metapackage because it is the supported
+       toolchain version with public MEF and IOleCommandTarget contracts.
+
+       Sdk.props / Sdk.targets are imported explicitly so we can place the
+       VsSDK targets AFTER Sdk.targets — that's the only ordering in which
+       VsSDK's `PrepareForRunDependsOn` extension survives MS.NET.Sdk's own
+       reassignment, which is what lets CreateVsixContainer / GeneratePkgDef
+       hook into a plain `Build`.
+  -->
+
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>SQuiL.SsmsExtension</RootNamespace>
+    <AssemblyName>SQuiL.SsmsExtension</AssemblyName>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <UseCodebase>true</UseCodebase>
+    <!-- Allow ?-suffix nullable annotations in source without enabling
+         flow-analysis warnings; we treat the codebase as oblivious. -->
+    <Nullable>annotations</Nullable>
+
+    <!-- VSIX packaging -->
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <CreateVsixContainer>true</CreateVsixContainer>
+    <DeployExtension>false</DeployExtension>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>true</CopyOutputSymbolsToOutputDirectory>
+    <StartAction>Program</StartAction>
+
+    <!-- The VSSDK targets resolve their default file paths at static
+         evaluation time from $(IntermediateOutputPath); the SDK doesn't
+         finalize that until later, and it normally appends $(TargetFramework).
+         Pin the paths up front and disable the framework-append so VSSDK and
+         the SDK agree on one obj\Debug\ folder. -->
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendTargetFrameworkToIntermediateOutputPath>false</AppendTargetFrameworkToIntermediateOutputPath>
+    <BaseIntermediateOutputPath>obj\</BaseIntermediateOutputPath>
+    <IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.13.2126" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.11.40262" ExcludeAssets="runtime" PrivateAssets="all" />
+    <!-- WebView2 hosts the writing-guide tool window's guide.html.  The
+         runtime is part of Windows + Edge updates; we just need the managed
+         wrapper compiled in. -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2592.51" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Framework references that the SDK doesn't include by default in
+         net472 mode but MEF + WPF colour formats require. -->
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.Design" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- VSIX manifest, command table, and resources -->
+    <None Include="source.extension.vsixmanifest">
+      <SubType>Designer</SubType>
+    </None>
+    <VSCTCompile Include="VSPackage\SQuiLPackage.vsct">
+      <ResourceName>Menus.ctmenu</ResourceName>
+    </VSCTCompile>
+    <EmbeddedResource Update="VSPackage\VSPackage.resx">
+      <MergeWithCTO>true</MergeWithCTO>
+      <ManifestResourceName>VSPackage</ManifestResourceName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Editor assets are sync'd from SQuiL.Editor.Shared before build.
+         See the SyncSharedEditorAssets target below.
+
+         guide.html is bundled into the VSIX so the writing-guide tool window
+         can find it next to the installed assembly.  The grammar JSONs are
+         kept in the working tree for parity with the VS Code repo layout
+         but the SSMS classifier doesn't read them at runtime, so we leave
+         them out of the VSIX archive. -->
+    <Content Include="Resources\guide.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <VSIXSubPath>Resources</VSIXSubPath>
+    </Content>
+    <None Include="Grammars\squil.tmLanguage.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Grammars\language-configuration.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Icon + license resources packed into the VSIX (paths referenced from
+         source.extension.vsixmanifest must exist relative to the archive root). -->
+    <Content Include="Resources\Icons\SQuiLPackage.ico" />
+    <Content Include="Resources\Icons\SQuiLPreview.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="LICENSE.txt">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <!-- Supplementary pkgdef: binds .squil to SSMS's SQL Query Editor factory
+         so F5 / connection picker / results pane work like a normal .sql file.
+         VSIXInstaller merges every .pkgdef in the archive root with the one
+         generated from our [Package…] attributes. -->
+    <Content Include="SQuiL.Bindings.pkgdef">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Distribution hand-off files. Copied to the output ROOT (via <Link>)
+         so bin\$(Configuration)\ contains the complete package next to the
+         .vsix: SQuiL.SsmsExtension.vsix + INSTALL.md + install.ps1. These are
+         the three files attached as GitHub release assets by
+         .github/workflows/publish.yml. NOT packed into the VSIX itself. -->
+    <Content Include="Distribution\INSTALL.md" Link="INSTALL.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>false</IncludeInVSIX>
+    </Content>
+    <Content Include="Distribution\install.ps1" Link="install.ps1">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>false</IncludeInVSIX>
+    </Content>
+  </ItemGroup>
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+
+  <!--
+       Imported AFTER Sdk.targets so VSSDK's extensions to PrepareForRunDependsOn
+       (which include GeneratePkgDef, CopyPkgDef, CreateVsixContainer) win over
+       the SDK's defaults.  Without this ordering, plain `dotnet build` produces
+       only the DLL and never packages a .vsix.
+  -->
+  <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="'$(VSToolsPath)' != '' and Exists('$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets')" />
+
+  <!--
+       Sync the canonical editor assets from SQuiL.Editor.Shared into this
+       extension's Resources and Grammars folders before compile.  The
+       VS Code extension does the same via npm run sync-shared.  Anything
+       you copy here is overwritten on each build — edit only in
+       SQuiL.Editor.Shared.
+  -->
+  <Target Name="SyncSharedEditorAssets" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_SharedGrammars Include="..\SQuiL.Editor.Shared\squil.tmLanguage.json" />
+      <_SharedGrammars Include="..\SQuiL.Editor.Shared\language-configuration.json" />
+      <_SharedGuide Include="..\SQuiL.Editor.Shared\guide.html" />
+    </ItemGroup>
+    <MakeDir Directories="Grammars;Resources" />
+    <Copy SourceFiles="@(_SharedGrammars)" DestinationFolder="Grammars" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_SharedGuide)" DestinationFolder="Resources" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

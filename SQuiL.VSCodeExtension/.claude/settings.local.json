@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(find /c/dev/projects/SQuiL/SQuiL.Simple -name \"*.cs\" 2>/dev/null)",
+      "Read(//c/dev/projects/SQuiL/SQuiL.Simple/**)"
+    ],
+    "additionalDirectories": [
+      "c:\\dev\\projects\\SQuiL\\SQuiL.VisualStudioExtension"
+    ]
+  }
+}

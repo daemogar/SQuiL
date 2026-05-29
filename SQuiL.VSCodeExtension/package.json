@@ -1,0 +1,135 @@
+{
+  "name": "squil-editor",
+  "displayName": "SQuiL SQL Editor",
+  "description": "Language support for SQuiL — the C# SQL source generator ORM",
+  "version": "0.1.0",
+  "publisher": "southern",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/daemogar/SQuiL.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "sql",
+    "squil",
+    "csharp",
+    "source-generator",
+    "orm"
+  ],
+  "activationEvents": [
+    "onLanguage:squil"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "squil",
+        "aliases": [
+          "SQuiL SQL",
+          "squil"
+        ],
+        "extensions": [
+          ".squil",
+          ".sql"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "squil",
+        "scopeName": "source.squil",
+        "path": "./syntaxes/squil.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "squil.newFile",
+        "title": "SQuiL: New File",
+        "shortTitle": "SQuiL File",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "squil.previewGeneratedCSharp",
+        "title": "SQuiL: Preview Generated C#",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "squil.buildProject",
+        "title": "SQuiL: Build Project (Trigger Source Generator)",
+        "icon": "$(play)"
+      },
+      {
+        "command": "squil.openGuide",
+        "title": "SQuiL: Open Writing Guide",
+        "icon": "$(book)"
+      }
+    ],
+    "menus": {
+      "file/newFile": [
+        {
+          "command": "squil.newFile",
+          "group": "file"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "squil.previewGeneratedCSharp",
+          "when": "resourceLangId == squil",
+          "group": "navigation"
+        },
+        {
+          "command": "squil.openGuide",
+          "when": "resourceLangId == squil",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "squil.previewGeneratedCSharp",
+          "when": "resourceLangId == squil",
+          "group": "squil@1"
+        },
+        {
+          "command": "squil.buildProject",
+          "when": "resourceLangId == squil",
+          "group": "squil@2"
+        },
+        {
+          "command": "squil.openGuide",
+          "when": "resourceLangId == squil",
+          "group": "squil@3"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "SQuiL",
+      "properties": {
+        "squil.dotnetPath": {
+          "type": "string",
+          "default": "dotnet",
+          "description": "Path to the dotnet CLI executable used for building projects."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "sync-shared": "node scripts/sync-shared.js",
+    "vscode:prepublish": "npm run sync-shared && npm run compile",
+    "compile": "npm run sync-shared && tsc -p ./",
+    "watch": "npm run sync-shared && tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.41",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.9.3"
+  }
+}

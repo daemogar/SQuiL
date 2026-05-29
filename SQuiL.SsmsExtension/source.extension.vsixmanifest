@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
+  <Metadata>
+    <Identity Id="SQuiL.SsmsExtension.5b1e9a6e-3c4f-4c1f-9a3e-2a8f8c1e7d20"
+              Version="1.0.13"
+              Language="en-US"
+              Publisher="SQuiL" />
+    <DisplayName>SQuiL for SSMS</DisplayName>
+    <Description xml:space="preserve">Authoring support for SQuiL (.squil) files inside SQL Server Management Studio 22.6 — syntax highlighting, IntelliSense, hover info, linting, and a generated-C# preview.</Description>
+    <MoreInfo>https://github.com/daemogar/SQuiL</MoreInfo>
+    <License>LICENSE.txt</License>
+    <Icon>Resources\Icons\SQuiLPreview.png</Icon>
+    <PreviewImage>Resources\Icons\SQuiLPreview.png</PreviewImage>
+    <Tags>SQL,SQuiL,SSMS,source generator,IntelliSense</Tags>
+  </Metadata>
+
+  <Installation InstalledByMsi="false">
+    <!--
+         SSMS 22.6's productId is Microsoft.VisualStudio.Product.Ssms, which the
+         Sku targeting system advertises as "Microsoft.VisualStudio.Ssms" — NOT
+         "Microsoft.VisualStudio.Community".  Confirmed against SSMS 22.6's own
+         bundled Application package manifest, which targets exactly this.
+         The legacy <SupportedProducts><IsolatedShell>ssms</…> pattern from the
+         VS 2017 shell era does NOT apply to this generation.
+    -->
+    <InstallationTarget Id="Microsoft.VisualStudio.Ssms" Version="[22.0,)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+  </Installation>
+
+  <Dependencies>
+    <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" d:Source="Manual" Version="[4.7.2,)" />
+  </Dependencies>
+
+  <Prerequisites>
+    <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[18.0,)" DisplayName="Visual Studio core editor" />
+  </Prerequisites>
+
+  <Assets>
+    <Asset Type="Microsoft.VisualStudio.VsPackage"
+           d:Source="Project"
+           d:ProjectName="%CurrentProject%"
+           Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
+    <Asset Type="Microsoft.VisualStudio.MefComponent"
+           d:Source="Project"
+           d:ProjectName="%CurrentProject%"
+           Path="|%CurrentProject%|" />
+  </Assets>
+</PackageManifest>

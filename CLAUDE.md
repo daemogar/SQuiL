@@ -10,6 +10,223 @@ SQuiL is a C# source generator that converts SQL files into strongly-typed C# co
 - Dependency injection extensions
 - Enum types for queries and tables
 
+## Editor extensions (VS Code + SSMS 22.6)
+
+This repo ships two editor extensions that provide syntax highlighting and a
+writing guide for SQuiL `.squil` files. They share canonical editor assets
+via a third folder:
+
+```
+SQuiL/
+├── SQuiL.Editor.Shared/             ← CANONICAL grammar, language config, guide.html
+│   ├── squil.tmLanguage.json
+│   ├── language-configuration.json
+│   ├── guide.html                   ← rendered SQuiL writing guide, CSS-fallback'd for both IDEs
+│   └── README.md
+│
+├── SQuiL.VSCodeExtension/           ← TypeScript / vscode API
+│   ├── src/                         ← all the providers (completion, diagnostics, hover, preview…)
+│   ├── scripts/sync-shared.js       ← copies from Editor.Shared into syntaxes/ and root
+│   └── package.json                 ← scripts run sync-shared before compile/package
+│
+└── SQuiL.SsmsExtension/             ← C# / VS SDK 17.x / WebView2 (SSMS 22.6 — VS 2026 shell)
+    ├── ContentType/                 ← .squil → "SQL" mapping helper (IsSquilBuffer)
+    ├── Classification/              ← syntax overlay (20 SQuiL-specific scopes)
+    ├── Completion/                  ← IntelliSense, @-trigger filter, Ctrl+Space backup
+    ├── QuickInfo/                   ← async hover info
+    ├── Tagging/                     ← IErrorTag squigglies (parser diagnostics + lints)
+    ├── Commands/                    ← Preview Generated C#, Build SQuiL Project, Open Guide, Insert Sample Data
+    ├── Preview/                     ← C# preview generator
+    ├── Parsing/                     ← parser, linter, SQL→C# type map
+    ├── SampleData/                  ← INSERT-block generator + row-count dialog
+    ├── Guide/                       ← WebView2 tool window
+    ├── VSPackage/                   ← VSCT + resx (commands, menu placements)
+    ├── Resources/                   ← icons, writing guide, LICENSE
+    ├── SQuiL.Bindings.pkgdef        ← binds .squil to SSMS's SQL Query Editor factory
+    ├── SQuiLPackage.cs              ← AsyncPackage, background load
+    └── source.extension.vsixmanifest ← targets Microsoft.VisualStudio.Ssms [22.0,) amd64
+```
+
+### SSMS architecture notes (hard-won — don't relearn)
+
+1. **SSMS's `.sql` editor is the legacy `IVsEditorFactory`**
+   `{B5A506EB-11BE-4782-9A18-21265C2CA0B4}` — declared in `SQLEditors.pkgdef`.
+   NOT a MEF content-type-based editor. To make `.squil` get F5 / connection
+   picker / results pane, bind the extension to that factory via a
+   supplementary `.pkgdef` (`SQuiL.Bindings.pkgdef` in this repo). Modern
+   MEF content type registration alone is not enough.
+
+2. **The SQL Query Editor pins content type `SQL` on every buffer it opens.**
+   SSMS's Execute (F5) command does a **strict equality check** on the
+   content type name. Swapping the buffer to a child type (e.g., `squil`
+   inheriting from `SQL`) **disables F5**. The right pattern is: leave the
+   buffer as `SQL`, subscribe every SQuiL MEF component to `SQL`, and call
+   `SQuiLContentTypeDefinition.IsSquilBuffer(buffer)` (which file-extension-
+   checks `.squil`) to short-circuit on non-SQuiL buffers. Keeps SSMS's
+   commands happy, keeps SQuiL overlays scoped.
+
+3. **VSIX install target for SSMS 22 is `Microsoft.VisualStudio.Ssms [22.0,) amd64`**
+   — NOT `Microsoft.VisualStudio.Community`. SSMS's bundled
+   `Application/extension.vsixmanifest` is the reference. Use `vswhere
+   -products * -all -property installationName` to enumerate. SSMS's
+   instanceId for our test machine is `f16a3f6a`; productId is
+   `Microsoft.VisualStudio.Product.Ssms`.
+
+4. **`VSIXInstaller.exe` quirks.**
+   `/admin` requires elevation we don't have. `/instanceIds:<id>` scopes
+   the install to a specific VS/SSMS instance (use vswhere to enumerate).
+   The installer lives at:
+   `C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\VSIXInstaller.exe`
+   but delegates to the VS installer engine, so it picks up all
+   VS/SSMS instances on the machine unless you scope with `/instanceIds`.
+
+5. **After many install/uninstall cycles SSMS can land in a stale state.**
+   Symptom: `.squil` opens as plain text, no colours, no F5, nothing works.
+   Recovery: kill SSMS → `VSIXInstaller /uninstall:<identity-guid>` →
+   delete `%LOCALAPPDATA%\Microsoft\SSMS\22.0_f16a3f6a\ComponentModelCache\*`
+   → delete `%LOCALAPPDATA%\Microsoft\SSMS\22.0_f16a3f6a\privateregistry.bin`
+   → reinstall → `Ssms.exe /setup` → relaunch. Don't skip `/setup` after
+   pkgdef changes.
+
+6. **Layered classifiers + colour priority.**
+   SSMS's SQL classifier tags `SELECT`/`FROM`/`int`/`varchar`/etc. as
+   "keyword". Our classifier overlays SQuiL-specific scopes. By default,
+   both fire and SSMS's wins on the SQL keywords. To force a colour for
+   a span (e.g., teal for SQL types), set
+   `[Order(After = Priority.High)]` on the `ClassificationFormatDefinition`
+   — `Priority.Default` is not enough to override SSMS.
+
+7. **`Completion` (legacy) has no SortText.** The dropdown is sorted
+   alphabetically by `DisplayText`. If you need a specific item to filter
+   in on `@`, its DisplayText must START with `@`. Workaround for "sort
+   this item first": rewrite the DisplayText so the desired position
+   matches alphabetical order (we lead the sample-data entry with the
+   variable name: `@Params_X    ⊕ insert sample data`, which sorts
+   adjacent to `@Params_X`).
+
+8. **SSMS's SQL editor right-click menu is NOT third-party-extensible.**
+   The context menu is owned by package `{4058755A-8FBE-41C7-BC99-3DBF5C74BA62}`
+   (SqlEditorsPackage in `SQLEditors.dll`); its menu IDs are private and
+   compiled into the package's `.cto` resource — not published in any
+   `vsshlids.h`-equivalent header.  Parenting commands to the standard
+   `IDM_VS_CTXT_CODEWIN` group does not surface them in the SQL editor —
+   that ID is honoured only by the modern WPF code editor, which is not
+   what opens .sql/.squil files.  Use the **Tools menu** (the convention
+   for SSMS extensions — SqlQueryStress, ErikEJ's gallery, etc.) and/or
+   `.vsct` keyboard bindings.  Don't waste time chasing the SQL editor's
+   right-click.
+
+9. **Tool windows from `InitializeAsync` deadlock.**
+   Calling `FindToolWindow(create: true)` from package init (even after
+   `SwitchToMainThreadAsync`) hangs SSMS startup. First-run auto-open of
+   the writing guide currently disabled for this reason. Workaround for
+   later: hook `IVsShell::AdviseShellPropertyChanges` on
+   `VSSPROPID_Zombie=false` and do tool-window work from that callback.
+
+10. **WebView2 `Loaded` fires multiple times.**
+    WPF re-fires `Loaded` every time a control is reattached to the
+    visual tree (re-docking a tool window etc.). `EnsureCoreWebView2Async`
+    throws on re-call with a different environment. Guard with a
+    `_initStarted` flag.
+
+11. **VSSDK build pipeline notes** (so the VSIX actually packages):
+    - SDK-style csproj using `<Project Sdk="Microsoft.NET.Sdk">` doesn't
+      automatically wire VSSDK targets. Use the split-Sdk pattern:
+      `<Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />` at the top,
+      `<Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />` near the
+      bottom, then explicit `<Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" />`
+      AFTER Sdk.targets. Otherwise VSSDK's extensions to `PrepareForRunDependsOn`
+      are wiped and `CreateVsixContainer` never runs.
+    - `<AppendTargetFrameworkToIntermediateOutputPath>false</AppendTargetFrameworkToIntermediateOutputPath>`
+      + pin `IntermediateOutputPath=obj\$(Configuration)\` so VSSDK
+      (parse-time path resolution) and the SDK (target-time path
+      resolution) agree on a single `obj\Debug\` folder.
+    - `<EmbeddedResource Update="VSPackage\VSPackage.resx">` (not Include)
+      — the SDK already auto-includes it.
+    - `ProductArchitecture` in the manifest must be `amd64` (enum value);
+      `x64` is rejected by the manifest schema even though SSMS's product
+      `chip` reports `x64`.
+    - The VSIX itself must contain `LICENSE.txt` at archive root; the
+      manifest's `<License>` element points at that path.
+    - For supplementary pkgdef registrations (e.g. binding .squil to the
+      SQL Query Editor factory), drop a `.pkgdef` file at the archive
+      root via `<Content Include="…" IncludeInVSIX="true">`. VSIXInstaller
+      merges every `.pkgdef` it finds.
+
+### Editing rules
+
+- **Grammar / language-config / guide content** — edit only in
+  `SQuiL.Editor.Shared/`. The per-extension copies are overwritten on each
+  build's sync step (`npm run sync-shared` for VS Code, MSBuild target
+  `SyncSharedEditorAssets` for SSMS).
+- **Provider logic ported to both surfaces.** `parser.ts` ↔ `SQuiLParser.cs`,
+  `previewGenerator.ts` ↔ `SQuiLPreviewGenerator.cs`,
+  `sampleDataGenerator.ts` ↔ `SampleDataGenerator.cs`,
+  `hoverProvider.ts` ↔ `SQuiLQuickInfoSource.cs`,
+  `diagnosticsProvider.ts` ↔ `SQuiLLinter.cs` + `SQuiLErrorTagger.cs`,
+  `completionProvider.ts` ↔ `SQuiLCompletionSource.cs`.
+  Change one side, change the other.
+- **GUIDs** in the SSMS extension link C# to the `.vsct`:
+  | C# location | .vsct location |
+  |---|---|
+  | `SQuiLPackageGuids.PackageGuidString`         | `guidSQuiLPackage` |
+  | `SQuiLPackageGuids.CmdSetGuidString`          | `guidSQuiLCmdSet` |
+  | `SQuiLPackageGuids.GuideToolWindowGuidString` | (used directly via `[Guid(...)]` on tool window) |
+  If any GUID changes, update both sides.
+
+### SQuiL naming conventions (must follow in snippets, examples, docs)
+
+- **ID always all caps** — never `Id`. Applies to `@Param_UserID`, `UserID`,
+  `NewID()`, etc. Sole exception: VS Code API identifiers like
+  `document.languageId` are framework-defined and stay as-is.
+- **Generated record naming** — table-valued vars produce `<Name>Table`
+  records; single-object vars produce `<Name>Object` records. Never
+  `<Name>Item` (older legacy term, do not use).
+- **Special variables** — `@Debug` and `@EnvironmentName` appear on
+  `*Request`; `@Error` and `@Errors` appear on `*Response` when declared.
+  `@Debug` is ALWAYS on Request (always emitted as `bool Debug` +
+  `bool DebugOnly`) regardless of whether SQL declares it.
+- **Sample data detection** — the extension detects an existing sample-data
+  block by the `Insert Into @Param_…` statement itself; NO comment markers.
+  `@Params_` (list) prompts for row count; `@Param_…Table(...)` (single
+  object) auto-inserts exactly one row.
+- **`@AsOfDate`** — user has requested this be documented as a special
+  variable in the guide, but the source generator's `IsSpecial()` does NOT
+  recognize it yet (only `Debug`, `EnvironmentName`, `Error`, `Errors`).
+  Skip documenting until semantics are confirmed.
+
+### SSMS extension testing workflow (SSMS 22.6)
+
+There is no "F5 → experimental hive" loop for the SSMS extension — SSMS 22
+doesn't support the experimental-instance pattern the way VS does. The
+iteration cycle is build → uninstall → install → restart SSMS:
+
+```powershell
+$proj    = 'C:\dev\projects\SQuiL\SQuiL.SsmsExtension\SQuiL.SsmsExtension.csproj'
+$msbuild = 'C:\Program Files\Microsoft Visual Studio\18\Enterprise\MSBuild\Current\Bin\MSBuild.exe'
+$install = 'C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\VSIXInstaller.exe'
+$ssms    = 'C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\Ssms.exe'
+$vsix    = 'C:\dev\projects\SQuiL\SQuiL.SsmsExtension\bin\Debug\SQuiL.SsmsExtension.vsix'
+$id      = 'SQuiL.SsmsExtension.5b1e9a6e-3c4f-4c1f-9a3e-2a8f8c1e7d20'
+
+Get-Process ssms -ErrorAction SilentlyContinue | Stop-Process -Force
+& $msbuild $proj /t:Rebuild /v:m /nologo
+& $install /quiet /uninstall:$id
+& $install /quiet $vsix
+Get-ChildItem "$env:LOCALAPPDATA\Microsoft\SSMS\22.0_f16a3f6a\ComponentModelCache" -File |
+  ForEach-Object { Remove-Item $_.FullName -Force }
+Start-Process $ssms -ArgumentList "/log"
+```
+
+If a build seems to install cleanly but SSMS still shows stale behaviour
+(no colours, F5 disabled, etc.), do a **full reset**: also delete
+`%LOCALAPPDATA%\Microsoft\SSMS\22.0_f16a3f6a\privateregistry.bin` and run
+`Ssms.exe /setup` before relaunching.
+
+**Bump `<Identity Version="…">` in `source.extension.vsixmanifest` on every
+build** — VSIXInstaller skips re-installation if it sees the same version
+already installed, which silently masks broken builds.
+
 ## Building and Testing
 
 ### Build Commands

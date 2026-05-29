@@ -1,0 +1,17 @@
+; SQuiL.Bindings.pkgdef
+; ---------------------
+; Bind the .squil file extension to SSMS's "SQL Query Editor" editor factory
+; ({B5A506EB-11BE-4782-9A18-21265C2CA0B4}, declared in SQLEditors.pkgdef).
+; This is the same factory that owns .sql, so opening a .squil file gets the
+; full SSMS SQL editor experience: F5 to execute, connection picker on the
+; toolbar, status bar showing the connected server, the results pane, etc.
+;
+; Priority 0x32 (50) matches what SSMS uses for .sql itself — high enough to
+; win over the generic VS text editor without overriding any specialised
+; SSMS editor that might also claim the extension.
+
+[$RootKey$\Editors\{B5A506EB-11BE-4782-9A18-21265C2CA0B4}\Extensions]
+"squil"=dword:00000032
+
+[$RootKey$\Editors\{C76E46D4-B7D7-42b8-9726-A98D8045B179}\Extensions]
+"squil"=dword:00000032

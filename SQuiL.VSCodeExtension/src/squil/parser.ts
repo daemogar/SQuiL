@@ -1,0 +1,275 @@
+/**
+ * SQuiL SQL File Parser
+ *
+ * Parses SQuiL-annotated SQL files to extract:
+ *   - Query name  (from --Name: comment)
+ *   - Database    (from USE statement)
+ *   - Variables   (from DECLARE statements, classified by role)
+ *   - Diagnostics (errors/warnings for linting)
+ */
+
+export type VariableRole =
+  | 'param'           // @Param_Name     — input scalar
+  | 'params'          // @Params_Name    — input table-valued (IEnumerable)
+  | 'param-table'     // @Param_Name TABLE(...) — input object
+  | 'return'          // @Return_Name    — output scalar
+  | 'returns'         // @Returns_Name   — output table (IEnumerable)
+  | 'return-table'    // @Return_Name TABLE(...) — output object
+  | 'debug'           // @Debug
+  | 'environmentName' // @EnvironmentName
+  | 'error'           // @Error
+  | 'errors'          // @Errors
+  | 'unknown';        // unrecognised — triggers a warning
+
+export interface TableColumn {
+  name: string;
+  sqlType: string;
+  nullable: boolean;
+}
+
+export interface SQuiLVariable {
+  role: VariableRole;
+  /** Raw token as it appears in SQL, e.g. "@Param_Name" */
+  rawName: string;
+  /** Extracted C#-style name, e.g. "Name" */
+  name: string;
+  /** SQL type string, e.g. "VARCHAR(100)" or "TABLE" */
+  sqlType: string;
+  /** Column definitions if this is a TABLE type */
+  columns?: TableColumn[];
+  line: number;
+  character: number;
+}
+
+export interface SQuiLDiagnostic {
+  message: string;
+  line: number;
+  startChar: number;
+  endChar: number;
+  severity: 'error' | 'warning' | 'info';
+}
+
+export interface SQuiLParseResult {
+  /** Query name from --Name: annotation */
+  queryName?: string;
+  /** Database from USE statement */
+  database?: string;
+  databaseLine?: number;
+  variables: SQuiLVariable[];
+  diagnostics: SQuiLDiagnostic[];
+}
+
+/** Parse a full SQuiL SQL file text into a structured result. */
+export function parseSQuiL(text: string): SQuiLParseResult {
+  const lines = text.split('\n');
+  const result: SQuiLParseResult = {
+    variables: [],
+    diagnostics: [],
+  };
+
+  let useCount = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const trimmed = rawLine.trim();
+
+    // --Name: annotation (only meaningful at the top, but we check anywhere)
+    if (!result.queryName) {
+      const nameMatch = trimmed.match(/^--\s*Name:\s*(.+)$/i);
+      if (nameMatch) {
+        result.queryName = nameMatch[1].trim();
+        continue;
+      }
+    }
+
+    // Skip blank lines and pure comments
+    if (!trimmed || trimmed.startsWith('--') || trimmed.startsWith('/*')) {
+      continue;
+    }
+
+    // USE statement
+    const useMatch = trimmed.match(/^USE\s+\[?(\w+)\]?\s*;?\s*$/i);
+    if (useMatch) {
+      useCount++;
+      const usePos = rawLine.search(/USE/i);
+      if (useCount > 1) {
+        result.diagnostics.push({
+          message: 'Multiple USE statements found. Only one is allowed per SQuiL file.',
+          line: i,
+          startChar: usePos >= 0 ? usePos : 0,
+          endChar: rawLine.trimEnd().length,
+          severity: 'error',
+        });
+      } else {
+        result.database = useMatch[1];
+        result.databaseLine = i;
+      }
+      continue;
+    }
+
+    // DECLARE statement — capture the variable name and everything after it
+    // Handles multiline TABLE declarations by joining continuation if needed
+    const declareMatch = trimmed.match(/^DECLARE\s+(@\w+)\s+([\s\S]*?)(?:;|$)/i);
+    if (declareMatch) {
+      const varName = declareMatch[1];
+      let typeStr = declareMatch[2].trim();
+
+      // If a TABLE type starts here but the closing ) is on a later line, collect it
+      if (/^TABLE\s*\(/i.test(typeStr) && !typeStr.includes(')')) {
+        let j = i + 1;
+        while (j < lines.length && !lines[j].includes(')')) {
+          typeStr += ' ' + lines[j].trim();
+          j++;
+        }
+        if (j < lines.length) {
+          typeStr += ' ' + lines[j].trim().replace(/;.*$/, '');
+        }
+      }
+
+      parseVariable(varName, typeStr, i, rawLine, result, useCount > 0);
+    }
+  }
+
+  // Missing USE warning
+  if (useCount === 0) {
+    result.diagnostics.push({
+      message: 'No USE statement found. SQuiL requires a USE [DatabaseName]; statement.',
+      line: 0,
+      startChar: 0,
+      endChar: 0,
+      severity: 'warning',
+    });
+  }
+
+  return result;
+}
+
+// ─── Internal helpers ──────────────────────────────────────────────────────
+
+function parseVariable(
+  rawName: string,
+  typeStr: string,
+  lineNum: number,
+  fullLine: string,
+  result: SQuiLParseResult,
+  afterUse: boolean,
+): void {
+  const varStart = fullLine.indexOf(rawName);
+  const upper = rawName.toUpperCase();
+  const isTable = /^TABLE\s*\(/i.test(typeStr);
+
+  let role: VariableRole;
+  let name: string;
+
+  if (upper === '@DEBUG') {
+    role = 'debug';
+    name = 'Debug';
+  } else if (upper === '@ENVIRONMENTNAME') {
+    role = 'environmentName';
+    name = 'EnvironmentName';
+  } else if (upper === '@ERROR') {
+    role = 'error';
+    name = 'Error';
+  } else if (upper === '@ERRORS') {
+    role = 'errors';
+    name = 'Errors';
+  } else if (upper.startsWith('@PARAMS_')) {
+    role = 'params';
+    name = rawName.substring('@Params_'.length);
+  } else if (upper.startsWith('@PARAM_')) {
+    role = isTable ? 'param-table' : 'param';
+    name = rawName.substring('@Param_'.length);
+  } else if (upper.startsWith('@RETURNS_')) {
+    role = 'returns';
+    name = rawName.substring('@Returns_'.length);
+  } else if (upper.startsWith('@RETURN_')) {
+    role = isTable ? 'return-table' : 'return';
+    name = rawName.substring('@Return_'.length);
+  } else {
+    role = 'unknown';
+    name = rawName.substring(1);
+    // Only I/O declarations (before the USE) must follow SQuiL naming.
+    // After the USE, @-variables are ordinary T-SQL locals in the query body —
+    // don't require the @Param_/@Return_ convention for them.
+    if (!afterUse) {
+      result.diagnostics.push({
+        message:
+          `Variable '${rawName}' doesn't follow SQuiL naming conventions. ` +
+          `Expected: @Param_*, @Params_*, @Return_*, @Returns_*, @Debug, @EnvironmentName, @Error, or @Errors.`,
+        line: lineNum,
+        startChar: varStart >= 0 ? varStart : 0,
+        endChar: varStart >= 0 ? varStart + rawName.length : rawName.length,
+        severity: 'warning',
+      });
+    }
+  }
+
+  // Parse TABLE column definitions
+  let columns: TableColumn[] | undefined;
+  const tableMatch = typeStr.match(/TABLE\s*\((.+)\)/is);
+  if (tableMatch) {
+    columns = parseTableColumns(tableMatch[1]);
+  }
+
+  result.variables.push({
+    role,
+    rawName,
+    name,
+    sqlType: isTable ? 'TABLE' : typeStr.replace(/;$/, '').trim(),
+    columns,
+    line: lineNum,
+    character: varStart >= 0 ? varStart : 0,
+  });
+}
+
+function parseTableColumns(columnsStr: string): TableColumn[] {
+  const cols: TableColumn[] = [];
+  // Split on commas not inside parens (for types like DECIMAL(18,2))
+  const parts = splitTopLevelCommas(columnsStr);
+  for (const part of parts) {
+    const trimmed = part.trim();
+    const match = trimmed.match(/^(\w+)\s+([\w]+(?:\([^)]*\))?)\s*(NULL|NOT\s+NULL)?$/i);
+    if (match) {
+      const nullability = (match[3] ?? '').toUpperCase().trim();
+      cols.push({
+        name: match[1],
+        sqlType: match[2].trim(),
+        nullable: nullability !== 'NOT NULL',
+      });
+    }
+  }
+  return cols;
+}
+
+function splitTopLevelCommas(str: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < str.length; i++) {
+    if (str[i] === '(') depth++;
+    else if (str[i] === ')') depth--;
+    else if (str[i] === ',' && depth === 0) {
+      parts.push(str.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(str.slice(start));
+  return parts;
+}
+
+/** Returns a human-readable description of a variable role. */
+export function describeRole(role: VariableRole): string {
+  switch (role) {
+    case 'param':         return 'Input scalar parameter';
+    case 'params':        return 'Input table-valued parameter (IEnumerable<T>)';
+    case 'param-table':   return 'Input object parameter (TABLE type)';
+    case 'return':        return 'Output scalar variable';
+    case 'returns':       return 'Output table (IEnumerable<T>)';
+    case 'return-table':  return 'Output object (TABLE type)';
+    case 'debug':         return 'Debug flag (not a C# parameter)';
+    case 'environmentName': return 'Environment name (not a C# parameter)';
+    case 'error':         return 'Error variable (not a C# parameter)';
+    case 'errors':        return 'Errors collection (not a C# parameter)';
+    case 'unknown':       return 'Unknown — does not match SQuiL naming convention';
+  }
+}

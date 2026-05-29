@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<!--
+  ╔══════════════════════════════════════════════════════════════════════════╗
+  ║  SQuiL Writing Guide — CANONICAL SOURCE                                  ║
+  ╠══════════════════════════════════════════════════════════════════════════╣
+  ║                                                                          ║
+  ║  This file is the single source of truth for the SQuiL writing guide.   ║
+  ║  Both extensions load it at runtime:                                     ║
+  ║                                                                          ║
+  ║    • SQuiL.VSCodeExtension       → webview panel                         ║
+  ║    • SQuiL.VisualStudioExtension → WebView2 tool window (future)         ║
+  ║                                                                          ║
+  ║  EDITING                                                                 ║
+  ║    Edit only THIS file. Per-extension copies under each extension's      ║
+  ║    tree are overwritten by the build's sync-shared step:                 ║
+  ║      • VS Code:   `npm run sync-shared`  (auto-runs on compile/package)  ║
+  ║      • VS 2026:   MSBuild target `SyncSharedEditorAssets`  (auto-runs)   ║
+  ║                                                                          ║
+  ║  WHEN ADDING / CHANGING A SQUIL FEATURE                                  ║
+  ║    1. Update this file (the rendered docs).                              ║
+  ║    2. Update SQuiL.VSCodeExtension/src/ (parser, completions, …).        ║
+  ║    3. Update SQuiL.VisualStudioExtension/ if the change affects the      ║
+  ║       grammar (shared file is in this same folder).                      ║
+  ║    4. Update CLAUDE.md in the repo root.                                 ║
+  ║    5. Bump version in BOTH:                                              ║
+  ║         SQuiL.VSCodeExtension/package.json          → "version"          ║
+  ║         SQuiL.VisualStudioExtension/source.extension.vsixmanifest        ║
+  ║                                                                          ║
+  ║  CSS FALLBACKS                                                           ║
+  ║    The :root block declares `--vscode-*` variables with explicit         ║
+  ║    fallback colors so this page renders identically in:                  ║
+  ║      • VS Code webview      (variables overridden by VS Code's host)     ║
+  ║      • VS 2026 WebView2     (variables fall back to the literals)        ║
+  ║      • A plain browser      (variables fall back to the literals)        ║
+  ║    Keep the fallbacks. Do not remove them even when adding new vars.     ║
+  ║                                                                          ║
+  ╚══════════════════════════════════════════════════════════════════════════╝
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQuiL Writing Guide</title>
+<style>
+  :root {
+    /* Each --vscode-* var carries an explicit fallback so this page renders
+       correctly outside VS Code (e.g. in VS 2026's WebView2). Inside VS Code
+       the webview host overrides these variables automatically. */
+    --bg:        var(--vscode-editor-background,         #1e1e1e);
+    --fg:        var(--vscode-editor-foreground,         #d4d4d4);
+    --border:    var(--vscode-panel-border,              #3c3c3c);
+    --code-bg:   var(--vscode-textCodeBlock-background,  #2d2d30);
+    --link:      var(--vscode-textLink-foreground,       #4ec9b0);
+    --heading:   var(--vscode-symbolIcon-classForeground, #4ec9b0);
+    --param-color:   #4fc1ff;
+    --return-color:  #4ec994;
+    --special-color: #c586c0;
+    --keyword-color: #569cd6;
+    --type-color:    #ce9178;
+    --comment-color: #6a9955;
+    --badge-bg:  var(--vscode-badge-background,          #4d4d4d);
+    --badge-fg:  var(--vscode-badge-foreground,          #ffffff);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif);
+    font-size:   var(--vscode-font-size,   13px);
+    color: var(--fg);
+    background: var(--bg);
+    margin: 0;
+    padding: 0 24px 48px;
+    line-height: 1.6;
+  }
+
+  h1 { color: var(--heading); font-size: 1.6em; margin-top: 28px; }
+  h2 { color: var(--heading); font-size: 1.2em; margin-top: 32px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  h3 { font-size: 1em; margin-top: 20px; }
+
+  a { color: var(--link); }
+
+  code {
+    font-family: var(--vscode-editor-font-family, 'Cascadia Code', 'Consolas', monospace);
+    font-size: 0.92em;
+    background: var(--code-bg);
+    border-radius: 3px;
+    padding: 1px 5px;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border-left: 3px solid var(--border);
+    border-radius: 4px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.9em;
+    line-height: 1.5;
+  }
+
+  /* Syntax-like spans inside <pre> blocks */
+  .kw  { color: var(--keyword-color); }
+  .tp  { color: var(--type-color); }
+  .cm  { color: var(--comment-color); font-style: italic; }
+  .par { color: var(--param-color); font-weight: 600; }
+  .ret { color: var(--return-color); font-weight: 600; }
+  .spc { color: var(--special-color); }
+  .str { color: #ce9178; }
+  .ann { color: #dcdcaa; font-weight: 600; }
+  /* C# additions */
+  .cs-kw  { color: var(--keyword-color); }
+  .cs-tp  { color: #4ec9b0; }
+  .cs-cls { color: var(--heading); }
+  .cs-attr{ color: #dcdcaa; }
+  .cs-pn  { color: #9cdcfe; }
+  .cs-num { color: #b5cea8; }
+
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+  th { background: var(--code-bg); font-weight: 600; }
+  tr:nth-child(even) td { background: color-mix(in srgb, var(--code-bg) 50%, transparent); }
+
+  .badge {
+    display: inline-block;
+    font-size: 0.8em;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: var(--badge-bg);
+    color: var(--badge-fg);
+    vertical-align: middle;
+  }
+  .badge-input  { background: color-mix(in srgb, var(--param-color) 25%, transparent); color: var(--param-color); }
+  .badge-output { background: color-mix(in srgb, var(--return-color) 25%, transparent); color: var(--return-color); }
+  .badge-special{ background: color-mix(in srgb, var(--special-color) 25%, transparent); color: var(--special-color); }
+
+  .tip {
+    border-left: 3px solid var(--keyword-color);
+    background: color-mix(in srgb, var(--keyword-color) 8%, transparent);
+    padding: 8px 12px;
+    border-radius: 0 4px 4px 0;
+    margin: 12px 0;
+  }
+
+  .section-rule { border: none; border-top: 1px solid var(--border); margin: 32px 0 0; }
+</style>
+</head>
+<body>
+
+<h1>SQuiL Writing Guide</h1>
+<p>SQuiL turns annotated <code>.sql</code> files into strongly-typed C# code via Roslyn source generation.
+You write SQL that looks like SQL — SQuiL handles the plumbing.</p>
+
+<!-- ───────────────────────── File Structure ───────────────────────────── -->
+<h2>File Structure</h2>
+<p>Every SQuiL file follows this three-part layout:</p>
+
+<pre><code><span class="cm">--Name: QueryName          ← optional, overrides filename as the C# class name</span>
+
+<span class="cm">-- ① Header: DECLARE all variables</span>
+<span class="kw">Declare</span> <span class="par">@Param_UserID</span>   <span class="tp">Int</span>;
+<span class="kw">Declare</span> <span class="ret">@Return_Username</span> <span class="tp">VarChar(100)</span>;
+<span class="kw">Declare</span> <span class="spc">@Debug</span>           <span class="tp">Bit</span> = 1;
+
+<span class="cm">-- ② Use statement: must appear once, after all DECLAREs</span>
+<span class="kw">Use</span> [MyDatabase];
+
+<span class="cm">-- ③ Body: your SQL logic</span>
+<span class="kw">Set</span> <span class="ret">@Return_Username</span> = (<span class="kw">Select</span> Name <span class="kw">From</span> Users <span class="kw">Where</span> ID = <span class="par">@Param_UserID</span>);
+<span class="kw">Select</span> <span class="ret">@Return_Username</span>;</code></pre>
+
+<div class="tip">
+  <strong>IntelliSense tips:</strong>
+  <ul style="margin:6px 0 0 0; padding-left:18px;">
+    <li>In the header, typing <code>@</code> on a blank line auto-prepends <code>Declare</code>.</li>
+    <li>In the body (after <code>Use</code>), typing <code>@</code> shows only the variables already declared above the cursor.</li>
+    <li>Editing the <em>middle</em> of an existing <code>@…</code> token — e.g. changing <code class="par">@Param_X</code> to <code class="par">@Params_X</code> — is a plain text edit: completions stay out of your way.</li>
+  </ul>
+</div>
+
+<!-- ─────────────────── Naming Conventions ────────────────────────────── -->
+<h2>Variable Naming Conventions</h2>
+<p>The prefix determines the variable's role and what C# code gets generated.</p>
+
+<table>
+  <tr>
+    <th>Pattern</th><th>Role</th><th>Generated C#</th>
+  </tr>
+  <tr>
+    <td><code class="par">@Param_Name</code></td>
+    <td><span class="badge badge-input">Input</span> scalar</td>
+    <td>Property on <code>*Request</code> record</td>
+  </tr>
+  <tr>
+    <td><code class="par">@Params_Name</code></td>
+    <td><span class="badge badge-input">Input</span> table-valued</td>
+    <td><code>IEnumerable&lt;NameTable&gt;</code> on <code>*Request</code></td>
+  </tr>
+  <tr>
+    <td><code class="par">@Param_Name&nbsp;Table(...)</code></td>
+    <td><span class="badge badge-input">Input</span> object</td>
+    <td><code>NameObject</code> record on <code>*Request</code></td>
+  </tr>
+  <tr>
+    <td><code class="ret">@Return_Name</code></td>
+    <td><span class="badge badge-output">Output</span> scalar</td>
+    <td>Property on <code>*Response</code> record</td>
+  </tr>
+  <tr>
+    <td><code class="ret">@Returns_Name</code></td>
+    <td><span class="badge badge-output">Output</span> table</td>
+    <td><code>IEnumerable&lt;NameTable&gt;</code> on <code>*Response</code></td>
+  </tr>
+  <tr>
+    <td><code class="ret">@Return_Name&nbsp;Table(...)</code></td>
+    <td><span class="badge badge-output">Output</span> object</td>
+    <td><code>NameObject</code> record on <code>*Response</code></td>
+  </tr>
+  <tr>
+    <td><code class="spc">@Debug</code></td>
+    <td><span class="badge badge-special">Special</span></td>
+    <td><strong>Always</strong> on <code>*Request</code> as <code>bool Debug</code> (plus <code>bool DebugOnly</code>) — you do not need to declare it in SQL for the property to exist; declare it only if you want to <em>use</em> the value inside the query.</td>
+  </tr>
+  <tr>
+    <td><code class="spc">@EnvironmentName</code></td>
+    <td><span class="badge badge-special">Special</span></td>
+    <td>Resolved by <code>SQuiLBaseDataContext</code> from <code>IConfiguration</code> (key <code>"EnvironmentName"</code>) or the <code>ASPNETCORE_ENVIRONMENT</code> environment variable. Declare in SQL only when the query body needs to read it.</td>
+  </tr>
+  <tr>
+    <td><code class="spc">@Error</code> / <code class="spc">@Errors</code></td>
+    <td><span class="badge badge-special">Special</span></td>
+    <td>On <code>*Response</code> when declared in SQL — scalar <code>Error</code> or <code>Errors</code> collection populated when the query produces structured error rows.</td>
+  </tr>
+</table>
+
+<!-- ──────────────────── SQL → C# Type Map ────────────────────────────── -->
+<h2>SQL Type → C# Type Reference</h2>
+
+<table>
+  <tr><th>SQL Type</th><th>C# Type</th><th>Notes</th></tr>
+  <tr><td><code>Int</code></td><td><code>int</code></td><td></td></tr>
+  <tr><td><code>BigInt</code></td><td><code>long</code></td><td></td></tr>
+  <tr><td><code>SmallInt</code></td><td><code>short</code></td><td></td></tr>
+  <tr><td><code>TinyInt</code></td><td><code>byte</code></td><td></td></tr>
+  <tr><td><code>Bit</code></td><td><code>bool</code></td><td></td></tr>
+  <tr><td><code>Float</code></td><td><code>double</code></td><td></td></tr>
+  <tr><td><code>Decimal</code> / <code>Numeric</code></td><td><code>decimal</code></td><td></td></tr>
+  <tr><td><code>VarChar</code> / <code>NVarChar</code> / <code>Char</code></td><td><code>string</code></td><td></td></tr>
+  <tr><td><code>DateTime</code> / <code>DateTime2</code></td><td><code>DateTime</code></td><td></td></tr>
+  <tr><td><code>DateTimeOffset</code></td><td><code>DateTime</code></td><td>SQuiL converts to DateTime</td></tr>
+  <tr><td><code>Date</code></td><td><code>DateOnly</code></td><td></td></tr>
+  <tr><td><code>Time</code></td><td><code>TimeSpan</code></td><td></td></tr>
+  <tr><td><code>UniqueIdentifier</code></td><td><code>Guid</code></td><td></td></tr>
+  <tr><td><code>VarBinary</code> / <code>Binary</code></td><td><code>byte[]</code></td><td></td></tr>
+  <tr><td><code>Xml</code></td><td><code>string</code></td><td></td></tr>
+</table>
+
+<!-- ─────────────────────── Examples ──────────────────────────────────── -->
+<h2>Examples</h2>
+
+<h3>1. Lookup by ID — scalar in, scalar out</h3>
+<pre><code><span class="ann">--Name: GetUserName</span>
+
+<span class="kw">Declare</span> <span class="par">@Param_UserID</span> <span class="tp">int</span>;
+<span class="kw">Declare</span> <span class="ret">@Return_Name</span>  <span class="tp">varchar(100)</span>;
+
+<span class="kw">Use</span> HrDatabase;
+
+<span class="kw">Set</span> <span class="ret">@Return_Name</span> = (
+    <span class="kw">Select</span> u.Name
+    <span class="kw">From</span>   Users u
+    <span class="kw">Where</span>  u.UserID = <span class="par">@Param_UserID</span>
+);
+
+<span class="kw">Select</span> <span class="ret">@Return_Name</span>;</code></pre>
+
+<p><strong>Generated C#:</strong></p>
+<pre><code><span class="cs-kw">public partial record</span> <span class="cs-cls">GetUserNameRequest</span>
+{
+    <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">Debug</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+    <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">DebugOnly</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+
+    <span class="cs-kw">public</span> <span class="cs-tp">int</span> <span class="cs-pn">UserID</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+}
+
+<span class="cs-kw">public partial record</span> <span class="cs-cls">GetUserNameResponse</span>
+{
+    <span class="cs-kw">public</span> <span class="cs-tp">string</span>? <span class="cs-pn">Name</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+}
+
+<span class="cm">// Method emitted into your UserDataContext partial class:</span>
+<span class="cs-kw">public async</span> <span class="cs-cls">Task</span>&lt;<span class="cs-cls">SQuiLResultType</span>&lt;<span class="cs-cls">GetUserNameResponse</span>&gt;&gt; <span class="cs-pn">ProcessGetUserNameAsync</span>(
+    <span class="cs-cls">GetUserNameRequest</span> <span class="cs-pn">request</span>,
+    <span class="cs-cls">CancellationToken</span> <span class="cs-pn">cancellationToken</span> = <span class="cs-kw">default</span>!) { <span class="cm">/* generated */</span> }</code></pre>
+
+<h3>2. Filtered list with optional include-flag — table-valued output</h3>
+<pre><code><span class="ann">--Name: ListUsersByDepartment</span>
+
+<span class="kw">Declare</span> <span class="par">@Param_DepartmentID</span>    <span class="tp">int</span>;
+<span class="kw">Declare</span> <span class="par">@Param_IncludeInactive</span> <span class="tp">bit</span> = 0;
+<span class="kw">Declare</span> <span class="ret">@Returns_Users</span>         <span class="tp">table</span> (
+    UserID   <span class="tp">int</span>,
+    Name     <span class="tp">varchar(100)</span>,
+    Email    <span class="tp">varchar(255)</span>,
+    HireDate <span class="tp">date</span>
+);
+
+<span class="kw">Use</span> HrDatabase;
+
+<span class="kw">Insert Into</span> <span class="ret">@Returns_Users</span>
+<span class="kw">Select</span>      u.UserID, u.Name, u.Email, u.HireDate
+<span class="kw">From</span>        Users u
+<span class="kw">Where</span>       u.DepartmentID = <span class="par">@Param_DepartmentID</span>
+            <span class="kw">And</span> (<span class="par">@Param_IncludeInactive</span> = 1 <span class="kw">Or</span> u.IsActive = 1);
+
+<span class="kw">Select</span> * <span class="kw">From</span> <span class="ret">@Returns_Users</span>;</code></pre>
+
+<p><strong>Generated C#:</strong></p>
+<pre><code><span class="cs-kw">public partial record</span> <span class="cs-cls">ListUsersByDepartmentRequest</span>
+{
+    <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">Debug</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+    <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">DebugOnly</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+
+    <span class="cs-kw">public</span> <span class="cs-tp">int</span> <span class="cs-pn">DepartmentID</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+    <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">IncludeInactive</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+}
+
+<span class="cs-kw">public partial record</span> <span class="cs-cls">UsersTable</span>
+{
+    <span class="cs-kw">public</span> <span class="cs-tp">int</span> <span class="cs-pn">UserID</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+    <span class="cs-kw">public</span> <span class="cs-tp">string</span>? <span class="cs-pn">Name</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+    <span class="cs-kw">public</span> <span class="cs-tp">string</span>? <span class="cs-pn">Email</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+    <span class="cs-kw">public</span> <span class="cs-cls">DateOnly</span> <span class="cs-pn">HireDate</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+}
+
+<span class="cs-kw">public partial record</span> <span class="cs-cls">ListUsersByDepartmentResponse</span>
+{
+    <span class="cs-kw">public</span> <span class="cs-cls">List</span>&lt;<span class="cs-cls">UsersTable</span>&gt;? <span class="cs-pn">Users</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; } = [];
+}
+
+<span class="cm">// Method emitted into your UserDataContext partial class:</span>
+<span class="cs-kw">public async</span> <span class="cs-cls">Task</span>&lt;<span class="cs-cls">SQuiLResultType</span>&lt;<span class="cs-cls">ListUsersByDepartmentResponse</span>&gt;&gt; <span class="cs-pn">ProcessListUsersByDepartmentAsync</span>(
+    <span class="cs-cls">ListUsersByDepartmentRequest</span> <span class="cs-pn">request</span>,
+    <span class="cs-cls">CancellationToken</span> <span class="cs-pn">cancellationToken</span> = <span class="cs-kw">default</span>!) { <span class="cm">/* generated */</span> }</code></pre>
+
+<h3>3. Bulk write — table-valued input with row count out</h3>
+<pre><code><span class="ann">--Name: AssignTagsToArticle</span>
+
+<span class="kw">Declare</span> <span class="par">@Param_ArticleID</span>    <span class="tp">int</span>;
+<span class="kw">Declare</span> <span class="par">@Params_Tags</span>        <span class="tp">table</span> (
+    Label  <span class="tp">nvarchar(100)</span>,
+    Weight <span class="tp">int</span>
+);
+<span class="kw">Declare</span> <span class="ret">@Return_RowsInserted</span> <span class="tp">int</span>;
+
+<span class="kw">Use</span> ContentDatabase;
+
+<span class="kw">Insert Into</span> ArticleTags (ArticleID, Label, Weight)
+<span class="kw">Select</span>      <span class="par">@Param_ArticleID</span>, t.Label, t.Weight
+<span class="kw">From</span>        <span class="par">@Params_Tags</span> t;
+
+<span class="kw">Set</span> <span class="ret">@Return_RowsInserted</span> = @@RowCount;
+<span class="kw">Select</span> <span class="ret">@Return_RowsInserted</span>;</code></pre>
+
+<p><strong>Generated C#:</strong></p>
+<pre><code><span class="cs-kw">public partial record</span> <span class="cs-cls">TagsTable</span>
+{
+    <span class="cs-kw">public</span> <span class="cs-tp">string</span>? <span class="cs-pn">Label</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+    <span class="cs-kw">public</span> <span class="cs-tp">int</span> <span class="cs-pn">Weight</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+}
+
+<span class="cs-kw">public partial record</span> <span class="cs-cls">AssignTagsToArticleRequest</span>
+{
+    <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">Debug</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+    <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">DebugOnly</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+
+    <span class="cs-kw">public</span> <span class="cs-tp">int</span> <span class="cs-pn">ArticleID</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+    <span class="cs-kw">public</span> <span class="cs-cls">List</span>&lt;<span class="cs-cls">TagsTable</span>&gt;? <span class="cs-pn">Tags</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; } = [];
+}
+
+<span class="cs-kw">public partial record</span> <span class="cs-cls">AssignTagsToArticleResponse</span>
+{
+    <span class="cs-kw">public</span> <span class="cs-tp">int</span> <span class="cs-pn">RowsInserted</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+}
+
+<span class="cm">// Method emitted into your ContentDataContext partial class:</span>
+<span class="cs-kw">public async</span> <span class="cs-cls">Task</span>&lt;<span class="cs-cls">SQuiLResultType</span>&lt;<span class="cs-cls">AssignTagsToArticleResponse</span>&gt;&gt; <span class="cs-pn">ProcessAssignTagsToArticleAsync</span>(
+    <span class="cs-cls">AssignTagsToArticleRequest</span> <span class="cs-pn">request</span>,
+    <span class="cs-cls">CancellationToken</span> <span class="cs-pn">cancellationToken</span> = <span class="cs-kw">default</span>!) { <span class="cm">/* generated */</span> }</code></pre>
+
+<h3>4. Using <code class="spc">@Debug</code> for diagnostic output</h3>
+<p>You don't need to declare <code class="spc">@Debug</code> for <code>Debug</code> to appear on the request — it always does.
+Declare it only when the SQL body itself wants to <em>read</em> the value:</p>
+<pre><code><span class="ann">--Name: ListOrdersByStatus</span>
+
+<span class="kw">Declare</span> <span class="par">@Param_Status</span>   <span class="tp">varchar(20)</span>;
+<span class="kw">Declare</span> <span class="ret">@Returns_Orders</span> <span class="tp">table</span> (
+    OrderID <span class="tp">int</span>,
+    Total   <span class="tp">decimal(18, 2)</span>,
+    Placed  <span class="tp">datetime</span>
+);
+<span class="kw">Declare</span> <span class="spc">@Debug</span>          <span class="tp">bit</span> = 1;
+
+<span class="kw">Use</span> OrdersDatabase;
+
+<span class="kw">If</span> <span class="spc">@Debug</span> = 1
+    <span class="kw">Print</span> Concat(<span class="str">'[ListOrdersByStatus] status = '</span>, IsNull(<span class="par">@Param_Status</span>, <span class="str">'(any)'</span>));
+
+<span class="kw">Insert Into</span> <span class="ret">@Returns_Orders</span>
+<span class="kw">Select</span>      o.OrderID, o.Total, o.PlacedOn
+<span class="kw">From</span>        Orders o
+<span class="kw">Where</span>       <span class="par">@Param_Status</span> <span class="kw">Is Null</span> <span class="kw">Or</span> o.Status = <span class="par">@Param_Status</span>;
+
+<span class="kw">Select</span> * <span class="kw">From</span> <span class="ret">@Returns_Orders</span>;</code></pre>
+
+<div class="tip">
+  <strong>Tip:</strong> the <code class="spc">@Debug</code> default of <code>= 1</code> is used only when running the
+  SQL directly in SSMS. At runtime SQuiL overrides it with <code>request.Debug</code>, so C# callers stay
+  in control. Prefer <code>Concat()</code> over string <code>+</code> in diagnostics — it tolerates <code>Null</code>
+  instead of producing one.
+</div>
+
+<!-- ──────────────────── Sample Data Insertion ────────────────────────── -->
+<h2>Sample Data Insertion</h2>
+<p>For local testing, you can have SQuiL generate an <code>Insert Into</code> block populated with type-aware
+sample rows for any <code class="par">@Params_</code> (list) or <code class="par">@Param_…&nbsp;Table(...)</code> (single object) variable.</p>
+
+<p>On the line immediately after the variable's <code>Declare</code>, type <code>@</code>. The completion
+list will include a <code>⊕ Insert sample data → @Params_Tags</code> entry. Choosing it:</p>
+<ul>
+  <li>For <code class="par">@Params_</code> (list): prompts for the number of rows, then inserts an <code>Insert Into</code> block with that many records.</li>
+  <li>For <code class="par">@Param_…&nbsp;Table(...)</code> (single object): silently inserts exactly one row.</li>
+</ul>
+
+<p>If a sample block already exists for that variable, the completion reads <code>⊕ Modify sample data →&nbsp;…</code>
+and re-running it replaces the existing block in place. <strong>Existing blocks are detected by the
+<code>Insert Into @Param_…</code> statement itself</strong> — there are no comment markers, so a hand-written
+<code>Insert Into</code> for that variable is also detected and can be regenerated.</p>
+
+<pre><code><span class="kw">Declare</span> <span class="par">@Params_Tags</span> <span class="tp">Table</span> (Label <span class="tp">NVarChar(100)</span>, Weight <span class="tp">Int</span>);
+<span class="cm">-- ↓ generated by the ⊕ Insert sample data completion</span>
+<span class="kw">Insert Into</span> <span class="par">@Params_Tags</span> (Label, Weight)
+<span class="kw">Values</span>
+    (<span class="str">'Label 1'</span>, 1),
+    (<span class="str">'Label 2'</span>, 2),
+    (<span class="str">'Label 3'</span>, 3);</code></pre>
+
+<div class="tip">
+  ⚠ Sample data is intended for local testing only — remove it (or guard it behind <code class="spc">@Debug</code>) before committing.
+</div>
+
+<!-- ──────────────────── Connection Strings ────────────────────────────── -->
+<h2>Connection String Configuration</h2>
+<p>SQuiL uses the database name from the <code>Use</code> statement as the connection string key:</p>
+
+<pre><code><span class="cm">// appsettings.json</span>
+{
+  <span class="str">"ConnectionStrings"</span>: {
+    <span class="str">"HrDatabase"</span>: <span class="str">"Server=.;Database=HR;Trusted_Connection=True;"</span>
+  }
+}</code></pre>
+
+<p>To use a different key, pass it to the <code>[SQuiLQuery]</code> attribute:</p>
+<pre><code>[<span class="cs-attr">SQuiLQuery</span>(<span class="cs-cls">QueryFiles</span>.GetUserCount, <span class="cs-pn">setting</span>: <span class="str">"CustomKey"</span>)]
+<span class="cs-kw">public partial class</span> <span class="cs-cls">GetUserCountDataContext</span> : <span class="cs-cls">SQuiLBaseDataContext</span> { }</code></pre>
+
+<!-- ──────────────────── Project Setup ────────────────────────────────── -->
+<h2>Project Setup</h2>
+<h3>1. NuGet reference</h3>
+<pre><code>&lt;<span class="cs-cls">PackageReference</span> <span class="cs-pn">Include</span>=<span class="str">"SQuiL.SourceGenerator"</span> <span class="cs-pn">Version</span>=<span class="str">"*"</span> /&gt;</code></pre>
+
+<h3>2. Register your <code>.sql</code> files as <code>AdditionalFiles</code></h3>
+<p>SQuiL discovers queries via MSBuild's <code>AdditionalFiles</code> item. The simplest pattern picks up every <code>.sql</code> file anywhere in the project — the file's relative path becomes the entry in the generated <code>QueryFiles</code> enum:</p>
+
+<pre><code>&lt;<span class="cs-cls">ItemGroup</span>&gt;
+    &lt;<span class="cs-cls">AdditionalFiles</span> <span class="cs-pn">Include</span>=<span class="str">"**\*.sql"</span> /&gt;
+&lt;/<span class="cs-cls">ItemGroup</span>&gt;</code></pre>
+
+<p>You can scope it tighter if you'd rather keep queries in a dedicated folder:</p>
+<pre><code>&lt;<span class="cs-cls">AdditionalFiles</span> <span class="cs-pn">Include</span>=<span class="str">"Queries\**\*.sql"</span> /&gt;</code></pre>
+
+<div class="tip">
+  <strong>Windows-only today.</strong> SQuiL currently targets Windows MSBuild only, so backslash
+  path separators are fine. If cross-platform support is added in future, switch to <code>/</code>.
+</div>
+
+<h3>3. Declare the data context (<code>[SQuiLQuery]</code> + <code>IConfiguration</code>)</h3>
+<p>Your data context is a <code>partial class</code> decorated with one <code>[SQuiLQuery]</code> attribute per <code>.sql</code> file
+it owns. It must inherit from <code>SQuiLBaseDataContext</code> and forward an <code>IConfiguration</code> to the base
+constructor so connection strings can be resolved:</p>
+
+<pre><code><span class="cs-kw">using</span> <span class="cs-cls">Microsoft</span>.<span class="cs-cls">Extensions</span>.<span class="cs-cls">Configuration</span>;
+<span class="cs-kw">using</span> <span class="cs-cls">SQuiL</span>;
+
+<span class="cs-kw">namespace</span> <span class="cs-cls">YourApp</span>.<span class="cs-cls">Data</span>;
+
+[<span class="cs-attr">SQuiLQuery</span>(<span class="cs-cls">QueryFiles</span>.GetUserName)]
+[<span class="cs-attr">SQuiLQuery</span>(<span class="cs-cls">QueryFiles</span>.ListUsersByDepartment, <span class="cs-pn">setting</span>: <span class="str">"HrDatabase"</span>)]
+<span class="cs-kw">public partial class</span> <span class="cs-cls">UserDataContext</span>(<span class="cs-cls">IConfiguration</span> <span class="cs-pn">configuration</span>)
+    : <span class="cs-cls">SQuiLBaseDataContext</span>(<span class="cs-pn">configuration</span>);</code></pre>
+
+<p>Two things to note:</p>
+<ul>
+  <li>One <code>partial class</code> can host <strong>multiple</strong> <code>[SQuiLQuery]</code> attributes — each one
+      adds a <code>Process&lt;QueryName&gt;Async</code> method to that context.</li>
+  <li><code>QueryFiles</code> is an enum the source generator emits from your <code>AdditionalFiles</code>; the
+      member name comes from the SQL filename (or its <code>--Name:</code> override).</li>
+</ul>
+
+<h3>4. Register SQuiL for DI</h3>
+<p>SQuiL emits an <code>AddSQuiL()</code> extension method that registers every generated data
+context for you. Call it once in <code>Program.cs</code>:</p>
+<pre><code><span class="cs-cls">builder</span>.<span class="cs-pn">AddSQuiL</span>();</code></pre>
+
+<p>That's the whole DI setup. You do not need to register <code>IConfiguration</code> (the host
+builder already provides it) or each data context individually (<code>AddSQuiL</code> handles them).
+The base class resolves connection strings from <code>IConfiguration.GetConnectionString(setting)</code>;
+the optional <code>setting:</code> argument on <code>[SQuiLQuery]</code> selects the key, and if omitted
+SQuiL uses the database name from the SQL file's <code>Use</code> statement.</p>
+
+<h3>5. Shared table types (optional)</h3>
+<p>If multiple queries return the same row shape, declare it once with <code>[SQuiLTable]</code>:</p>
+<pre><code>[<span class="cs-attr">SQuiLTable</span>(<span class="cs-cls">TableType</span>.User)]
+<span class="cs-kw">public partial class</span> <span class="cs-cls">Tables</span> { }</code></pre>
+<p>SQuiL will then reuse the generated <code>UserTable</code> record across every query whose
+<code>@Returns_User Table(...)</code> declaration matches that shape.</p>
+
+<!-- ──────────────────── File Nesting ─────────────────────────────────── -->
+<h2>Solution Explorer File Nesting (<code>.filenesting.json</code>)</h2>
+<p>Drop a <code>.filenesting.json</code> at your solution or project root so Visual Studio tucks
+each <code>.sql</code> file under its companion <code>.cs</code> partial-class file in Solution Explorer
+(and gives Razor / appsettings the same treatment):</p>
+
+<pre><code>{
+    <span class="str">"help"</span>: <span class="str">"https://go.microsoft.com/fwlink/?linkid=866610"</span>,
+    <span class="str">"dependentFileProviders"</span>: {
+        <span class="str">"add"</span>: {
+            <span class="str">"extensionToExtension"</span>: {
+                <span class="str">"add"</span>: {
+                    <span class="str">".sql"</span>: [ <span class="str">".cs"</span> ]
+                }
+            }
+        }
+    }
+}</code></pre>
+
+<div class="tip">
+  This is cosmetic only — it does not affect compilation or source generation. The matching
+  rule is by base filename: <code>GetUserName.sql</code> nests under <code>GetUserName.cs</code>.
+  Pair each query SQL file with a same-named C# partial-class shard to take advantage of it.
+</div>
+
+<!-- ──────────────────── Quick Reference ──────────────────────────────── -->
+<h2>Quick Reference</h2>
+<table>
+  <tr><th>IntelliSense trigger</th><th>Where</th><th>What you get</th></tr>
+  <tr><td><code>@</code> on blank line</td><td>Header (before <code>Use</code>)</td><td>Full <code>Declare @Prefix_</code> snippet <em>plus</em> variables already declared above the cursor <em>plus</em> a <code>⊕ Insert/Modify sample data</code> entry when the previous variable is a table-typed param.</td></tr>
+  <tr><td><code>Declare </code></td><td>Header</td><td><code>@Prefix_</code> patterns (no double Declare)</td></tr>
+  <tr><td><code>@</code></td><td>Body (after <code>Use</code>)</td><td>Only variables declared above the cursor — unless you're on a <code>Declare</code> line, in which case you get the standard SQuiL declaration patterns.</td></tr>
+  <tr><td>Cursor inside an existing <code>@word</code> token</td><td>Anywhere</td><td>Completions suppressed — editing the prefix (e.g. <code class="par">@Param_</code> → <code class="par">@Params_</code>) is a plain text replace.</td></tr>
+  <tr><td><code>squil-file</code></td><td>Empty line</td><td>Full file scaffold snippet</td></tr>
+  <tr><td>Any keyword prefix</td><td>Anywhere</td><td>PascalCase SQL keyword completions</td></tr>
+</table>
+
+<hr class="section-rule">
+<p style="font-size:0.85em; opacity:0.6; margin-top:12px;">
+  SQuiL source: <a href="https://github.com/daemogar/SQuiL">github.com/daemogar/SQuiL</a>
+</p>
+
+</body>
+</html>
