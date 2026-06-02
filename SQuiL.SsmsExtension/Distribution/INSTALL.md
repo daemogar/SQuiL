@@ -53,9 +53,23 @@ $vsix      = "SQuiL.SsmsExtension.vsix"   # or full path to the .vsix you receiv
 > next begins (e.g. `/setup` never runs unless the VSIX install returned 0).
 >
 > You don't even need the `.vsix` locally: if it isn't next to the script,
-> `install.ps1` downloads the latest release from GitHub automatically. Pin a
-> specific build with `-Tag <release-tag>`, or point at a local file with
-> `-VsixPath <path>`.
+> `install.ps1` downloads the release it was published for automatically — no
+> version argument needed (the release tag is baked into the script). Point at
+> a specific local file with `-VsixPath <path>` if you ever need to.
+>
+> **PowerShell won't run the downloaded script** ("...is not digitally
+> signed")? Downloaded `.ps1` files are blocked by the execution policy.
+> Launch it elevated with the policy bypassed for just that process — this
+> also satisfies the "run as administrator" requirement:
+>
+> ```powershell
+> Start-Process powershell -Verb RunAs -ArgumentList '-NoExit','-NoProfile','-ExecutionPolicy','Bypass','-File',"$HOME\Downloads\install.ps1"
+> ```
+>
+> (adjust the path if you saved it elsewhere). Already in an elevated prompt?
+> Run `Set-ExecutionPolicy -Scope Process Bypass -Force` once, then
+> `.\install.ps1`. `-Scope Process` is session-only and reverts when you close
+> the window.
 
 Open any `.squil` file — SSMS's SQL toolbar (F5 / connection picker /
 results pane) appears, plus the SQuiL overlay (coral `@Param_*`, etc.).

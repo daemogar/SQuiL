@@ -9,7 +9,12 @@
     VSIX resolution order:
       1. -VsixPath <file>                  (explicit local .vsix), else
       2. SQuiL.SsmsExtension.vsix next to this script, else
-      3. download from the GitHub releases of -Repo (latest, or -Tag).
+      3. download the baked-in release from GitHub.
+
+    The release version is baked into this script at publish time (see
+    $BakedReleaseTag below), so no version ever needs to be supplied. When the
+    script is run from a local build — the placeholder is still present — it
+    falls back to the latest GitHub release.
 
     Then:
       Step 1: Force-close SSMS (after prompting you to save your work).
@@ -25,29 +30,27 @@
 .PARAMETER VsixPath
     Explicit path to a local .vsix to install. Skips the download.
 
-.PARAMETER Tag
-    Release tag to install (e.g. '10.0.100.0042-beta'). Defaults to the most
-    recent release that carries a SQuiL.SsmsExtension.vsix asset.
-
 .PARAMETER Repo
     GitHub <owner>/<repo> to download releases from. Defaults to daemogar/SQuiL.
 
 .EXAMPLE
     .\install.ps1
-    # Uses a local .vsix if present next to the script, otherwise downloads
-    # the latest release from GitHub.
-
-.EXAMPLE
-    .\install.ps1 -Tag 10.0.100.0042-beta
 #>
 [CmdletBinding()]
 param(
     [string]$VsixPath,
-    [string]$Tag,
     [string]$Repo = 'daemogar/SQuiL'
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Release tag baked in at publish time by .github/workflows/publish.yml, which
+# replaces the placeholder below with the release version. This lets a
+# downloaded copy of just this script install the exact matching .vsix with no
+# version argument. When the placeholder is still present (e.g. a local build),
+# $releaseTag is left null and we fall back to the latest GitHub release.
+$BakedReleaseTag = '__SQUIL_RELEASE_TAG__'
+$releaseTag = if ($BakedReleaseTag -match '^__.*__$') { $null } else { $BakedReleaseTag }
 
 # ── Require an elevated session (run as Administrator) ────────────────────
 $principal = New-Object Security.Principal.WindowsPrincipal(
@@ -121,7 +124,7 @@ elseif (Test-Path $localVsix) {
 }
 else {
     Write-Host 'No local .vsix found — fetching it from GitHub releases.' -ForegroundColor Cyan
-    $vsix = Get-SquilVsix -Repo $Repo -Tag $Tag
+    $vsix = Get-SquilVsix -Repo $Repo -Tag $releaseTag
     Write-Host "Downloaded VSIX: $vsix" -ForegroundColor Green
 }
 

@@ -121,6 +121,21 @@ jobs:
 
     # The build copies Distribution\INSTALL.md and Distribution\install.ps1 to
     # the output root (see the .csproj), so all three assets sit side by side.
+
+    # Bake this release's tag into install.ps1 so a downloaded copy installs
+    # the exact matching .vsix with no version argument (replaces the
+    # __SQUIL_RELEASE_TAG__ placeholder).
+    - name: Stamp release version into install.ps1
+      shell: pwsh
+      run: |
+        $p = "${{ env.SSMS_OUTPUT }}/install.ps1"
+        $stamped = (Get-Content $p -Raw) -replace '__SQUIL_RELEASE_TAG__', '${{ needs.build.outputs.version }}'
+        if ($stamped -notmatch [regex]::Escape('${{ needs.build.outputs.version }}')) {
+          throw "Failed to stamp release tag into install.ps1 — placeholder __SQUIL_RELEASE_TAG__ not found."
+        }
+        Set-Content $p -Value $stamped -Encoding UTF8
+        Write-Host "Stamped install.ps1 with release tag '${{ needs.build.outputs.version }}'."
+
     - name: Verify release assets exist
       shell: pwsh
       run: |
