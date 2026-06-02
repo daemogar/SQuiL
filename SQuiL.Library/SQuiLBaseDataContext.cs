@@ -5,8 +5,8 @@ using Microsoft.Extensions.Configuration;
 
 using System;
 using System.Collections.Generic;
-using System.Data.Common;
 using System.Data;
+using System.Data.Common;
 
 /// <summary>
 /// Base class for all SQuiL-generated data context classes.
@@ -116,9 +116,18 @@ public abstract partial class SQuiLBaseDataContext(IConfiguration Configuration)
 		if (size > 0)
 		{
 			variable.Size = size;
-			variable.Value = value is null || ((string)value).Length <= size
-				? (value ?? "Null")
-				: throw new Exception($"""
+
+			if (value is null)
+				variable.Value = DBNull.Value;
+
+			else if (value is not string stringValue)
+				variable.Value = value;
+
+			else if (stringValue.Length <= size)
+				variable.Value = value;
+
+			else
+				throw new Exception($"""
 					ParamsTable model table property at index [{index}] has a string property [{name}]
 					with more than {size} characters.
 					""");
