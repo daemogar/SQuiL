@@ -15,4 +15,5 @@
 	<Project Path="SQuiL.SourceGenerator/SQuiL.SourceGenerator.csproj" />
 	<Project Path="SQuiL.Tests/SQuiL.Tests.csproj" />
 	<Project Path="SQuiL.SsmsExtension/SQuiL.SsmsExtension.csproj" />
+	<Project Path="SQuiL.VisualStudioExtension/SQuiL.VisualStudioExtension.csproj" />
 </Solution>

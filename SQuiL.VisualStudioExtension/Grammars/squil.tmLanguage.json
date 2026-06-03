@@ -1,0 +1,178 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "SQuiL",
+  "scopeName": "source.squil",
+  "patterns": [
+    { "include": "#squil-name-annotation" },
+    { "include": "#block-comments" },
+    { "include": "#line-comments" },
+    { "include": "#use-statement" },
+    { "include": "#declare-statement" },
+    { "include": "#squil-special-vars" },
+    { "include": "#squil-return-vars" },
+    { "include": "#squil-param-vars" },
+    { "include": "#other-variables" },
+    { "include": "#dml-keywords" },
+    { "include": "#ddl-keywords" },
+    { "include": "#control-keywords" },
+    { "include": "#function-keywords" },
+    { "include": "#sql-types" },
+    { "include": "#constants" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#operators" },
+    { "include": "#bracket-identifiers" }
+  ],
+  "repository": {
+    "squil-name-annotation": {
+      "comment": "--Name: QueryName annotation at top of file",
+      "name": "meta.annotation.name.squil",
+      "match": "^(--)(\\s*)(Name:)(\\s*)(\\S.*)?$",
+      "captures": {
+        "1": { "name": "punctuation.definition.comment.squil" },
+        "2": {},
+        "3": { "name": "keyword.other.annotation.squil" },
+        "4": {},
+        "5": { "name": "entity.name.function.squil" }
+      }
+    },
+    "block-comments": {
+      "name": "comment.block.squil",
+      "begin": "/\\*",
+      "end": "\\*/",
+      "beginCaptures": { "0": { "name": "punctuation.definition.comment.begin.squil" } },
+      "endCaptures": { "0": { "name": "punctuation.definition.comment.end.squil" } }
+    },
+    "line-comments": {
+      "name": "comment.line.double-dash.squil",
+      "match": "--.*$"
+    },
+    "use-statement": {
+      "comment": "USE [DatabaseName]",
+      "name": "meta.statement.use.squil",
+      "match": "(?i)\\b(USE)\\b\\s+(\\[?)(\\w+)(\\]?)",
+      "captures": {
+        "1": { "name": "keyword.other.use.squil" },
+        "2": { "name": "punctuation.definition.identifier.squil" },
+        "3": { "name": "entity.name.database.squil" },
+        "4": { "name": "punctuation.definition.identifier.squil" }
+      }
+    },
+    "declare-statement": {
+      "comment": "DECLARE keyword",
+      "match": "(?i)\\b(DECLARE)\\b",
+      "captures": {
+        "1": { "name": "keyword.other.declare.squil" }
+      }
+    },
+    "squil-special-vars": {
+      "comment": "@Debug, @EnvironmentName, @Error, @Errors — special SQuiL-managed variables",
+      "name": "variable.other.special.squil",
+      "match": "(?i)@(Debug|EnvironmentName|Errors?)"
+    },
+    "squil-return-vars": {
+      "comment": "@Return_Name and @Returns_Name — output variables",
+      "name": "variable.parameter.return.squil support.variable.return.squil",
+      "match": "(?i)@Returns?_\\w+"
+    },
+    "squil-param-vars": {
+      "comment": "@Param_Name and @Params_Name — input parameters",
+      "name": "variable.parameter.input.squil",
+      "match": "(?i)@Params?_\\w+"
+    },
+    "other-variables": {
+      "comment": "Any other @variable",
+      "name": "variable.other.squil",
+      "match": "@\\w+"
+    },
+    "dml-keywords": {
+      "comment": "Data Manipulation Language keywords",
+      "name": "keyword.other.DML.squil",
+      "match": "(?i)\\b(SELECT|INSERT|UPDATE|DELETE|MERGE|TRUNCATE|EXEC|EXECUTE|FROM|WHERE|JOIN|INNER|OUTER|LEFT|RIGHT|FULL|CROSS|ON|INTO|VALUES|SET|TOP|DISTINCT|AS|UNION|INTERSECT|EXCEPT|ALL|GROUP\\s+BY|ORDER\\s+BY|HAVING|OVER|PARTITION\\s+BY|ROWS|RANGE|BETWEEN|AND|OR|NOT|IN|LIKE|IS|NULL|EXISTS|ANY|SOME|COALESCE|NULLIF|CASE|WHEN|THEN|ELSE|END|CAST|CONVERT|OUTPUT|RETURNING|WITH|NOLOCK|READPAST|UPDLOCK|ROWLOCK|TABLOCK|HOLDLOCK|NOEXPAND|READCOMMITTED|READUNCOMMITTED|SERIALIZABLE|SNAPSHOT|REPEATABLE\\s+READ)\\b"
+    },
+    "ddl-keywords": {
+      "comment": "Data Definition Language keywords",
+      "name": "keyword.other.DDL.squil",
+      "match": "(?i)\\b(CREATE|ALTER|DROP|TABLE|VIEW|INDEX|PROCEDURE|FUNCTION|TRIGGER|DATABASE|SCHEMA|CONSTRAINT|PRIMARY\\s+KEY|FOREIGN\\s+KEY|UNIQUE|DEFAULT|CHECK|REFERENCES|IDENTITY|ROWGUIDCOL|SPARSE|FILESTREAM|PERSISTED|COMPUTED)\\b"
+    },
+    "control-keywords": {
+      "comment": "Control flow keywords",
+      "name": "keyword.control.squil",
+      "match": "(?i)\\b(IF|ELSE|BEGIN|END|WHILE|BREAK|CONTINUE|RETURN|GOTO|RAISERROR|THROW|TRY|CATCH|PRINT|WAITFOR|DELAY|TIME)\\b"
+    },
+    "function-keywords": {
+      "comment": "Built-in SQL functions",
+      "name": "support.function.squil",
+      "match": "(?i)\\b(COUNT|SUM|AVG|MIN|MAX|ABS|CEILING|FLOOR|ROUND|SQRT|POWER|LOG|EXP|SIGN|RAND|PI|LEN|LEFT|RIGHT|SUBSTRING|CHARINDEX|PATINDEX|REPLACE|REPLICATE|REVERSE|LTRIM|RTRIM|TRIM|UPPER|LOWER|STR|STUFF|FORMAT|CONCAT|ISNULL|ISNUMERIC|ISDATE|NEWID|GETDATE|GETUTCDATE|SYSDATETIME|DATEPART|DATEDIFF|DATEADD|EOMONTH|YEAR|MONTH|DAY|CONVERT|CAST|TRY_CAST|TRY_CONVERT|PARSE|TRY_PARSE|ROW_NUMBER|RANK|DENSE_RANK|NTILE|LAG|LEAD|FIRST_VALUE|LAST_VALUE|CUME_DIST|PERCENT_RANK|PERCENTILE_CONT|PERCENTILE_DISC|SCOPE_IDENTITY|@@IDENTITY|@@ROWCOUNT|@@ERROR|@@TRANCOUNT|@@SPID|@@SERVERNAME|@@VERSION|OBJECT_ID|OBJECT_NAME|SCHEMA_ID|SCHEMA_NAME|TYPE_ID|TYPE_NAME)\\b"
+    },
+    "sql-types": {
+      "comment": "SQL data types",
+      "name": "storage.type.squil",
+      "match": "(?i)\\b(BIGINT|BINARY|BIT|CHAR|DATE|DATETIME|DATETIME2|DATETIMEOFFSET|DECIMAL|FLOAT|IMAGE|INT|MONEY|NCHAR|NTEXT|NUMERIC|NVARCHAR|REAL|SMALLDATETIME|SMALLINT|SMALLMONEY|SQL_VARIANT|SYSNAME|TEXT|TIME|TIMESTAMP|TINYINT|UNIQUEIDENTIFIER|VARBINARY|VARCHAR|XML|TABLE|MAX)\\b"
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.bool.squil",
+          "match": "(?i)\\b(TRUE|FALSE)\\b"
+        },
+        {
+          "name": "constant.language.null.squil",
+          "match": "(?i)\\bNULL\\b"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.single.squil",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        {
+          "name": "constant.character.escape.squil",
+          "match": "''"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.squil",
+          "match": "\\b\\d+\\.\\d+([eE][+-]?\\d+)?\\b"
+        },
+        {
+          "name": "constant.numeric.integer.squil",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.comparison.squil",
+          "match": "<>|!=|>=|<=|>|<|="
+        },
+        {
+          "name": "keyword.operator.arithmetic.squil",
+          "match": "\\+|-|\\*|/|%"
+        },
+        {
+          "name": "keyword.operator.concat.squil",
+          "match": "\\|\\|"
+        },
+        {
+          "name": "punctuation.terminator.statement.squil",
+          "match": ";"
+        },
+        {
+          "name": "punctuation.separator.squil",
+          "match": ","
+        }
+      ]
+    },
+    "bracket-identifiers": {
+      "comment": "Bracket-quoted identifiers like [TableName]",
+      "name": "entity.name.other.squil",
+      "match": "\\[[^\\]]+\\]"
+    }
+  }
+}

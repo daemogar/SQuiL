@@ -9,5 +9,7 @@ tsconfig.json
 !out/**/*.js
 .gitignore
 .git/**
+.claude/**
+INSTALL-VSCode.md
 *.vsix
 **/.DS_Store

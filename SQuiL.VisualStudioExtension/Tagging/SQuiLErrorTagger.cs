@@ -4,9 +4,9 @@ using System.Windows.Threading;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Adornments;
 using Microsoft.VisualStudio.Text.Tagging;
-using SQuiL.SsmsExtension.Parsing;
+using SQuiL.VisualStudioExtension.Parsing;
 
-namespace SQuiL.SsmsExtension.Tagging;
+namespace SQuiL.VisualStudioExtension.Tagging;
 
 /// <summary>
 /// Produces <see cref="IErrorTag"/>s for SQuiL diagnostics — port of

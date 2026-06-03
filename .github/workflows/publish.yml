@@ -78,10 +78,10 @@ jobs:
       run: dotnet nuget push **/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
 
   # ───────────────────────────────────────────────────────────────────────
-  # Build the SSMS extension VSIX and attach it — plus INSTALL.md and
-  # install.ps1 — to the release created above.
+  # Build the two compiled VSIX extensions — SSMS and Visual Studio 2026 —
+  # and attach them, plus their install docs, to the release created above.
   #
-  # This runs on Windows because the VSIX is a classic net472 VSPackage:
+  # This runs on Windows because each VSIX is a classic net472 VSPackage:
   # CreateVsixContainer / GeneratePkgDef / VSCTCompile are VSSDK targets that
   # only run under full MSBuild.exe (not `dotnet build` on Linux). VSSDK comes
   # from the Microsoft.VSSDK.BuildTools NuGet package, so no VS "extension
@@ -92,7 +92,7 @@ jobs:
   # release-triggered workflow would never fire. `needs: build` shares the
   # version/tag and guarantees the release exists before we upload to it.
   # ───────────────────────────────────────────────────────────────────────
-  ssms-extension:
+  vsix-extensions:
 
     needs: build
     runs-on: windows-latest
@@ -100,6 +100,10 @@ jobs:
     env:
       SSMS_PROJECT: SQuiL.SsmsExtension/SQuiL.SsmsExtension.csproj
       SSMS_OUTPUT: SQuiL.SsmsExtension/bin/Release
+      VS_PROJECT: SQuiL.VisualStudioExtension/SQuiL.VisualStudioExtension.csproj
+      VS_OUTPUT: SQuiL.VisualStudioExtension/bin/Release
+      VS_INSTALL_DOC: SQuiL.VisualStudioExtension/Distribution/INSTALL-VisualStudio.md
+      VS_MANIFEST: SQuiL.VisualStudioExtension/source.extension.vsixmanifest
 
     steps:
     - name: Checkout Source
@@ -113,6 +117,7 @@ jobs:
       with:
         dotnet-version: 10.0.x
 
+    # ── SSMS extension ────────────────────────────────────────────────────
     - name: Restore SSMS Extension
       run: msbuild ${{ env.SSMS_PROJECT }} /t:Restore /p:Configuration=Release
 
@@ -120,7 +125,7 @@ jobs:
       run: msbuild ${{ env.SSMS_PROJECT }} /t:Build /p:Configuration=Release /p:DeployExtension=false
 
     # The build copies Distribution\INSTALL.md and Distribution\install.ps1 to
-    # the output root (see the .csproj), so all three assets sit side by side.
+    # the output root (see the .csproj), so all three SSMS assets sit together.
 
     # Bake this release's tag into install.ps1 so a downloaded copy installs
     # the exact matching .vsix with no version argument (replaces the
@@ -136,19 +141,44 @@ jobs:
         Set-Content $p -Value $stamped -Encoding UTF8
         Write-Host "Stamped install.ps1 with release tag '${{ needs.build.outputs.version }}'."
 
+    # ── Visual Studio 2026 extension ──────────────────────────────────────
+    # Stamp a unique, increasing VSIX version (1.0.<run_number>) so VSIXInstaller
+    # never skips a re-install as "already installed" across releases. Only the
+    # <Identity …> element is touched; the regex is anchored to it.
+    - name: Stamp Visual Studio extension version
+      shell: pwsh
+      run: |
+        $p = "${{ env.VS_MANIFEST }}"
+        $ver = "1.0.${{ github.run_number }}"
+        $c = Get-Content $p -Raw
+        $stamped = $c -replace '(<Identity\s+Id="[^"]*"\s+Version=")1\.0\.0(")', "`${1}$ver`$2"
+        if ($stamped -eq $c) {
+          throw "Failed to stamp VS extension version — '<Identity … Version=""1.0.0"">' not found in $p."
+        }
+        Set-Content $p -Value $stamped -Encoding UTF8
+        Write-Host "Stamped VS extension Identity Version = $ver."
+
+    - name: Restore Visual Studio Extension
+      run: msbuild ${{ env.VS_PROJECT }} /t:Restore /p:Configuration=Release
+
+    - name: Build Visual Studio Extension (VSIX)
+      run: msbuild ${{ env.VS_PROJECT }} /t:Build /p:Configuration=Release /p:DeployExtension=false
+
     - name: Verify release assets exist
       shell: pwsh
       run: |
         $files = @(
           "${{ env.SSMS_OUTPUT }}/SQuiL.SsmsExtension.vsix",
           "${{ env.SSMS_OUTPUT }}/INSTALL.md",
-          "${{ env.SSMS_OUTPUT }}/install.ps1"
+          "${{ env.SSMS_OUTPUT }}/install.ps1",
+          "${{ env.VS_OUTPUT }}/SQuiL.VisualStudioExtension.vsix",
+          "${{ env.VS_INSTALL_DOC }}"
         )
         $missing = $files | Where-Object { -not (Test-Path $_) }
         if ($missing) { throw "Missing expected release asset(s): $($missing -join ', ')" }
         Get-ChildItem $files | Select-Object Name, Length
 
-    - name: Attach SSMS assets to release
+    - name: Attach VSIX assets to release
       uses: ncipollo/release-action@v1.14.0
       with:
         tag: ${{ needs.build.outputs.version }}
@@ -159,4 +189,55 @@ jobs:
         replacesArtifacts: true
         prerelease: true
         artifactErrorsFailBuild: true
-        artifacts: "${{ env.SSMS_OUTPUT }}/SQuiL.SsmsExtension.vsix,${{ env.SSMS_OUTPUT }}/INSTALL.md,${{ env.SSMS_OUTPUT }}/install.ps1"
+        artifacts: "${{ env.SSMS_OUTPUT }}/SQuiL.SsmsExtension.vsix,${{ env.SSMS_OUTPUT }}/INSTALL.md,${{ env.SSMS_OUTPUT }}/install.ps1,${{ env.VS_OUTPUT }}/SQuiL.VisualStudioExtension.vsix,${{ env.VS_INSTALL_DOC }}"
+
+  # ───────────────────────────────────────────────────────────────────────
+  # Build the VS Code extension VSIX (squil-editor-<version>.vsix) and attach
+  # it — plus its install doc — to the release. Pure Node tooling, so this
+  # runs on Linux. `vsce package` runs `vscode:prepublish` (sync-shared +
+  # tsc compile) first, so the shared grammar/guide assets are bundled.
+  # ───────────────────────────────────────────────────────────────────────
+  vscode-extension:
+
+    needs: build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: SQuiL.VSCodeExtension
+
+    steps:
+    - name: Checkout Source
+      uses: actions/checkout@v4.1.1
+
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Package VS Code Extension (VSIX)
+      run: npx --no-install @vscode/vsce package --allow-missing-repository
+
+    - name: Verify VS Code asset exists
+      shell: pwsh
+      run: |
+        $vsix = Get-ChildItem -Filter 'squil-editor-*.vsix' | Select-Object -First 1
+        if (-not $vsix) { throw "VS Code VSIX not produced (squil-editor-*.vsix not found)." }
+        if (-not (Test-Path 'INSTALL-VSCode.md')) { throw "Missing INSTALL-VSCode.md." }
+        Get-ChildItem $vsix.FullName, 'INSTALL-VSCode.md' | Select-Object Name, Length
+
+    - name: Attach VS Code assets to release
+      uses: ncipollo/release-action@v1.14.0
+      with:
+        tag: ${{ needs.build.outputs.version }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+        allowUpdates: true
+        omitNameDuringUpdate: true
+        omitBodyDuringUpdate: true
+        replacesArtifacts: true
+        prerelease: true
+        artifactErrorsFailBuild: true
+        artifacts: "SQuiL.VSCodeExtension/squil-editor-*.vsix,SQuiL.VSCodeExtension/INSTALL-VSCode.md"

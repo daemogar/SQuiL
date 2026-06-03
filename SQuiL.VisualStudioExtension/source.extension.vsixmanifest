@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
+  <Metadata>
+    <Identity Id="SQuiL.VisualStudioExtension.7c9d1e3f-4a6b-4c8d-9e0f-1a2b3c4d5e6f"
+              Version="1.0.0"
+              Language="en-US"
+              Publisher="SQuiL" />
+    <DisplayName>SQuiL for Visual Studio</DisplayName>
+    <Description xml:space="preserve">Authoring support for SQuiL (.squil) files inside Visual Studio 2026 — syntax highlighting, IntelliSense, hover info, linting, and a generated-C# preview.</Description>
+    <MoreInfo>https://github.com/daemogar/SQuiL</MoreInfo>
+    <License>LICENSE.txt</License>
+    <Icon>Resources\Icons\SQuiLPreview.png</Icon>
+    <PreviewImage>Resources\Icons\SQuiLPreview.png</PreviewImage>
+    <Tags>SQL,SQuiL,source generator,IntelliSense</Tags>
+  </Metadata>
+
+  <Installation InstalledByMsi="false">
+    <!--
+         Visual Studio 2026 is shell version 18.x.  All SKUs (Community,
+         Professional, Enterprise) advertise the Sku target id
+         "Microsoft.VisualStudio.Community" as their floor, so targeting it
+         with [18.0,) installs into any VS 2026 edition.  ProductArchitecture
+         must be the enum value "amd64" (not "x64").
+    -->
+    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[18.0,)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+  </Installation>
+
+  <Dependencies>
+    <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" d:Source="Manual" Version="[4.7.2,)" />
+  </Dependencies>
+
+  <Prerequisites>
+    <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[18.0,)" DisplayName="Visual Studio core editor" />
+  </Prerequisites>
+
+  <Assets>
+    <Asset Type="Microsoft.VisualStudio.VsPackage"
+           d:Source="Project"
+           d:ProjectName="%CurrentProject%"
+           Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
+    <Asset Type="Microsoft.VisualStudio.MefComponent"
+           d:Source="Project"
+           d:ProjectName="%CurrentProject%"
+           Path="|%CurrentProject%|" />
+  </Assets>
+</PackageManifest>

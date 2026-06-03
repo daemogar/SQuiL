@@ -1,0 +1,25 @@
+; SQuiL.Bindings.pkgdef
+; ---------------------
+; Bind the .squil file extension to SQL Server Data Tools' (SSDT) editor
+; factories — the same factories that own .sql in Visual Studio — so opening a
+; .squil file gets the full SSDT SQL editing experience: the connection picker
+; + execute toolbar, the results grid, etc., exactly like a .sql file.
+;
+; The three factories + priorities mirror SSDT's own .sql registration
+; (discovered from Microsoft.VisualStudio.Data.Tools.Package.pkgdef and
+; Microsoft.VisualStudio.Data.Tools.SqlEditor.pkgdef), so .squil resolves to
+; the same default editor .sql does (highest priority wins: {6733A975…} @ 0x96).
+;
+; Requires SSDT installed (it ships with the "Data storage and processing" /
+; SQL Server Data Tools workload).  Without SSDT these factories don't exist
+; and .squil falls back to the plain text editor — the same outcome .sql has
+; on a machine without SSDT.
+
+[$RootKey$\Editors\{6733A975-78A1-470C-A55A-FBEE19F5874B}\Extensions]
+"squil"=dword:00000096
+
+[$RootKey$\Editors\{CC5D8DF0-88F4-4BB2-9DBB-B48CEE65C30A}\Extensions]
+"squil"=dword:00000064
+
+[$RootKey$\Editors\{F9D1E5B1-8A59-439C-9BB9-D5598B830ECB}\Extensions]
+"squil"=dword:00000060

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <!--
+       SQuiL command table (Visual Studio 2026).
+
+       "New SQuiL File" is placed on the standard File → New cascade
+       (IDM_VS_CSCD_NEW) — the conventional home for new-file commands.
+
+       The other three commands sit on the Tools menu so they're always
+       reachable:
+
+         • SQuiL Writing Guide        (always available)
+         • Preview Generated C#       (visible only on a .squil document)
+         • Build SQuiL Project        (visible only on a .squil document)
+
+       In VS, .squil files open in the standard code editor (our own "squil"
+       content type — see SQuiLContentTypeDefinition), so we ALSO mirror
+       Preview / Build onto IDM_VS_CTXT_CODEWIN (the standard editor context
+       menu).  Unlike SSMS — whose SQL Query Editor uses private menu IDs a
+       third-party extension can't target — this placement works here, giving
+       a convenient right-click surface on the open .squil document.
+  -->
+
+  <Extern href="stdidcmd.h" />
+  <Extern href="vsshlids.h" />
+
+  <Commands package="guidSQuiLPackage">
+
+    <Groups>
+      <!-- Tools menu group — the primary discoverable surface. -->
+      <Group guid="guidSQuiLCmdSet" id="SQuiLToolsMenuGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" />
+      </Group>
+      <!-- Editor-context group: fallback for non-SQL-editor opens. -->
+      <Group guid="guidSQuiLCmdSet" id="SQuiLEditorContextGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" />
+      </Group>
+      <!-- File → New cascade group — hosts "New SQuiL File" in the standard
+           new-file location. -->
+      <Group guid="guidSQuiLCmdSet" id="SQuiLFileNewGroup" priority="0x0100">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CSCD_NEW" />
+      </Group>
+    </Groups>
+
+    <Buttons>
+      <Button guid="guidSQuiLCmdSet" id="cmdidNewFile" priority="0x0100" type="Button">
+        <Parent guid="guidSQuiLCmdSet" id="SQuiLFileNewGroup" />
+        <Strings>
+          <ButtonText>New SQuiL File</ButtonText>
+          <CommandName>SQuiL.NewFile</CommandName>
+        </Strings>
+      </Button>
+      <Button guid="guidSQuiLCmdSet" id="cmdidOpenWritingGuide" priority="0x0100" type="Button">
+        <Parent guid="guidSQuiLCmdSet" id="SQuiLToolsMenuGroup" />
+        <Strings>
+          <ButtonText>SQuiL Writing Guide</ButtonText>
+          <CommandName>SQuiL.OpenWritingGuide</CommandName>
+        </Strings>
+      </Button>
+      <Button guid="guidSQuiLCmdSet" id="cmdidPreviewGeneratedCSharp" priority="0x0101" type="Button">
+        <Parent guid="guidSQuiLCmdSet" id="SQuiLToolsMenuGroup" />
+        <Strings>
+          <ButtonText>Preview Generated C#</ButtonText>
+          <CommandName>SQuiL.PreviewGeneratedCSharp</CommandName>
+        </Strings>
+      </Button>
+      <Button guid="guidSQuiLCmdSet" id="cmdidBuildProject" priority="0x0102" type="Button">
+        <Parent guid="guidSQuiLCmdSet" id="SQuiLToolsMenuGroup" />
+        <Strings>
+          <ButtonText>Build SQuiL Project</ButtonText>
+          <CommandName>SQuiL.BuildProject</CommandName>
+        </Strings>
+      </Button>
+    </Buttons>
+
+  </Commands>
+
+  <!--
+       Mirror Preview / Build into the standard code-window context menu so
+       they show up on right-click when .squil happens to open in the plain
+       text editor.  When .squil opens in SSMS's SQL Query Editor (the usual
+       case), this entry is filtered out at runtime by OleMenuCommand's
+       BeforeQueryStatus on non-.squil documents — the user reaches the
+       command from the Tools menu instead.
+  -->
+  <CommandPlacements>
+    <CommandPlacement guid="guidSQuiLCmdSet" id="cmdidPreviewGeneratedCSharp" priority="0x0100">
+      <Parent guid="guidSQuiLCmdSet" id="SQuiLEditorContextGroup" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidSQuiLCmdSet" id="cmdidBuildProject" priority="0x0101">
+      <Parent guid="guidSQuiLCmdSet" id="SQuiLEditorContextGroup" />
+    </CommandPlacement>
+  </CommandPlacements>
+
+  <Symbols>
+    <GuidSymbol name="guidSQuiLPackage" value="{b8e2f140-3a5c-4d7e-9f1a-2c4e6b8d0a01}" />
+
+    <GuidSymbol name="guidSQuiLCmdSet" value="{b8e2f140-3a5c-4d7e-9f1a-2c4e6b8d0a02}">
+      <IDSymbol name="SQuiLToolsMenuGroup"          value="0x1020" />
+      <IDSymbol name="SQuiLEditorContextGroup"      value="0x1021" />
+      <IDSymbol name="SQuiLFileNewGroup"            value="0x1022" />
+      <IDSymbol name="cmdidPreviewGeneratedCSharp" value="0x0100" />
+      <IDSymbol name="cmdidBuildProject"           value="0x0101" />
+      <IDSymbol name="cmdidOpenWritingGuide"       value="0x0102" />
+      <IDSymbol name="cmdidNewFile"                value="0x0103" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>
