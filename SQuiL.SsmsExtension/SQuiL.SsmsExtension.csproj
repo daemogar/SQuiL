@@ -132,14 +132,16 @@
   <ItemGroup>
     <!-- Distribution hand-off files. Copied to the output ROOT (via <Link>)
          so bin\$(Configuration)\ contains the complete package next to the
-         .vsix: SQuiL.SsmsExtension.vsix + INSTALL.md + install.ps1. These are
+         .vsix: SQuiL.SsmsExtension.vsix + INSTALL.md + install.cmd. These are
          the three files attached as GitHub release assets by
-         .github/workflows/publish.yml. NOT packed into the VSIX itself. -->
+         .github/workflows/publish.yml. NOT packed into the VSIX itself.
+         install.cmd is a batch/PowerShell polyglot (one downloadable file,
+         self-elevating, immune to the PowerShell execution policy). -->
     <Content Include="Distribution\INSTALL.md" Link="INSTALL.md">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>false</IncludeInVSIX>
     </Content>
-    <Content Include="Distribution\install.ps1" Link="install.ps1">
+    <Content Include="Distribution\install.cmd" Link="install.cmd">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>false</IncludeInVSIX>
     </Content>

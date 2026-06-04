@@ -2,8 +2,8 @@
 
 You may have up to three files:
 
-- `SQuiL.SsmsExtension.vsix`  ← the extension package (optional — `install.ps1` downloads it if absent)
-- `install.ps1`              ← runs the install for you; run elevated. **You can download just this file** — it fetches the `.vsix` from GitHub if it isn't sitting next to it.
+- `SQuiL.SsmsExtension.vsix`  ← the extension package (optional — `install.cmd` downloads it if absent)
+- `install.cmd`              ← runs the install for you. **You can download just this one file and double-click it** — it self-elevates (UAC prompt) and fetches the `.vsix` from GitHub if it isn't sitting next to it.
 - `INSTALL.md`                ← this file
 
 ## Things to know before you install
@@ -21,11 +21,27 @@ You may have up to three files:
   — SSMS's normal SQL behaviour is untouched for them.
 - **Install is per-user.** Don't pass `/admin` to VSIXInstaller — that
   changes the install scope and isn't needed; `VSIXInstaller /quiet
-  path-to-vsix.vsix` is enough. (Note: the bundled `install.ps1` still asks
-  you to launch PowerShell elevated so it can reliably force-close SSMS — but
-  it does **not** pass `/admin` to VSIXInstaller.)
+  path-to-vsix.vsix` is enough. (Note: the bundled `install.cmd` still
+  self-elevates so it can reliably force-close SSMS — but it does **not** pass
+  `/admin` to VSIXInstaller.)
 
-## Install
+## Install (easiest)
+
+**Download `install.cmd` and double-click it.** It prompts for administrator
+rights (UAC), then runs the three gated steps for you — force-close SSMS,
+install the VSIX, and `Ssms.exe /setup`. **Before it closes SSMS it pauses and
+asks you to save any open work**, so nothing is lost (press Enter to continue,
+or Ctrl+C to cancel). You don't need the `.vsix` locally; if it isn't sitting
+next to `install.cmd`, the matching release is downloaded automatically (the
+release tag is baked into the file at publish time).
+
+`install.cmd` is a single file that is both a batch script and a PowerShell
+script ("polyglot"). Because it runs as a `.cmd`, Windows does **not** block it
+under the PowerShell execution policy and there is no Mark-of-the-Web prompt —
+so there's no `Set-ExecutionPolicy`/`-ExecutionPolicy Bypass` dance and no
+manual "Run as administrator". Just download and run.
+
+## Install (manual, if you prefer)
 
 Close SSMS first. Then run all four steps in **PowerShell**:
 
@@ -45,31 +61,11 @@ $vsix      = "SQuiL.SsmsExtension.vsix"   # or full path to the .vsix you receiv
 & $ssms /setup
 ```
 
-> **Tip:** the included `install.ps1` runs these steps for you. Open
-> PowerShell with **Run as administrator** and run `.\install.ps1` from this
-> folder. It prompts you to save open work, then runs three gated steps —
-> (1) force-close SSMS and wait for it to exit, (2) install the VSIX,
-> (3) `Ssms.exe /setup` — and each step must complete successfully before the
-> next begins (e.g. `/setup` never runs unless the VSIX install returned 0).
->
-> You don't even need the `.vsix` locally: if it isn't next to the script,
-> `install.ps1` downloads the release it was published for automatically — no
-> version argument needed (the release tag is baked into the script). Point at
-> a specific local file with `-VsixPath <path>` if you ever need to.
->
-> **PowerShell won't run the downloaded script** ("...is not digitally
-> signed")? Downloaded `.ps1` files are blocked by the execution policy.
-> Launch it elevated with the policy bypassed for just that process — this
-> also satisfies the "run as administrator" requirement:
->
-> ```powershell
-> Start-Process powershell -Verb RunAs -ArgumentList '-NoExit','-NoProfile','-ExecutionPolicy','Bypass','-File',"$HOME\Downloads\install.ps1"
-> ```
->
-> (adjust the path if you saved it elsewhere). Already in an elevated prompt?
-> Run `Set-ExecutionPolicy -Scope Process Bypass -Force` once, then
-> `.\install.ps1`. `-Scope Process` is session-only and reverts when you close
-> the window.
+> **Tip:** you don't have to run these by hand — `install.cmd` (see
+> **Install (easiest)** above) performs exactly these three gated steps for
+> you, prompting you to save open work first and aborting if any step fails
+> (e.g. `/setup` never runs unless the VSIX install returned 0). The manual
+> steps here are just for reference or troubleshooting.
 
 Open any `.squil` file — SSMS's SQL toolbar (F5 / connection picker /
 results pane) appears, plus the SQuiL overlay (coral `@Param_*`, etc.).
