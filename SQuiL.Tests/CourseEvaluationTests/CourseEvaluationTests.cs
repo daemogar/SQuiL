@@ -8,10 +8,11 @@ public class CourseEvaluationTests
 	public async Task RealExample()
 	{
 		var path = Path.GetDirectoryName(typeof(CourseEvaluationTests).Assembly.Location);
+		var sourceDir = Path.Combine(path!, "..", "..", "..", nameof(CourseEvaluationTests));
 		var files = Directory
-			.GetFiles(path!, $"..\\..\\..\\{nameof(CourseEvaluationTests)}\\*.sql", SearchOption.AllDirectories)
+			.GetFiles(sourceDir, "*.sql", SearchOption.AllDirectories)
 			.Select(p => $"""
-				--Name: {p[p.LastIndexOf('\\')..][1..^4]}
+				--Name: {Path.GetFileNameWithoutExtension(p)}
 				{File.ReadAllText(p)}
 				""")
 			.ToList();

@@ -206,7 +206,7 @@ public class DataContextGenerationTests //: DataContextUsedTests
 
 	private static (string Name, string[] Attributes) Format(string file)
 	{
-		var name = file.Replace("\\", "");
+		var name = file.Replace("\\", "").Replace("/", "");
 		return (name, [$"[{QueryAttributeName}(QueryFiles.{name})]"]);
 	}
 

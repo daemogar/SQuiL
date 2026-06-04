@@ -49,7 +49,7 @@ public static class TestHelper
 		VerifySettings settings = default!;
 		if (path is not null)
 		{
-			path = path[..path.LastIndexOf('\\')] + @$"\{name}\";
+			path = Path.Combine(Path.GetDirectoryName(path)!, name) + Path.DirectorySeparatorChar;
 			if (!Directory.Exists(path))
 				Directory.CreateDirectory(path);
 			settings = new();
@@ -75,7 +75,10 @@ file class AdditionalFile(string Path) : AdditionalText
 
 	public override SourceText? GetText(CancellationToken cancellationToken = default)
 	{
-		var text = File.ReadAllText($"..\\..\\..\\{Path}");
+		var relative = Path
+			.Replace('\\', System.IO.Path.DirectorySeparatorChar)
+			.Replace('/', System.IO.Path.DirectorySeparatorChar);
+		var text = File.ReadAllText(System.IO.Path.Combine("..", "..", "..", relative));
 		return SourceText.From(text);
 	}
 }

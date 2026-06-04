@@ -50,6 +50,14 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		return path;
 	}
 
+	/// <summary>
+	/// Collapses a relative path into a flat identifier by removing both Windows (<c>\</c>) and
+	/// POSIX (<c>/</c>) directory separators, so a query produces the same generated name
+	/// regardless of the build host's OS (a Linux CI runner reports <c>/</c>-separated paths).
+	/// </summary>
+	private static string FlattenPath(string path)
+		=> path.Replace("\\", "").Replace("/", "");
+
 	/// <summary>SQL variable name for the debug-mode flag: <c>Debug</c>.</summary>
 	public static string Debug { get; } = nameof(Debug);
 
@@ -104,7 +112,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 						.MetadataReferencesProvider
 						.Select(static (p, _) =>
 						{
-							var dll = p.Display?[(p.Display.LastIndexOf('\\') + 1)..];
+							var dll = p.Display is null ? null : Path.GetFileName(p.Display);
 
 							if (dll is null)
 								return default;
@@ -202,7 +210,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 							continue;
 
 						var index = p.Path.IndexOf(rootPath) + rootPath.Length;
-						var path = p.Path[index..].TrimStart('\\');
+						var path = p.Path[index..].TrimStart('\\', '/');
 
 						return new SQuiLAdditionalText(path, p);
 					}
@@ -343,7 +351,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			if (location is null)
 				continue;
 
-			var file = files.FirstOrDefault(p => StripSqlExtension(p.Path.Replace("\\", "")).Equals(method));
+			var file = files.FirstOrDefault(p => StripSqlExtension(FlattenPath(p.Path)).Equals(method));
 			if (file is null)
 				return;
 
@@ -465,7 +473,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				{
 				""");
 			var comma = "";
-			foreach (var method in files.Where(p => IsSqlFile(p.Path)).Select(p => StripSqlExtension(p.Path.Replace("\\", ""))))
+			foreach (var method in files.Where(p => IsSqlFile(p.Path)).Select(p => StripSqlExtension(FlattenPath(p.Path))))
 			{
 				sb.AppendLine(comma);
 				sb.Append($"\t{method}");
