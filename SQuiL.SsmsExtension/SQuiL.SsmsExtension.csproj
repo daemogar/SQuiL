@@ -57,7 +57,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.13.2126" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.11.40262" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" PrivateAssets="all" />
     <!-- WebView2 hosts the writing-guide tool window's guide.html.  The
          runtime is part of Windows + Edge updates; we just need the managed
          wrapper compiled in. -->
