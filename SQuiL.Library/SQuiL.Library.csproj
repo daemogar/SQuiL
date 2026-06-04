@@ -16,7 +16,7 @@
 		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
-		<Copyright>2021</Copyright>
+		<Copyright>Copyright © 2021–2026 Dæmogar</Copyright>
 	</PropertyGroup>
 
 	<ItemGroup>
