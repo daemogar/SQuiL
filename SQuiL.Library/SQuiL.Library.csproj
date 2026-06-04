@@ -32,8 +32,8 @@
 	also be added to SQuiL.SourceGenerator.csproj to flow through to consumers.
 	-->
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
-		<PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.8" />
+		<PackageReference Include="Microsoft.Data.SqlClient" />
+		<PackageReference Include="Microsoft.Extensions.Configuration" />
 	</ItemGroup>
 
 </Project>
