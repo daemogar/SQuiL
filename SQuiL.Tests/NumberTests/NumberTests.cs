@@ -31,6 +31,26 @@ public class NumberTests
 	}
 
 	[Fact]
+	public Task DecimalPrecisionScaleTest()
+	{
+		var name = nameof(DecimalPrecisionScaleTest);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Param_Price decimal(18,2);
+			Declare @Params_Courses table(
+				CourseID int,
+				Credits decimal(10,4),
+				Title varchar(100));
+			Declare @Returns_Totals table(
+				TotalID int,
+				Amount numeric(10, 4) Null,
+				Label varchar(50));
+			Use [Database];
+			Select 1;
+			"""]);
+	}
+
+	[Fact]
 	public Task DoubleNumberTest()
 	{
 		//Debugger.Launch();

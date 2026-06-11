@@ -22,12 +22,14 @@ public class SQuiLTokenizer(string Text)
 	/// <summary>
 	/// Matches SQL data-type tokens including size specifiers and compound types like <c>varbinary(max)</c>.
 	/// Bare keywords (no parens) are anchored with <c>\b</c> so column names such as
-	/// <c>DateOfBirth</c> or <c>TimeStamp</c> are not misidentified as types; <c>decimal</c> and
-	/// <c>identity</c> use <c>(\b|(...))</c> so both the bare and parenthesized forms match but
-	/// a prefix like <c>decimals</c> does not.
+	/// <c>DateOfBirth</c> or <c>TimeStamp</c> are not misidentified as types; <c>decimal</c>/<c>numeric</c>
+	/// and <c>identity</c> use <c>((...)|\b)</c> so both the bare and parenthesized forms match but
+	/// a prefix like <c>decimals</c> does not. The parenthesized precision/scale of
+	/// <c>decimal(p[,s])</c> / <c>numeric(p[,s])</c> is part of the type token so the comma inside
+	/// the parens is never mistaken for a column separator.
 	/// </summary>
 	private static Regex TypeRegex { get; } = new(
-		"""^((bit|int|float|double|uniqueidentifier|date(?!time)|time|datetime(2|offset|)|n?text)\b|decimal(\(\d,\d\)|\b)|identity(\s*\(\s*\d+\s*,\s*\d+\s*\)|\b)|n?(var)?char\s*\(\s*(\d+|max)\s*\)|table\s*\(|default\s+(\d+|'.*?')|varbinary\s*\(\s*max\s*\)|binary\s*\(\s*\d+\s*\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+		"""^((bit|int|float|double|uniqueidentifier|date(?!time)|time|datetime(2|offset|)|n?text)\b|(decimal|numeric)(\s*\(\s*\d+\s*(,\s*\d+\s*)?\)|\b)|identity(\s*\(\s*\d+\s*,\s*\d+\s*\)|\b)|n?(var)?char\s*\(\s*(\d+|max)\s*\)|table\s*\(|default\s+(\d+|'.*?')|varbinary\s*\(\s*max\s*\)|binary\s*\(\s*\d+\s*\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
 
 	/// <summary>Matches built-in SQL function calls such as <c>GETDATE()</c>.</summary>
 	private static Regex FunctionRegex { get; } = new(
@@ -289,11 +291,16 @@ public class SQuiLTokenizer(string Text)
 					return T(TokenType.TYPE_INT, p.Value);
 				case "double" or "float":
 					return T(TokenType.TYPE_DOUBLE, "float");
-				case "decimal":
+				case "decimal" or "numeric":
 					if (value.Length == 1)
 						return T(TokenType.TYPE_DECIMAL, p.Value);
 					var decimalParts = value[1].Split(',');
-					if (decimalParts.Length != 2 && decimalParts.Any(q => !int.TryParse(q, out var r) || r > 0))
+					if (!int.TryParse(decimalParts[0], out var precision)
+						|| precision is < 1 or > 38
+						|| (decimalParts.Length == 2
+							&& (!int.TryParse(decimalParts[1], out var scale)
+								|| scale < 0
+								|| scale > precision)))
 						return $"Invalid Decimal Values: `{p.Value}`";
 					return T(TokenType.TYPE_DECIMAL, p.Value);
 				case "uniqueidentifier":
