@@ -29,7 +29,8 @@ jobs:
     - name: Build Generator
       run: dotnet build --no-restore -c Release "./SQuiL.SourceGenerator/SQuiL.SourceGenerator.csproj"
 
-    # - name: Build Tests
-    #   run: dotnet build --no-restore "./SQuiL.Tests/SQuiL.Tests.csproj"
-    # - name: Test Generator
-    #   run: dotnet test --no-build --verbosity normal "./SQuiL.Tests/SQuiL.Tests.csproj"
+    - name: Build Tests
+      run: dotnet build --no-restore "./SQuiL.Tests/SQuiL.Tests.csproj"
+
+    - name: Test Generator
+      run: dotnet test --no-build --verbosity normal "./SQuiL.Tests/SQuiL.Tests.csproj"

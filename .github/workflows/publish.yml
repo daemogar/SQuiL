@@ -3,11 +3,20 @@
 
 name: Publish SQuiL
 
+# Every push to master publishes a -beta prerelease. An official (stable)
+# release is triggered manually from the Actions tab (workflow_dispatch):
+# same pipeline, same assets, but the tag has no -beta suffix and the GitHub
+# release is not marked prerelease. PRs are validated by build.yml only —
+# they must never publish.
 on:
   push:
     branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Official version override (e.g. 1.0.0). Leave empty to use <sdk>.<run#> without -beta.'
+        required: false
+        default: ''
 
 env:
   PROJECT: SQuiL
@@ -18,10 +27,11 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    # Expose the computed release version so the Windows SSMS job can attach
-    # its assets to the very same release/tag this job creates.
+    # Expose the computed release version (and channel) so the VSIX jobs can
+    # attach their assets to the very same release/tag this job creates.
     outputs:
       version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
 
     steps:
     - name: Checkout Source
@@ -49,11 +59,26 @@ jobs:
     - name: Set Build Number
       run: echo "BUILD=$(printf '%04d' ${{ github.run_number }})" >> "$GITHUB_ENV"
 
+    # push to master        → <sdk>.<run#>-beta, marked prerelease (the default flow)
+    # workflow_dispatch     → official: no -beta, full release; the optional
+    #                         version input overrides the computed number.
     - name: Set Release Version
       id: version
       run: |
-        echo "VERSION=${{ env.DOTNET }}.${{ env.BUILD }}-beta" >> "$GITHUB_ENV"
-        echo "version=${{ env.DOTNET }}.${{ env.BUILD }}-beta" >> "$GITHUB_OUTPUT"
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="${{ env.DOTNET }}.${{ env.BUILD }}"
+          fi
+          PRERELEASE=false
+        else
+          VERSION="${{ env.DOTNET }}.${{ env.BUILD }}-beta"
+          PRERELEASE=true
+        fi
+        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+        echo "PRERELEASE=$PRERELEASE" >> "$GITHUB_ENV"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
 
     - name: Create Release
       uses: ncipollo/release-action@v1.14.0
@@ -62,7 +87,7 @@ jobs:
         name: ${{ env.VERSION }}
         token: ${{ secrets.GITHUB_TOKEN }}
         draft: false
-        prerelease: true
+        prerelease: ${{ env.PRERELEASE }}
         artifactErrorsFailBuild: true
 
     - name: Pack ${{ env.PROJECT }}.SourceGenerator
@@ -231,7 +256,7 @@ jobs:
         omitNameDuringUpdate: true
         omitBodyDuringUpdate: true
         replacesArtifacts: true
-        prerelease: true
+        prerelease: ${{ needs.build.outputs.prerelease }}
         artifactErrorsFailBuild: true
         artifacts: "${{ env.SSMS_OUTPUT }}/SQuiL.SsmsExtension.vsix,${{ env.SSMS_OUTPUT }}/INSTALL.md,${{ env.SSMS_OUTPUT }}/install.cmd,${{ env.VS_OUTPUT }}/SQuiL.VisualStudioExtension.vsix,${{ env.VS_INSTALL_DOC }}"
 
@@ -293,6 +318,6 @@ jobs:
         omitNameDuringUpdate: true
         omitBodyDuringUpdate: true
         replacesArtifacts: true
-        prerelease: true
+        prerelease: ${{ needs.build.outputs.prerelease }}
         artifactErrorsFailBuild: true
         artifacts: "SQuiL.VSCodeExtension/squil-editor-*.vsix,SQuiL.VSCodeExtension/INSTALL-VSCode.md"
