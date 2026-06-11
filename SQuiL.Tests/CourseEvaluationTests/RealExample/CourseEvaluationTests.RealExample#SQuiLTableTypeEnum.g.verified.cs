@@ -7,5 +7,11 @@ namespace SQuiL;
 
 public enum TableType
 {
+	Courses,
+	Overrides,
+	Participation,
+	Questions,
+	Section,
+	Sections,
 	Terms
 }

@@ -766,18 +766,6 @@
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
-    },
-    {
-      Message: Cannot generate Property `Debug` for QueryHasErrorListRequest,
-      Severity: Error,
-      Descriptor: {
-        Id: SP1001,
-        Title: Failed Parsing SQuiL File,
-        MessageFormat: Cannot generate Property `Debug` for QueryHasErrorListRequest,
-        Category: Design,
-        DefaultSeverity: Error,
-        IsEnabledByDefault: true
-      }
     }
   ]
 }

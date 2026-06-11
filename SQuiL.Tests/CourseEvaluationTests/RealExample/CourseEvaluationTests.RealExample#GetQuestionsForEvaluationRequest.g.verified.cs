@@ -8,6 +8,7 @@ namespace CourseEvaluation.Application.Data;
 public partial record GetQuestionsForEvaluationRequest
 {
 	public bool Debug { get; set; }
+	public bool DebugOnly { get; set; }
 	
 	public SectionTable? Section { get; set; } = default!;
 }

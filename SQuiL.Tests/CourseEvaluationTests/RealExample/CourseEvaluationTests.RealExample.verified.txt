@@ -2752,18 +2752,6 @@ COMMENT_SINGLELINE => --SectionID varchar(20),
       }
     },
     {
-      Message: Cannot generate Property `Debug` for GetStudentCoursesForEvaluationByTermRequest,
-      Severity: Error,
-      Descriptor: {
-        Id: SP1001,
-        Title: Failed Parsing SQuiL File,
-        MessageFormat: Cannot generate Property `Debug` for GetStudentCoursesForEvaluationByTermRequest,
-        Category: Design,
-        DefaultSeverity: Error,
-        IsEnabledByDefault: true
-      }
-    },
-    {
       Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = 22, Value = , Original = @Param_Debug bit }, Name = Debug, DefaultValue = 1, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = False, Size = , Properties =  },
       Severity: Warning,
       WarningLevel: 1,
@@ -3791,18 +3779,6 @@ COMMENT_SINGLELINE => --SectionID varchar(20),
       }
     },
     {
-      Message: Cannot generate Property `Debug` for GetStudentParticipationAndSectionOverridesRequest,
-      Severity: Error,
-      Descriptor: {
-        Id: SP1001,
-        Title: Failed Parsing SQuiL File,
-        MessageFormat: Cannot generate Property `Debug` for GetStudentParticipationAndSectionOverridesRequest,
-        Category: Design,
-        DefaultSeverity: Error,
-        IsEnabledByDefault: true
-      }
-    },
-    {
       Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = 21, Value = , Original = @Param_Debug bit }, Name = Debug, DefaultValue = 1, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = False, Size = , Properties =  },
       Severity: Warning,
       WarningLevel: 1,
@@ -4712,18 +4688,6 @@ COMMENT_SINGLELINE => -- Music Lessons 334 F05
       }
     },
     {
-      Message: Cannot generate Property `Debug` for GetSectionDetailsRequest,
-      Severity: Error,
-      Descriptor: {
-        Id: SP1001,
-        Title: Failed Parsing SQuiL File,
-        MessageFormat: Cannot generate Property `Debug` for GetSectionDetailsRequest,
-        Category: Design,
-        DefaultSeverity: Error,
-        IsEnabledByDefault: true
-      }
-    },
-    {
       Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = 21, Value = , Original = @Param_Debug bit }, Name = Debug, DefaultValue = 1, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = False, Size = , Properties =  },
       Severity: Warning,
       WarningLevel: 1,
@@ -5591,18 +5555,6 @@ COMMENT_SINGLELINE => -- Music Lessons 334 F05
         MessageFormat: BODY => Insert Into @Returns_Questions Select		s.SectionID, 			Case ShowWhen 				When 'global' Then 'Global Questions' 				When 'online' Then 'Online Questions' 				When 'graduate' Then 'Graduate Questions' 				When 'department' Then s.Department + ' Questions' 				When 'section' Then s.CourseTitle + ' Questions (' + s.CourseCode + ')' 				When 'service_learning' Then 'Service Learning Questions' 				When 'nursing' Then 'Nursing Questions' 				When 'connections' Then 'Southern Connections Questions' 				When 'private_music_instruction' Then 'Private Music Leason Questions' 				Else Null 			End, 			Upper(QuestionType) As QuestionType, 			QuestionText From ( Select		--pv.ElementId As ElementID, 			Cast(Max(Iif(pv.PropertyName = 'QuestionEnabled', Iif(PropertyValue = 'True', 1, 0), 0)) As bit) As IsEnabled, 			Cast(Max(Iif(pv.PropertyName = 'QuestionOrder', PropertyValue, Null)) As int) As SortOrder, 			--Max(Iif(pv.PropertyName = 'QuestionSectionId', PropertyValue, Null)) As SectionID, 			Max(Iif(pv.PropertyName = 'QuestionShowCondition', PropertyValue, Null)) As Condition, 			Max(Iif(pv.PropertyName = 'QuestionShowWhen', Iif(PropertyValue = 'division', 'department', PropertyValue), Null)) As ShowWhen, 			Max(Iif(pv.PropertyName = 'QuestionText', PropertyValue, Null)) As QuestionText, 			Max(Iif(pv.PropertyName = 'QuestionType', Case PropertyValue 				When 'likert' Then PropertyValue 				When 'shortanswer' Then PropertyValue 				Else Null 			End, Null)) As QuestionType 			--Max(Iif(pv.PropertyName = 'TermCode', SubString(PropertyValue, 1, 3), Null)) As TermCode From		CourseEvaluation_PropertyValues pv 			Inner Join ( 				Select		ElementId 				From		CourseEvaluation_PropertyValues 				Where		PropertyName = 'Tag' 							And PropertyValue = 'EvaluationQuestion' 			) tags 				On tags.ElementId = pv.ElementId Group By	pv.ElementId ) list Cross Join @Sections s Where		IsEnabled = 1 And Case ShowWhen 				When 'global' Then 1 				When 'online' Then IsOnline 				When 'graduate' Then IsGraduateCourse 				When 'department' Then Iif(Department = Condition, 1, 0) 				When 'section' Then Iif(list.Condition = s.SectionID, 1, 0) 				When 'service_learning' Then IsServiceLearning 				When 'nursing' Then IsNursingCourse 				When 'connections' Then IsConnectionsCourse 				When 'private_music_instruction' Then IsPrivateMusicLessons 				Else 0 			End = 1 Order By	list.QuestionType, Case ShowWhen 				When 'global' Then 1 				When 'online' Then 2 				When 'graduate' Then 3 				When 'department' Then 4 				When 'section' Then 5 				When 'service_learning' Then 6 				When 'nursing' Then 7 				When 'connections' Then 8 				When 'private_music_instruction' Then 9 				Else 99 			End, SortOrder  Select * From @Returns_Questions;  /*   global; online=MATCH(section.MeetingRm,ONLINE); graduate=MATCH(section.IsGraduateCourse,True); department=section.DeptName; section=sectionId; service_learning=MATCH(section.GenEd,SERV1,SERV2,SERV3); nursing=MATCH_BEGIN(section.CourseName,NRSG,NRNT-125); connections=MATCH_BEGIN(section.CourseName,NOND-101,ENGR-121); private_music_instruction=MATCH_BEGIN(section.CourseName,MUPF-334)    QuestionEnabled QuestionOrder QuestionSectionId QuestionShowCondition QuestionShowWhen QuestionText QuestionType Tag TermCode  */,
         Category: Logger,
         DefaultSeverity: Warning,
-        IsEnabledByDefault: true
-      }
-    },
-    {
-      Message: Cannot generate Property `Debug` for GetQuestionsForEvaluationRequest,
-      Severity: Error,
-      Descriptor: {
-        Id: SP1001,
-        Title: Failed Parsing SQuiL File,
-        MessageFormat: Cannot generate Property `Debug` for GetQuestionsForEvaluationRequest,
-        Category: Design,
-        DefaultSeverity: Error,
         IsEnabledByDefault: true
       }
     }

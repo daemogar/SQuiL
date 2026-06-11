@@ -974,18 +974,6 @@
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
-    },
-    {
-      Message: Cannot generate Property `Debug` for FullVariableRequest,
-      Severity: Error,
-      Descriptor: {
-        Id: SP1001,
-        Title: Failed Parsing SQuiL File,
-        MessageFormat: Cannot generate Property `Debug` for FullVariableRequest,
-        Category: Design,
-        DefaultSeverity: Error,
-        IsEnabledByDefault: true
-      }
     }
   ]
 }

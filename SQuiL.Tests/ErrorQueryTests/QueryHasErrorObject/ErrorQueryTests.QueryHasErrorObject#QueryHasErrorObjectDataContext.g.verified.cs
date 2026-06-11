@@ -4,6 +4,7 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 using SQuiL;
 
@@ -16,18 +17,16 @@ partial class QueryHasErrorObjectDataContext : SQuiLBaseDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
-		using SqlConnection connection = new(builder.ConnectionString);
+		using var connection = CreateConnection(builder.ConnectionString);
+		
 		var command = connection.CreateCommand();
 		
-		List<SqlParameter> parameters = new()
+		List<DbParameter> parameters = new()
 		{
-			new("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
-			new("@Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
-			new("@Param_Elapsed", System.Data.SqlDbType.BigInt) 
-			{
-				IsNullable = true,
-				Value = request.Elapsed ?? (object)System.DBNull.Value
-			}
+			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
+			CreateParameter("@Param_Elapsed", System.Data.SqlDbType.BigInt, request.Elapsed ?? (object)System.DBNull.Value
+			, p => p.IsNullable = true)
 		};
 		
 		command.CommandText = Query(parameters);
@@ -42,118 +41,133 @@ partial class QueryHasErrorObjectDataContext : SQuiLBaseDataContext
 		var isSamples = false;
 		
 		List<SQuiLError> errors = [];
-		
-		using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		
-		do
+		try
 		{
-			var tableTag = reader.GetName(0);
-			if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			
+			do
 			{
-				switch (tableTag)
+				var tableTag = reader.GetName(0);
+				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
 				{
-					case "__SQuiL__Table__Type__Error__":
+					switch (tableTag)
 					{
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						var indexNumber = reader.GetOrdinal("Number");
-						var indexSeverity = reader.GetOrdinal("Severity");
-						var indexState = reader.GetOrdinal("State");
-						var indexLine = reader.GetOrdinal("Line");
-						var indexProcedure = reader.GetOrdinal("Procedure");
-						var indexMessage = reader.GetOrdinal("Message");
-						
-						do
+						case "__SQuiL__Table__Type__Error__":
 						{
-							if (reader.GetString(0) == "Error")
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							var indexNumber = reader.GetOrdinal("Number");
+							var indexSeverity = reader.GetOrdinal("Severity");
+							var indexState = reader.GetOrdinal("State");
+							var indexLine = reader.GetOrdinal("Line");
+							var indexProcedure = reader.GetOrdinal("Procedure");
+							var indexMessage = reader.GetOrdinal("Message");
+							
+							do
 							{
-								errors.Add(new(
-									reader.GetInt32(indexNumber),
-									reader.GetInt32(indexSeverity),
-									reader.GetInt32(indexState),
-									reader.GetInt32(indexLine),
-									reader.GetString(indexProcedure),
-									reader.GetString(indexMessage)));
+								if (reader.GetString(0) == "Error")
+								{
+									var valueNumber = reader.GetInt32(indexNumber);
+									var valueSeverity = reader.GetInt32(indexSeverity);
+									var valueState = reader.GetInt32(indexState);
+									var valueLine = reader.GetInt32(indexLine);
+									var valueProcedure = reader.GetString(indexProcedure);
+									var valueMessage = reader.GetString(indexMessage);
+									
+									errors.Add(new(
+										valueNumber,
+										valueSeverity,
+										valueState,
+										valueLine,
+										valueProcedure,
+										valueMessage));
+								}
 							}
+							while (await reader.ReadAsync(cancellationToken));
+							
+							break;
 						}
-						while (await reader.ReadAsync(cancellationToken));
-						
-						break;
-					}
-					case "__SQuiL__Table__Type__Return_SampleID__":
-					{
-						if (isSampleID) throw new Exception(
-							"Already returned value for `SampleID`");
-						
-						isSampleID = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						response.SampleID = !reader.IsDBNull(1) ? reader.GetInt32(1) : null;
-						break;
-					}
-					case "__SQuiL__Table__Type__Return_SampleEntity__":
-					{
-						if (isSampleEntity) throw new Exception(
-							"Already returned value for `SampleEntity`");
-						
-						isSampleEntity = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						if (response.SampleEntity is not null)
-							throw new Exception("SampleEntity was already set.");
-						
-						if (reader.GetString(0) == "Return_SampleEntity")
+						case "__SQuiL__Table__Type__Return_SampleID__":
 						{
-							response.SampleEntity = new(
-								reader.GetInt32(reader.GetOrdinal("ID")));
+							if (isSampleID) throw new Exception(
+								"Already returned value for `SampleID`");
+							
+							isSampleID = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							response.SampleID = !reader.IsDBNull(1) ? reader.GetInt32(1) : null;
+							break;
 						}
-						else
+						case "__SQuiL__Table__Type__Return_SampleEntity__":
 						{
-							continue;
-						}
-						
-						if (await reader.ReadAsync(cancellationToken))
-							throw new Exception(
-								"Return object results in more than one object. Consider using a return table instead.");
-						
-						break;
-					}
-					case "__SQuiL__Table__Type__Returns_Samples__":
-					{
-						isSamples = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						var indexID = reader.GetOrdinal("ID");
-						
-						do
-						{
-							if (reader.GetString(0) == "Returns_Samples")
+							if (isSampleEntity) throw new Exception(
+								"Already returned value for `SampleEntity`");
+							
+							isSampleEntity = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							if (response.SampleEntity is not null)
+								throw new Exception("SampleEntity was already set.");
+							
+							if (reader.GetString(0) == "Return_SampleEntity")
 							{
-								response.Samples.Add(new(
-									reader.GetInt32(indexID)));
+								response.SampleEntity = new(
+									reader.GetInt32(reader.GetOrdinal("ID")));
 							}
+							else
+							{
+								continue;
+							}
+							
+							if (await reader.ReadAsync(cancellationToken))
+								throw new Exception(
+									"Return object results in more than one object. Consider using a return table instead.");
+							
+							break;
 						}
-						while (await reader.ReadAsync(cancellationToken));
-						break;
+						case "__SQuiL__Table__Type__Returns_Samples__":
+						{
+							isSamples = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							var indexID = reader.GetOrdinal("ID");
+							
+							do
+							{
+								if (reader.GetString(0) == "Returns_Samples")
+								{
+									var valueID = reader.GetInt32(indexID);
+									
+									response.Samples.Add(new(
+										valueID));
+								}
+							}
+							while (await reader.ReadAsync(cancellationToken));
+							break;
+						}
 					}
 				}
 			}
+			while (await reader.NextResultAsync(cancellationToken));
 		}
-		while (await reader.NextResultAsync(cancellationToken));
+		catch(SqlException e)
+		{
+			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+		}
 		
-		if (!isSampleID) throw new Exception("Expected return scaler `SampleID`)");
-		if (!isSampleEntity) throw new Exception("Expected return object `SampleEntity`)");
-		if (!isSamples) throw new Exception("Expected return table `Samples`)");
+		if (!isSampleID) errors.Add(new(51001, 12, 1, 160, "SampleID", "Expected return scaler `SampleID`"));
+		if (!isSampleEntity) errors.Add(new(51001, 12, 1, 161, "SampleEntity", "Expected return object `SampleEntity`"));
+		if (!isSamples) errors.Add(new(51001, 12, 1, 162, "Samples", "Expected return table `Samples`"));
 		
 		if(errors.Count == 0)
 			return new(response);
 		
 		return new(errors);
 		
-		string Query(List<SqlParameter> parameters) => $"""
+		string Query(List<DbParameter> parameters) => $"""
 		Declare @Return_SampleID int;
 		
 		Declare @Return_SampleEntity table(

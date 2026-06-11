@@ -11,5 +11,5 @@ public partial record QueryHasErrorListResponse
 	
 	public SampleEntityObject? SampleEntity { get; set; } = default!;
 	
-	public System.Collections.Generic.List<SamplesTable> Samples { get; set; } = [];
+	public System.Collections.Generic.List<SamplesTable>? Samples { get; set; } = [];
 }

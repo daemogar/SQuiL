@@ -4,6 +4,7 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 using SQuiL;
 
@@ -11,23 +12,21 @@ namespace TestCase;
 
 partial class FullVariableDataContext : SQuiLBaseDataContext
 {
-	public async Task<FullVariableResponse> ProcessFullVariableAsync(
+	public async Task<SQuiLResultType<FullVariableResponse>> ProcessFullVariableAsync(
 		FullVariableRequest request,
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
-		using SqlConnection connection = new(builder.ConnectionString);
+		using var connection = CreateConnection(builder.ConnectionString);
+		
 		var command = connection.CreateCommand();
 		
-		List<SqlParameter> parameters = new()
+		List<DbParameter> parameters = new()
 		{
-			new("EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
-			new("Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
-			new("Param_Scaler", System.Data.SqlDbType.BigInt) 
-			{
-				IsNullable = true,
-				Value = request.Scaler ?? (object)System.DBNull.Value
-			}
+			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
+			CreateParameter("@Param_Scaler", System.Data.SqlDbType.BigInt, request.Scaler ?? (object)System.DBNull.Value
+			, p => p.IsNullable = true)
 		};
 		
 		command.CommandText = Query(parameters);
@@ -41,95 +40,116 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 		var isObject = false;
 		var isTable = false;
 		
-		using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		
-		do
+		List<SQuiLError> errors = [];
+		try
 		{
-			var tableTag = reader.GetName(0);
-			if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			
+			do
 			{
-				switch (tableTag)
+				var tableTag = reader.GetName(0);
+				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
 				{
-					case "__SQuiL__Table__Type__Return_Scaler__":
+					switch (tableTag)
 					{
-						if (isScaler) throw new Exception(
-							"Already returned value for `Scaler`");
-						
-						isScaler = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						response.Scaler = !reader.IsDBNull(1) ? reader.GetInt32(1) : null;
-						break;
-					}
-					case "__SQuiL__Table__Type__Return_Object__":
-					{
-						if (isObject) throw new Exception(
-							"Already returned value for `Object`");
-						
-						isObject = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						if (response.Object is not null)
-							throw new Exception("Object was already set.");
-						
-						if (reader.GetString(0) == "Return_Object")
+						case "__SQuiL__Table__Type__Error__":
 						{
-							response.Object = new(
-								reader.GetInt32(reader.GetOrdinal("ObjectID")),
-								reader.GetBoolean(reader.GetOrdinal("IsNeither")),
-								reader.GetString(reader.GetOrdinal("PreferredName")));
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							break;
 						}
-						else
+						case "__SQuiL__Table__Type__Return_Scaler__":
 						{
-							continue;
+							if (isScaler) throw new Exception(
+								"Already returned value for `Scaler`");
+							
+							isScaler = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							response.Scaler = !reader.IsDBNull(1) ? reader.GetInt32(1) : null;
+							break;
 						}
-						
-						if (await reader.ReadAsync(cancellationToken))
-							throw new Exception(
-								"Return object results in more than one object. Consider using a return table instead.");
-						
-						break;
-					}
-					case "__SQuiL__Table__Type__Returns_Table__":
-					{
-						isTable = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						var indexTableID = reader.GetOrdinal("TableID");
-						var indexIsBoth = reader.GetOrdinal("IsBoth");
-						var indexNickName = reader.GetOrdinal("NickName");
-						
-						do
+						case "__SQuiL__Table__Type__Return_Object__":
 						{
-							if (reader.GetString(0) == "Returns_Table")
+							if (isObject) throw new Exception(
+								"Already returned value for `Object`");
+							
+							isObject = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							if (response.Object is not null)
+								throw new Exception("Object was already set.");
+							
+							if (reader.GetString(0) == "Return_Object")
 							{
-								response.Table.Add(new(
-									reader.GetInt32(indexTableID),
-									reader.GetBoolean(indexIsBoth),
-									reader.GetString(indexNickName)));
+								response.Object = new(
+									reader.GetInt32(reader.GetOrdinal("ObjectID")),
+									reader.GetBoolean(reader.GetOrdinal("IsNeither")),
+									reader.GetString(reader.GetOrdinal("PreferredName")));
 							}
+							else
+							{
+								continue;
+							}
+							
+							if (await reader.ReadAsync(cancellationToken))
+								throw new Exception(
+									"Return object results in more than one object. Consider using a return table instead.");
+							
+							break;
 						}
-						while (await reader.ReadAsync(cancellationToken));
-						break;
+						case "__SQuiL__Table__Type__Returns_Table__":
+						{
+							isTable = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							var indexTableID = reader.GetOrdinal("TableID");
+							var indexIsBoth = reader.GetOrdinal("IsBoth");
+							var indexNickName = reader.GetOrdinal("NickName");
+							
+							do
+							{
+								if (reader.GetString(0) == "Returns_Table")
+								{
+									var valueTableID = reader.GetInt32(indexTableID);
+									var valueIsBoth = reader.GetBoolean(indexIsBoth);
+									var valueNickName = reader.GetString(indexNickName);
+									
+									response.Table.Add(new(
+										valueTableID,
+										valueIsBoth,
+										valueNickName));
+								}
+							}
+							while (await reader.ReadAsync(cancellationToken));
+							break;
+						}
 					}
 				}
 			}
+			while (await reader.NextResultAsync(cancellationToken));
 		}
-		while (await reader.NextResultAsync(cancellationToken));
+		catch(SqlException e)
+		{
+			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+		}
 		
-		if (!isScaler) throw new Exception("Expected return table `Scaler`)");
-		if (!isObject) throw new Exception("Expected return table `Object`)");
-		if (!isTable) throw new Exception("Expected return table `Table`)");
+		if (!isScaler) errors.Add(new(51001, 12, 1, 139, "Scaler", "Expected return scaler `Scaler`"));
+		if (!isObject) errors.Add(new(51001, 12, 1, 140, "Object", "Expected return object `Object`"));
+		if (!isTable) errors.Add(new(51001, 12, 1, 141, "Table", "Expected return table `Table`"));
 		
-		return response;
+		if(errors.Count == 0)
+			return new(response);
 		
-		string inputObject(List<SqlParameter> parameters)
+		return new(errors);
+		
+		string inputObject(List<DbParameter> parameters)
 		{
 			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Param_Object(ObjectID, IsMale, FirstName)");
+			query.Append("Insert Into @Param_Object([ObjectID], [IsMale], [FirstName])");
 			
 			if (request.Object is null)
 				throw new NullReferenceException(
@@ -151,12 +171,12 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 			return query.ToString();
 		}
 		
-		string inputTable(List<SqlParameter> parameters)
+		string inputTable(List<DbParameter> parameters)
 		{
 			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Params_Table(TableID, IsFemale, LastName)");
+			query.Append("Insert Into @Params_Table([TableID], [IsFemale], [LastName])");
 			
-			if (request.Table.Count == 0) return "";
+			if (request.Table.Count() == 0) return "";
 			
 			query.AppendLine(" Values");
 			
@@ -185,40 +205,40 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 			return query.ToString();
 		}
 		
-		string Query(List<SqlParameter> parameters) => $"""
+		string Query(List<DbParameter> parameters) => $"""
 		Declare @Param_Object table(
 			[__SQuiL__Table__Type__Param_Object__] varchar(max) default('Param_Object'),
-			ObjectID int,
-			IsMale bit,
-			FirstName varchar(100));
+			[ObjectID] int,
+			[IsMale] bit,
+			[FirstName] varchar(100));
 		{inputObject(parameters)}
 		
 		Declare @Params_Table table(
 			[__SQuiL__Table__Type__Params_Table__] varchar(max) default('Params_Table'),
-			TableID int,
-			IsFemale bit,
-			LastName varchar(100));
+			[TableID] int,
+			[IsFemale] bit,
+			[LastName] varchar(100));
 		{inputTable(parameters)}
 		
 		Declare @Return_Scaler int;
 		
 		Declare @Return_Object table(
 			[__SQuiL__Table__Type__Return_Object__] varchar(max) default('Return_Object'),
-			ObjectID int,
-			IsNeither bit,
-			PreferredName varchar(100));
+			[ObjectID] int,
+			[IsNeither] bit,
+			[PreferredName] varchar(100));
 		
 		Declare @Returns_Table table(
 			[__SQuiL__Table__Type__Returns_Table__] varchar(max) default('Returns_Table'),
-			TableID int,
-			IsBoth bit,
-			NickName varchar(100));
+			[TableID] int,
+			[IsBoth] bit,
+			[NickName] varchar(100));
 		
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
 		
-		Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler
+		Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler;
 		
 		""";
 	}

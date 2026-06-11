@@ -4,6 +4,7 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 using SQuiL;
 
@@ -11,29 +12,26 @@ namespace CourseEvaluation.Application.Data;
 
 partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 {
-	public async Task<GetSectionDetailsResponse> ProcessGetSectionDetailsAsync(
+	public async Task<SQuiLResultType<GetSectionDetailsResponse>> ProcessGetSectionDetailsAsync(
 		GetSectionDetailsRequest request,
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("Warehouse");
-		using SqlConnection connection = new(builder.ConnectionString);
+		using var connection = CreateConnection(builder.ConnectionString);
+		
 		var command = connection.CreateCommand();
 		
-		List<SqlParameter> parameters = new()
+		List<DbParameter> parameters = new()
 		{
-			new("EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
-			new("Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
-			new("SectionID", System.Data.SqlDbType.VarChar, 20) 
+			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
+			CreateParameter("@Param_SectionID", System.Data.SqlDbType.VarChar, 20, request.SectionID switch
 			{
-				IsNullable = true,
-				Value = request.SectionID switch
-				{
-					null => (object)System.DBNull.Value,
-					{ Length: <= 20 } => request.SectionID,
-					_ => throw new Exception(
-						"Request model data is larger then database size for the property [SectionID].")
-				}
-			}
+				null => (object)System.DBNull.Value,
+				{ Length: <= 20 } => request.SectionID,
+				_ => throw new Exception(
+					"Request model data is larger then database size for the property [SectionID].")
+			}, p => p.IsNullable = true)
 		};
 		
 		command.CommandText = Query(parameters);
@@ -45,81 +43,110 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		var isSections = false;
 		
-		using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		
-		do
+		List<SQuiLError> errors = [];
+		try
 		{
-			var tableTag = reader.GetName(0);
-			if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			
+			do
 			{
-				switch (tableTag)
+				var tableTag = reader.GetName(0);
+				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
 				{
-					case "__SQuiL__Table__Type__Returns_Sections__":
+					switch (tableTag)
 					{
-						isSections = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						var indexSectionID = reader.GetOrdinal("SectionID");
-						var indexDepartment = reader.GetOrdinal("Department");
-						var indexCourseCode = reader.GetOrdinal("CourseCode");
-						var indexCourseTitle = reader.GetOrdinal("CourseTitle");
-						var indexIsOnline = reader.GetOrdinal("IsOnline");
-						var indexIsGraduateCourse = reader.GetOrdinal("IsGraduateCourse");
-						var indexIsAdultDegreeCourse = reader.GetOrdinal("IsAdultDegreeCourse");
-						var indexIsNursingCourse = reader.GetOrdinal("IsNursingCourse");
-						var indexIsConnectionsCourse = reader.GetOrdinal("IsConnectionsCourse");
-						var indexIsPrivateMusicLessons = reader.GetOrdinal("IsPrivateMusicLessons");
-						var indexIsServiceLearning = reader.GetOrdinal("IsServiceLearning");
-						
-						do
+						case "__SQuiL__Table__Type__Error__":
 						{
-							if (reader.GetString(0) == "Returns_Sections")
-							{
-								response.Sections.Add(new(
-									reader.GetString(indexSectionID),
-									reader.GetString(indexDepartment),
-									reader.GetString(indexCourseCode),
-									reader.GetString(indexCourseTitle),
-									reader.GetBoolean(indexIsOnline),
-									reader.GetBoolean(indexIsGraduateCourse),
-									reader.GetBoolean(indexIsAdultDegreeCourse),
-									reader.GetBoolean(indexIsNursingCourse),
-									reader.GetBoolean(indexIsConnectionsCourse),
-									reader.GetBoolean(indexIsPrivateMusicLessons),
-									reader.GetBoolean(indexIsServiceLearning)));
-							}
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							break;
 						}
-						while (await reader.ReadAsync(cancellationToken));
-						break;
+						case "__SQuiL__Table__Type__Returns_Sections__":
+						{
+							isSections = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							var indexSectionID = reader.GetOrdinal("SectionID");
+							var indexDepartment = reader.GetOrdinal("Department");
+							var indexCourseCode = reader.GetOrdinal("CourseCode");
+							var indexCourseTitle = reader.GetOrdinal("CourseTitle");
+							var indexIsOnline = reader.GetOrdinal("IsOnline");
+							var indexIsGraduateCourse = reader.GetOrdinal("IsGraduateCourse");
+							var indexIsAdultDegreeCourse = reader.GetOrdinal("IsAdultDegreeCourse");
+							var indexIsNursingCourse = reader.GetOrdinal("IsNursingCourse");
+							var indexIsConnectionsCourse = reader.GetOrdinal("IsConnectionsCourse");
+							var indexIsPrivateMusicLessons = reader.GetOrdinal("IsPrivateMusicLessons");
+							var indexIsServiceLearning = reader.GetOrdinal("IsServiceLearning");
+							
+							do
+							{
+								if (reader.GetString(0) == "Returns_Sections")
+								{
+									var valueSectionID = reader.GetString(indexSectionID);
+									var valueDepartment = reader.GetString(indexDepartment);
+									var valueCourseCode = reader.GetString(indexCourseCode);
+									var valueCourseTitle = reader.GetString(indexCourseTitle);
+									var valueIsOnline = reader.GetBoolean(indexIsOnline);
+									var valueIsGraduateCourse = reader.GetBoolean(indexIsGraduateCourse);
+									var valueIsAdultDegreeCourse = reader.GetBoolean(indexIsAdultDegreeCourse);
+									var valueIsNursingCourse = reader.GetBoolean(indexIsNursingCourse);
+									var valueIsConnectionsCourse = reader.GetBoolean(indexIsConnectionsCourse);
+									var valueIsPrivateMusicLessons = reader.GetBoolean(indexIsPrivateMusicLessons);
+									var valueIsServiceLearning = reader.GetBoolean(indexIsServiceLearning);
+									
+									response.Sections.Add(new(
+										valueSectionID,
+										valueDepartment,
+										valueCourseCode,
+										valueCourseTitle,
+										valueIsOnline,
+										valueIsGraduateCourse,
+										valueIsAdultDegreeCourse,
+										valueIsNursingCourse,
+										valueIsConnectionsCourse,
+										valueIsPrivateMusicLessons,
+										valueIsServiceLearning));
+								}
+							}
+							while (await reader.ReadAsync(cancellationToken));
+							break;
+						}
 					}
 				}
 			}
+			while (await reader.NextResultAsync(cancellationToken));
 		}
-		while (await reader.NextResultAsync(cancellationToken));
+		catch(SqlException e)
+		{
+			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+		}
 		
-		if (!isSections) throw new Exception("Expected return table `Sections`)");
+		if (!isSections) errors.Add(new(51001, 12, 1, 124, "Sections", "Expected return table `Sections`"));
 		
-		return response;
+		if(errors.Count == 0)
+			return new(response);
 		
-		string Query(List<SqlParameter> parameters) => $"""
+		return new(errors);
+		
+		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Sections table(
 			[__SQuiL__Table__Type__Returns_Sections__] varchar(max) default('Returns_Sections'),
-			SectionID varchar(20),
-			Department varchar(100),
-			CourseCode varchar(20),
-			CourseTitle varchar(150),
-			IsOnline bit,
-			IsGraduateCourse bit,
-			IsAdultDegreeCourse bit,
-			IsNursingCourse bit,
-			IsConnectionsCourse bit,
-			IsPrivateMusicLessons bit,
-			IsServiceLearning bit);
+			[SectionID] varchar(20),
+			[Department] varchar(100),
+			[CourseCode] varchar(20),
+			[CourseTitle] varchar(150),
+			[IsOnline] bit,
+			[IsGraduateCourse] bit,
+			[IsAdultDegreeCourse] bit,
+			[IsNursingCourse] bit,
+			[IsConnectionsCourse] bit,
+			[IsPrivateMusicLessons] bit,
+			[IsServiceLearning] bit);
 		
 		Use [{builder.InitialCatalog}];
 		
-		Insert Into @Returns_Sections(SectionID, Department, CourseCode, CourseTitle, IsOnline, IsGraduateCourse, IsAdultDegreeCourse, IsNursingCourse, IsConnectionsCourse, IsPrivateMusicLessons, IsServiceLearning)
+		Insert Into @Returns_Sections([SectionID], [Department], [CourseCode], [CourseTitle], [IsOnline], [IsGraduateCourse], [IsAdultDegreeCourse], [IsNursingCourse], [IsConnectionsCourse], [IsPrivateMusicLessons], [IsServiceLearning])
 		Select		SectionID, DeptName, CourseName, CourseTitle, Iif(Upper(MeetingRm) = 'ONLINE', 1, 0), Iif(CourseLevel = 'GR', 1, 0), IsADC,
 					Iif(CourseName Like 'NURG-%' Or CourseName Like 'NRNT-125-%', 1, 0),
 					Iif(CourseName Like 'NOND-101-%' Or CourseName Like 'ENGR-121-%', 1, 0),

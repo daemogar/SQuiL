@@ -4,6 +4,7 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 using SQuiL;
 
@@ -11,47 +12,35 @@ namespace CourseEvaluation.Application.Data;
 
 partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 {
-	public async Task<GetStudentCoursesForEvaluationByTermResponse> ProcessGetStudentCoursesForEvaluationByTermAsync(
+	public async Task<SQuiLResultType<GetStudentCoursesForEvaluationByTermResponse>> ProcessGetStudentCoursesForEvaluationByTermAsync(
 		GetStudentCoursesForEvaluationByTermRequest request,
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("Warehouse");
-		using SqlConnection connection = new(builder.ConnectionString);
+		using var connection = CreateConnection(builder.ConnectionString);
+		
 		var command = connection.CreateCommand();
 		
-		List<SqlParameter> parameters = new()
+		List<DbParameter> parameters = new()
 		{
-			new("EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
-			new("Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, 
-			new("PersonID", System.Data.SqlDbType.VarChar, 10) 
+			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
+			CreateParameter("@Param_PersonID", System.Data.SqlDbType.VarChar, 10, request.PersonID switch
 			{
-				IsNullable = true,
-				Value = request.PersonID switch
-				{
-					null => (object)System.DBNull.Value,
-					{ Length: <= 10 } => request.PersonID,
-					_ => throw new Exception(
-						"Request model data is larger then database size for the property [PersonID].")
-				}
-			}
-			,
-			new("CourseCode", System.Data.SqlDbType.VarChar, 20) 
+				null => (object)System.DBNull.Value,
+				{ Length: <= 10 } => request.PersonID,
+				_ => throw new Exception(
+					"Request model data is larger then database size for the property [PersonID].")
+			}, p => p.IsNullable = true),
+			CreateParameter("@Param_CourseCode", System.Data.SqlDbType.VarChar, 20, request.CourseCode switch
 			{
-				IsNullable = true,
-				Value = request.CourseCode switch
-				{
-					null => (object)System.DBNull.Value,
-					{ Length: <= 20 } => request.CourseCode,
-					_ => throw new Exception(
-						"Request model data is larger then database size for the property [CourseCode].")
-				}
-			}
-			,
-			new("AsOfDate", System.Data.SqlDbType.Date) 
-			{
-				IsNullable = true,
-				Value = request.AsOfDate ?? (object)System.DBNull.Value
-			}
+				null => (object)System.DBNull.Value,
+				{ Length: <= 20 } => request.CourseCode,
+				_ => throw new Exception(
+					"Request model data is larger then database size for the property [CourseCode].")
+			}, p => p.IsNullable = true),
+			CreateParameter("@Param_AsOfDate", System.Data.SqlDbType.Date, request.AsOfDate ?? (object)System.DBNull.Value
+			, p => p.IsNullable = true)
 		};
 		
 		command.CommandText = Query(parameters);
@@ -63,63 +52,89 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		var isCourses = false;
 		
-		using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		
-		do
+		List<SQuiLError> errors = [];
+		try
 		{
-			var tableTag = reader.GetName(0);
-			if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			
+			do
 			{
-				switch (tableTag)
+				var tableTag = reader.GetName(0);
+				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
 				{
-					case "__SQuiL__Table__Type__Returns_Courses__":
+					switch (tableTag)
 					{
-						isCourses = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						var indexEvalationID = reader.GetOrdinal("EvalationID");
-						var indexTermCode = reader.GetOrdinal("TermCode");
-						var indexCourseCode = reader.GetOrdinal("CourseCode");
-						var indexCourseTitle = reader.GetOrdinal("CourseTitle");
-						var indexProfessorPicture = reader.GetOrdinal("ProfessorPicture");
-						var indexProfessorName = reader.GetOrdinal("ProfessorName");
-						var indexEvaluationState = reader.GetOrdinal("EvaluationState");
-						var indexEvaluationStatus = reader.GetOrdinal("EvaluationStatus");
-						
-						do
+						case "__SQuiL__Table__Type__Error__":
 						{
-							if (reader.GetString(0) == "Returns_Courses")
-							{
-								response.Courses.Add(new(
-									reader.GetString(indexEvalationID),
-									reader.GetString(indexTermCode),
-									reader.GetString(indexCourseCode),
-									reader.GetString(indexCourseTitle),
-									reader.GetString(indexProfessorPicture),
-									reader.GetString(indexProfessorName),
-									reader.GetString(indexEvaluationState),
-									reader.GetString(indexEvaluationStatus)));
-							}
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							break;
 						}
-						while (await reader.ReadAsync(cancellationToken));
-						break;
+						case "__SQuiL__Table__Type__Returns_Courses__":
+						{
+							isCourses = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							var indexEvalationID = reader.GetOrdinal("EvalationID");
+							var indexTermCode = reader.GetOrdinal("TermCode");
+							var indexCourseCode = reader.GetOrdinal("CourseCode");
+							var indexCourseTitle = reader.GetOrdinal("CourseTitle");
+							var indexProfessorPicture = reader.GetOrdinal("ProfessorPicture");
+							var indexProfessorName = reader.GetOrdinal("ProfessorName");
+							var indexEvaluationState = reader.GetOrdinal("EvaluationState");
+							var indexEvaluationStatus = reader.GetOrdinal("EvaluationStatus");
+							
+							do
+							{
+								if (reader.GetString(0) == "Returns_Courses")
+								{
+									var valueEvalationID = reader.GetString(indexEvalationID);
+									var valueTermCode = reader.GetString(indexTermCode);
+									var valueCourseCode = reader.GetString(indexCourseCode);
+									var valueCourseTitle = reader.GetString(indexCourseTitle);
+									var valueProfessorPicture = reader.GetString(indexProfessorPicture);
+									var valueProfessorName = reader.GetString(indexProfessorName);
+									var valueEvaluationState = reader.GetString(indexEvaluationState);
+									var valueEvaluationStatus = reader.GetString(indexEvaluationStatus);
+									
+									response.Courses.Add(new(
+										valueEvalationID,
+										valueTermCode,
+										valueCourseCode,
+										valueCourseTitle,
+										valueProfessorPicture,
+										valueProfessorName,
+										valueEvaluationState,
+										valueEvaluationStatus));
+								}
+							}
+							while (await reader.ReadAsync(cancellationToken));
+							break;
+						}
 					}
 				}
 			}
+			while (await reader.NextResultAsync(cancellationToken));
 		}
-		while (await reader.NextResultAsync(cancellationToken));
+		catch(SqlException e)
+		{
+			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+		}
 		
-		if (!isCourses) throw new Exception("Expected return table `Courses`)");
+		if (!isCourses) errors.Add(new(51001, 12, 1, 124, "Courses", "Expected return table `Courses`"));
 		
-		return response;
+		if(errors.Count == 0)
+			return new(response);
 		
-		string inputTerms(List<SqlParameter> parameters)
+		return new(errors);
+		
+		string inputTerms(List<DbParameter> parameters)
 		{
 			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Params_Terms(TermCode)");
+			query.Append("Insert Into @Params_Terms([TermCode])");
 			
-			if (request.Terms.Count == 0) return "";
+			if (request.Terms.Count() == 0) return "";
 			
 			query.AppendLine(" Values");
 			
@@ -144,12 +159,12 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			return query.ToString();
 		}
 		
-		string inputParticipation(List<SqlParameter> parameters)
+		string inputParticipation(List<DbParameter> parameters)
 		{
 			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Params_Participation(SectionID, PersonID, ProfessorID, TermCode, CompletedDate)");
+			query.Append("Insert Into @Params_Participation([SectionID], [PersonID], [ProfessorID], [TermCode], [CompletedDate])");
 			
-			if (request.Participation.Count == 0) return "";
+			if (request.Participation.Count() == 0) return "";
 			
 			query.AppendLine(" Values");
 			
@@ -170,7 +185,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 				query.Append(", ");
 				AddParams(query, parameters, index, "ParamsParticipation", "TermCode", System.Data.SqlDbType.VarChar, item.TermCode, 10);
 				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsParticipation", "CompletedDate", System.Data.SqlDbType.DateTimeOffset, item.CompletedDate);
+				AddParams(query, parameters, index, "ParamsParticipation", "CompletedDate", System.Data.SqlDbType.DateTime, item.CompletedDate);
 				query.Append(')');
 				
 				comma = ",";
@@ -182,12 +197,12 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			return query.ToString();
 		}
 		
-		string inputOverrides(List<SqlParameter> parameters)
+		string inputOverrides(List<DbParameter> parameters)
 		{
 			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Params_Overrides(SectionID, TermCode, CourseCode, BeginDate, EndDate)");
+			query.Append("Insert Into @Params_Overrides([SectionID], [TermCode], [CourseCode], [BeginDate], [EndDate])");
 			
-			if (request.Overrides.Count == 0) return "";
+			if (request.Overrides.Count() == 0) return "";
 			
 			query.AppendLine(" Values");
 			
@@ -206,9 +221,9 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 				query.Append(", ");
 				AddParams(query, parameters, index, "ParamsOverrides", "CourseCode", System.Data.SqlDbType.VarChar, item.CourseCode, 20);
 				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsOverrides", "BeginDate", System.Data.SqlDbType.DateTimeOffset, item.BeginDate);
+				AddParams(query, parameters, index, "ParamsOverrides", "BeginDate", System.Data.SqlDbType.DateTime, item.BeginDate);
 				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsOverrides", "EndDate", System.Data.SqlDbType.DateTimeOffset, item.EndDate);
+				AddParams(query, parameters, index, "ParamsOverrides", "EndDate", System.Data.SqlDbType.DateTime, item.EndDate);
 				query.Append(')');
 				
 				comma = ",";
@@ -220,40 +235,40 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			return query.ToString();
 		}
 		
-		string Query(List<SqlParameter> parameters) => $"""
+		string Query(List<DbParameter> parameters) => $"""
 		Declare @Params_Terms table(
 			[__SQuiL__Table__Type__Params_Terms__] varchar(max) default('Params_Terms'),
-			TermCode varchar(10));
+			[TermCode] varchar(10));
 		{inputTerms(parameters)}
 		
 		Declare @Params_Participation table(
 			[__SQuiL__Table__Type__Params_Participation__] varchar(max) default('Params_Participation'),
-			SectionID varchar(20),
-			PersonID varchar(10),
-			ProfessorID varchar(10),
-			TermCode varchar(10),
-			CompletedDate datetime);
+			[SectionID] varchar(20),
+			[PersonID] varchar(10),
+			[ProfessorID] varchar(10),
+			[TermCode] varchar(10),
+			[CompletedDate] datetime);
 		{inputParticipation(parameters)}
 		
 		Declare @Params_Overrides table(
 			[__SQuiL__Table__Type__Params_Overrides__] varchar(max) default('Params_Overrides'),
-			SectionID varchar(20),
-			TermCode varchar(10),
-			CourseCode varchar(20),
-			BeginDate datetime,
-			EndDate datetime);
+			[SectionID] varchar(20),
+			[TermCode] varchar(10),
+			[CourseCode] varchar(20),
+			[BeginDate] datetime,
+			[EndDate] datetime);
 		{inputOverrides(parameters)}
 		
 		Declare @Returns_Courses table(
 			[__SQuiL__Table__Type__Returns_Courses__] varchar(max) default('Returns_Courses'),
-			EvalationID varchar(20),
-			TermCode varchar(10),
-			CourseCode varchar(20),
-			CourseTitle varchar(100),
-			ProfessorPicture varchar(1000),
-			ProfessorName varchar(100),
-			EvaluationState varchar(6),
-			EvaluationStatus varchar(50));
+			[EvalationID] varchar(20),
+			[TermCode] varchar(10),
+			[CourseCode] varchar(20),
+			[CourseTitle] varchar(100),
+			[ProfessorPicture] varchar(1000),
+			[ProfessorName] varchar(100),
+			[EvaluationState] varchar(6),
+			[EvaluationStatus] varchar(50));
 		
 		Use [{builder.InitialCatalog}];
 		
@@ -322,7 +337,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		End;
 		
-		Insert Into @Returns_Courses(EvalationID, TermCode, CourseCode, CourseTitle, ProfessorPicture, ProfessorName, EvaluationState, EvaluationStatus)
+		Insert Into @Returns_Courses([EvalationID], [TermCode], [CourseCode], [CourseTitle], [ProfessorPicture], [ProfessorName], [EvaluationState], [EvaluationStatus])
 		Select EvaluationID, TermCode, CourseCode, CourseTitle, PictureLink, PreferredName, Trim(SubString(EvaluationStatus, 1, 6)), SubString(EvaluationStatus, 8, 1000) From (
 		Select		Char(64 + sf.FacultyOrder) + Cast(sf.SectionFacultyID As varchar(10)) As EvaluationID,
 					c.TermCode, /*c.SectionID,*/ c.CourseCode, c.CourseTitle, p.PictureLink, p.PreferredName, Case

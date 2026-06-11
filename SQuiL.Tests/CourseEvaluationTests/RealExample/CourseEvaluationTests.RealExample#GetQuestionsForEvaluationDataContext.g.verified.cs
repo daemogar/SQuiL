@@ -4,6 +4,7 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 using SQuiL;
 
@@ -11,18 +12,20 @@ namespace CourseEvaluation.Application.Data;
 
 partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 {
-	public async Task<GetQuestionsForEvaluationResponse> ProcessGetQuestionsForEvaluationAsync(
+	public async Task<SQuiLResultType<GetQuestionsForEvaluationResponse>> ProcessGetQuestionsForEvaluationAsync(
 		GetQuestionsForEvaluationRequest request,
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("DataRepository");
-		using SqlConnection connection = new(builder.ConnectionString);
+		using var connection = CreateConnection(builder.ConnectionString);
+		
 		var command = connection.CreateCommand();
 		
-		List<SqlParameter> parameters = new()
+		List<DbParameter> parameters = new()
 		{
-			new("EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length) { Value = EnvironmentName }, 
-			new("Debug", System.Data.SqlDbType.Bit) { Value = EnvironmentName != "Production" }, };
+			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production"))
+		};
 		
 		command.CommandText = Query(parameters);
 		command.Parameters.AddRange(parameters.ToArray());
@@ -33,53 +36,75 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		var isQuestions = false;
 		
-		using var reader = await command.ExecuteReaderAsync(cancellationToken);
-		
-		do
+		List<SQuiLError> errors = [];
+		try
 		{
-			var tableTag = reader.GetName(0);
-			if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+			
+			do
 			{
-				switch (tableTag)
+				var tableTag = reader.GetName(0);
+				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
 				{
-					case "__SQuiL__Table__Type__Returns_Questions__":
+					switch (tableTag)
 					{
-						isQuestions = true;
-						
-						if (!await reader.ReadAsync(cancellationToken)) break;
-						
-						var indexSectionID = reader.GetOrdinal("SectionID");
-						var indexCategory = reader.GetOrdinal("Category");
-						var indexType = reader.GetOrdinal("Type");
-						var indexQuestion = reader.GetOrdinal("Question");
-						
-						do
+						case "__SQuiL__Table__Type__Error__":
 						{
-							if (reader.GetString(0) == "Returns_Questions")
-							{
-								response.Questions.Add(new(
-									reader.GetString(indexSectionID),
-									reader.GetString(indexCategory),
-									reader.GetString(indexType),
-									reader.GetString(indexQuestion)));
-							}
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							break;
 						}
-						while (await reader.ReadAsync(cancellationToken));
-						break;
+						case "__SQuiL__Table__Type__Returns_Questions__":
+						{
+							isQuestions = true;
+							
+							if (!await reader.ReadAsync(cancellationToken)) break;
+							
+							var indexSectionID = reader.GetOrdinal("SectionID");
+							var indexCategory = reader.GetOrdinal("Category");
+							var indexType = reader.GetOrdinal("Type");
+							var indexQuestion = reader.GetOrdinal("Question");
+							
+							do
+							{
+								if (reader.GetString(0) == "Returns_Questions")
+								{
+									var valueSectionID = reader.GetString(indexSectionID);
+									var valueCategory = reader.GetString(indexCategory);
+									var valueType = reader.GetString(indexType);
+									var valueQuestion = reader.GetString(indexQuestion);
+									
+									response.Questions.Add(new(
+										valueSectionID,
+										valueCategory,
+										valueType,
+										valueQuestion));
+								}
+							}
+							while (await reader.ReadAsync(cancellationToken));
+							break;
+						}
 					}
 				}
 			}
+			while (await reader.NextResultAsync(cancellationToken));
 		}
-		while (await reader.NextResultAsync(cancellationToken));
+		catch(SqlException e)
+		{
+			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+		}
 		
-		if (!isQuestions) throw new Exception("Expected return table `Questions`)");
+		if (!isQuestions) errors.Add(new(51001, 12, 1, 96, "Questions", "Expected return table `Questions`"));
 		
-		return response;
+		if(errors.Count == 0)
+			return new(response);
 		
-		string inputSection(List<SqlParameter> parameters)
+		return new(errors);
+		
+		string inputSection(List<DbParameter> parameters)
 		{
 			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Param_Section(SectionID, Department, CourseCode, CourseTitle, IsOnline, IsGraduateCourse, IsAdultDegreeCourse, IsNursingCourse, IsConnectionsCourse, IsPrivateMusicLessons, IsServiceLearning)");
+			query.Append("Insert Into @Param_Section([SectionID], [Department], [CourseCode], [CourseTitle], [IsOnline], [IsGraduateCourse], [IsAdultDegreeCourse], [IsNursingCourse], [IsConnectionsCourse], [IsPrivateMusicLessons], [IsServiceLearning])");
 			
 			if (request.Section is null)
 				throw new NullReferenceException(
@@ -117,32 +142,32 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			return query.ToString();
 		}
 		
-		string Query(List<SqlParameter> parameters) => $"""
+		string Query(List<DbParameter> parameters) => $"""
 		Declare @Param_Section table(
 			[__SQuiL__Table__Type__Param_Section__] varchar(max) default('Param_Section'),
-			SectionID varchar(20),
-			Department varchar(100),
-			CourseCode varchar(20),
-			CourseTitle varchar(150),
-			IsOnline bit,
-			IsGraduateCourse bit,
-			IsAdultDegreeCourse bit,
-			IsNursingCourse bit,
-			IsConnectionsCourse bit,
-			IsPrivateMusicLessons bit,
-			IsServiceLearning bit);
+			[SectionID] varchar(20),
+			[Department] varchar(100),
+			[CourseCode] varchar(20),
+			[CourseTitle] varchar(150),
+			[IsOnline] bit,
+			[IsGraduateCourse] bit,
+			[IsAdultDegreeCourse] bit,
+			[IsNursingCourse] bit,
+			[IsConnectionsCourse] bit,
+			[IsPrivateMusicLessons] bit,
+			[IsServiceLearning] bit);
 		{inputSection(parameters)}
 		
 		Declare @Returns_Questions table(
 			[__SQuiL__Table__Type__Returns_Questions__] varchar(max) default('Returns_Questions'),
-			SectionID varchar(20),
-			Category varchar(200),
-			Type varchar(20),
-			Question varchar(1000));
+			[SectionID] varchar(20),
+			[Category] varchar(200),
+			[Type] varchar(20),
+			[Question] varchar(1000));
 		
 		Use [{builder.InitialCatalog}];
 		
-		Insert Into @Returns_Questions(SectionID, Category, Type, Question)
+		Insert Into @Returns_Questions([SectionID], [Category], [Type], [Question])
 		Select		s.SectionID,
 					Case ShowWhen
 						When 'global' Then 'Global Questions'

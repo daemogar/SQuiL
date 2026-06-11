@@ -8,6 +8,7 @@ namespace TestCase;
 public partial record TranscriptProcessingRequest
 {
 	public bool Debug { get; set; }
+	public bool DebugOnly { get; set; }
 	
 	public bool IncludeCompletedTranscripts { get; set; }
 	
