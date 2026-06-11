@@ -27,6 +27,7 @@ namespace SQuiL.SsmsExtension;
 [ProvideMenuResource("Menus.ctmenu", 1)]
 [ProvideToolWindow(typeof(SQuiLGuideToolWindow),
     Style = VsDockStyle.Float, Window = ToolWindowGuids80.SolutionExplorer)]
+[ProvideOptionPage(typeof(SQuiL.SsmsExtension.Options.SQuiLOptionsPage), "SQuiL", "General", 0, 0, supportsAutomation: true)]
 [ProvideAutoLoad(UIContextGuids80.NoSolution, PackageAutoLoadFlags.BackgroundLoad)]
 [ProvideAutoLoad(UIContextGuids80.SolutionExists, PackageAutoLoadFlags.BackgroundLoad)]
 [Guid(SQuiLPackageGuids.PackageGuidString)]
@@ -42,6 +43,15 @@ public sealed class SQuiLPackage : AsyncPackage
         await PreviewGeneratedCSharpCommand.InitializeAsync(this);
         await BuildProjectCommand.InitializeAsync(this);
         await OpenWritingGuideCommand.InitializeAsync(this);
+        await CheckForUpdatesCommand.InitializeAsync(this);
+
+        // Background, channel-aware update check. Fire-and-forget AFTER command
+        // registration so it never blocks SSMS startup (see CLAUDE.md note 9 —
+        // no UI/tool-window work here, just a throttled HTTP call + optional
+        // InfoBar, which is safe off the init fence).
+        JoinableTaskFactory.RunAsync(() =>
+            SQuiL.SsmsExtension.Update.SQuiLUpdateChecker.CheckAsync(this, manual: false, DisposalToken))
+            .FileAndForget("SQuiL/AutoUpdateCheck");
 
         // NOTE: first-run guide auto-open is intentionally disabled.
         // Showing a WebView2-hosting tool window from InitializeAsync deadlocked

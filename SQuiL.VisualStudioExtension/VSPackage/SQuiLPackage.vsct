@@ -57,6 +57,13 @@
           <CommandName>SQuiL.OpenWritingGuide</CommandName>
         </Strings>
       </Button>
+      <Button guid="guidSQuiLCmdSet" id="cmdidCheckForUpdates" priority="0x0103" type="Button">
+        <Parent guid="guidSQuiLCmdSet" id="SQuiLToolsMenuGroup" />
+        <Strings>
+          <ButtonText>Check for Updates</ButtonText>
+          <CommandName>SQuiL.CheckForUpdates</CommandName>
+        </Strings>
+      </Button>
       <Button guid="guidSQuiLCmdSet" id="cmdidPreviewGeneratedCSharp" priority="0x0101" type="Button">
         <Parent guid="guidSQuiLCmdSet" id="SQuiLToolsMenuGroup" />
         <Strings>
@@ -103,6 +110,7 @@
       <IDSymbol name="cmdidBuildProject"           value="0x0101" />
       <IDSymbol name="cmdidOpenWritingGuide"       value="0x0102" />
       <IDSymbol name="cmdidNewFile"                value="0x0103" />
+      <IDSymbol name="cmdidCheckForUpdates"        value="0x0104" />
     </GuidSymbol>
   </Symbols>
 </CommandTable>

@@ -164,7 +164,9 @@ SQuiL/
   `sampleDataGenerator.ts` ↔ `SampleDataGenerator.cs`,
   `hoverProvider.ts` ↔ `SQuiLQuickInfoSource.cs`,
   `diagnosticsProvider.ts` ↔ `SQuiLLinter.cs` + `SQuiLErrorTagger.cs`,
-  `completionProvider.ts` ↔ `SQuiLCompletionSource.cs`.
+  `completionProvider.ts` ↔ `SQuiLCompletionSource.cs`,
+  `updateChecker.ts` ↔ `SQuiLUpdateChecker.cs` (+ shared pure logic
+  `versionInfo.ts` ↔ `SQuiLVersion.cs`, baked tag `buildInfo.ts` ↔ `BuildInfo.cs`).
   Change one side, change the other.
 - **GUIDs** in the SSMS extension link C# to the `.vsct`:
   | C# location | .vsct location |
@@ -172,6 +174,7 @@ SQuiL/
   | `SQuiLPackageGuids.PackageGuidString`         | `guidSQuiLPackage` |
   | `SQuiLPackageGuids.CmdSetGuidString`          | `guidSQuiLCmdSet` |
   | `SQuiLPackageGuids.GuideToolWindowGuidString` | (used directly via `[Guid(...)]` on tool window) |
+  | `SQuiLPackageGuids.CmdIdCheckForUpdates`      | `cmdidCheckForUpdates` |
   If any GUID changes, update both sides.
 
 ### SQuiL naming conventions (must follow in snippets, examples, docs)

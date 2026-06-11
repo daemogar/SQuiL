@@ -40,4 +40,13 @@
 		<ProjectReference Include="..\SQuiL.SourceGenerator\SQuiL.SourceGenerator.csproj" />
 	</ItemGroup>
 
+
+	<ItemGroup>
+		<!-- Pure version-compare logic from the SSMS extension, compiled into
+		     the test assembly so it can be unit-tested without the VS SDK.
+		     The Visual Studio extension keeps an identical hand-ported copy. -->
+		<Compile Include="..\SQuiL.SsmsExtension\Update\SQuiLVersion.cs"
+		         Link="ExtensionVersion\SQuiLVersion.cs" />
+	</ItemGroup>
+
 </Project>

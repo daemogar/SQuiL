@@ -2,7 +2,7 @@
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
     <Identity Id="SQuiL.SsmsExtension.5b1e9a6e-3c4f-4c1f-9a3e-2a8f8c1e7d20"
-              Version="1.0.19"
+              Version="1.0.20"
               Language="en-US"
               Publisher="SQuiL" />
     <DisplayName>SQuiL for SSMS</DisplayName>

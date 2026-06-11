@@ -11,6 +11,7 @@ import {
   refreshPreview,
 } from './providers/previewProvider';
 import { openGuide } from './providers/guideProvider';
+import { checkForUpdates } from './providers/updateChecker';
 import { generateSampleInsert, findSampleDataLines } from './squil/sampleDataGenerator';
 import { SQuiLVariable } from './squil/parser';
 
@@ -67,6 +68,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('squil.openGuide', () => openGuide(context)),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('squil.checkForUpdates', () =>
+      checkForUpdates(context, { manual: true }),
+    ),
   );
 
   context.subscriptions.push(
@@ -206,6 +213,9 @@ export function activate(context: vscode.ExtensionContext): void {
       diagnostics.update(doc);
     }
   }
+
+  // Background update check (channel-aware; throttled for prereleases).
+  void checkForUpdates(context, { manual: false });
 
   console.log('SQuiL extension activated.');
 }

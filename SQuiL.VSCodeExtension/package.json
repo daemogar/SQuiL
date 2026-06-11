@@ -69,6 +69,11 @@
         "command": "squil.openGuide",
         "title": "SQuiL: Open Writing Guide",
         "icon": "$(book)"
+      },
+      {
+        "command": "squil.checkForUpdates",
+        "title": "SQuiL: Check for Updates",
+        "icon": "$(cloud-download)"
       }
     ],
     "menus": {
@@ -115,6 +120,11 @@
           "type": "string",
           "default": "dotnet",
           "description": "Path to the dotnet CLI executable used for building projects."
+        },
+        "squil.checkForUpdates": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically check GitHub for newer SQuiL extension releases. The 'SQuiL: Check for Updates' command always works regardless of this setting."
         }
       }
     }
@@ -124,7 +134,8 @@
     "vscode:prepublish": "npm run sync-shared && npm run compile",
     "compile": "npm run sync-shared && tsc -p ./",
     "watch": "npm run sync-shared && tsc -watch -p ./",
-    "package": "vsce package"
+    "package": "vsce package",
+    "test": "npm run compile && node --test ./out"
   },
   "devDependencies": {
     "@types/node": "^20.19.41",

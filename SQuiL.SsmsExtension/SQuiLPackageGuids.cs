@@ -20,6 +20,7 @@ internal static class SQuiLPackageGuids
     public const int CmdIdBuildProject           = 0x0101;
     public const int CmdIdOpenWritingGuide       = 0x0102;
     public const int CmdIdNewFile                = 0x0103;
+    public const int CmdIdCheckForUpdates        = 0x0104;
 
     // ── Tool window (Writing Guide) ────────────────────────────────────
     public const string GuideToolWindowGuidString = "9c4d8a72-1f2b-4f3a-8b6e-6c1d3a9e4f03";

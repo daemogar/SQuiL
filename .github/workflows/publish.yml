@@ -100,6 +100,7 @@ jobs:
     env:
       SSMS_PROJECT: SQuiL.SsmsExtension/SQuiL.SsmsExtension.csproj
       SSMS_OUTPUT: SQuiL.SsmsExtension/bin/Release
+      SSMS_MANIFEST: SQuiL.SsmsExtension/source.extension.vsixmanifest
       VS_PROJECT: SQuiL.VisualStudioExtension/SQuiL.VisualStudioExtension.csproj
       VS_OUTPUT: SQuiL.VisualStudioExtension/bin/Release
       VS_INSTALL_DOC: SQuiL.VisualStudioExtension/Distribution/INSTALL-VisualStudio.md
@@ -120,6 +121,38 @@ jobs:
     # ── SSMS extension ────────────────────────────────────────────────────
     - name: Restore SSMS Extension
       run: msbuild ${{ env.SSMS_PROJECT }} /t:Restore /p:Configuration=Release
+
+    # Stamp a unique, increasing VSIX version (1.0.<run_number>) so VSIXInstaller
+    # never skips a release-to-release upgrade as "already installed" — same
+    # treatment the VS manifest gets below. Unlike the VS manifest (pinned at
+    # 1.0.0 in source), the SSMS manifest's committed version drifts with local
+    # dev bumps, so the regex accepts any current value within <Identity …>.
+    - name: Stamp SSMS extension version
+      shell: pwsh
+      run: |
+        $p = "${{ env.SSMS_MANIFEST }}"
+        $ver = "1.0.${{ github.run_number }}"
+        $c = Get-Content $p -Raw
+        $stamped = $c -replace '(<Identity\s+Id="[^"]*"\s+Version=")[^"]+(")', "`${1}$ver`$2"
+        if ($stamped -eq $c) {
+          throw "Failed to stamp SSMS extension version — '<Identity … Version=""…"">' not found in $p."
+        }
+        Set-Content $p -Value $stamped -Encoding UTF8
+        Write-Host "Stamped SSMS extension Identity Version = $ver."
+
+    # Bake this release's tag into the compiled assembly so the update checker
+    # can compare itself against GitHub releases (dev builds keep the
+    # __SQUIL_RELEASE_TAG__ placeholder and skip the check).
+    - name: Stamp release tag into SSMS BuildInfo.cs
+      shell: pwsh
+      run: |
+        $p = "SQuiL.SsmsExtension/Update/BuildInfo.cs"
+        $stamped = (Get-Content $p -Raw) -replace '__SQUIL_RELEASE_TAG__', '${{ needs.build.outputs.version }}'
+        if ($stamped -notmatch [regex]::Escape('${{ needs.build.outputs.version }}')) {
+          throw "Failed to stamp release tag into SSMS BuildInfo.cs — placeholder not found."
+        }
+        Set-Content $p -Value $stamped -Encoding UTF8
+        Write-Host "Stamped SSMS BuildInfo.cs with '${{ needs.build.outputs.version }}'."
 
     - name: Build SSMS Extension (VSIX)
       run: msbuild ${{ env.SSMS_PROJECT }} /t:Build /p:Configuration=Release /p:DeployExtension=false
@@ -160,6 +193,17 @@ jobs:
 
     - name: Restore Visual Studio Extension
       run: msbuild ${{ env.VS_PROJECT }} /t:Restore /p:Configuration=Release
+
+    - name: Stamp release tag into VS BuildInfo.cs
+      shell: pwsh
+      run: |
+        $p = "SQuiL.VisualStudioExtension/Update/BuildInfo.cs"
+        $stamped = (Get-Content $p -Raw) -replace '__SQUIL_RELEASE_TAG__', '${{ needs.build.outputs.version }}'
+        if ($stamped -notmatch [regex]::Escape('${{ needs.build.outputs.version }}')) {
+          throw "Failed to stamp release tag into VS BuildInfo.cs — placeholder not found."
+        }
+        Set-Content $p -Value $stamped -Encoding UTF8
+        Write-Host "Stamped VS BuildInfo.cs with '${{ needs.build.outputs.version }}'."
 
     - name: Build Visual Studio Extension (VSIX)
       run: msbuild ${{ env.VS_PROJECT }} /t:Build /p:Configuration=Release /p:DeployExtension=false
@@ -217,6 +261,17 @@ jobs:
 
     - name: Install dependencies
       run: npm ci
+
+    - name: Stamp release tag into buildInfo.ts
+      shell: pwsh
+      run: |
+        $p = "src/buildInfo.ts"
+        $stamped = (Get-Content $p -Raw) -replace '__SQUIL_RELEASE_TAG__', '${{ needs.build.outputs.version }}'
+        if ($stamped -notmatch [regex]::Escape('${{ needs.build.outputs.version }}')) {
+          throw "Failed to stamp release tag into buildInfo.ts — placeholder not found."
+        }
+        Set-Content $p -Value $stamped -Encoding UTF8
+        Write-Host "Stamped buildInfo.ts with '${{ needs.build.outputs.version }}'."
 
     - name: Package VS Code Extension (VSIX)
       run: npx --no-install @vscode/vsce package --allow-missing-repository
