@@ -162,10 +162,10 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.</p>
 
 <pre><code><span class="cm">--Name: QueryName          ← optional, overrides filename as the C# class name</span>
 
-<span class="cm">-- ① Header: DECLARE all variables</span>
+<span class="cm">-- ① Header: DECLARE all variables (special variables like @Debug go first)</span>
+<span class="kw">Declare</span> <span class="spc">@Debug</span>           <span class="tp">Bit</span> = 1;
 <span class="kw">Declare</span> <span class="par">@Param_UserID</span>   <span class="tp">Int</span>;
 <span class="kw">Declare</span> <span class="ret">@Return_Username</span> <span class="tp">VarChar(100)</span>;
-<span class="kw">Declare</span> <span class="spc">@Debug</span>           <span class="tp">Bit</span> = 1;
 
 <span class="cm">-- ② Use statement: must appear once, after all DECLAREs</span>
 <span class="kw">Use</span> [MyDatabase];
@@ -224,7 +224,7 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.</p>
   <tr>
     <td><code class="spc">@Debug</code></td>
     <td><span class="badge badge-special">Special</span></td>
-    <td><strong>Always</strong> on <code>*Request</code> as <code>bool Debug</code> (plus <code>bool DebugOnly</code>) — you do not need to declare it in SQL for the property to exist; declare it only if you want to <em>use</em> the value inside the query.</td>
+    <td><strong>Always</strong> on <code>*Request</code> as <code>bool Debug</code> (plus <code>bool DebugOnly</code>) — you do not need to declare it in SQL for the property to exist; declare it only if you want to <em>use</em> the value inside the query, and declare it <em>first in the header</em> (see Variable Rules below).</td>
   </tr>
   <tr>
     <td><code class="spc">@EnvironmentName</code></td>
@@ -237,6 +237,43 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.</p>
     <td>On <code>*Response</code> when declared in SQL — scalar <code>Error</code> or <code>Errors</code> collection populated when the query produces structured error rows.</td>
   </tr>
 </table>
+
+<!-- ──────────────────── Variable Rules ───────────────────────────────── -->
+<h2>Variable Rules</h2>
+<p>A SQuiL file is <strong>valid T-SQL, full stop</strong>. SQuiL never renames or remaps a
+variable for you, so the same rule SQL Server enforces at batch compile time applies in the
+editor and at build time:</p>
+
+<ul>
+  <li><strong>Declare before use.</strong> Every <code>@variable</code> you reference must have a
+    <code>Declare</code> <em>above</em> the first reference — referencing <code class="par">@PersonID</code>
+    when you declared <code class="par">@Param_PersonID</code> is an error, not a shorthand.
+    The build fails with diagnostic <code>SP0013</code>, and the editor marks the reference.</li>
+  <li><strong>Special variables are not exempt.</strong> <code class="spc">@Debug</code> and
+    <code class="spc">@EnvironmentName</code> exist on the generated C# either way, but the SQL body
+    may only <em>reference</em> them if the file declares them.</li>
+  <li><strong>Singular and plural are different variables.</strong> Declaring
+    <code class="spc">@Error</code> does not let the body write to <code class="spc">@Errors</code>
+    (or vice versa) — reference exactly the name you declared.</li>
+  <li><strong>Declare <code class="spc">@Debug</code>/<code class="spc">@EnvironmentName</code> in the
+    header, first.</strong> Declaring them after the <code>Use</code> statement is an error
+    (diagnostic <code>SP0016</code>); declaring them after other header declarations produces a
+    warning — put them at the very top.</li>
+</ul>
+
+<pre><code><span class="cm">-- ✔ valid: declared first, referenced by exact name</span>
+<span class="kw">Declare</span> <span class="spc">@Debug</span>          <span class="tp">bit</span> = 0;
+<span class="kw">Declare</span> <span class="par">@Param_PersonID</span> <span class="tp">varchar(10)</span>;
+
+<span class="kw">Use</span> [MyDatabase];
+
+<span class="kw">Select</span> * <span class="kw">From</span> People <span class="kw">Where</span> PersonID = <span class="par">@Param_PersonID</span>;
+
+<span class="cm">-- ✘ error SP0013: `@PersonID` was never declared (no prefix shorthand)</span>
+<span class="cm">--   Select * From People Where PersonID = @PersonID;</span></code></pre>
+
+<p>Variables declared in the body (after <code>Use</code>) are ordinary T-SQL locals — they need no
+SQuiL prefix, but they still must be declared before they are referenced.</p>
 
 <!-- ──────────────────── SQL → C# Type Map ────────────────────────────── -->
 <h2>SQL Type → C# Type Reference</h2>
@@ -395,16 +432,17 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.</p>
 
 <h3>4. Using <code class="spc">@Debug</code> for diagnostic output</h3>
 <p>You don't need to declare <code class="spc">@Debug</code> for <code>Debug</code> to appear on the request — it always does.
-Declare it only when the SQL body itself wants to <em>read</em> the value:</p>
+Declare it only when the SQL body itself wants to <em>read</em> the value, and put the declaration
+first in the header:</p>
 <pre><code><span class="ann">--Name: ListOrdersByStatus</span>
 
+<span class="kw">Declare</span> <span class="spc">@Debug</span>          <span class="tp">bit</span> = 1;
 <span class="kw">Declare</span> <span class="par">@Param_Status</span>   <span class="tp">varchar(20)</span>;
 <span class="kw">Declare</span> <span class="ret">@Returns_Orders</span> <span class="tp">table</span> (
     OrderID <span class="tp">int</span>,
     Total   <span class="tp">decimal(18, 2)</span>,
     Placed  <span class="tp">datetime</span>
 );
-<span class="kw">Declare</span> <span class="spc">@Debug</span>          <span class="tp">bit</span> = 1;
 
 <span class="kw">Use</span> OrdersDatabase;
 
