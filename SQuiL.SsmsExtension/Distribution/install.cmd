@@ -1,7 +1,7 @@
 <# :
 @echo off & setlocal
 :: =====================================================================
-:: SQuiL SSMS extension installer  (install.cmd)
+:: SQuiL extension installer  (install.cmd) — SSMS 22+ and Visual Studio 2026
 ::
 :: WHY THIS FILE IS A .cmd AND NOT A .ps1
 ::   Browsers tag every download with the "Mark of the Web", and Windows
@@ -36,23 +36,13 @@
 ::          powershell ... "iex (${%~f0} | Out-String)"
 ::      Executing in-memory text (rather than a *.ps1 sitting on disk) is
 ::      itself immune to the execution policy and the Mark of the Web.
-::   3. The PowerShell body resolves the matching .vsix (explicit path >
-::      a copy next to this file > download from the GitHub release whose
-::      tag is baked in at publish time), then runs three gated steps:
-::      force-close SSMS, install the VSIX, and Ssms.exe /setup to merge
-::      the package registration. Each step must succeed before the next.
-::
-:: MAINTAINER NOTE
-::   Edit the install logic in the PowerShell section below exactly as you
-::   would a normal .ps1 — no batch escaping applies there. Only the small
-::   batch header up here keeps the polyglot working: do not change the very
-::   first line of this file, nor the comment-terminator line immediately
-::   below this header (the line that ends the batch section).
-::   CAUTION: do NOT write the PowerShell block-comment OPEN or CLOSE markers
-::   literally anywhere in this header. PowerShell ends the block comment at
-::   the FIRST close marker it sees, so a literal one in prose would end this
-::   comment early and break the in-memory dispatch. (That is exactly the bug
-::   this note used to contain.) Describe them in words instead.
+::   3. The PowerShell body uses vswhere to discover every supported product
+::      on this machine — SSMS 22+ and Visual Studio 2026 (18+) Community/
+::      Professional/Enterprise — resolves the matching .vsix for each
+::      (explicit path > a copy next to this file > download from the GitHub
+::      release whose tag is baked in at publish time), then runs the gated
+::      steps: force-close the affected apps, install each VSIX into its
+::      instance, and Ssms.exe /setup to merge the SSMS package registration.
 :: =====================================================================
 
 :: --- 1. Self-elevate: relaunch this file through UAC if not admin ---
@@ -78,7 +68,9 @@ exit /b %errorlevel%
 
 # ─────────────────────────────────────────────────────────────────────────
 # PowerShell body — runs elevated, in memory, via the batch header above.
-# This is the SSMS extension installer proper. Treat it like a normal .ps1.
+# This installs the SQuiL extension into every supported product found on
+# the machine (SSMS 22+, VS 2026 Community/Pro/Enterprise). Treat it like a
+# normal .ps1.
 # ─────────────────────────────────────────────────────────────────────────
 
 $ErrorActionPreference = 'Stop'
@@ -109,10 +101,11 @@ public static extern bool SetConsoleMode(System.IntPtr hConsoleHandle, uint dwMo
 catch { }
 
 # These were `param()` in the old install.ps1. The .cmd never forwards
-# arguments, so they are plain variables now. Set $VsixPath only when
-# testing a specific local build.
-$Repo     = 'daemogar/SQuiL'
-$VsixPath = $null
+# arguments, so they are plain variables now. Set them only when testing
+# specific local builds (one per product's package).
+$Repo         = 'daemogar/SQuiL'
+$SsmsVsixPath = $null
+$VsVsixPath   = $null
 
 # Release tag baked in at publish time by .github/workflows/publish.yml, which
 # replaces the placeholder below with the release version. This lets a
@@ -122,9 +115,68 @@ $VsixPath = $null
 $BakedReleaseTag = '__SQUIL_RELEASE_TAG__'
 $releaseTag = if ($BakedReleaseTag -match '^__.*__$') { $null } else { $BakedReleaseTag }
 
-# ── Resolve the .vsix: explicit path > local-next-to-script > download ─────
+# ── Discover installed products via vswhere ────────────────────────────────
+# vswhere ships with the VS installer engine, which both VS 2017+ and SSMS 22
+# install — so if neither candidate path exists, no supported product can be
+# present either.
+function Get-VsWherePath {
+    $candidates = @(
+        "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe",
+        "$env:ProgramFiles\Microsoft Visual Studio\Installer\vswhere.exe"
+    )
+    foreach ($c in $candidates) {
+        if ($c -and (Test-Path $c)) { return $c }
+    }
+    throw "vswhere.exe not found. Install SSMS 22+ or Visual Studio 2026 first (either one provides the Visual Studio Installer that vswhere ships with)."
+}
+
+# One object per applicable instance: which product it is, where its
+# VSIXInstaller lives, which .vsix asset it needs, and which process to close.
+function Get-SquilTargets {
+    $vswhere = Get-VsWherePath
+    $instances = & $vswhere -products * -prerelease -format json | ConvertFrom-Json
+    $vsProductIds = @(
+        'Microsoft.VisualStudio.Product.Community',
+        'Microsoft.VisualStudio.Product.Professional',
+        'Microsoft.VisualStudio.Product.Enterprise'
+    )
+
+    $targets = @()
+    foreach ($i in $instances) {
+        $major = 0
+        [void][int]::TryParse(($i.installationVersion -split '\.')[0], [ref]$major)
+        $installer = Join-Path $i.installationPath 'Common7\IDE\VSIXInstaller.exe'
+        if (-not (Test-Path $installer)) { continue }
+
+        if ($i.productId -eq 'Microsoft.VisualStudio.Product.Ssms' -and $major -ge 22) {
+            $targets += [pscustomobject]@{
+                Kind        = 'SSMS'
+                Name        = $i.displayName
+                InstanceId  = $i.instanceId
+                Installer   = $installer
+                ProductPath = $i.productPath          # Ssms.exe — needed for /setup
+                AssetName   = 'SQuiL.SsmsExtension.vsix'
+                Process     = 'ssms'
+            }
+        }
+        elseif ($vsProductIds -contains $i.productId -and $major -ge 18) {
+            $targets += [pscustomobject]@{
+                Kind        = 'VS'
+                Name        = $i.displayName
+                InstanceId  = $i.instanceId
+                Installer   = $installer
+                ProductPath = $i.productPath          # devenv.exe
+                AssetName   = 'SQuiL.VisualStudioExtension.vsix'
+                Process     = 'devenv'
+            }
+        }
+    }
+    return ,$targets
+}
+
+# ── Resolve a .vsix: explicit path > local-next-to-script > download ───────
 function Get-SquilVsix {
-    param([string]$Repo, [string]$Tag)
+    param([string]$Repo, [string]$Tag, [string]$AssetName)
 
     # Windows PowerShell 5.1 may default to TLS 1.0; GitHub requires 1.2+.
     [Net.ServicePointManager]::SecurityProtocol =
@@ -141,22 +193,23 @@ function Get-SquilVsix {
         # /releases/latest would skip them. Take the newest that has our asset.
         $release = Invoke-RestMethod -Headers $apiHeaders `
             -Uri "https://api.github.com/repos/$Repo/releases" |
-            Where-Object { $_.assets.name -contains 'SQuiL.SsmsExtension.vsix' } |
+            Where-Object { $_.assets.name -contains $AssetName } |
             Select-Object -First 1
     }
     if (-not $release) {
-        throw "No release with a SQuiL.SsmsExtension.vsix asset was found in '$Repo'."
+        throw "No release with a $AssetName asset was found in '$Repo'."
     }
 
     $asset = $release.assets |
-        Where-Object { $_.name -eq 'SQuiL.SsmsExtension.vsix' } |
+        Where-Object { $_.name -eq $AssetName } |
         Select-Object -First 1
     if (-not $asset) {
-        throw "Release '$($release.tag_name)' has no SQuiL.SsmsExtension.vsix asset."
+        throw "Release '$($release.tag_name)' has no $AssetName asset."
     }
 
-    $dest = Join-Path ([IO.Path]::GetTempPath()) "SQuiL.SsmsExtension-$($release.tag_name).vsix"
-    Write-Host "Downloading SQuiL.SsmsExtension.vsix from release '$($release.tag_name)'..." -ForegroundColor Cyan
+    $base = [IO.Path]::GetFileNameWithoutExtension($AssetName)
+    $dest = Join-Path ([IO.Path]::GetTempPath()) "$base-$($release.tag_name).vsix"
+    Write-Host "Downloading $AssetName from release '$($release.tag_name)'..." -ForegroundColor Cyan
     $prev = $ProgressPreference
     $ProgressPreference = 'SilentlyContinue'   # IWR is far faster without the progress bar
     try {
@@ -167,6 +220,56 @@ function Get-SquilVsix {
 
     Unblock-File $dest   # strip mark-of-the-web so VSIXInstaller won't balk
     return $dest
+}
+
+function Resolve-SquilVsix {
+    param([string]$Explicit, [string]$AssetName, [string]$ScriptDir)
+
+    if ($Explicit) {
+        if (-not (Test-Path $Explicit)) { throw "VSIX not found: $Explicit" }
+        $vsix = (Resolve-Path $Explicit).Path
+        Write-Host "Using VSIX: $vsix" -ForegroundColor Cyan
+        return $vsix
+    }
+    $local = Join-Path $ScriptDir $AssetName
+    if (Test-Path $local) {
+        Write-Host "Using VSIX next to this installer: $local" -ForegroundColor Cyan
+        return $local
+    }
+    Write-Host "No local $AssetName found - fetching it from GitHub releases." -ForegroundColor Cyan
+    $vsix = Get-SquilVsix -Repo $Repo -Tag $releaseTag -AssetName $AssetName
+    Write-Host "Downloaded VSIX: $vsix" -ForegroundColor Green
+    return $vsix
+}
+
+# ── Force-close one product's processes (re-query and kill until none) ─────
+# Capturing the process list once and waiting on those handles proved
+# brittle (a lingering/child or a slow exit left the final check seeing a
+# stray process and threw). Instead, loop: re-query each pass and force-kill
+# the whole tree with taskkill /T until none remain, or 30s.
+function Stop-ProductProcesses {
+    param([string]$ProcessName, [string]$DisplayName)
+
+    if (@(Get-Process -Name $ProcessName -ErrorAction SilentlyContinue).Count -eq 0) {
+        Write-Host "  $DisplayName is not running." -ForegroundColor DarkGray
+        return
+    }
+    # A VS-shell app can take a few seconds to fully exit. Print a growing row
+    # of dots while we wait so it is obviously still working.
+    Write-Host "  Force-closing $DisplayName, please wait" -NoNewline -ForegroundColor Yellow
+    $deadline = (Get-Date).AddSeconds(30)
+    while (@(Get-Process -Name $ProcessName -ErrorAction SilentlyContinue).Count -gt 0) {
+        # taskkill /F = force, /T = whole process tree. Native exit code
+        # (e.g. "process not found") does not throw, so no -ErrorAction.
+        & taskkill /F /T /IM "$ProcessName.exe" *> $null
+        Write-Host '.' -NoNewline -ForegroundColor Yellow
+        Start-Sleep -Milliseconds 750
+        if ((Get-Date) -ge $deadline) {
+            Write-Host ''
+            throw "Step 1 failed: $DisplayName is still running after 30s. Close it manually, then re-run. (Nothing has been installed.)"
+        }
+    }
+    Write-Host ' closed.' -ForegroundColor Yellow
 }
 
 # Pause for ANY key. Reads a single keypress straight from the console input
@@ -198,91 +301,90 @@ try {
         throw "Not running elevated. Run install.cmd (it self-elevates via UAC) rather than invoking this script body directly."
     }
 
-    # SSMS tool paths (as documented in INSTALL.md).
-    # TODO: these are hardcoded to '...Studio 22\Release\...'; discovery over
-    # version/channel (Release|Preview) is a known follow-up.
-    $installer = "C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\VSIXInstaller.exe"
-    $ssms      = "C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\Ssms.exe"
-    if (-not (Test-Path $installer)) { throw "VSIXInstaller not found: $installer" }
-    if (-not (Test-Path $ssms))      { throw "Ssms.exe not found: $ssms" }
-
     # The batch header exported the .cmd's own folder; use it to find a
     # sibling .vsix (the old install.ps1 used $PSScriptRoot, which is empty
     # when this body runs in-memory via iex).
     $scriptDir = if ($env:SQUIL_CMD_DIR) { $env:SQUIL_CMD_DIR } else { $PSScriptRoot }
-    $localVsix = Join-Path $scriptDir 'SQuiL.SsmsExtension.vsix'
 
-    if ($VsixPath) {
-        if (-not (Test-Path $VsixPath)) { throw "VSIX not found: $VsixPath" }
-        $vsix = (Resolve-Path $VsixPath).Path
-        Write-Host "Using VSIX: $vsix" -ForegroundColor Cyan
+    # ── Discover what's installed ──────────────────────────────────────────
+    Write-Host '== Looking for supported products (SSMS 22+, Visual Studio 2026) ==' -ForegroundColor Cyan
+    $targets = Get-SquilTargets
+    if ($targets.Count -eq 0) {
+        throw "No supported product found. SQuiL's editor extensions need SSMS 22 (or later) and/or Visual Studio 2026 (18+) Community/Professional/Enterprise."
     }
-    elseif (Test-Path $localVsix) {
-        $vsix = $localVsix
-        Write-Host "Using VSIX next to this installer: $vsix" -ForegroundColor Cyan
-    }
-    else {
-        Write-Host 'No local .vsix found — fetching it from GitHub releases.' -ForegroundColor Cyan
-        $vsix = Get-SquilVsix -Repo $Repo -Tag $releaseTag
-        Write-Host "Downloaded VSIX: $vsix" -ForegroundColor Green
+    foreach ($t in $targets) {
+        Write-Host "  Found: $($t.Name)  [$($t.InstanceId)]" -ForegroundColor Green
     }
 
-    # ── Prompt: let the user save open work before SSMS is force-closed ───
+    # ── Resolve one .vsix per product family that is present ───────────────
+    $vsixByAsset = @{}
+    foreach ($assetName in ($targets | Select-Object -ExpandProperty AssetName -Unique)) {
+        $explicit = if ($assetName -eq 'SQuiL.SsmsExtension.vsix') { $SsmsVsixPath } else { $VsVsixPath }
+        $vsixByAsset[$assetName] = Resolve-SquilVsix -Explicit $explicit -AssetName $assetName -ScriptDir $scriptDir
+    }
+
+    # ── Prompt: let the user save open work before apps are force-closed ───
     # To cancel before anything destructive happens, just close the window —
     # nothing has been changed at this point.
+    $appNames = ($targets | Select-Object -ExpandProperty Name -Unique) -join ', '
     Write-Host ''
-    Write-Host 'Step 1 will force-close SSMS to install the SQuiL extension.' -ForegroundColor Yellow
-    Write-Host 'Save any open work in SSMS now.' -ForegroundColor Yellow
+    Write-Host "Step 1 will force-close: $appNames" -ForegroundColor Yellow
+    Write-Host 'Save any open work in those applications now.' -ForegroundColor Yellow
     Wait-AnyKey 'Press any key to continue, or close this window to cancel.'
 
-    # ── Step 1: force-close SSMS (re-query and kill until none remain) ─────
-    # Capturing the process list once and waiting on those handles proved
-    # brittle (a lingering/child or a slow exit left the final check seeing a
-    # stray 'ssms' and threw). Instead, loop: re-query each pass and force-kill
-    # the whole tree with taskkill /T until no ssms process remains, or 30s.
-    Write-Host '== Step 1: Closing SSMS ==' -ForegroundColor Cyan
-    if (@(Get-Process -Name ssms -ErrorAction SilentlyContinue).Count -eq 0) {
-        Write-Host '  SSMS is not running.' -ForegroundColor DarkGray
+    # ── Step 1: force-close every affected product ──────────────────────────
+    Write-Host '== Step 1: Closing applications ==' -ForegroundColor Cyan
+    foreach ($proc in ($targets | Select-Object -ExpandProperty Process -Unique)) {
+        $name = ($targets | Where-Object Process -eq $proc | Select-Object -First 1).Name
+        Stop-ProductProcesses -ProcessName $proc -DisplayName $name
     }
-    else {
-        # SSMS (a VS-shell app) can take a few seconds to fully exit. Print a
-        # growing row of dots while we wait so it is obviously still working,
-        # rather than sitting silent. Re-query and force-kill the whole tree
-        # each pass until none remain, or 30s.
-        Write-Host '  Force-closing SSMS, please wait' -NoNewline -ForegroundColor Yellow
-        $deadline = (Get-Date).AddSeconds(30)
-        while (@(Get-Process -Name ssms -ErrorAction SilentlyContinue).Count -gt 0) {
-            # taskkill /F = force, /T = whole process tree. Native exit code
-            # (e.g. "process not found") does not throw, so no -ErrorAction.
-            & taskkill /F /T /IM Ssms.exe *> $null
-            Write-Host '.' -NoNewline -ForegroundColor Yellow
-            Start-Sleep -Milliseconds 750
-            if ((Get-Date) -ge $deadline) {
-                Write-Host ''
-                throw "Step 1 failed: SSMS is still running after 30s. Close it manually, then re-run. (Step 2 not started.)"
+    Write-Host 'Step 1 complete (applications closed).' -ForegroundColor Green
+
+    # ── Step 2: install each VSIX into its own instance ────────────────────
+    # /instanceIds scopes the install: VSIXInstaller delegates to the shared
+    # VS installer engine, which otherwise offers the package to every
+    # compatible instance on the machine.
+    $failures = @()
+    Write-Host '== Step 2: VSIXInstaller /quiet (installing extension) ==' -ForegroundColor Cyan
+    foreach ($t in $targets) {
+        $vsix = $vsixByAsset[$t.AssetName]
+        Write-Host "  Installing into $($t.Name)..." -ForegroundColor Cyan
+        $step = Start-Process -FilePath $t.Installer `
+            -ArgumentList '/quiet', "/instanceIds:$($t.InstanceId)", "`"$vsix`"" -Wait -PassThru
+        if ($step.ExitCode -ne 0) {
+            $failures += "$($t.Name): VSIX install failed with exit code $($step.ExitCode)."
+            Write-Host "  FAILED (exit code $($step.ExitCode))." -ForegroundColor Red
+        }
+        else {
+            Write-Host "  Installed (exit code 0)." -ForegroundColor Green
+        }
+    }
+    if ($failures.Count -eq $targets.Count) {
+        throw "Step 2 failed for every product:`n  $($failures -join "`n  ")"
+    }
+
+    # ── Step 3: SSMS only — force pkgdef merge, only where install worked ──
+    # Without /setup SSMS won't see the .squil binding even though
+    # VSIXInstaller reported success. VS needs no equivalent step.
+    $ssmsTargets = @($targets | Where-Object { $_.Kind -eq 'SSMS' -and ($failures -notmatch [regex]::Escape($_.Name)) })
+    if ($ssmsTargets.Count -gt 0) {
+        Write-Host '== Step 3: Ssms.exe /setup (merging pkgdef) ==' -ForegroundColor Cyan
+        foreach ($t in $ssmsTargets) {
+            $step = Start-Process -FilePath $t.ProductPath -ArgumentList '/setup' -Wait -PassThru
+            if ($step.ExitCode -ne 0) {
+                $failures += "$($t.Name): Ssms.exe /setup failed with exit code $($step.ExitCode)."
+                Write-Host "  $($t.Name): /setup FAILED (exit code $($step.ExitCode))." -ForegroundColor Red
+            }
+            else {
+                Write-Host "  $($t.Name): /setup complete (exit code 0)." -ForegroundColor Green
             }
         }
-        Write-Host ' closed.' -ForegroundColor Yellow
     }
-    Write-Host 'Step 1 complete (SSMS closed).' -ForegroundColor Green
 
-    # ── Step 2: install the VSIX (wait for full completion) ───────────────
-    Write-Host '== Step 2: VSIXInstaller /quiet (installing extension) ==' -ForegroundColor Cyan
-    $step2 = Start-Process -FilePath $installer -ArgumentList '/quiet', "`"$vsix`"" -Wait -PassThru
-    if ($step2.ExitCode -ne 0) {
-        throw "Step 2 (VSIX install) failed with exit code $($step2.ExitCode). Aborting before step 3 (/setup)."
+    if ($failures.Count -gt 0) {
+        throw "Install finished with errors:`n  $($failures -join "`n  ")"
     }
-    Write-Host 'Step 2 complete (exit code 0).' -ForegroundColor Green
-
-    # ── Step 3: force pkgdef merge — only after step 2 succeeded ──────────
-    Write-Host '== Step 3: Ssms.exe /setup (merging pkgdef) ==' -ForegroundColor Cyan
-    $step3 = Start-Process -FilePath $ssms -ArgumentList '/setup' -Wait -PassThru
-    if ($step3.ExitCode -ne 0) {
-        throw "Step 3 (Ssms.exe /setup) failed with exit code $($step3.ExitCode)."
-    }
-    Write-Host 'Step 3 complete (exit code 0).' -ForegroundColor Green
-
-    Write-Host 'Install finished. Launch SSMS and open a .squil file to verify.' -ForegroundColor Green
+    Write-Host 'Install finished. Launch the application(s) and open a .squil file to verify.' -ForegroundColor Green
 }
 catch {
     Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red

@@ -3,7 +3,7 @@
 You may have up to three files:
 
 - `SQuiL.SsmsExtension.vsix`  ← the extension package (optional — `install.cmd` downloads it if absent)
-- `install.cmd`              ← runs the install for you. **You can download just this one file and double-click it** — it self-elevates (UAC prompt) and fetches the `.vsix` from GitHub if it isn't sitting next to it.
+- `install.cmd`              ← runs the install for you. **You can download just this one file and double-click it** — it self-elevates (UAC prompt) and fetches the `.vsix` from GitHub if it isn't sitting next to it. It detects **every supported product on your machine** — SSMS 22+ *and* Visual Studio 2026 (Community/Professional/Enterprise) — and installs the matching SQuiL extension into each.
 - `INSTALL.md`                ← this file
 
 ## Things to know before you install
@@ -28,12 +28,14 @@ You may have up to three files:
 ## Install (easiest)
 
 **Download `install.cmd` and double-click it.** It prompts for administrator
-rights (UAC), then runs the three gated steps for you — force-close SSMS,
-install the VSIX, and `Ssms.exe /setup`. **Before it closes SSMS it pauses and
-asks you to save any open work**, so nothing is lost (press Enter to continue,
-or Ctrl+C to cancel). You don't need the `.vsix` locally; if it isn't sitting
-next to `install.cmd`, the matching release is downloaded automatically (the
-release tag is baked into the file at publish time).
+rights (UAC), discovers every supported product on the machine via `vswhere`
+(SSMS 22+ and Visual Studio 2026 Community/Professional/Enterprise), then runs
+the gated steps for you — force-close the affected apps, install each VSIX into
+its instance, and `Ssms.exe /setup` for SSMS. **Before it closes anything it
+pauses and asks you to save any open work**, so nothing is lost (press any key
+to continue, or close the window to cancel). You don't need the `.vsix` files
+locally; whatever isn't sitting next to `install.cmd` is downloaded
+automatically (the release tag is baked into the file at publish time).
 
 `install.cmd` is a single file that is both a batch script and a PowerShell
 script ("polyglot"). Because it runs as a `.cmd`, Windows does **not** block it

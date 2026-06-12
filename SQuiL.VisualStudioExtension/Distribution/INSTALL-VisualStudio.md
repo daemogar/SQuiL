@@ -2,12 +2,18 @@
 
 The release asset is a single file: **`SQuiL.VisualStudioExtension.vsix`**.
 
+> **Easiest:** download `install.cmd` from the same release and double-click
+> it. It detects every supported product on your machine — Visual Studio 2026
+> (Community/Professional/Enterprise) *and* SSMS 22+ — downloads whatever
+> `.vsix` files it needs, and installs the matching SQuiL extension into each.
+> The manual steps below are only needed if you prefer doing it yourself.
+
 ## Things to know before you install
 
 - **Visual Studio 2026 required** (shell version 18.x — Community, Professional,
-  or Enterprise). The VSIX manifest targets `Microsoft.VisualStudio.Community
-  [18.0,)`, which installs into any 2026 edition. Earlier VS versions will not
-  load it.
+  or Enterprise). The VSIX manifest explicitly targets all three editions
+  (`Microsoft.VisualStudio.Community` / `.Pro` / `.Enterprise`, each
+  `[18.0,)`). Earlier VS versions will not load it.
 - **WebView2 Runtime** is needed *only* for the Writing Guide pane. Every other
   feature works without it. Modern Windows 11 + Edge ships it; otherwise install
   from <https://developer.microsoft.com/microsoft-edge/webview2/>.

@@ -16,13 +16,20 @@
 
   <Installation InstalledByMsi="false">
     <!--
-         Visual Studio 2026 is shell version 18.x.  All SKUs (Community,
-         Professional, Enterprise) advertise the Sku target id
-         "Microsoft.VisualStudio.Community" as their floor, so targeting it
-         with [18.0,) installs into any VS 2026 edition.  ProductArchitecture
+         Visual Studio 2026 is shell version 18.x.  Every edition is targeted
+         explicitly (Community/Pro/Enterprise) rather than relying on the
+         "Community is every SKU's floor" convention, so the supported-products
+         list is self-documenting and edition detection by installers (vswhere
+         in install.cmd) lines up 1:1 with the manifest.  ProductArchitecture
          must be the enum value "amd64" (not "x64").
     -->
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[18.0,)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Pro" Version="[18.0,)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Enterprise" Version="[18.0,)">
       <ProductArchitecture>amd64</ProductArchitecture>
     </InstallationTarget>
   </Installation>
