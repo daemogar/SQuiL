@@ -1,0 +1,15 @@
+{
+	"name": "squil",
+	"owner": {
+		"name": "Paul Irwin",
+		"url": "https://github.com/daemogar"
+	},
+	"plugins": [
+		{
+			"name": "squil",
+			"source": "./plugins/squil",
+			"description": "Authoring support for SQuiL — write .squil query files, wire up consuming .csproj projects, and wrap the generated data contexts. Ships the canonical SQuiL TextMate grammar.",
+			"version": "1.0.0"
+		}
+	]
+}

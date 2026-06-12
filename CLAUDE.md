@@ -159,6 +159,15 @@ SQuiL/
   `SQuiL.Editor.Shared/`. The per-extension copies are overwritten on each
   build's sync step (`npm run sync-shared` for VS Code, MSBuild target
   `SyncSharedEditorAssets` for SSMS).
+- **Claude Code plugin** (`plugins/squil/`, marketplace manifest at
+  `.claude-plugin/marketplace.json`) — the plugin's
+  `skills/squil/squil.tmLanguage.json` is a copy of the Editor.Shared
+  grammar with NO build-time sync; re-copy it manually whenever the grammar
+  changes. The repo `plugins/squil/skills/squil/SKILL.md` is canonical for
+  the published skill; Paul's machine-local `~/.claude/skills/squil/` is a
+  personal install — when editing one, mirror the other (hash-verify).
+  Consumers install via `/plugin marketplace add daemogar/SQuiL` +
+  `/plugin install squil@squil`.
 - **Provider logic ported to both surfaces.** `parser.ts` ↔ `SQuiLParser.cs`,
   `previewGenerator.ts` ↔ `SQuiLPreviewGenerator.cs`,
   `sampleDataGenerator.ts` ↔ `SampleDataGenerator.cs`,

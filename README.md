@@ -105,6 +105,18 @@ preview for `.squil` files are available for:
 - **SQL Server Management Studio 22.6** — `SQuiL.SsmsExtension`
 - **Visual Studio 2026** — `SQuiL.VisualStudioExtension`
 
+## Claude Code plugin
+
+This repo doubles as a [Claude Code](https://claude.com/claude-code) plugin
+marketplace. The `squil` plugin teaches Claude how to author `.squil` files,
+wire up a consuming `.csproj`, and wrap the generated data contexts — and
+ships the canonical SQuiL TextMate grammar. Install it with:
+
+```
+/plugin marketplace add daemogar/SQuiL
+/plugin install squil@squil
+```
+
 ## Documentation
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for building, testing, project layout,
