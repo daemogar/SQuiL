@@ -86,8 +86,8 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 							{
 								response.Object = new(
 									reader.GetInt32(reader.GetOrdinal("ObjectID")),
-									reader.GetBoolean(reader.GetOrdinal("IsNeither")),
-									reader.GetString(reader.GetOrdinal("PreferredName")));
+									reader.GetBoolean(reader.GetOrdinal("IsMale")),
+									reader.GetString(reader.GetOrdinal("FirstName")));
 							}
 							else
 							{
@@ -107,21 +107,21 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
 							var indexTableID = reader.GetOrdinal("TableID");
-							var indexIsBoth = reader.GetOrdinal("IsBoth");
-							var indexNickName = reader.GetOrdinal("NickName");
+							var indexIsFemale = reader.GetOrdinal("IsFemale");
+							var indexLastName = reader.GetOrdinal("LastName");
 							
 							do
 							{
 								if (reader.GetString(0) == "Returns_Table")
 								{
 									var valueTableID = reader.GetInt32(indexTableID);
-									var valueIsBoth = reader.GetBoolean(indexIsBoth);
-									var valueNickName = reader.GetString(indexNickName);
+									var valueIsFemale = reader.GetBoolean(indexIsFemale);
+									var valueLastName = reader.GetString(indexLastName);
 									
 									response.Table.Add(new(
 										valueTableID,
-										valueIsBoth,
-										valueNickName));
+										valueIsFemale,
+										valueLastName));
 								}
 							}
 							while (await reader.ReadAsync(cancellationToken));
@@ -225,14 +225,14 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 		Declare @Return_Object table(
 			[__SQuiL__Table__Type__Return_Object__] varchar(max) default('Return_Object'),
 			[ObjectID] int,
-			[IsNeither] bit,
-			[PreferredName] varchar(100));
+			[IsMale] bit,
+			[FirstName] varchar(100));
 		
 		Declare @Returns_Table table(
 			[__SQuiL__Table__Type__Returns_Table__] varchar(max) default('Returns_Table'),
 			[TableID] int,
-			[IsBoth] bit,
-			[NickName] varchar(100));
+			[IsFemale] bit,
+			[LastName] varchar(100));
 		
 		Use [{builder.InitialCatalog}];
 		

@@ -60,19 +60,61 @@ public class SQuiLTableMap
 	}
 
 	/// <summary>
+	/// SP0017 conflicts: declarations that share one generated record type but declare
+	/// different column shapes (name, type, nullability, and order must all match).
+	/// </summary>
+	private List<(string TableName, string Expected, string Actual)> ShapeConflicts { get; } = [];
+
+	/// <summary>
+	/// Returns any shape conflicts collected while registering and merging tables.
+	/// Populated by <see cref="Add(SQuiLTable)"/> and <see cref="GenerateCode"/>, so only
+	/// complete after code generation has run.
+	/// </summary>
+	/// <param name="issues">Output list of (record name, expected shape, conflicting shape).</param>
+	/// <returns><c>true</c> if at least one conflict exists.</returns>
+	public bool TryGetShapeIssues(out List<(string TableName, string Expected, string Actual)> issues)
+	{
+		issues = ShapeConflicts;
+		return issues.Count > 0;
+	}
+
+	/// <summary>
 	/// Registers a <see cref="SQuiLTable"/> and merges its columns into the shared dictionary.
 	/// If the same table was already added by another query, any new columns are appended.
+	/// Declarations that share a name but differ in shape are recorded as SP0017 conflicts —
+	/// the merged record's positional constructor cannot serve mismatched shapes.
 	/// </summary>
 	/// <param name="property">The table model to register.</param>
 	public void Add(SQuiLTable property)
 	{
-		if (!Dictionary.ContainsKey(property.OriginalName))
+		if (Dictionary.TryGetValue(property.OriginalName, out var existing))
+		{
+			if (!SameShape(existing.Items, property.CodeItems))
+				ShapeConflicts.Add((property.TableName(), Shape(existing.Items), Shape(property.CodeItems)));
+		}
+		else
 			Dictionary.Add(property.OriginalName, (property, []));
 
 		foreach (var item in property.CodeItems)
 			if (!Dictionary[property.OriginalName].Items.Any(p => p.Identifier.Value == item.Identifier.Value))
 				Dictionary[property.OriginalName].Items.Add(item);
 	}
+
+	/// <summary>
+	/// Two column lists have the same shape when they match pairwise in order:
+	/// same column name, same SQL type token, same nullability. Sizes may differ —
+	/// each query emits its own SQL declaration, so only the shared C# record matters.
+	/// </summary>
+	private static bool SameShape(List<CodeItem> left, List<CodeItem> right)
+		=> left.Count == right.Count
+		&& left.Zip(right, (p, q)
+			=> p.Identifier.Value == q.Identifier.Value
+			&& p.Type.Type == q.Type.Type
+			&& p.IsNullable == q.IsNullable).All(p => p);
+
+	/// <summary>Renders a column list as a readable shape string for SP0017 messages.</summary>
+	private static string Shape(IEnumerable<CodeItem> items)
+		=> $"({string.Join(", ", items.Select(p => $"{p.Identifier.Value} {p.Type.Original ?? p.Type.Type.ToString()}{(p.IsNullable ? " Null" : "")}"))})";
 
 	/// <summary>
 	/// Looks up a table's merged column list and resolves its C# class name.
@@ -124,6 +166,16 @@ public class SQuiLTableMap
 
 		foreach (var merge in Dictionary.Values.GroupBy(p => p.Table.TableName()))
 		{
+			var reference = merge.First().Items;
+			foreach (var entry in merge.Skip(1))
+				if (!SameShape(reference, entry.Items))
+					ShapeConflicts.Add((merge.Key, Shape(reference), Shape(entry.Items)));
+
+			// SP0017: a merged record with mismatched shapes cannot be emitted —
+			// its positional constructor would break every reader that shares it.
+			if (ShapeConflicts.Any(p => p.TableName == merge.Key))
+				continue;
+
 			List<string> names = [];
 			List<CodeItem> items = [];
 
@@ -141,7 +193,8 @@ public class SQuiLTableMap
 
 			if (text.TryGetValue(out var value, out var exception))
 			{
-				sources.Add(name, value);
+				if (!string.IsNullOrEmpty(value))
+					sources.Add(name, value);
 				continue;
 			}
 

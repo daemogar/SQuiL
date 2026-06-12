@@ -308,6 +308,8 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 		foreach (var record in records)
 		{
+			var isTableRecord = false;
+
 			foreach (var attribute in record.Value.Syntax.AttributeLists
 				.SelectMany(p => p.Attributes
 				.Select(p => p.ArgumentList?.Arguments.FirstOrDefault()))
@@ -318,8 +320,15 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				if (!table.StartsWith("TableType."))
 					continue;
 
+				isTableRecord = true;
 				tableMap.Add(table[10..], record.Key, record.Value.Syntax.GetLocation());
 			}
+
+			// SP0018: the generator owns the table record's parameter list; a user
+			// primary constructor would collide with it (CS8863). An empty `()`
+			// parameter list is the block-bodied customization pattern and stays legal.
+			if (isTableRecord && record.Value.Syntax.ParameterList is { Parameters.Count: > 0 } parameterList)
+				context.ReportTableRecordPrimaryConstructor(record.Key, parameterList.GetLocation());
 		}
 
 		foreach (var (classname, (attribute, location)) in definitions

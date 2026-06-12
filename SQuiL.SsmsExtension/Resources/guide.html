@@ -259,6 +259,14 @@ editor and at build time:</p>
     header, first.</strong> Declaring them after the <code>Use</code> statement is an error
     (diagnostic <code>SP0016</code>); declaring them after other header declarations produces a
     warning — put them at the very top.</li>
+  <li><strong>Table variables that share a name share one record — and must share one shape.</strong>
+    Declaring <code class="par">@Param_User Table(...)</code> in one place and
+    <code class="ret">@Return_User Table(...)</code> in another (in the same file or across query files)
+    generates a <em>single</em> <code>UserObject</code>/<code>UserTable</code> record, so both
+    declarations must list <em>identical columns</em> — same names, same types, same nullability,
+    same order (sizes like <code>varchar(50)</code> vs <code>varchar(100)</code> may differ). A
+    mismatch fails the build with diagnostic <code>SP0017</code>; either align the column lists or
+    rename one of the variables.</li>
 </ul>
 
 <pre><code><span class="cm">-- ✔ valid: declared first, referenced by exact name</span>
@@ -567,6 +575,25 @@ SQuiL uses the database name from the SQL file's <code>Use</code> statement.</p>
 <span class="cs-kw">public partial class</span> <span class="cs-cls">Tables</span> { }</code></pre>
 <p>SQuiL will then reuse the generated <code>UserTable</code> record across every query whose
 <code>@Returns_User Table(...)</code> declaration matches that shape.</p>
+
+<p>Two rules apply to shared table types:</p>
+<ul>
+  <li><strong>Every declaration that feeds one record must declare identical columns</strong> —
+    same names, types, nullability, and order (sizes may differ). This covers table variables that
+    share a name <em>and</em> different names mapped to one class via multiple
+    <code>[SQuiLTable]</code> attributes. A mismatch fails the build with diagnostic
+    <code>SP0017</code>.</li>
+  <li><strong>A <code>[SQuiLTable]</code> partial record must not declare a primary constructor</strong> —
+    the generator emits the parameter list, and C# allows only one partial declaration to have one.
+    Use a body instead; diagnostic <code>SP0018</code> flags violations.</li>
+</ul>
+<pre><code><span class="cm">// ✔ customize with a body — add members freely</span>
+[<span class="cs-attr">SQuiLTable</span>(<span class="cs-cls">TableType</span>.User)]
+<span class="cs-kw">public partial record</span> <span class="cs-cls">UserTable</span> { }
+
+<span class="cm">// ✘ error SP0018: the generator owns the parameter list</span>
+<span class="cm">// [SQuiLTable(TableType.User)]</span>
+<span class="cm">// public partial record UserTable(string UserID);</span></code></pre>
 
 <!-- ──────────────────── File Nesting ─────────────────────────────────── -->
 <h2>Solution Explorer File Nesting (<code>.filenesting.json</code>)</h2>

@@ -167,6 +167,33 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0017 — Declarations that share one generated record type (same table name, or
+	/// different names mapped to one class via <c>[SQuiLTableAttribute]</c>) declare
+	/// different column shapes. The shared record's positional constructor cannot serve
+	/// mismatched shapes, so the record is not emitted.
+	/// </summary>
+	public static void ReportTableShapeMismatch(this SourceProductionContext context, List<(string TableName, string Expected, string Actual)> issues)
+	{
+		foreach (var (table, expected, actual) in issues)
+			context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0017", "Table Shape Mismatch",
+				$"All declarations that generate the record `{table}` must declare identical columns " +
+				$"(same names, types, nullability, and order). Found {expected} and {actual}. " +
+				"Rename one of the variables or align the column lists."));
+	}
+
+	/// <summary>
+	/// SP0018 — A <c>[SQuiLTableAttribute]</c> partial record declares a primary constructor.
+	/// The generator owns the parameter list (only a single partial declaration may have one),
+	/// so the user partial must use a body instead.
+	/// </summary>
+	public static void ReportTableRecordPrimaryConstructor(this SourceProductionContext context, string recordName, Location location)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0018", "Table Record Primary Constructor",
+			$"The [{SourceGeneratorHelper.TableTypeAttributeName}] partial record `{recordName}` must not declare a primary constructor — " +
+			$"the generator emits the parameter list. Replace `record {recordName}(...)` with `record {recordName} {{ }}`.", location));
+	}
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

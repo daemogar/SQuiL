@@ -79,39 +79,39 @@
       }
     },
     {
-      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 342, Value = Table, Original = @Returns_Table table }, Name = Table, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 335, Value = Table, Original = @Returns_Table table }, Name = Table, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 342, Value = Table, Original = @Returns_Table table }, Name = Table, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+        MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 335, Value = Table, Original = @Returns_Table table }, Name = Table, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
     },
     {
-      Message: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 427, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Message: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 422, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 427, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+        MessageFormat: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 422, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
     },
     {
-      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 440, Value = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler; , Original = Select 1; }, Name = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler; , DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 435, Value = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler; , Original = Select 1; }, Name = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler; , DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 440, Value = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler; , Original = Select 1; }, Name = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler; , DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+        MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 435, Value = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler; , Original = Select 1; }, Name = Select 1;  Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler; , DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -690,13 +690,13 @@
       }
     },
     {
-      Message: IDENTIFIER => IsNeither,
+      Message: IDENTIFIER => IsMale,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: IDENTIFIER => IsNeither,
+        MessageFormat: IDENTIFIER => IsMale,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -729,13 +729,13 @@
       }
     },
     {
-      Message: IDENTIFIER => PreferredName,
+      Message: IDENTIFIER => FirstName,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: IDENTIFIER => PreferredName,
+        MessageFormat: IDENTIFIER => FirstName,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -859,13 +859,13 @@
       }
     },
     {
-      Message: IDENTIFIER => IsBoth,
+      Message: IDENTIFIER => IsFemale,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: IDENTIFIER => IsBoth,
+        MessageFormat: IDENTIFIER => IsFemale,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -898,13 +898,13 @@
       }
     },
     {
-      Message: IDENTIFIER => NickName,
+      Message: IDENTIFIER => LastName,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: IDENTIFIER => NickName,
+        MessageFormat: IDENTIFIER => LastName,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true

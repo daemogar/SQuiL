@@ -70,6 +70,13 @@ public class SQuiLTable(
 		var tableName = TableName();
 		var @namespace = NameSpace;
 
+		// SP0018 (reported in SQuiLGenerator): the user's partial owns a primary
+		// constructor, so emitting our parameter list would add CS8863 noise on top
+		// of the diagnostic. Emit nothing for this type.
+		if (Records.TryGetValue(tableName, out var userPartial)
+			&& userPartial.Syntax.ParameterList?.Parameters.Count > 0)
+			return (tableName, new ExceptionOrValue<string>(string.Empty));
+
 		if (tableName.StartsWith(SourceGeneratorHelper.NamespaceName))
 			@namespace = SourceGeneratorHelper.NamespaceName;
 

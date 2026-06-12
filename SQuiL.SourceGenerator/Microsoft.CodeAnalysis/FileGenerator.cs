@@ -137,6 +137,9 @@ public class FileGenerator(
 		{
 			TableMap.GenerateCode(out var tables, out var exceptions);
 
+			if (TableMap.TryGetShapeIssues(out var shapeIssues))
+				Context.ReportTableShapeMismatch(shapeIssues);
+
 			foreach (var exception in exceptions)
 				Context.ReportMissingStatement(exception);
 

@@ -17,14 +17,7 @@ public class CourseEvaluationTests
 				""")
 			.ToList();
 
-		// compileCheck off: pins KNOWN GENERATOR GAP — TermTable below declares
-		// a primary-constructor parameter list on the user's partial record,
-		// and the generated TermTable partial emits one too (CS8863: only a
-		// single partial declaration may have a parameter list). The intended
-		// contract for customizing generated records is undecided; see master
-		// TODO "Tier-0 findings".
 		await TestHelper.Verify(
-			compileCheck: false,
 			sources: ["""
 				using Microsoft.Extensions.Configuration;
 
@@ -45,7 +38,7 @@ public class CourseEvaluationTests
 				}
 				
 				[SQuiLTable(TableType.Terms)]
-				public partial record TermTable(string TermCode);
+				public partial record TermTable {}
 
 				[SQuiLTable(TableType.Section)]
 				[SQuiLTable(TableType.Sections)]

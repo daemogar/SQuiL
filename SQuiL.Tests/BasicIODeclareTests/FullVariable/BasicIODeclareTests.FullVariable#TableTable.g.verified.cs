@@ -8,6 +8,4 @@ namespace TestCase;
 public partial record TableTable(
 	int TableID,
 	bool IsFemale,
-	string LastName,
-	bool IsBoth,
-	string NickName);
+	string LastName);

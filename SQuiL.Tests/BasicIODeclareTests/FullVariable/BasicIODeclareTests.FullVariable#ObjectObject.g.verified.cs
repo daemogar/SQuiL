@@ -8,6 +8,4 @@ namespace TestCase;
 public partial record ObjectObject(
 	int ObjectID,
 	bool IsMale,
-	string FirstName,
-	bool IsNeither,
-	string PreferredName);
+	string FirstName);
