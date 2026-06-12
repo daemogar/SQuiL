@@ -118,7 +118,7 @@ public class DataContextGenerationTests //: DataContextUsedTests
 						Max(Iif(pv.PropertyName = 'SectionDateDescription', PropertyValue, Null)) as CourseCode,
 						Max(Iif(pv.PropertyName = 'SectionDateEvaluationBeginDate', Cast(PropertyValue As date), Null)) as BeginDate,
 						Max(Iif(pv.PropertyName = 'SectionDateEvaluationEndDate', Cast(PropertyValue As date), Null)) as EndDate
-			Fr	om		CourseEvaluation_PropertyValues pv
+			From		CourseEvaluation_PropertyValues pv
 						Inner Join (
 							Select		ElementId
 							From		CourseEvaluation_PropertyValues
