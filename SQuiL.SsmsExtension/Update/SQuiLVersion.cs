@@ -17,6 +17,8 @@ internal static class SQuiLVersion
         public int[] Sdk { get; set; } = Array.Empty<int>();
         public int Build { get; set; }
         public bool Prerelease { get; set; }
+        /// <summary>Dot-separated prerelease identifiers, e.g. ["beta","123"] from "1.0.0-beta.123".</summary>
+        public string[] Pre { get; set; } = Array.Empty<string>();
     }
 
     public sealed class ReleaseInfo
@@ -55,10 +57,16 @@ internal static class SQuiLVersion
 
         var sdk = new int[nums.Length - 1];
         Array.Copy(nums, sdk, sdk.Length);
-        return new ParsedTag { Sdk = sdk, Build = nums[nums.Length - 1], Prerelease = prerelease };
+        var pre = prerelease ? t.Substring(dash + 1).Split('.') : Array.Empty<string>();
+        return new ParsedTag { Sdk = sdk, Build = nums[nums.Length - 1], Prerelease = prerelease, Pre = pre };
     }
 
-    /// <summary>-1 if a&lt;b, 0 if equal, 1 if a&gt;b. SDK segments first, then build.</summary>
+    /// <summary>
+    /// -1 if a&lt;b, 0 if equal, 1 if a&gt;b. SDK segments first, then build;
+    /// equal cores fall through to SemVer rule 11: a release outranks its own
+    /// prereleases (1.0.0 &gt; 1.0.0-beta.123), and two prereleases compare
+    /// identifier-by-identifier (beta.124 &gt; beta.123).
+    /// </summary>
     public static int Compare(ParsedTag a, ParsedTag b)
     {
         var len = Math.Max(a.Sdk.Length, b.Sdk.Length);
@@ -69,6 +77,34 @@ internal static class SQuiLVersion
             if (x != y) return x < y ? -1 : 1;
         }
         if (a.Build != b.Build) return a.Build < b.Build ? -1 : 1;
+        if (a.Prerelease != b.Prerelease) return a.Prerelease ? -1 : 1;
+        if (!a.Prerelease) return 0;
+        return ComparePrerelease(a.Pre, b.Pre);
+    }
+
+    /// <summary>SemVer rule 11: numeric identifiers compare numerically and rank
+    /// below alphanumeric ones; a shorter identifier set ranks below a longer
+    /// one when all shared identifiers are equal.</summary>
+    private static int ComparePrerelease(string[] a, string[] b)
+    {
+        var len = Math.Min(a.Length, b.Length);
+        for (var i = 0; i < len; i++)
+        {
+            var aNumeric = int.TryParse(a[i], out var aNum);
+            var bNumeric = int.TryParse(b[i], out var bNum);
+            if (aNumeric && bNumeric)
+            {
+                if (aNum != bNum) return aNum < bNum ? -1 : 1;
+            }
+            else if (aNumeric) return -1;
+            else if (bNumeric) return 1;
+            else
+            {
+                var c = string.CompareOrdinal(a[i], b[i]);
+                if (c != 0) return c < 0 ? -1 : 1;
+            }
+        }
+        if (a.Length != b.Length) return a.Length < b.Length ? -1 : 1;
         return 0;
     }
 

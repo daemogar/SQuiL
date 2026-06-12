@@ -23,6 +23,11 @@ on:
 env:
   PROJECT: SQuiL
   DIRECTORY: SQuiL.SourceGenerator
+  # The next planned official release. Betas are cut as
+  # <NEXT_VERSION>-beta.<run#> so they always compare BELOW the official
+  # they precede (SemVer rule 11). Keep in sync with the workflow_dispatch
+  # `version` input default above; bump both right after each official ships.
+  NEXT_VERSION: '1.0.0'
 
 jobs:
   build:
@@ -55,26 +60,21 @@ jobs:
       working-directory: ./${{ env.DIRECTORY }}
       run: dotnet build --no-restore -c Release
 
-    - name: Set DotNet Version
-      run: echo "DOTNET=$(dotnet --version)" >> "$GITHUB_ENV"
-
-    - name: Set Build Number
-      run: echo "BUILD=$(printf '%04d' ${{ github.run_number }})" >> "$GITHUB_ENV"
-
-    # push to master        → <sdk>.<run#>-beta, marked prerelease (the default flow)
-    # workflow_dispatch     → official: no -beta, full release; the optional
-    #                         version input overrides the computed number.
+    # push to master        → <NEXT_VERSION>-beta.<run#>, marked prerelease
+    # workflow_dispatch     → official: the required version input, plain
+    #                         SemVer only, full (non-prerelease) release.
     - name: Set Release Version
       id: version
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           VERSION="${{ inputs.version }}"
-          if [ -z "$VERSION" ]; then
-            VERSION="${{ env.DOTNET }}.${{ env.BUILD }}"
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Release version '$VERSION' must be plain SemVer (MAJOR.MINOR.PATCH, e.g. 1.0.0)."
+            exit 1
           fi
           PRERELEASE=false
         else
-          VERSION="${{ env.DOTNET }}.${{ env.BUILD }}-beta"
+          VERSION="${{ env.NEXT_VERSION }}-beta.${{ github.run_number }}"
           PRERELEASE=true
         fi
         echo "VERSION=$VERSION" >> "$GITHUB_ENV"

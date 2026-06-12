@@ -68,6 +68,67 @@ public class ExtensionVersionTests
     [InlineData("__SQUIL_RELEASE_TAG__", true)]
     [InlineData("garbage", true)]
     [InlineData("10.0.100.0042-beta", false)]
+    [InlineData("1.0.0-beta.123", false)]
+    [InlineData("1.0.0", false)]
     public void IsDevTag_flags_placeholder_and_unparseable(string tag, bool expected)
         => Assert.Equal(expected, SQuiLVersion.IsDevTag(tag));
+
+    // ── SemVer scheme: <next>-beta.<run#> betas, plain MAJOR.MINOR.PATCH officials ──
+
+    [Fact]
+    public void ParseTag_reads_semver_beta()
+    {
+        var p = SQuiLVersion.ParseTag("1.0.0-beta.123");
+        Assert.NotNull(p);
+        Assert.True(p!.Prerelease);
+    }
+
+    [Fact]
+    public void Compare_official_is_newer_than_its_own_beta()
+    {
+        Assert.Equal(1, SQuiLVersion.Compare(SQuiLVersion.ParseTag("1.0.0")!, SQuiLVersion.ParseTag("1.0.0-beta.123")!));
+        Assert.Equal(-1, SQuiLVersion.Compare(SQuiLVersion.ParseTag("1.0.0-beta.123")!, SQuiLVersion.ParseTag("1.0.0")!));
+    }
+
+    [Fact]
+    public void Compare_orders_betas_by_run_number()
+    {
+        Assert.Equal(1, SQuiLVersion.Compare(SQuiLVersion.ParseTag("1.0.0-beta.124")!, SQuiLVersion.ParseTag("1.0.0-beta.123")!));
+        Assert.Equal(-1, SQuiLVersion.Compare(SQuiLVersion.ParseTag("1.0.0-beta.9")!, SQuiLVersion.ParseTag("1.0.0-beta.10")!));
+        Assert.Equal(0, SQuiLVersion.Compare(SQuiLVersion.ParseTag("1.0.0-beta.123")!, SQuiLVersion.ParseTag("1.0.0-beta.123")!));
+    }
+
+    [Fact]
+    public void Compare_next_cycle_beta_is_newer_than_prior_official()
+        => Assert.Equal(1, SQuiLVersion.Compare(SQuiLVersion.ParseTag("1.0.1-beta.1")!, SQuiLVersion.ParseTag("1.0.0")!));
+
+    private static SQuiLVersion.ReleaseInfo[] SemVerSample() => new[]
+    {
+        new SQuiLVersion.ReleaseInfo { Tag = "1.0.0-beta.120", Prerelease = true,  HtmlUrl = "b120", HasAsset = true },
+        new SQuiLVersion.ReleaseInfo { Tag = "1.0.0-beta.125", Prerelease = true,  HtmlUrl = "b125", HasAsset = true },
+        new SQuiLVersion.ReleaseInfo { Tag = "1.0.0",          Prerelease = false, HtmlUrl = "v100", HasAsset = true },
+    };
+
+    [Fact]
+    public void SelectUpdate_beta_user_is_offered_the_official_release()
+    {
+        var r = SQuiLVersion.SelectUpdate("1.0.0-beta.125", SemVerSample());
+        Assert.Equal("1.0.0", r!.Tag);
+    }
+
+    [Fact]
+    public void SelectUpdate_beta_user_is_offered_newer_beta_when_no_official_yet()
+    {
+        var releases = new[]
+        {
+            new SQuiLVersion.ReleaseInfo { Tag = "1.0.0-beta.120", Prerelease = true, HtmlUrl = "b120", HasAsset = true },
+            new SQuiLVersion.ReleaseInfo { Tag = "1.0.0-beta.125", Prerelease = true, HtmlUrl = "b125", HasAsset = true },
+        };
+        var r = SQuiLVersion.SelectUpdate("1.0.0-beta.120", releases);
+        Assert.Equal("1.0.0-beta.125", r!.Tag);
+    }
+
+    [Fact]
+    public void SelectUpdate_stable_user_on_official_is_not_offered_anything()
+        => Assert.Null(SQuiLVersion.SelectUpdate("1.0.0", SemVerSample()));
 }

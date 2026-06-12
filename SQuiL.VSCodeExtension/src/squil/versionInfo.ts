@@ -9,6 +9,8 @@ export interface ParsedTag {
   build: number;
   /** True when the tag carries a prerelease suffix such as "-beta". */
   prerelease: boolean;
+  /** Dot-separated prerelease identifiers, e.g. ["beta","123"] from "1.0.0-beta.123". */
+  pre: string[];
 }
 
 export interface ReleaseInfo {
@@ -36,10 +38,16 @@ export function parseTag(tag: string): ParsedTag | undefined {
   if (sdk.some(n => Number.isNaN(n))) return undefined;
   const build = parseInt(m[2], 10);
   if (Number.isNaN(build)) return undefined;
-  return { sdk, build, prerelease: m[3] !== undefined };
+  const pre = m[3] !== undefined ? m[3].slice(1).split('.') : [];
+  return { sdk, build, prerelease: m[3] !== undefined, pre };
 }
 
-/** -1 if a<b, 0 if equal, 1 if a>b. SDK segments first, then build. */
+/**
+ * -1 if a<b, 0 if equal, 1 if a>b. SDK segments first, then build; equal
+ * cores fall through to SemVer rule 11: a release outranks its own
+ * prereleases (1.0.0 > 1.0.0-beta.123), and two prereleases compare
+ * identifier-by-identifier (beta.124 > beta.123).
+ */
 export function compareTags(a: ParsedTag, b: ParsedTag): number {
   const len = Math.max(a.sdk.length, b.sdk.length);
   for (let i = 0; i < len; i++) {
@@ -48,6 +56,26 @@ export function compareTags(a: ParsedTag, b: ParsedTag): number {
     if (x !== y) return x < y ? -1 : 1;
   }
   if (a.build !== b.build) return a.build < b.build ? -1 : 1;
+  if (a.prerelease !== b.prerelease) return a.prerelease ? -1 : 1;
+  if (!a.prerelease) return 0;
+  return comparePrerelease(a.pre, b.pre);
+}
+
+// SemVer rule 11: numeric identifiers compare numerically and rank below
+// alphanumeric ones; a shorter identifier set ranks below a longer one when
+// all shared identifiers are equal.
+function comparePrerelease(a: string[], b: string[]): number {
+  const len = Math.min(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const aNum = /^\d+$/.test(a[i]) ? parseInt(a[i], 10) : undefined;
+    const bNum = /^\d+$/.test(b[i]) ? parseInt(b[i], 10) : undefined;
+    if (aNum !== undefined && bNum !== undefined) {
+      if (aNum !== bNum) return aNum < bNum ? -1 : 1;
+    } else if (aNum !== undefined) return -1;
+    else if (bNum !== undefined) return 1;
+    else if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
+  }
+  if (a.length !== b.length) return a.length < b.length ? -1 : 1;
   return 0;
 }
 
