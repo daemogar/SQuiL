@@ -153,8 +153,9 @@
 <body>
 
 <h1>SQuiL Writing Guide</h1>
-<p>SQuiL turns annotated <code>.sql</code> files into strongly-typed C# code via Roslyn source generation.
-You write SQL that looks like SQL — SQuiL handles the plumbing.</p>
+<p>SQuiL turns annotated <code>.squil</code> files into strongly-typed C# code via Roslyn source generation.
+You write SQL that looks like SQL — SQuiL handles the plumbing.
+(<code>.squil</code> is the canonical extension; plain <code>.sql</code> files are also accepted.)</p>
 
 <!-- ───────────────────────── File Structure ───────────────────────────── -->
 <h2>File Structure</h2>
@@ -520,23 +521,25 @@ and re-running it replaces the existing block in place. <strong>Existing blocks 
 <h3>1. NuGet reference</h3>
 <pre><code>&lt;<span class="cs-cls">PackageReference</span> <span class="cs-pn">Include</span>=<span class="str">"SQuiL.SourceGenerator"</span> <span class="cs-pn">Version</span>=<span class="str">"*"</span> /&gt;</code></pre>
 
-<h3>2. Register your <code>.sql</code> files as <code>AdditionalFiles</code></h3>
-<p>SQuiL discovers queries via MSBuild's <code>AdditionalFiles</code> item. The simplest pattern picks up every <code>.sql</code> file anywhere in the project — the file's relative path becomes the entry in the generated <code>QueryFiles</code> enum:</p>
+<h3>2. Register your <code>.squil</code> files as <code>AdditionalFiles</code></h3>
+<p>SQuiL discovers queries via MSBuild's <code>AdditionalFiles</code> item. The simplest pattern picks up every <code>.squil</code> file anywhere in the project — the file's relative path becomes the entry in the generated <code>QueryFiles</code> enum:</p>
 
 <pre><code>&lt;<span class="cs-cls">ItemGroup</span>&gt;
-    &lt;<span class="cs-cls">AdditionalFiles</span> <span class="cs-pn">Include</span>=<span class="str">"**\*.sql"</span> /&gt;
+    &lt;<span class="cs-cls">AdditionalFiles</span> <span class="cs-pn">Include</span>=<span class="str">"**\*.squil"</span> /&gt;
 &lt;/<span class="cs-cls">ItemGroup</span>&gt;</code></pre>
 
 <p>You can scope it tighter if you'd rather keep queries in a dedicated folder:</p>
-<pre><code>&lt;<span class="cs-cls">AdditionalFiles</span> <span class="cs-pn">Include</span>=<span class="str">"Queries\**\*.sql"</span> /&gt;</code></pre>
+<pre><code>&lt;<span class="cs-cls">AdditionalFiles</span> <span class="cs-pn">Include</span>=<span class="str">"Queries\**\*.squil"</span> /&gt;</code></pre>
 
 <div class="tip">
-  <strong>Windows-only today.</strong> SQuiL currently targets Windows MSBuild only, so backslash
-  path separators are fine. If cross-platform support is added in future, switch to <code>/</code>.
+  Plain <code>.sql</code> query files are also accepted — add a second
+  <code>AdditionalFiles</code> glob for <code>*.sql</code> if your project mixes both.
+  Backslash separators are fine cross-platform; MSBuild normalizes them
+  (forward slashes work too).
 </div>
 
 <h3>3. Declare the data context (<code>[SQuiLQuery]</code> + <code>IConfiguration</code>)</h3>
-<p>Your data context is a <code>partial class</code> decorated with one <code>[SQuiLQuery]</code> attribute per <code>.sql</code> file
+<p>Your data context is a <code>partial class</code> decorated with one <code>[SQuiLQuery]</code> attribute per <code>.squil</code> file
 it owns. It must inherit from <code>SQuiLBaseDataContext</code> and forward an <code>IConfiguration</code> to the base
 constructor so connection strings can be resolved:</p>
 
@@ -598,7 +601,7 @@ SQuiL uses the database name from the SQL file's <code>Use</code> statement.</p>
 <!-- ──────────────────── File Nesting ─────────────────────────────────── -->
 <h2>Solution Explorer File Nesting (<code>.filenesting.json</code>)</h2>
 <p>Drop a <code>.filenesting.json</code> at your solution or project root so Visual Studio tucks
-each <code>.sql</code> file under its companion <code>.cs</code> partial-class file in Solution Explorer
+each <code>.squil</code> file under its companion <code>.cs</code> partial-class file in Solution Explorer
 (and gives Razor / appsettings the same treatment):</p>
 
 <pre><code>{
@@ -607,6 +610,7 @@ each <code>.sql</code> file under its companion <code>.cs</code> partial-class f
         <span class="str">"add"</span>: {
             <span class="str">"extensionToExtension"</span>: {
                 <span class="str">"add"</span>: {
+                    <span class="str">".squil"</span>: [ <span class="str">".cs"</span> ],
                     <span class="str">".sql"</span>: [ <span class="str">".cs"</span> ]
                 }
             }
@@ -616,8 +620,8 @@ each <code>.sql</code> file under its companion <code>.cs</code> partial-class f
 
 <div class="tip">
   This is cosmetic only — it does not affect compilation or source generation. The matching
-  rule is by base filename: <code>GetUserName.sql</code> nests under <code>GetUserName.cs</code>.
-  Pair each query SQL file with a same-named C# partial-class shard to take advantage of it.
+  rule is by base filename: <code>GetUserName.squil</code> nests under <code>GetUserName.cs</code>.
+  Pair each query file with a same-named C# partial-class shard to take advantage of it.
 </div>
 
 <!-- ──────────────────── Quick Reference ──────────────────────────────── -->
