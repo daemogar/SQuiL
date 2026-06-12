@@ -368,6 +368,3 @@ FodyWeavers.xsd
 # Verify
 *.received.*
 /.claude/settings.local.json
-
-# Local-only session handoff / scratch notes (not part of the project)
-docs/handoffs/
