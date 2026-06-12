@@ -62,7 +62,7 @@ From		CourseEvaluation_PropertyValues pv
 			) tags
 				On tags.ElementId = pv.ElementId
 Group By	pv.ElementId
-) list Cross Join @Sections s
+) list Cross Join @Param_Section s
 Where		IsEnabled = 1 And Case ShowWhen
 				When 'global' Then 1
 				When 'online' Then IsOnline

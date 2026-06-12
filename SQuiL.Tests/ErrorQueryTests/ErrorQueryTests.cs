@@ -53,7 +53,7 @@ public class ErrorQueryTests
 
 			Use DataRepository;
 
-			Insert Into @Errors;
+			Insert Into @Error;
 			"""]);
 	}
 

@@ -20,8 +20,8 @@ Declare	@Params_Participation table(
 	CompletedDate datetime
 );
 
-Insert Into @Participation
-Select '20655', @PersonID, '0300801', 'F08', '2023-11-29';
+Insert Into @Params_Participation
+Select '20655', @Param_PersonID, '0300801', 'F08', '2023-11-29';
 
 Declare	@Params_Overrides table(
 	SectionID varchar(20),
@@ -31,7 +31,7 @@ Declare	@Params_Overrides table(
 	EndDate datetime
 );
 
-Insert Into @Overrides
+Insert Into @Params_Overrides
 Select '19012', 'F08', 'CPTR-365-A', '2023-09-15', '2023-11-20';
 
 Declare @Returns_Courses table(
@@ -79,20 +79,20 @@ Begin -- Courses
 					On s.SectionID = ss.SectionID
 				Inner Join pub.Terms t
 					On t.Term = s.SectionTermActual
-				Inner Join @Terms tt
+				Inner Join @Params_Terms tt
 					On t.Term = tt.TermCode
-				Left Join @Overrides o
+				Left Join @Params_Overrides o
 					On o.SectionID = ss.SectionID
 					And o.CourseCode = s.CourseName
 					And o.TermCode = s.SectionTermActual
-	Where		ss.PersonID = @PersonID
-				And (@CourseCode Is Null Or s.CourseName = @CourseCode)
+	Where		ss.PersonID = @Param_PersonID
+				And (@Param_CourseCode Is Null Or s.CourseName = @Param_CourseCode)
 				And (
 					GetDate() Between t.PreRegStartDate And DateAdd(week, 2, t.EndDate)
 					Or s.SectionTermActual = t.Term
 				);
 
-	If @PersonID = '0300996' Begin
+	If @Param_PersonID = '0300996' Begin
 		Update		@Courses
 		Set			BeginDate = '2008-10-15',
 					EndDate = '2008-10-26'
@@ -127,7 +127,7 @@ From		@Courses c
 				On sf.SectionID = c.SectionID
 			Inner Join pub.spPerson p
 				On p.PersonID = sf.PersonID
-			Left Join @Participation e
+			Left Join @Params_Participation e
 				On e.SectionID = c.SectionID
 				And e.PersonID = c.PersonID
 				And e.ProfessorID = sf.PersonID
@@ -137,8 +137,8 @@ From		@Courses c
 Select * From @Returns_Courses;
 
 If @Param_Debug = 1 Begin
-	Select '@Variables' As [TableName], @Lookup As '@Lookup';
+	Select '@Variables' As [TableName], @Param_PersonID As '@Param_PersonID', @Param_CourseCode As '@Param_CourseCode', @Param_AsOfDate As '@Param_AsOfDate';
 	Select '@Courses' As [TableName], * From @Courses;
-	Select '@Participation' As [TableName], * From @Returns_Participation;
-	Select '@Overrides' As [TableName], * From @Returns_Overrides;
+	Select '@Participation' As [TableName], * From @Params_Participation;
+	Select '@Overrides' As [TableName], * From @Params_Overrides;
 End;

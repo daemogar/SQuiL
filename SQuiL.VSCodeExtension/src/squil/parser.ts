@@ -59,6 +59,8 @@ export interface SQuiLParseResult {
   diagnostics: SQuiLDiagnostic[];
 }
 
+import { validateVariables, findingMessage, findingSeverity } from './variableValidator';
+
 /** Parse a full SQuiL SQL file text into a structured result. */
 export function parseSQuiL(text: string): SQuiLParseResult {
   const lines = text.split('\n');
@@ -138,6 +140,19 @@ export function parseSQuiL(text: string): SQuiLParseResult {
       startChar: 0,
       endChar: 0,
       severity: 'warning',
+    });
+  }
+
+  // Undeclared-variable / special-placement validation (SQuiL files must be
+  // valid T-SQL: every @reference needs a textually-preceding DECLARE, and
+  // @Debug/@EnvironmentName belong at the top of the header).
+  for (const finding of validateVariables(text)) {
+    result.diagnostics.push({
+      message: findingMessage(finding),
+      line: finding.line,
+      startChar: finding.character,
+      endChar: finding.character + finding.name.length,
+      severity: findingSeverity(finding),
     });
   }
 

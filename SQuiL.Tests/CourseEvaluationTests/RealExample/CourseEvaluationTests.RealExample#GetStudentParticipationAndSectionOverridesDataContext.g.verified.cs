@@ -220,7 +220,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 						On tags.ElementId = pv.ElementId
 		Group By	pv.ElementId
 		) list Inner Join @Params_Terms t On list.TermCode = t.TermCode
-		Where		PersonID = @PersonID;
+		Where		PersonID = @Param_PersonID;
 		
 		Insert Into @Returns_Overrides([SectionID], [TermCode], [CourseCode], [BeginDate], [EndDate])
 		Select list.* From (

@@ -97,9 +97,9 @@ public class BasicIODeclareTests
 		var name = nameof(TranscriptProcessing);
 		return TestHelper.Verify([TestHeader([name])], [$$"""			
 			--Name: {{name}}
-			Declare @Param_IncludeCompletedTranscripts bit = 0;
-
 			Declare @Debug bit = 1;
+
+			Declare @Param_IncludeCompletedTranscripts bit = 0;
 
 			Declare @Param_ReferenceID int Not Null;
 			Declare @Param_IssueDate datetime;

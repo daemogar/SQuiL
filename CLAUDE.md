@@ -166,8 +166,22 @@ SQuiL/
   `diagnosticsProvider.ts` ↔ `SQuiLLinter.cs` + `SQuiLErrorTagger.cs`,
   `completionProvider.ts` ↔ `SQuiLCompletionSource.cs`,
   `updateChecker.ts` ↔ `SQuiLUpdateChecker.cs` (+ shared pure logic
-  `versionInfo.ts` ↔ `SQuiLVersion.cs`, baked tag `buildInfo.ts` ↔ `BuildInfo.cs`).
+  `versionInfo.ts` ↔ `SQuiLVersion.cs`, baked tag `buildInfo.ts` ↔ `BuildInfo.cs`),
+  `variableValidator.ts` ↔ `SQuiLVariableValidator.cs` (source generator,
+  emits SP0013 undeclared-variable + SP0016 special-placement diagnostics)
+  ↔ `SQuiLLinter.LintUndeclaredVariables` (SSMS + VisualStudio extensions —
+  the two SQuiLLinter.cs copies differ only by namespace; sync them whole-file).
   Change one side, change the other.
+
+### Variable validity rules (Paul's ruling, 2026-06-11)
+
+- A SQuiL file must be **valid T-SQL as written**: every `@variable` reference
+  requires a textually-preceding `Declare` for that exact name. No remapping,
+  no implicit specials — `@Debug`/`@EnvironmentName` must be declared too.
+- `@Debug` and `@EnvironmentName` must be declared **before the `Use` statement**
+  (error) and **preferably first in the header** (warning).
+- Enforced at build time by `SQuiLVariableValidator` (SP0013 error / SP0016
+  error+warning) and as editor squigglies in all three extensions.
 - **GUIDs** in the SSMS extension link C# to the `.vsct`:
   | C# location | .vsct location |
   |---|---|

@@ -38,7 +38,8 @@ internal static class SQuiLLinter
     /// <summary>
     /// Append "Prefer 'Param_'" suggestions and "DECLARE missing ;" hints to
     /// <paramref name="diagnostics"/>.  Severity for both is <c>Info</c> — these
-    /// are style hints, not errors.
+    /// are style hints, not errors.  Also runs the undeclared-variable /
+    /// special-placement validation (errors/warnings).
     /// </summary>
     public static void Lint(string text, List<SQuiLDiagnostic> diagnostics)
     {
@@ -54,6 +55,8 @@ internal static class SQuiLLinter
                 LintMissingSemicolon(line, i, diagnostics);
             }
         }
+
+        LintUndeclaredVariables(text, diagnostics);
     }
 
     private static void LintCasing(string line, int lineNum, List<SQuiLDiagnostic> diagnostics)
@@ -100,5 +103,296 @@ internal static class SQuiLLinter
             EndChar  = trimmed.Length,
             Severity = DiagnosticSeverity.Info,
         });
+    }
+
+    // ── Undeclared-variable / special-placement validation ──────────────────
+    //
+    // A SQuiL file must be valid T-SQL: every @variable reference needs a
+    // textually-preceding DECLARE for that exact name (SQL Server rejects the
+    // whole batch otherwise) — no remapping, no implicit specials. @Debug and
+    // @EnvironmentName must additionally be declared before the USE statement,
+    // and preferably before any other declaration.
+    //
+    // Port of SQuiLVariableValidator.cs (source generator) and
+    // variableValidator.ts (VS Code extension) — change one, change the others.
+
+    private enum ScanState { Normal, ExpectVariable, InType, InDefault }
+
+    private static readonly HashSet<string> StatementStarters = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
+    {
+        "SELECT", "INSERT", "UPDATE", "DELETE", "SET", "IF", "WHILE", "BEGIN", "END",
+        "USE", "DECLARE", "EXEC", "EXECUTE", "WITH", "MERGE", "PRINT", "RETURN",
+        "CREATE", "DROP", "ALTER", "TRUNCATE", "GO",
+    };
+
+    private static bool IsSpecialVariable(string name)
+        => string.Equals(name, "@Debug", System.StringComparison.OrdinalIgnoreCase)
+        || string.Equals(name, "@EnvironmentName", System.StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsNameChar(char c)
+        => char.IsLetterOrDigit(c) || c == '_' || c == '$' || c == '#';
+
+    internal static void LintUndeclaredVariables(string sql, List<SQuiLDiagnostic> diagnostics)
+    {
+        string text = MaskNonCode(sql);
+
+        var declarations = new List<KeyValuePair<string, int>>(); // name → offset
+        var references = new List<KeyValuePair<string, int>>();
+        int? useOffset = null;
+
+        var state = ScanState.Normal;
+        int parenDepth = 0;
+        int caseDepth = 0;
+        int i = 0;
+
+        while (i < text.Length)
+        {
+            char c = text[i];
+
+            if (c == '(') { parenDepth++; i++; continue; }
+            if (c == ')') { if (parenDepth > 0) parenDepth--; i++; continue; }
+
+            if (c == ';')
+            {
+                if (parenDepth == 0) { state = ScanState.Normal; caseDepth = 0; }
+                i++;
+                continue;
+            }
+
+            if (c == ',')
+            {
+                if (parenDepth == 0 && (state == ScanState.InType || state == ScanState.InDefault))
+                    state = ScanState.ExpectVariable;
+                i++;
+                continue;
+            }
+
+            if (c == '=')
+            {
+                if (parenDepth == 0 && state == ScanState.InType)
+                    state = ScanState.InDefault;
+                i++;
+                continue;
+            }
+
+            if (c == '@')
+            {
+                int start = i;
+                i++;
+                if (i < text.Length && text[i] == '@')
+                {
+                    // system variable (@@ROWCOUNT etc.) — skip the whole token
+                    i++;
+                    while (i < text.Length && IsNameChar(text[i])) i++;
+                    continue;
+                }
+
+                int nameStart = i;
+                while (i < text.Length && IsNameChar(text[i])) i++;
+                if (i == nameStart) continue; // a lone '@' is not a variable
+
+                string name = text.Substring(start, i - start);
+
+                if (state == ScanState.ExpectVariable)
+                {
+                    declarations.Add(new KeyValuePair<string, int>(name, start));
+                    state = ScanState.InType;
+                }
+                else
+                {
+                    references.Add(new KeyValuePair<string, int>(name, start));
+                }
+                continue;
+            }
+
+            if (char.IsLetter(c) || c == '_')
+            {
+                int start = i;
+                while (i < text.Length && IsNameChar(text[i])) i++;
+                string word = text.Substring(start, i - start);
+
+                if (word.Equals("DECLARE", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    state = ScanState.ExpectVariable;
+                    continue;
+                }
+
+                if (state == ScanState.Normal && useOffset == null && parenDepth == 0
+                    && word.Equals("USE", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    useOffset = start;
+                    continue;
+                }
+
+                // CASE…END pairs inside a default-value expression must not end
+                // the declare statement when END is reached.
+                if (state == ScanState.InDefault && word.Equals("CASE", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    caseDepth++;
+                    continue;
+                }
+                if (state == ScanState.InDefault && caseDepth > 0 && word.Equals("END", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    caseDepth--;
+                    continue;
+                }
+
+                if (parenDepth == 0
+                    && (state == ScanState.InType || state == ScanState.InDefault)
+                    && StatementStarters.Contains(word))
+                {
+                    state = ScanState.Normal;
+                    caseDepth = 0;
+                    // no semicolon between the declare and the next statement —
+                    // re-read the word in Normal state so DECLARE/USE chains work
+                    i = start;
+                }
+                continue;
+            }
+
+            i++;
+        }
+
+        foreach (var reference in references)
+        {
+            bool declaredBefore = false;
+            bool declaredAnywhere = false;
+            foreach (var declaration in declarations)
+            {
+                if (!declaration.Key.Equals(reference.Key, System.StringComparison.OrdinalIgnoreCase)) continue;
+                declaredAnywhere = true;
+                if (declaration.Value < reference.Value) { declaredBefore = true; break; }
+            }
+
+            if (declaredBefore) continue;
+
+            AddFinding(sql, diagnostics, reference.Key, reference.Value, DiagnosticSeverity.Error,
+                declaredAnywhere
+                    ? $"Variable '{reference.Key}' is referenced before its declaration. Move the Declare above the first use."
+                    : $"Variable '{reference.Key}' is referenced but never declared. SQuiL files must be valid T-SQL — declare it before use.");
+        }
+
+        foreach (var declaration in declarations)
+        {
+            if (!IsSpecialVariable(declaration.Key)) continue;
+
+            if (useOffset.HasValue && declaration.Value > useOffset.Value)
+            {
+                AddFinding(sql, diagnostics, declaration.Key, declaration.Value, DiagnosticSeverity.Error,
+                    $"'{declaration.Key}' must be declared before the Use statement.");
+                continue;
+            }
+
+            foreach (var other in declarations)
+            {
+                if (other.Value >= declaration.Value || IsSpecialVariable(other.Key)) continue;
+
+                AddFinding(sql, diagnostics, declaration.Key, declaration.Value, DiagnosticSeverity.Warning,
+                    $"'{declaration.Key}' should be declared at the top of the header, before other declarations.");
+                break;
+            }
+        }
+    }
+
+    private static void AddFinding(
+        string sql, List<SQuiLDiagnostic> diagnostics,
+        string name, int offset, DiagnosticSeverity severity, string message)
+    {
+        int line = 0, character = 0;
+        for (int i = 0; i < offset && i < sql.Length; i++)
+        {
+            if (sql[i] == '\n') { line++; character = 0; }
+            else character++;
+        }
+
+        diagnostics.Add(new SQuiLDiagnostic
+        {
+            Message = message,
+            Line = line,
+            StartChar = character,
+            EndChar = character + name.Length,
+            Severity = severity,
+        });
+    }
+
+    /// <summary>
+    /// Replaces comments (line and nested block), string literals, and bracketed
+    /// identifiers with spaces so the scanner never sees their contents. Offsets
+    /// and newlines are preserved.
+    /// </summary>
+    private static string MaskNonCode(string sql)
+    {
+        char[] chars = sql.ToCharArray();
+        int i = 0;
+
+        while (i < chars.Length)
+        {
+            char c = chars[i];
+
+            if (c == '-' && i + 1 < chars.Length && chars[i + 1] == '-')
+            {
+                while (i < chars.Length && chars[i] != '\n') chars[i++] = ' ';
+                continue;
+            }
+
+            if (c == '/' && i + 1 < chars.Length && chars[i + 1] == '*')
+            {
+                int depth = 0;
+                while (i < chars.Length)
+                {
+                    if (chars[i] == '/' && i + 1 < chars.Length && chars[i + 1] == '*')
+                    {
+                        depth++;
+                        chars[i] = ' '; chars[i + 1] = ' ';
+                        i += 2;
+                        continue;
+                    }
+                    if (chars[i] == '*' && i + 1 < chars.Length && chars[i + 1] == '/')
+                    {
+                        depth--;
+                        chars[i] = ' '; chars[i + 1] = ' ';
+                        i += 2;
+                        if (depth == 0) break;
+                        continue;
+                    }
+                    if (chars[i] != '\n' && chars[i] != '\r') chars[i] = ' ';
+                    i++;
+                }
+                continue;
+            }
+
+            if (c == '\'')
+            {
+                chars[i++] = ' ';
+                while (i < chars.Length)
+                {
+                    if (chars[i] == '\'')
+                    {
+                        if (i + 1 < chars.Length && chars[i + 1] == '\'')
+                        {
+                            chars[i] = ' '; chars[i + 1] = ' ';
+                            i += 2;
+                            continue;
+                        }
+                        chars[i++] = ' ';
+                        break;
+                    }
+                    if (chars[i] != '\n' && chars[i] != '\r') chars[i] = ' ';
+                    i++;
+                }
+                continue;
+            }
+
+            if (c == '[')
+            {
+                while (i < chars.Length && chars[i] != ']') chars[i++] = ' ';
+                if (i < chars.Length) chars[i++] = ' ';
+                continue;
+            }
+
+            i++;
+        }
+
+        return new string(chars);
     }
 }

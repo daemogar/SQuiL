@@ -60,7 +60,18 @@ public class FileGenerator(
 		{
 			SQuiLFileGeneration generation = new(method);
 
-			var tokens = SQuiLTokenizer.GetTokens(text.ToString());
+			var sql = text.ToString();
+
+			foreach (var finding in SQuiLVariableValidator.Validate(sql))
+			{
+				if (finding.Kind is SQuiLVariableValidator.FindingKind.SpecialAfterUse
+					or SQuiLVariableValidator.FindingKind.SpecialNotFirst)
+					Context.ReportSpecialVariablePlacement(method, finding);
+				else
+					Context.ReportUndeclaredVariable(method, finding);
+			}
+
+			var tokens = SQuiLTokenizer.GetTokens(sql);
 			var blocks = SQuiLParser.ParseTokens(tokens);
 
 			if (ShowDebugMessages)

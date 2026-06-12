@@ -107,7 +107,7 @@ partial class BinaryDataParameterDataContext : SQuiLBaseDataContext
 		
 		Use [{builder.InitialCatalog}];
 		
-		Select * From @BinaryTable
+		Select * From @Returns_BinaryTable
 		
 		""";
 	}

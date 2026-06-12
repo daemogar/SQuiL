@@ -134,6 +134,39 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0013 — A variable is referenced without a textually-preceding <c>DECLARE</c>.
+	/// SQuiL files must be valid T-SQL; SQL Server rejects the whole batch at compile
+	/// time for undeclared variables, so the build fails too. No variable is exempt —
+	/// <c>@Debug</c> and <c>@EnvironmentName</c> must be declared like any other.
+	/// </summary>
+	public static void ReportUndeclaredVariable(this SourceProductionContext context, string filename, SQuiL.SourceGenerator.Parser.SQuiLVariableValidator.Finding finding)
+	{
+		var detail = finding.Kind == SQuiL.SourceGenerator.Parser.SQuiLVariableValidator.FindingKind.UsedBeforeDeclared
+			? "before its declaration. Move the Declare above the first use."
+			: "but never declared. SQuiL files must be valid T-SQL — declare it before use.";
+
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0013", "Undeclared Variable",
+			$"{filename}: variable `{finding.Name}` is referenced (line {finding.Line}, column {finding.Column}) {detail}"));
+	}
+
+	/// <summary>
+	/// SP0016 — <c>@Debug</c>/<c>@EnvironmentName</c> is declared in the wrong place:
+	/// after the <c>USE</c> statement (error — it must be part of the header), or after
+	/// other header declarations (warning — it should be declared first).
+	/// </summary>
+	public static void ReportSpecialVariablePlacement(this SourceProductionContext context, string filename, SQuiL.SourceGenerator.Parser.SQuiLVariableValidator.Finding finding)
+	{
+		var afterUse = finding.Kind == SQuiL.SourceGenerator.Parser.SQuiLVariableValidator.FindingKind.SpecialAfterUse;
+
+		context.ReportDiagnostic(CreateDiagnostic(
+			afterUse ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning,
+			"SP0016", "Special Variable Placement",
+			afterUse
+				? $"{filename}: `{finding.Name}` (line {finding.Line}, column {finding.Column}) must be declared before the Use statement."
+				: $"{filename}: `{finding.Name}` (line {finding.Line}, column {finding.Column}) should be declared at the top of the header, before other declarations."));
+	}
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

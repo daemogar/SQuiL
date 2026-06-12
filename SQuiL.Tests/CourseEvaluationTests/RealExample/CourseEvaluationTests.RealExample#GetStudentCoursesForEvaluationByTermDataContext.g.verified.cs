@@ -303,20 +303,20 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 							On s.SectionID = ss.SectionID
 						Inner Join pub.Terms t
 							On t.Term = s.SectionTermActual
-						Inner Join @Terms tt
+						Inner Join @Params_Terms tt
 							On t.Term = tt.TermCode
-						Left Join @Overrides o
+						Left Join @Params_Overrides o
 							On o.SectionID = ss.SectionID
 							And o.CourseCode = s.CourseName
 							And o.TermCode = s.SectionTermActual
-			Where		ss.PersonID = @PersonID
-						And (@CourseCode Is Null Or s.CourseName = @CourseCode)
+			Where		ss.PersonID = @Param_PersonID
+						And (@Param_CourseCode Is Null Or s.CourseName = @Param_CourseCode)
 						And (
 							GetDate() Between t.PreRegStartDate And DateAdd(week, 2, t.EndDate)
 							Or s.SectionTermActual = t.Term
 						);
 		
-			If @PersonID = '0300996' Begin
+			If @Param_PersonID = '0300996' Begin
 				Update		@Courses
 				Set			BeginDate = '2008-10-15',
 							EndDate = '2008-10-26'
@@ -351,7 +351,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 						On sf.SectionID = c.SectionID
 					Inner Join pub.spPerson p
 						On p.PersonID = sf.PersonID
-					Left Join @Participation e
+					Left Join @Params_Participation e
 						On e.SectionID = c.SectionID
 						And e.PersonID = c.PersonID
 						And e.ProfessorID = sf.PersonID
@@ -361,10 +361,10 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		Select * From @Returns_Courses;
 		
 		If @Param_Debug = 1 Begin
-			Select '@Variables' As [TableName], @Lookup As '@Lookup';
+			Select '@Variables' As [TableName], @Param_PersonID As '@Param_PersonID', @Param_CourseCode As '@Param_CourseCode', @Param_AsOfDate As '@Param_AsOfDate';
 			Select '@Courses' As [TableName], * From @Courses;
-			Select '@Participation' As [TableName], * From @Returns_Participation;
-			Select '@Overrides' As [TableName], * From @Returns_Overrides;
+			Select '@Participation' As [TableName], * From @Params_Participation;
+			Select '@Overrides' As [TableName], * From @Params_Overrides;
 		End;
 		
 		""";

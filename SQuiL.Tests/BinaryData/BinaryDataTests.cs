@@ -18,7 +18,7 @@ public class BinaryDataTests : BaseTest
 			
 			Use [Database];
 
-			Select * From @BinaryTable
+			Select * From @Returns_BinaryTable
 			"""]);
 	}
 }

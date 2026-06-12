@@ -2,9 +2,9 @@
 Declare	@Param_Debug bit = 1,
 		@Param_SectionID varchar(20);
 
-Set @SectionID = '3543'; -- Chemistry Course with Section Questions W02
-Set @SectionID = '12748'; -- Engineering 121 Connections F05
-Set @SectionID = '10675'; -- Music Lessons 334 F05
+Set @Param_SectionID = '3543'; -- Chemistry Course with Section Questions W02
+Set @Param_SectionID = '12748'; -- Engineering 121 Connections F05
+Set @Param_SectionID = '10675'; -- Music Lessons 334 F05
 
 Declare @Returns_Sections table(
 	SectionID varchar(20),

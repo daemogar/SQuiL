@@ -69,8 +69,8 @@ public class DataContextGenerationTests //: DataContextUsedTests
 			""", $$"""
 			--Name: {{name}}2
 			
-			Declare		@PersonID varchar(10),
-						@Debug bit = 1;
+			Declare		@Debug bit = 1,
+						@PersonID varchar(10);
 
 			Set	@PersonID = '0300996';
 
