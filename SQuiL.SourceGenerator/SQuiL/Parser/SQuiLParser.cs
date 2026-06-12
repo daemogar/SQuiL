@@ -165,11 +165,12 @@ public class SQuiLParser(List<Token> Tokens)
 		{
 			foreach (var (variable, table) in parameters)
 			{
-				if (variable.Token.Value != Current.Value
-					&& (!SQuiLGenerator.IsError(variable.Token.Value)
-					|| !SQuiLGenerator.IsError(Current.Value)))
+				// Exact name match only — a SQuiL file must be valid T-SQL, so
+				// `Insert Into @Errors` does NOT match a declared `@Error` (or
+				// vice versa). SP0013 flags the mismatch as an undeclared variable.
+				if (variable.Token.Value != Current.Value)
 					continue;
-				
+
 				injectables.Add((Current.Type, table, Current));
 			}
 
