@@ -14,9 +14,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Official version override (e.g. 1.0.0). Leave empty to use <sdk>.<run#> without -beta.'
-        required: false
-        default: ''
+        # Keep this default in sync with NEXT_VERSION below — it is the next
+        # planned official release, pre-filled so the Actions form shows it.
+        description: 'Official release version (plain SemVer, e.g. 1.0.0)'
+        required: true
+        default: '1.0.0'
 
 env:
   PROJECT: SQuiL

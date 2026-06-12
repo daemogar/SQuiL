@@ -1,17 +1,21 @@
 # SQuiL
 
 **SQuiL** is a C# source generator that turns SQL files into strongly-typed C#
-data-access code. You write a `.sql` (or `.squil`) file using a small set of
+data-access code. You write a `.squil` file using a small set of
 variable-naming conventions; SQuiL generates the request/response models, a data
 context that executes the query, and the dependency-injection wiring — all at
 compile time, with no runtime reflection.
 
+> **File extension:** `.squil` is the canonical extension and is what the
+> editor extensions key off. Plain `.sql` works too — the generator accepts
+> both — so existing `.sql` query files don't need renaming.
+
 ```
-your-query.sql  ──▶  SQuiL source generator  ──▶  strongly-typed C#
-                                                   ├─ <Query>Request   (from @Param* vars)
-                                                   ├─ <Query>Response  (from @Return* vars)
-                                                   ├─ <Context>DataContext.<Query>(…)
-                                                   └─ AddSQuiL…() DI extension
+your-query.squil  ──▶  SQuiL source generator  ──▶  strongly-typed C#
+                                                     ├─ <Query>Request   (from @Param* vars)
+                                                     ├─ <Query>Response  (from @Return* vars)
+                                                     ├─ <Context>DataContext.<Query>(…)
+                                                     └─ AddSQuiL…() DI extension
 ```
 
 ## Why
@@ -40,17 +44,18 @@ dotnet add package SQuiL.SourceGenerator
 The `SQuiL.SourceGenerator` package bundles both the generator and the
 `SQuiL.Library` runtime types, so it is the only reference you need.
 
-Mark your SQL files as `AdditionalFiles` so the generator can see them:
+Mark your query files as `AdditionalFiles` so the generator can see them:
 
 ```xml
 <ItemGroup>
+    <AdditionalFiles Include="**\Queries\*.squil" />
     <AdditionalFiles Include="**\Queries\*.sql" />
 </ItemGroup>
 ```
 
 ## Quick example
 
-`Queries/GetUser.sql`:
+`Queries/GetUser.squil`:
 
 ```sql
 Declare @Param_UserID int;
