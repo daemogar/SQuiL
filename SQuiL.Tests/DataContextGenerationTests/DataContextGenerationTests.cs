@@ -204,16 +204,36 @@ public class DataContextGenerationTests //: DataContextUsedTests
 			"""]);
 	}
 
-	private static (string Name, string[] Attributes) Format(string file)
-	{
-		var name = file.Replace("\\", "").Replace("/", "");
-		return (name, [$"[{QueryAttributeName}(QueryFiles.{name})]"]);
-	}
+	private static string Format(string file)
+		=> file.Replace("\\", "").Replace("/", "");
 
 	private static Task Verify(string name, IEnumerable<string> files, bool useGenericName = true)
 		=> TestHelper.Verify(
-			files.Select(Format).Select(p
-				=> GetSource(p.Attributes, useGenericName ? "ApplicationSpecific" : p.Name)),
+			files.Select((file, index) =>
+			{
+				var queryName = Format(file);
+				var contextName = useGenericName ? "ApplicationSpecific" : queryName;
+				// Only the first partial declaration of a class may carry the
+				// primary constructor (CS8863), and the shared record types may
+				// only be defined once (CS0101) — so subsequent sources of a
+				// generic-name (split) context get a partial that names the base
+				// type without arguments (legal C#, and required by the
+				// generator's per-declaration SP0010 inheritance check), and
+				// only the first source of any test carries the shared records.
+				return useGenericName && index > 0
+					? $$"""
+						using {{NamespaceName}};
+
+						namespace TestCase;
+
+						[{{QueryAttributeName}}(QueryFiles.{{queryName}})]
+						public partial class {{contextName}}DataContext
+							: {{BaseDataContextClassName}}
+						{
+						}
+						"""
+					: GetSource([queryName], contextName, includeSharedRecords: index == 0);
+			}),
 			files.Select(p => $"{p}.sql"));
 
 	private static string TestHeader(string name,
@@ -240,25 +260,30 @@ public class DataContextGenerationTests //: DataContextUsedTests
 			""";
 	}
 
-	private static string GetSource(IEnumerable<string> attributes, string name) => $$"""
-		{{TestHeader(name, attributes)}}
+	private static string GetSource(IEnumerable<string> attributes, string name, bool includeSharedRecords = true)
+		=> TestHeader(name, attributes.Select(p => $"[{QueryAttributeName}(QueryFiles.{p})]"),
+			callback: p => p)
+		+ (includeSharedRecords ? SharedRecords : "");
 
-		public partial record ApplicationSpecificDataContextQueriesExampleRequest() : BaseRecord
+	private const string SharedRecords = """
+
+
+		public partial record ApplicationSpecificDataContextQueriesExampleRequest : BaseRecord
 		{
 			public int Sally1 { get; set; }
 		}
 
-		public partial record ApplicationSpecificDataContextQueriesExampleRequestSallyTable() : BaseRecord {}
+		public partial record ApplicationSpecificDataContextQueriesExampleRequestSallyTable : BaseRecord {}
 
 		public record BaseRecord : AnotherBaseRecord
 		{
-			public bool Bob { get; init; }		
-			public bit Sally2 { get; set; }
+			public bool Bob { get; init; }
+			public bool Sally2 { get; set; }
 		}
 
-		public record AnotherBaseRecord : BaseRecordPrimaryConstructor("test")
+		public record AnotherBaseRecord() : BaseRecordPrimaryConstructor("test")
 		{
-			public string Bob2 { get; set; }
+			public string Bob2 { get; set; } = "";
 		}
 
 		public record BaseRecordPrimaryConstructor(string Bob1);

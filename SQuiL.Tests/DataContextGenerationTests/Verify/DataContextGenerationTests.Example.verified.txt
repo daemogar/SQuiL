@@ -1,15 +1,40 @@
 ﻿{
   Diagnostics: [
     {
-      Message: There are no SQuiL contexts created. Make sure to create a partial class and add the [SQuiLQueryAttribute].,
+      Message: QueriesExample: `@EnvironmentName` (line 8, column 9) should be declared at the top of the header, before other declarations.,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
-        Id: SP0005,
-        Title: No SQuiL Contexts Are Created,
-        MessageFormat: There are no SQuiL contexts created. Make sure to create a partial class and add the [SQuiLQueryAttribute].,
+        Id: SP0016,
+        Title: Special Variable Placement,
+        MessageFormat: QueriesExample: `@EnvironmentName` (line 8, column 9) should be declared at the top of the header, before other declarations.,
         Category: Design,
         DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: QueriesExample: `@Debug` (line 9, column 9) should be declared at the top of the header, before other declarations.,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0016,
+        Title: Special Variable Placement,
+        MessageFormat: QueriesExample: `@Debug` (line 9, column 9) should be declared at the top of the header, before other declarations.,
+        Category: Design,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: Expected a declare with @Param_<variable or object name>, @Params_<tablename>, @Return_<variable or object name>, or/and @Returns_<tablename>, but found @RunAsOf instead.,
+      Severity: Error,
+      Descriptor: {
+        Id: SP1001,
+        Title: Failed Parsing SQuiL File,
+        MessageFormat: Expected a declare with @Param_<variable or object name>, @Params_<tablename>, @Return_<variable or object name>, or/and @Returns_<tablename>, but found @RunAsOf instead.,
+        Category: Design,
+        DefaultSeverity: Error,
         IsEnabledByDefault: true
       }
     }

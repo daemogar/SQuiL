@@ -15,6 +15,9 @@ public static class SQuiLExtensions
         if (IsLoaded) return services;
         IsLoaded = true;
         
+        services.AddSingleton<TestCase.QueriesExampleDataContext>();
+        services.AddSingleton<TestCase.QueriesGetStudentCoursesForEvaluationDataContext>();
+        
         return services;
     }
 }

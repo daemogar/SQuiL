@@ -14,9 +14,13 @@ namespace SQuiL.Tests;
 
 public static class TestHelper
 {
+	/// <param name="compileCheck">Pass false ONLY for tests whose user sources
+	/// are deliberately invalid C#, or that pin a known not-yet-fixed
+	/// generator codegen bug (say which in a comment at the call site).</param>
 	public static Task Verify(
 		IEnumerable<string> sources,
 		IEnumerable<string> files,
+		bool compileCheck = true,
 		[CallerMemberName] string name = default!,
 		[CallerFilePath] string path = default!)
 	{
@@ -46,6 +50,13 @@ public static class TestHelper
 		driver = (CSharpGeneratorDriver)driver.AddAdditionalTexts(additionalFiles);
 		driver = (CSharpGeneratorDriver)driver.RunGenerators(compilation);
 
+		// Tier-0: whenever the generator claims success (no error diagnostics
+		// of its own), its output must actually compile. Error-path tests are
+		// exempt — their (possibly partial) output is asserted via snapshots.
+		if (compileCheck
+			&& !driver.GetRunResult().Diagnostics.Any(p => p.Severity == DiagnosticSeverity.Error))
+			CompilationAssert.GeneratedCodeCompiles(sources, files);
+
 		VerifySettings settings = default!;
 		if (path is not null)
 		{
@@ -58,27 +69,5 @@ public static class TestHelper
 		}
 
 		return Verifier.Verify(driver, settings);
-	}
-}
-
-file class AdditionalQuery(string Text) : AdditionalText
-{
-	public override string Path { get; } = $"{Text[0..Text.IndexOf('\n')].Split(':', 2)[1].Trim()}.sql";
-
-	public override SourceText? GetText(CancellationToken cancellationToken = default)
-		=> SourceText.From(Text[Text.IndexOf('\n')..].TrimStart());
-}
-
-file class AdditionalFile(string Path) : AdditionalText
-{
-	public override string Path { get; } = Path;
-
-	public override SourceText? GetText(CancellationToken cancellationToken = default)
-	{
-		var relative = Path
-			.Replace('\\', System.IO.Path.DirectorySeparatorChar)
-			.Replace('/', System.IO.Path.DirectorySeparatorChar);
-		var text = File.ReadAllText(System.IO.Path.Combine("..", "..", "..", relative));
-		return SourceText.From(text);
 	}
 }
