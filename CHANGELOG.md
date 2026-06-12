@@ -15,15 +15,47 @@ from 1.0.0 onward.
 - Editor extensions for `.squil` files: Visual Studio Code, SQL Server
   Management Studio 22.6, and Visual Studio 2026 (syntax highlighting,
   IntelliSense, hover info, linting, generated-C# preview).
+- Update checker in all three editor extensions — compares the installed
+  build against GitHub releases and offers the download link.
+- Build-time variable validation: diagnostic `SP0013` (error) for references
+  to undeclared `@` variables, and `SP0016` for misplaced
+  `@Debug`/`@EnvironmentName` declarations (error after `USE`, warning when
+  not first in the header). The same checks appear as squigglies in all
+  three editor extensions.
+- "Variable Rules" section in the writing guide documenting the
+  declare-before-use requirement.
+- Official (stable) releases can now be cut from the Actions tab
+  (`workflow_dispatch` on the publish workflow) — same pipeline as the
+  per-push betas, but without the `-beta` suffix and not marked prerelease.
 - Single-file, self-elevating `install.cmd` installer for the SSMS extension.
 - Project onboarding documentation (`README`, `CONTRIBUTING`, this changelog,
   `.editorconfig`).
 
 ### Changed
+- **Breaking:** a SQuiL file must be valid T-SQL. Referencing an `@` variable
+  without a textually-preceding `DECLARE` now fails the build (`SP0013`).
+  This applies to every variable — `@Debug` and `@EnvironmentName` included —
+  and there is no name remapping: `@PersonID` is not shorthand for
+  `@Param_PersonID`.
+- **Breaking:** `@Error` and `@Errors` are no longer interchangeable. The
+  parser previously accepted `Insert Into @Errors` against a declared
+  `@Error` (and vice versa); now the referenced name must match the declared
+  name exactly.
+- **Breaking:** `@Debug` and `@EnvironmentName` must be declared before the
+  `USE` statement (error) and should be declared before any other header
+  declaration (warning).
+- Pull requests no longer trigger the publish workflow (they were creating
+  releases and pushing NuGet packages from unmerged code). PRs are validated
+  by the build workflow, which now runs the full test suite again.
 - `@`-variables declared after the `USE` statement no longer require the
   `@Param_` / `@Return_` naming prefix.
 
 ### Fixed
+- `decimal(p,s)`/`numeric(p,s)` types lost their precision and scale during
+  parsing — emitted as bare `decimal` (SQL Server default `decimal(18,0)`,
+  truncating fractional values) and silently dropped any columns declared
+  after them.
 - Null values were being inserted as strings rather than `NULL`.
+- Cross-platform path handling so the generator and tests run on Linux.
 
 [Unreleased]: https://github.com/daemogar/SQuiL/commits/master
