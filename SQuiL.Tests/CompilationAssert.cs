@@ -22,12 +22,10 @@ namespace SQuiL.Tests;
 public static class CompilationAssert
 {
 	/// <summary>
-	/// The SDK's default ImplicitUsings set. Generated code emits unqualified
-	/// Task/List/CancellationToken/etc. with no using directives, so SQuiL
-	/// requires consuming projects to have &lt;ImplicitUsings&gt;enable&lt;/ImplicitUsings&gt;
-	/// (as SQuiL.Simple and the documented csproj template do). This tree
-	/// mirrors that consumer configuration. Follow-up: emitting usings (or
-	/// fully-qualified names) from the generator would drop the requirement.
+	/// The SDK's default ImplicitUsings set. Injected by default so that user sources
+	/// in test fixtures can use unqualified names without carrying their own using
+	/// directives. Pass <c>injectImplicitUsings: false</c> to test that the generator's
+	/// own output is self-sufficient (see <see cref="CompilationTests.GeneratedCodeCompilesWithoutImplicitUsings"/>).
 	/// </summary>
 	private const string ImplicitUsings = """
 		global using System;
@@ -41,10 +39,11 @@ public static class CompilationAssert
 
 	public static void GeneratedCodeCompiles(
 		IEnumerable<string> sources,
-		IEnumerable<string> files)
+		IEnumerable<string> files,
+		bool injectImplicitUsings = true)
 	{
 		var syntaxTrees = sources
-			.Append(ImplicitUsings)
+			.Append(injectImplicitUsings ? ImplicitUsings : string.Empty)
 			.Select(p => CSharpSyntaxTree.ParseText(p));
 
 		IEnumerable<MetadataReference> references = [

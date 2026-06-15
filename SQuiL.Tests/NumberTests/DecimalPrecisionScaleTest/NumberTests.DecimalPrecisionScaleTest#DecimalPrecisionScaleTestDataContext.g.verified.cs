@@ -4,7 +4,12 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+
+using System;
+using System.Collections.Generic;
 using System.Data.Common;
+using System.Threading;
+using System.Threading.Tasks;
 
 using SQuiL;
 
@@ -93,7 +98,7 @@ partial class DecimalPrecisionScaleTestDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTotals) errors.Add(new(51001, 12, 1, 95, "Totals", "Expected return table `Totals`"));
+		if (!isTotals) errors.Add(new(51001, 12, 1, 100, "Totals", "Expected return table `Totals`"));
 		
 		if(errors.Count == 0)
 			return new(response);

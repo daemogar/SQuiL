@@ -4,7 +4,12 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+
+using System;
+using System.Collections.Generic;
 using System.Data.Common;
+using System.Threading;
+using System.Threading.Tasks;
 
 using SQuiL;
 
@@ -158,9 +163,9 @@ partial class QueryHasErrorObjectDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isSampleID) errors.Add(new(51001, 12, 1, 160, "SampleID", "Expected return scaler `SampleID`"));
-		if (!isSampleEntity) errors.Add(new(51001, 12, 1, 161, "SampleEntity", "Expected return object `SampleEntity`"));
-		if (!isSamples) errors.Add(new(51001, 12, 1, 162, "Samples", "Expected return table `Samples`"));
+		if (!isSampleID) errors.Add(new(51001, 12, 1, 165, "SampleID", "Expected return scaler `SampleID`"));
+		if (!isSampleEntity) errors.Add(new(51001, 12, 1, 166, "SampleEntity", "Expected return object `SampleEntity`"));
+		if (!isSamples) errors.Add(new(51001, 12, 1, 167, "Samples", "Expected return table `Samples`"));
 		
 		if(errors.Count == 0)
 			return new(response);

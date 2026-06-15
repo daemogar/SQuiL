@@ -4,7 +4,12 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+
+using System;
+using System.Collections.Generic;
 using System.Data.Common;
+using System.Threading;
+using System.Threading.Tasks;
 
 using SQuiL;
 
@@ -137,9 +142,9 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isScaler) errors.Add(new(51001, 12, 1, 139, "Scaler", "Expected return scaler `Scaler`"));
-		if (!isObject) errors.Add(new(51001, 12, 1, 140, "Object", "Expected return object `Object`"));
-		if (!isTable) errors.Add(new(51001, 12, 1, 141, "Table", "Expected return table `Table`"));
+		if (!isScaler) errors.Add(new(51001, 12, 1, 144, "Scaler", "Expected return scaler `Scaler`"));
+		if (!isObject) errors.Add(new(51001, 12, 1, 145, "Object", "Expected return object `Object`"));
+		if (!isTable) errors.Add(new(51001, 12, 1, 146, "Table", "Expected return table `Table`"));
 		
 		if(errors.Count == 0)
 			return new(response);

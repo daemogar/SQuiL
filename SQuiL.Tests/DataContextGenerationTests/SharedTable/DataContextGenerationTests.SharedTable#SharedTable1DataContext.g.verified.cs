@@ -4,7 +4,12 @@
 #nullable enable
 
 using Microsoft.Data.SqlClient;
+
+using System;
+using System.Collections.Generic;
 using System.Data.Common;
+using System.Threading;
+using System.Threading.Tasks;
 
 using SQuiL;
 
@@ -92,7 +97,7 @@ partial class SharedTableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isBob) errors.Add(new(51001, 12, 1, 94, "Bob", "Expected return object `Bob`"));
+		if (!isBob) errors.Add(new(51001, 12, 1, 99, "Bob", "Expected return object `Bob`"));
 		
 		if(errors.Count == 0)
 			return new(response);

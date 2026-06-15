@@ -39,6 +39,36 @@ public class CompilationTests : BaseTest
 	}
 
 	[Fact]
+	public void GeneratedCodeCompilesWithoutImplicitUsings()
+	{
+		// User source carries its own explicit usings so the only failures come from
+		// generated code that relies on bare System.* names without emitting usings.
+		var userSource = """
+			using Microsoft.Extensions.Configuration;
+			using SQuiL;
+
+			namespace TestCase;
+
+			[SQuiLQueryAttribute(QueryFiles.GeneratedCodeCompilesWithoutImplicitUsings)]
+			public partial class GeneratedCodeCompilesWithoutImplicitUsingsDataContext(IConfiguration Configuration) : SQuiLBaseDataContext(Configuration)
+			{
+			}
+			""";
+
+		CompilationAssert.GeneratedCodeCompiles(
+			[userSource],
+			[$"""
+			--Name: {nameof(GeneratedCodeCompilesWithoutImplicitUsings)}
+			Declare @Param_PersonID varchar(10);
+			Declare @Return_Count int;
+			Use [Database];
+			Set @Return_Count = (Select Count(*) From People Where PersonID = @Param_PersonID);
+			Select @Return_Count;
+			"""],
+			injectImplicitUsings: false);
+	}
+
+	[Fact]
 	public void ReportsErrorsWhenCombinedCompilationIsBroken()
 	{
 		var broken = """
