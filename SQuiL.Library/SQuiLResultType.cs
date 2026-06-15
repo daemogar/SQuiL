@@ -35,7 +35,7 @@ public sealed record SQuiLResultType
 	/// Attempts to extract the errors.
 	/// </summary>
 	/// <param name="errors">Set to the error list when the result has errors; otherwise <c>default</c>.</param>
-	/// <returns><c>true</c> if the result holds no errors; <c>false</c> if it holds errors.</returns>
+	/// <returns><c>true</c> if the result holds errors; <c>false</c> if the result is successful.</returns>
 	public bool TryGetErrors(out IReadOnlyList<SQuiLError> errors)
 	{
 		errors = default!;
