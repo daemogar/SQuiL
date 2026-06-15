@@ -21,7 +21,7 @@ SQuiL/
 ├── SQuiL.Editor.Shared/             ← CANONICAL grammar, language config, guide.html
 │   ├── squil.tmLanguage.json
 │   ├── language-configuration.json
-│   ├── guide.html                   ← rendered SQuiL writing guide, CSS-fallback'd for both IDEs
+│   ├── guide.html                   ← SQuiL writing guide TEMPLATE (#if markers), rendered per host, CSS-fallback'd for all IDEs
 │   └── README.md
 │
 ├── SQuiL.VSCodeExtension/           ← TypeScript / vscode API
@@ -158,7 +158,16 @@ SQuiL/
 - **Grammar / language-config / guide content** — edit only in
   `SQuiL.Editor.Shared/`. The per-extension copies are overwritten on each
   build's sync step (`npm run sync-shared` for VS Code, MSBuild target
-  `SyncSharedEditorAssets` for SSMS).
+  `SyncSharedEditorAssets` for SSMS/VS). Grammar + language-configuration are
+  copied **verbatim** (still byte-identical / hash-match across consumers).
+  `guide.html`, however, is a **template** with `<!--#if env-->` markers
+  (env tokens `vscode`, `ssms`, `visualstudio`; space-separated list = OR,
+  e.g. `<!--#if ssms visualstudio-->`). It is **rendered per environment** by
+  `tools/GuideRenderer` — invoked from the `SyncSharedEditorAssets` targets
+  (env `ssms` / `visualstudio`) and from `sync-shared.js` (env `vscode`).
+  A malformed template (unbalanced / nested / unknown token) **fails the
+  build**. The resulting per-extension `guide.html` outputs are **tailored
+  and NO LONGER hash-match** the canonical source (or each other).
 - **Claude Code plugin** (`plugins/squil/`, marketplace manifest at
   `.claude-plugin/marketplace.json`) — the plugin's
   `skills/squil/squil.tmLanguage.json` is a copy of the Editor.Shared

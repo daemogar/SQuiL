@@ -39,6 +39,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\SQuiL.Library\SQuiL.Library.csproj" />
 		<ProjectReference Include="..\SQuiL.SourceGenerator\SQuiL.SourceGenerator.csproj" />
+		<ProjectReference Include="..\tools\GuideRenderer\GuideRenderer.csproj" />
 	</ItemGroup>
 
 

@@ -172,11 +172,10 @@
     <ItemGroup>
       <_SharedGrammars Include="..\SQuiL.Editor.Shared\squil.tmLanguage.json" />
       <_SharedGrammars Include="..\SQuiL.Editor.Shared\language-configuration.json" />
-      <_SharedGuide Include="..\SQuiL.Editor.Shared\guide.html" />
     </ItemGroup>
     <MakeDir Directories="Grammars;Resources" />
     <Copy SourceFiles="@(_SharedGrammars)" DestinationFolder="Grammars" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(_SharedGuide)" DestinationFolder="Resources" SkipUnchangedFiles="true" />
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\tools\GuideRenderer\GuideRenderer.csproj&quot; -c Release -- --in &quot;$(MSBuildThisFileDirectory)..\SQuiL.Editor.Shared\guide.html&quot; --out &quot;$(MSBuildThisFileDirectory)Resources\guide.html&quot; --env visualstudio" />
   </Target>
 
 </Project>

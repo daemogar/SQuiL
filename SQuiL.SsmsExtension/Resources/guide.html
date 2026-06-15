@@ -157,6 +157,15 @@
 You write SQL that looks like SQL — SQuiL handles the plumbing.
 (<code>.squil</code> is the canonical extension; plain <code>.sql</code> files are also accepted.)</p>
 
+<div class="tip">
+  <strong>Commands:</strong> the SQuiL commands live on <strong>Tools ▸ SQuiL</strong> —
+  <strong>Preview Generated C#</strong>, <strong>Build SQuiL Project</strong>, <strong>SQuiL Writing Guide</strong>,
+  and <strong>Check for Updates</strong>; <strong>New SQuiL File</strong> is on <strong>File ▸ New</strong>. SSMS's
+  SQL-editor right-click menu can't host third-party commands, so use the Tools menu. Because <code>.squil</code>
+  opens in SSMS's SQL Query Editor, you also get full <code>F5</code> execution and a live results grid against any
+  connection. Install with the bundled <code>install.cmd</code>.
+</div>
+
 <!-- ───────────────────────── File Structure ───────────────────────────── -->
 <h2>File Structure</h2>
 <p>Every SQuiL file follows this three-part layout:</p>
@@ -466,10 +475,10 @@ first in the header:</p>
 <span class="kw">Select</span> * <span class="kw">From</span> <span class="ret">@Returns_Orders</span>;</code></pre>
 
 <div class="tip">
-  <strong>Tip:</strong> the <code class="spc">@Debug</code> default of <code>= 1</code> is used only when running the
-  SQL directly in SSMS. At runtime SQuiL overrides it with <code>request.Debug</code>, so C# callers stay
-  in control. Prefer <code>Concat()</code> over string <code>+</code> in diagnostics — it tolerates <code>Null</code>
-  instead of producing one.
+  <strong>Tip:</strong> the <code class="spc">@Debug</code> default of <code>= 1</code> is used only when you
+  execute the file directly against a connection (F5) — its results land in the SSMS grid. At runtime SQuiL
+  overrides it with <code>request.Debug</code>, so C# callers stay in control. Prefer <code>Concat()</code> over
+  string <code>+</code> in diagnostics — it tolerates <code>Null</code> instead of producing one.
 </div>
 
 <!-- ──────────────────── Sample Data Insertion ────────────────────────── -->
@@ -478,7 +487,8 @@ first in the header:</p>
 sample rows for any <code class="par">@Params_</code> (list) or <code class="par">@Param_…&nbsp;Table(...)</code> (single object) variable.</p>
 
 <p>On the line immediately after the variable's <code>Declare</code>, type <code>@</code>. The completion
-list will include a <code>⊕ Insert sample data → @Params_Tags</code> entry. Choosing it:</p>
+list will include a <code>⊕ Insert sample data → @Params_Tags</code> entry — that IntelliSense completion is the
+only way to insert sample data; there is no menu, palette, or right-click command for it. Choosing it:</p>
 <ul>
   <li>For <code class="par">@Params_</code> (list): prompts for the number of rows, then inserts an <code>Insert Into</code> block with that many records.</li>
   <li>For <code class="par">@Param_…&nbsp;Table(...)</code> (single object): silently inserts exactly one row.</li>
