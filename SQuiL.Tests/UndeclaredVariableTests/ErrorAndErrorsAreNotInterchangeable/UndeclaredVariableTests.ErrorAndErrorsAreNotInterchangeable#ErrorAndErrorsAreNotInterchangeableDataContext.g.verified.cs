@@ -28,8 +28,6 @@ partial class ErrorAndErrorsAreNotInterchangeableDataContext : SQuiLBaseDataCont
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production"))
 		};
 		
 		command.CommandText = Query(parameters);
@@ -110,7 +108,7 @@ partial class ErrorAndErrorsAreNotInterchangeableDataContext : SQuiLBaseDataCont
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isCount) errors.Add(new(51001, 12, 1, 112, "Count", "Expected return scaler `Count`"));
+		if (!isCount) errors.Add(new(51001, 12, 1, 110, "Count", "Expected return scaler `Count`"));
 		
 		if(errors.Count == 0)
 			return new(response);

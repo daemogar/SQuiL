@@ -67,6 +67,12 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 	/// <summary>SQL variable name for the environment name: <c>EnvironmentName</c>.</summary>
 	public static string EnvironmentName { get; } = nameof(EnvironmentName);
 
+	/// <summary>SQL variable name for the debug-suppression flag: <c>SuppressDebug</c>.</summary>
+	public static string SuppressDebug { get; } = nameof(SuppressDebug);
+
+	/// <summary>SQL variable name for the point-in-time parameter: <c>AsOfDate</c>.</summary>
+	public static string AsOfDate { get; } = nameof(AsOfDate);
+
 	/// <summary>
 	/// Returns <c>true</c> if <paramref name="value"/> is the singular or plural error variable name
 	/// (<c>Error</c> or <c>Errors</c>).
@@ -75,17 +81,29 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		=> Error.Equals(value) || $"{Error}s".Equals(value);
 
 	/// <summary>
-	/// Returns <c>true</c> if <paramref name="value"/> is any of the special reserved variable
-	/// names: <c>Debug</c>, <c>EnvironmentName</c>, <c>Error</c>, or <c>Errors</c>.
+	/// Returns <c>true</c> if <paramref name="value"/> is any reserved special variable name:
+	/// <c>Debug</c>, <c>SuppressDebug</c>, <c>EnvironmentName</c>, <c>AsOfDate</c>, <c>Error</c>, or <c>Errors</c>.
 	/// </summary>
 	public static bool IsSpecial(string value)
 	{
 		if (Debug.Equals(value))
 			return true;
+		if (SuppressDebug.Equals(value))
+			return true;
 		if (EnvironmentName.Equals(value))
+			return true;
+		if (AsOfDate.Equals(value))
 			return true;
 		return IsError(value);
 	}
+
+	/// <summary>
+	/// Returns <c>true</c> for the four input-side specials that may be declared in a query header
+	/// (<c>Debug</c>, <c>SuppressDebug</c>, <c>EnvironmentName</c>, <c>AsOfDate</c>). Error/Errors are output-side.
+	/// </summary>
+	public static bool IsInputSpecial(string value)
+		=> Debug.Equals(value) || SuppressDebug.Equals(value)
+		|| EnvironmentName.Equals(value) || AsOfDate.Equals(value);
 
 	/// <summary>Parameterless constructor used by Roslyn when activating the generator.</summary>
 	public SQuiLGenerator() : this(false) { }

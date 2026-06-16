@@ -114,15 +114,27 @@ internal static class SQuiLCompletionData
             "Maps to an IEnumerable<ItemT> property on *Response."),
 
         new("@Debug",           "@Debug bit = 1",
-            "Debug flag — always on *Request",
-            "*Request always exposes bool Debug + bool DebugOnly. "
-          + "Declare in SQL only when the query body needs to read it. "
+            "Debug flag — on *Request as bool Debug when declared",
+            "Opt-in special. *Request exposes bool Debug only when @Debug is declared. "
+          + "Declare @SuppressDebug alongside it to gate the auto-debug expression. "
           + "Default = 1 is convenient when running directly in SSMS."),
+
+        new("@SuppressDebug",   "@SuppressDebug bit = 0",
+            "Suppress auto-debug — on *Request as bool SuppressDebug when declared",
+            "Opt-in special. Gates the auto-debug expression (replaces the old DebugOnly property). "
+          + "Must be declared together with @Debug, otherwise SP0019 is reported."),
 
         new("@EnvironmentName", "@EnvironmentName varchar(50)",
             "Environment name — resolved by SQuiLBaseDataContext",
             "Resolved from IConfiguration[\"EnvironmentName\"] or ASPNETCORE_ENVIRONMENT "
-          + "(defaulting to \"Development\"). Declare only when the body reads it."),
+          + "(defaulting to \"Development\"). Declare only when the body reads it. "
+          + "Sent as a parameter only — never a C# property."),
+
+        new("@AsOfDate",        "@AsOfDate date = '2008-10-01'",
+            "Point-in-time — nullable typed property on *Request",
+            "Opt-in special. Caller-supplied point-in-time value, surfaced as a nullable typed "
+          + "property on *Request. When null, the current time at execution is substituted. "
+          + "The SQL initializer is ignored at runtime."),
 
         new("@Error",           "@Error varchar(max)",
             "Error string — appears on *Response when declared",

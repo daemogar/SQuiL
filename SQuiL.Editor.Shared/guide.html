@@ -253,12 +253,22 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
   <tr>
     <td><code class="spc">@Debug</code></td>
     <td><span class="badge badge-special">Special</span></td>
-    <td><strong>Always</strong> on <code>*Request</code> as <code>bool Debug</code> (plus <code>bool DebugOnly</code>) — you do not need to declare it in SQL for the property to exist; declare it only if you want to <em>use</em> the value inside the query, and declare it <em>first in the header</em> (see Variable Rules below).</td>
+    <td><strong>Opt-in.</strong> On <code>*Request</code> as <code>bool Debug</code> <em>only when you declare it</em> in SQL — nothing is emitted implicitly. Declare it <em>first in the header</em> (see Variable Rules below).</td>
+  </tr>
+  <tr>
+    <td><code class="spc">@SuppressDebug</code></td>
+    <td><span class="badge badge-special">Special</span></td>
+    <td><strong>Opt-in.</strong> On <code>*Request</code> as <code>bool SuppressDebug</code> when declared. <strong>Requires <code class="spc">@Debug</code> to also be declared</strong> — declaring it alone is a build error (diagnostic <code>SP0019</code>). It gates the auto-debug expression: SQuiL sends <code>!request.SuppressDebug &amp;&amp; (request.Debug || EnvironmentName != "Production")</code>. (Replaces the old <code>DebugOnly</code> property, which no longer exists.)</td>
+  </tr>
+  <tr>
+    <td><code class="spc">@AsOfDate</code></td>
+    <td><span class="badge badge-special">Special</span></td>
+    <td><strong>Opt-in.</strong> A caller-supplied point-in-time, emitted on <code>*Request</code> as a <strong>nullable</strong> typed property (the type follows the SQL type map — e.g. <code>date</code> → <code>System.DateOnly?</code>). When the caller leaves it <code>null</code>, the current time is substituted at execution; any SQL initializer (e.g. <code>= '2008-10-01'</code>) is ignored at runtime. Distinguished from an ordinary <code class="par">@Param_AsOfDate</code> by being declared <em>bare</em> (no <code>@Param_</code> prefix).</td>
   </tr>
   <tr>
     <td><code class="spc">@EnvironmentName</code></td>
     <td><span class="badge badge-special">Special</span></td>
-    <td>Resolved by <code>SQuiLBaseDataContext</code> from <code>IConfiguration</code> (key <code>"EnvironmentName"</code>) or the <code>ASPNETCORE_ENVIRONMENT</code> environment variable. Declare in SQL only when the query body needs to read it.</td>
+    <td><strong>Opt-in.</strong> Sent as a SQL parameter <em>only when declared</em> (not emitted as a <code>*Request</code> property). Resolved by <code>SQuiLBaseDataContext</code> from <code>IConfiguration</code> (key <code>"EnvironmentName"</code>) or the environment variable. Declare in SQL only when the query body needs to read it.</td>
   </tr>
   <tr>
     <td><code class="spc">@Error</code> / <code class="spc">@Errors</code></td>
@@ -278,16 +288,21 @@ editor and at build time:</p>
     <code>Declare</code> <em>above</em> the first reference — referencing <code class="par">@PersonID</code>
     when you declared <code class="par">@Param_PersonID</code> is an error, not a shorthand.
     The build fails with diagnostic <code>SP0013</code>, and the editor marks the reference.</li>
-  <li><strong>Special variables are not exempt.</strong> <code class="spc">@Debug</code> and
-    <code class="spc">@EnvironmentName</code> exist on the generated C# either way, but the SQL body
-    may only <em>reference</em> them if the file declares them.</li>
+  <li><strong>Special variables are opt-in, and not exempt from declare-before-use.</strong> The four
+    input specials — <code class="spc">@Debug</code>, <code class="spc">@SuppressDebug</code>,
+    <code class="spc">@EnvironmentName</code>, and <code class="spc">@AsOfDate</code> — only affect the
+    generated C# when the file declares them, and the SQL body may only <em>reference</em> them if
+    declared. <code class="spc">@SuppressDebug</code> additionally requires <code class="spc">@Debug</code>
+    to be declared; declaring it alone fails the build with diagnostic <code>SP0019</code>.</li>
   <li><strong>Singular and plural are different variables.</strong> Declaring
     <code class="spc">@Error</code> does not let the body write to <code class="spc">@Errors</code>
     (or vice versa) — reference exactly the name you declared.</li>
-  <li><strong>Declare <code class="spc">@Debug</code>/<code class="spc">@EnvironmentName</code> in the
-    header, first.</strong> Declaring them after the <code>Use</code> statement is an error
-    (diagnostic <code>SP0016</code>); declaring them after other header declarations produces a
-    warning — put them at the very top.</li>
+  <li><strong>Declare the input specials in the header, first.</strong> All four input specials
+    (<code class="spc">@Debug</code>, <code class="spc">@SuppressDebug</code>,
+    <code class="spc">@EnvironmentName</code>, <code class="spc">@AsOfDate</code>) share the same
+    placement rules: declaring one after the <code>Use</code> statement is an error (diagnostic
+    <code>SP0016</code>); declaring one after other header declarations produces a warning — put them
+    at the very top.</li>
   <li><strong>Table variables that share a name share one record — and must share one shape.</strong>
     Declaring <code class="par">@Param_User Table(...)</code> in one place and
     <code class="ret">@Return_User Table(...)</code> in another (in the same file or across query files)
@@ -356,9 +371,6 @@ SQuiL prefix, but they still must be declared before they are referenced.</p>
 <p><strong>Generated C#:</strong></p>
 <pre><code><span class="cs-kw">public partial record</span> <span class="cs-cls">GetUserNameRequest</span>
 {
-    <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">Debug</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
-    <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">DebugOnly</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
-
     <span class="cs-kw">public</span> <span class="cs-tp">int</span> <span class="cs-pn">UserID</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
 }
 
@@ -397,9 +409,6 @@ SQuiL prefix, but they still must be declared before they are referenced.</p>
 <p><strong>Generated C#:</strong></p>
 <pre><code><span class="cs-kw">public partial record</span> <span class="cs-cls">ListUsersByDepartmentRequest</span>
 {
-    <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">Debug</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
-    <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">DebugOnly</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
-
     <span class="cs-kw">public</span> <span class="cs-tp">int</span> <span class="cs-pn">DepartmentID</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
     <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">IncludeInactive</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
 }
@@ -450,9 +459,6 @@ SQuiL prefix, but they still must be declared before they are referenced.</p>
 
 <span class="cs-kw">public partial record</span> <span class="cs-cls">AssignTagsToArticleRequest</span>
 {
-    <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">Debug</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
-    <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">DebugOnly</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
-
     <span class="cs-kw">public</span> <span class="cs-tp">int</span> <span class="cs-pn">ArticleID</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
     <span class="cs-kw">public</span> <span class="cs-cls">List</span>&lt;<span class="cs-cls">TagsTable</span>&gt;? <span class="cs-pn">Tags</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; } = [];
 }
@@ -468,9 +474,10 @@ SQuiL prefix, but they still must be declared before they are referenced.</p>
     <span class="cs-cls">CancellationToken</span> <span class="cs-pn">cancellationToken</span> = <span class="cs-kw">default</span>!) { <span class="cm">/* generated */</span> }</code></pre>
 
 <h3>4. Using <code class="spc">@Debug</code> for diagnostic output</h3>
-<p>You don't need to declare <code class="spc">@Debug</code> for <code>Debug</code> to appear on the request — it always does.
-Declare it only when the SQL body itself wants to <em>read</em> the value, and put the declaration
-first in the header:</p>
+<p><code class="spc">@Debug</code> is opt-in: declare it when you want a <code>bool Debug</code> on the request
+<em>and</em> the SQL body to be able to <em>read</em> the value. Put the declaration first in the header.
+If you also declare <code class="spc">@SuppressDebug</code> (which requires <code class="spc">@Debug</code>),
+a <code>bool SuppressDebug</code> appears on the request too and gates the auto-debug expression:</p>
 <pre><code><span class="ann">--Name: ListOrdersByStatus</span>
 
 <span class="kw">Declare</span> <span class="spc">@Debug</span>          <span class="tp">bit</span> = 1;

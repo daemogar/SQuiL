@@ -19,8 +19,9 @@
 export type FindingKind =
   | 'undeclared'         // referenced but never declared — error
   | 'usedBeforeDeclared' // referenced before its declaration — error
-  | 'specialAfterUse'    // @Debug/@EnvironmentName declared after USE — error
-  | 'specialNotFirst';   // @Debug/@EnvironmentName not first in header — warning
+  | 'specialAfterUse'    // a special declared after USE — error
+  | 'specialNotFirst'    // a special not first in header — warning
+  | 'suppressDebugWithoutDebug'; // @SuppressDebug declared without @Debug — error
 
 export interface Finding {
   kind: FindingKind;
@@ -42,7 +43,8 @@ const STATEMENT_STARTERS = new Set([
 
 function isSpecial(name: string): boolean {
   const upper = name.toUpperCase();
-  return upper === '@DEBUG' || upper === '@ENVIRONMENTNAME';
+  return upper === '@DEBUG' || upper === '@SUPPRESSDEBUG'
+    || upper === '@ENVIRONMENTNAME' || upper === '@ASOFDATE';
 }
 
 function isNameChar(c: string): boolean {
@@ -207,6 +209,21 @@ export function validateVariables(sql: string): Finding[] {
     }
   }
 
+  // @SuppressDebug only has meaning alongside @Debug (it gates the auto-debug
+  // expression). Declaring it without @Debug is an error — mirrors the
+  // generator's SP0019 (SuppressDebugWithoutDebug finding).
+  const hasDebug = declarations.some((d) => d.name.toUpperCase() === '@DEBUG');
+  if (!hasDebug) {
+    for (const decl of declarations) {
+      if (decl.name.toUpperCase() !== '@SUPPRESSDEBUG') continue;
+      const { line, character } = position(sql, decl.offset);
+      findings.push({
+        offset: decl.offset,
+        finding: { kind: 'suppressDebugWithoutDebug', name: decl.name, line, character },
+      });
+    }
+  }
+
   return findings.sort((a, b) => a.offset - b.offset).map((f) => f.finding);
 }
 
@@ -223,6 +240,8 @@ export function findingMessage(finding: Finding): string {
       return `'${finding.name}' must be declared before the Use statement.`;
     case 'specialNotFirst':
       return `'${finding.name}' should be declared at the top of the header, before other declarations.`;
+    case 'suppressDebugWithoutDebug':
+      return `'${finding.name}' may only be declared when '@Debug' is also declared in the same file.`;
   }
 }
 

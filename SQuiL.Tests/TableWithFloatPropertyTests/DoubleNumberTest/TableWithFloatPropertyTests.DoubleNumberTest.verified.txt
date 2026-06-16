@@ -1,39 +1,39 @@
 ﻿{
   Diagnostics: [
     {
-      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 0, Value = Answers, Original = @Returns_Answers table }, Name = Answers, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 0, Value = Answers, Original = @Returns_Answers table }, Name = Answers, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 0, Value = Answers, Original = @Returns_Answers table }, Name = Answers, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+        MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = 0, Value = Answers, Original = @Returns_Answers table }, Name = Answers, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
     },
     {
-      Message: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 53, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Message: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 53, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties =  },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 53, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+        MessageFormat: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 53, Value = Database, Original = [Database] }, Name = Database, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
     },
     {
-      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 64, Value =  , Original =  }, Name =  , DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 64, Value =  , Original =  }, Name =  , DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties =  },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 64, Value =  , Original =  }, Name =  , DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , Properties =  },
+        MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 64, Value =  , Original =  }, Name =  , DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true

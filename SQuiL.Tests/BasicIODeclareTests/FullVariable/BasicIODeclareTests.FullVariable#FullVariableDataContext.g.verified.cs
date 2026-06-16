@@ -28,8 +28,7 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, request.Debug || EnvironmentName != "Production"),
 			CreateParameter("@Param_Scaler", System.Data.SqlDbType.BigInt, request.Scaler ?? (object)System.DBNull.Value
 			, p => p.IsNullable = true)
 		};
@@ -142,9 +141,9 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isScaler) errors.Add(new(51001, 12, 1, 144, "Scaler", "Expected return scaler `Scaler`"));
-		if (!isObject) errors.Add(new(51001, 12, 1, 145, "Object", "Expected return object `Object`"));
-		if (!isTable) errors.Add(new(51001, 12, 1, 146, "Table", "Expected return table `Table`"));
+		if (!isScaler) errors.Add(new(51001, 12, 1, 143, "Scaler", "Expected return scaler `Scaler`"));
+		if (!isObject) errors.Add(new(51001, 12, 1, 144, "Object", "Expected return object `Object`"));
+		if (!isTable) errors.Add(new(51001, 12, 1, 145, "Table", "Expected return table `Table`"));
 		
 		if(errors.Count == 0)
 			return new(response);

@@ -7,6 +7,4 @@ namespace TestCase;
 
 public partial record MappedTablesWithMismatchedShapes2Request
 {
-	public bool Debug { get; set; }
-	public bool DebugOnly { get; set; }
 }

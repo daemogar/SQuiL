@@ -7,6 +7,4 @@ namespace TestCase;
 
 public partial record SharedTable1Request
 {
-	public bool Debug { get; set; }
-	public bool DebugOnly { get; set; }
 }

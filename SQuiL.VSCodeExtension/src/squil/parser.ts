@@ -15,8 +15,10 @@ export type VariableRole =
   | 'return'          // @Return_Name    — output scalar
   | 'returns'         // @Returns_Name   — output table (IEnumerable)
   | 'return-table'    // @Return_Name TABLE(...) — output object
-  | 'debug'           // @Debug
+  | 'debug'           // @Debug — bool special, not emitted as an ordinary property
+  | 'suppressDebug'   // @SuppressDebug — bool special, not emitted as an ordinary property
   | 'environmentName' // @EnvironmentName
+  | 'asOfDate'        // @AsOfDate — nullable typed Request property
   | 'error'           // @Error
   | 'errors'          // @Errors
   | 'unknown';        // unrecognised — triggers a warning
@@ -179,9 +181,15 @@ function parseVariable(
   if (upper === '@DEBUG') {
     role = 'debug';
     name = 'Debug';
+  } else if (upper === '@SUPPRESSDEBUG') {
+    role = 'suppressDebug';
+    name = 'SuppressDebug';
   } else if (upper === '@ENVIRONMENTNAME') {
     role = 'environmentName';
     name = 'EnvironmentName';
+  } else if (upper === '@ASOFDATE') {
+    role = 'asOfDate';
+    name = 'AsOfDate';
   } else if (upper === '@ERROR') {
     role = 'error';
     name = 'Error';
@@ -210,7 +218,7 @@ function parseVariable(
       result.diagnostics.push({
         message:
           `Variable '${rawName}' doesn't follow SQuiL naming conventions. ` +
-          `Expected: @Param_*, @Params_*, @Return_*, @Returns_*, @Debug, @EnvironmentName, @Error, or @Errors.`,
+          `Expected: @Param_*, @Params_*, @Return_*, @Returns_*, @Debug, @SuppressDebug, @EnvironmentName, @AsOfDate, @Error, or @Errors.`,
         line: lineNum,
         startChar: varStart >= 0 ? varStart : 0,
         endChar: varStart >= 0 ? varStart + rawName.length : rawName.length,
@@ -281,8 +289,10 @@ export function describeRole(role: VariableRole): string {
     case 'return':        return 'Output scalar variable';
     case 'returns':       return 'Output table (IEnumerable<T>)';
     case 'return-table':  return 'Output object (TABLE type)';
-    case 'debug':         return 'Debug flag (not a C# parameter)';
+    case 'debug':         return 'Debug flag (bool on *Request when declared)';
+    case 'suppressDebug': return 'Suppress auto-debug flag (bool on *Request when declared; requires @Debug)';
     case 'environmentName': return 'Environment name (not a C# parameter)';
+    case 'asOfDate':      return 'Point-in-time value (nullable typed property on *Request)';
     case 'error':         return 'Error variable (not a C# parameter)';
     case 'errors':        return 'Errors collection (not a C# parameter)';
     case 'unknown':       return 'Unknown — does not match SQuiL naming convention';

@@ -28,8 +28,6 @@ partial class DecimalPrecisionScaleTestDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
 			CreateParameter("@Param_Price", System.Data.SqlDbType.Decimal, request.Price ?? (object)System.DBNull.Value
 			, p => p.IsNullable = true)
 		};
@@ -98,7 +96,7 @@ partial class DecimalPrecisionScaleTestDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTotals) errors.Add(new(51001, 12, 1, 100, "Totals", "Expected return table `Totals`"));
+		if (!isTotals) errors.Add(new(51001, 12, 1, 98, "Totals", "Expected return table `Totals`"));
 		
 		if(errors.Count == 0)
 			return new(response);

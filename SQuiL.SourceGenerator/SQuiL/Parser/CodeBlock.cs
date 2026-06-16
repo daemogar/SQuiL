@@ -46,6 +46,14 @@ public record CodeBlock(CodeType CodeType, Token DatabaseType, string Name, stri
 	/// <summary>The string size or precision extracted from the type token (e.g. <c>"50"</c> for <c>varchar(50)</c>).</summary>
 	public string? Size { get; set; }
 
+	/// <summary>
+	/// <c>true</c> when this block was declared as a bare special variable
+	/// (<c>@Debug</c>, <c>@SuppressDebug</c>, <c>@EnvironmentName</c>, or <c>@AsOfDate</c>) — i.e. WITHOUT a
+	/// <c>@Param_</c>/<c>@Return_</c> prefix. Distinguishes the bare special from an ordinary param whose
+	/// stripped name collides (e.g. <c>@Param_AsOfDate</c>), since both otherwise produce a block named "AsOfDate".
+	/// </summary>
+	public bool IsSpecialDeclaration { get; init; }
+
 	/// <summary>Columns or sub-properties for table and object variable types; <c>null</c> for scalars.</summary>
 	public List<CodeItem> Properties { get; } = default!;
 

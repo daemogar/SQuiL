@@ -7,6 +7,4 @@ namespace TestCase;
 
 public partial record UseStatementFailsWhenAddingDeclareTestRequest
 {
-	public bool Debug { get; set; }
-	public bool DebugOnly { get; set; }
 }

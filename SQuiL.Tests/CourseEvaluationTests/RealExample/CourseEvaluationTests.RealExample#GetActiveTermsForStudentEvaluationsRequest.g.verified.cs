@@ -7,8 +7,5 @@ namespace CourseEvaluation.Application.Data;
 
 public partial record GetActiveTermsForStudentEvaluationsRequest
 {
-	public bool Debug { get; set; }
-	public bool DebugOnly { get; set; }
-	
 	public System.DateOnly? AsOfDate { get; set; }
 }

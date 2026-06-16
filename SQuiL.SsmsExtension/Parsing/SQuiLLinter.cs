@@ -127,7 +127,9 @@ internal static class SQuiLLinter
 
     private static bool IsSpecialVariable(string name)
         => string.Equals(name, "@Debug", System.StringComparison.OrdinalIgnoreCase)
-        || string.Equals(name, "@EnvironmentName", System.StringComparison.OrdinalIgnoreCase);
+        || string.Equals(name, "@SuppressDebug", System.StringComparison.OrdinalIgnoreCase)
+        || string.Equals(name, "@EnvironmentName", System.StringComparison.OrdinalIgnoreCase)
+        || string.Equals(name, "@AsOfDate", System.StringComparison.OrdinalIgnoreCase);
 
     private static bool IsNameChar(char c)
         => char.IsLetterOrDigit(c) || c == '_' || c == '$' || c == '#';
@@ -292,6 +294,25 @@ internal static class SQuiLLinter
                 break;
             }
         }
+
+        // @SuppressDebug only has meaning alongside @Debug (it gates the
+        // auto-debug expression). Declaring it without @Debug is an error —
+        // mirrors the generator's SP0019 (SuppressDebugWithoutDebug finding).
+        bool hasDebug = false;
+        foreach (var declaration in declarations)
+            if (string.Equals(declaration.Key, "@Debug", System.StringComparison.OrdinalIgnoreCase))
+            {
+                hasDebug = true;
+                break;
+            }
+
+        if (!hasDebug)
+            foreach (var declaration in declarations)
+            {
+                if (!string.Equals(declaration.Key, "@SuppressDebug", System.StringComparison.OrdinalIgnoreCase)) continue;
+                AddFinding(sql, diagnostics, declaration.Key, declaration.Value, DiagnosticSeverity.Error,
+                    $"'{declaration.Key}' may only be declared when '@Debug' is also declared in the same file.");
+            }
     }
 
     private static void AddFinding(

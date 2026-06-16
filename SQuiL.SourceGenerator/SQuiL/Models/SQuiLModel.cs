@@ -35,6 +35,15 @@ public class SQuiLModel(
 	/// <summary>All properties (scalar, table, and object) belonging to this model.</summary>
 	public List<SQuiLProperty> Properties { get; } = [];
 
+	/// <summary><c>true</c> when a bare <c>@Debug</c> special was declared in this query's header.</summary>
+	private bool _hasDebug;
+
+	/// <summary><c>true</c> when a bare <c>@SuppressDebug</c> special was declared in this query's header.</summary>
+	private bool _hasSuppressDebug;
+
+	/// <summary>The bare <c>@AsOfDate</c> special block, if declared; drives the nullable typed Request property.</summary>
+	private CodeBlock? _asOfDate;
+
 	/// <summary>
 	/// Builds the request and response models for a query from its parsed <paramref name="blocks"/>.
 	/// </summary>
@@ -84,9 +93,14 @@ public class SQuiLModel(
 
 		if (ModelType == "Request")
 		{
-			writer.WriteLine("public bool Debug { get; set; }");
-			writer.WriteLine("public bool DebugOnly { get; set; }");
-			newline = writer.WriteLine;
+			if (_hasDebug)
+				writer.WriteLine("public bool Debug { get; set; }");
+			if (_hasSuppressDebug)
+				writer.WriteLine("public bool SuppressDebug { get; set; }");
+			if (_asOfDate is not null)
+				writer.WriteLine($"public {_asOfDate.CSharpType("")}? AsOfDate {{ get; set; }}");
+			if (_hasDebug || _hasSuppressDebug || _asOfDate is not null)
+				newline = writer.WriteLine;
 		}
 
 		foreach (var property in Properties.OrderBy(p => p is SQuiLObject ? 1 : p is SQuiLTable ? 2 : 0))
@@ -106,7 +120,26 @@ public class SQuiLModel(
 	{
 		foreach (var block in blocks)
 		{
-			if (SQuiLGenerator.IsSpecial(block.Name))
+			// A bare special declaration (@Debug/@SuppressDebug/@EnvironmentName/@AsOfDate
+			// declared WITHOUT a @Param_/@Return_ prefix) is recorded and skipped from
+			// normal property emission; declared input specials are emitted (or not)
+			// below in GenerateCode. A @Param_AsOfDate (IsSpecialDeclaration == false)
+			// falls through to the normal property path and emits as an ordinary property.
+			if (block.IsSpecialDeclaration)
+			{
+				if (block.Name == SQuiLGenerator.Debug) _hasDebug = true;
+				else if (block.Name == SQuiLGenerator.SuppressDebug) _hasSuppressDebug = true;
+				else if (block.Name == SQuiLGenerator.AsOfDate) _asOfDate = block;
+				continue;
+			}
+
+			// Error/Errors (@Return_Error/@Returns_Errors and bare @Error/@Errors output
+			// specials) are never surfaced as ordinary model properties — they drive the
+			// dedicated error-collection path in the data context. Skip them here.
+			// A name-collided ordinary param (e.g. @Param_Debug) has IsSpecialDeclaration
+			// == false and is NOT an error, so it falls through and emits as an ordinary
+			// property — matching the data context's parameter emission for the same block.
+			if (SQuiLGenerator.IsError(block.Name))
 				continue;
 			var inherits = InheritsProperty(ModelName, block.Name);
 			if (block.IsTable || block.IsObject)

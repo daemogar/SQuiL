@@ -28,8 +28,6 @@ partial class InputParameterTakesMaxStringConvertToTableArrayDataContext : SQuiL
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
 			CreateParameter("@Param_LongText", System.Data.SqlDbType.VarChar, -1, request.LongText ?? (object)System.DBNull.Value
 			, p => p.IsNullable = true)
 		};

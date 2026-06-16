@@ -187,3 +187,72 @@ test('character position is reported 0-based', () => {
   assert.strictEqual(findings[0].line, 1);
   assert.strictEqual(findings[0].character, 7);
 });
+
+test('@SuppressDebug and @AsOfDate are recognized specials (no findings when valid)', () => {
+  const findings = validateVariables([
+    'Declare @Debug bit = 1;',
+    'Declare @SuppressDebug bit = 0;',
+    'Declare @AsOfDate date = \'2008-10-01\';',
+    'Declare @Return_Count int;',
+    'Use MyDatabase;',
+    'Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate);',
+    'Select @Return_Count;',
+  ].join('\n'));
+
+  assert.deepStrictEqual(findings, []);
+});
+
+test('@SuppressDebug without @Debug is flagged suppressDebugWithoutDebug', () => {
+  const findings = validateVariables([
+    'Declare @SuppressDebug bit = 0;',
+    'Declare @Return_Count int;',
+    'Use MyDatabase;',
+    'Select @Return_Count = 1;',
+    'Select @Return_Count;',
+  ].join('\n'));
+
+  assert.strictEqual(findings.length, 1);
+  assert.strictEqual(findings[0].kind, 'suppressDebugWithoutDebug');
+  assert.strictEqual(findings[0].name, '@SuppressDebug');
+  assert.strictEqual(findings[0].line, 0);
+});
+
+test('@SuppressDebug with @Debug present does not fire suppressDebugWithoutDebug', () => {
+  const findings = validateVariables([
+    'Declare @Debug bit = 1;',
+    'Declare @SuppressDebug bit = 0;',
+    'Use MyDatabase;',
+    'Select 1;',
+  ].join('\n'));
+
+  assert.deepStrictEqual(findings, []);
+});
+
+test('placement rules apply to the new specials (@AsOfDate after use)', () => {
+  const findings = validateVariables([
+    'Declare @Return_Count int;',
+    'Use MyDatabase;',
+    'Declare @AsOfDate date = \'2008-10-01\';',
+    'Select @Return_Count = 1;',
+  ].join('\n'));
+
+  assert.strictEqual(findings.length, 1);
+  assert.strictEqual(findings[0].kind, 'specialAfterUse');
+  assert.strictEqual(findings[0].name, '@AsOfDate');
+  assert.strictEqual(findings[0].line, 2);
+});
+
+test('placement rules apply to the new specials (@SuppressDebug not first)', () => {
+  const findings = validateVariables([
+    'Declare @Debug bit = 1;',
+    'Declare @Param_Name varchar(100);',
+    'Declare @SuppressDebug bit = 0;',
+    'Use MyDatabase;',
+    'Select @Param_Name;',
+  ].join('\n'));
+
+  assert.strictEqual(findings.length, 1);
+  assert.strictEqual(findings[0].kind, 'specialNotFirst');
+  assert.strictEqual(findings[0].name, '@SuppressDebug');
+  assert.strictEqual(findings[0].line, 2);
+});

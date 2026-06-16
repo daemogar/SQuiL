@@ -217,18 +217,38 @@ SQuiL/
 - **Generated record naming** — table-valued vars produce `<Name>Table`
   records; single-object vars produce `<Name>Object` records. Never
   `<Name>Item` (older legacy term, do not use).
-- **Special variables** — `@Debug` and `@EnvironmentName` appear on
-  `*Request`; `@Error` and `@Errors` appear on `*Response` when declared.
-  `@Debug` is ALWAYS on Request (always emitted as `bool Debug` +
-  `bool DebugOnly`) regardless of whether SQL declares it.
+- **Special variables — all OPT-IN.** Nothing is emitted implicitly; a
+  special affects the generated code only when the SQL declares it.
+  - `@Debug` → `bool Debug` on `*Request` ONLY when declared. (The old
+    "@Debug is ALWAYS on Request" rule is REVERSED, and the old `DebugOnly`
+    property is REMOVED.)
+  - `@SuppressDebug` (replaces `DebugOnly`) → `bool SuppressDebug` on
+    `*Request` when declared; REQUIRES `@Debug` to also be declared —
+    declaring it alone is a build error (**SP0019**). Gates the auto-debug
+    expression `!request.SuppressDebug && (request.Debug || EnvironmentName != "Production")`.
+  - `@AsOfDate` → caller-supplied point-in-time; emitted as a NULLABLE typed
+    `*Request` property (type follows the SQL type map, e.g. `date` →
+    `System.DateOnly?`). Must be declared BARE — an ordinary `@Param_AsOfDate`
+    is a normal scalar, not special. When the caller leaves it null, the
+    current time is substituted at execution (`request.AsOfDate ?? <Now>`);
+    the SQL initializer is ignored at runtime.
+  - `@EnvironmentName` → sent as a SQL parameter ONLY when declared; not a
+    `*Request` property.
+  - `@Error` and `@Errors` appear on `*Response` when declared.
+  - **Placement (all four input specials — `@Debug`/`@SuppressDebug`/
+    `@EnvironmentName`/`@AsOfDate`):** declaring one after the `Use`
+    statement is an error (SP0016); after other header declarations, a
+    warning. Prefer first in the header.
+  - **Diagnostic IDs:** SP0019 is TAKEN (SuppressDebug-without-Debug). Shape
+    detection, when built later, must start at SP0020+.
 - **Sample data detection** — the extension detects an existing sample-data
   block by the `Insert Into @Param_…` statement itself; NO comment markers.
   `@Params_` (list) prompts for row count; `@Param_…Table(...)` (single
   object) auto-inserts exactly one row.
-- **`@AsOfDate`** — user has requested this be documented as a special
-  variable in the guide, but the source generator's `IsSpecial()` does NOT
-  recognize it yet (only `Debug`, `EnvironmentName`, `Error`, `Errors`).
-  Skip documenting until semantics are confirmed.
+- **`@AsOfDate`** — IMPLEMENTED. The source generator's `IsSpecial()` now
+  recognizes `Debug`, `SuppressDebug`, `EnvironmentName`, `AsOfDate`, `Error`,
+  and `Errors`; `IsInputSpecial()` covers the four input-side specials. See
+  the opt-in semantics above and document it as a special variable everywhere.
 
 ### SSMS extension testing workflow (SSMS 22.6)
 
@@ -325,8 +345,9 @@ The parser recognizes specific naming patterns in SQL `DECLARE` statements:
 - `@Return_<name>` → Output scalar variable
 - `@Returns_<name>` → Output table (list)
 - `@Return_<name> table(...)` → Output object
-- `@Debug` / `@EnvironmentName` → Special variables (not parameters)
-- `@Error` / `@Errors` → Error handling variables
+- `@Debug` / `@SuppressDebug` / `@EnvironmentName` / `@AsOfDate` → Input special
+  variables (all opt-in; see the special-variables rules above)
+- `@Error` / `@Errors` → Error handling variables (on `*Response` when declared)
 
 These conventions determine the signature of generated C# methods.
 

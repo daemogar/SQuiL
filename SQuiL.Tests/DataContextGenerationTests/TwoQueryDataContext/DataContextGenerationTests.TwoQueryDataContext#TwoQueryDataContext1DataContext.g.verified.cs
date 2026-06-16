@@ -28,8 +28,6 @@ partial class TwoQueryDataContextDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production"))
 		};
 		
 		command.CommandText = Query(parameters);

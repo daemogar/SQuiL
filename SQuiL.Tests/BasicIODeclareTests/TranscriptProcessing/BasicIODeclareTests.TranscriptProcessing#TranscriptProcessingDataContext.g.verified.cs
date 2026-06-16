@@ -28,8 +28,7 @@ partial class TranscriptProcessingDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, request.Debug || EnvironmentName != "Production"),
 			CreateParameter("@Param_IncludeCompletedTranscripts", System.Data.SqlDbType.Bit, request.IncludeCompletedTranscripts),
 			CreateParameter("@Param_ReferenceID", System.Data.SqlDbType.BigInt, request.ReferenceID ?? (object)System.DBNull.Value
 			, p => p.IsNullable = true),

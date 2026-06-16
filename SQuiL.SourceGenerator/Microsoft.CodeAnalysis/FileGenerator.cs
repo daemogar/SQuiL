@@ -67,6 +67,8 @@ public class FileGenerator(
 				if (finding.Kind is SQuiLVariableValidator.FindingKind.SpecialAfterUse
 					or SQuiLVariableValidator.FindingKind.SpecialNotFirst)
 					Context.ReportSpecialVariablePlacement(method, finding);
+				else if (finding.Kind is SQuiLVariableValidator.FindingKind.SuppressDebugWithoutDebug)
+					Context.ReportSuppressDebugWithoutDebug(method, finding);
 				else
 					Context.ReportUndeclaredVariable(method, finding);
 			}

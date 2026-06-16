@@ -7,9 +7,6 @@ namespace TestCase;
 
 public partial record DecimalPrecisionScaleTestRequest
 {
-	public bool Debug { get; set; }
-	public bool DebugOnly { get; set; }
-	
 	public decimal? Price { get; set; }
 	
 	public System.Collections.Generic.List<CoursesTable>? Courses { get; set; } = [];

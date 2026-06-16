@@ -8,7 +8,6 @@ namespace TestCase;
 public partial record QueryHasErrorListRequest
 {
 	public bool Debug { get; set; }
-	public bool DebugOnly { get; set; }
 	
 	public int? Elapsed { get; set; }
 }

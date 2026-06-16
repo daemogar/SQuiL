@@ -28,8 +28,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production"))
+			CreateParameter("@Param_Debug", System.Data.SqlDbType.Bit, request.Debug)
 		};
 		
 		command.CommandText = Query(parameters);
@@ -99,7 +98,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isQuestions) errors.Add(new(51001, 12, 1, 101, "Questions", "Expected return table `Questions`"));
+		if (!isQuestions) errors.Add(new(51001, 12, 1, 100, "Questions", "Expected return table `Questions`"));
 		
 		if(errors.Count == 0)
 			return new(response);

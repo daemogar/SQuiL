@@ -7,9 +7,6 @@ namespace TestCase;
 
 public partial record BinaryDataParameterRequest
 {
-	public bool Debug { get; set; }
-	public bool DebugOnly { get; set; }
-	
 	public byte[]? BinaryDataField { get; set; }
 	
 	public byte[]? VarBinaryDataField { get; set; }

@@ -74,7 +74,25 @@ export class SQuiLHoverProvider implements vscode.HoverProvider {
 
     md.appendMarkdown(`**\`${variable.rawName}\`** — ${describeRole(variable.role)}\n\n`);
 
-    const isSpecial = ['debug', 'environmentName', 'error', 'errors', 'unknown'].includes(variable.role);
+    // @AsOfDate is a special only in recognition — unlike the other specials it
+    // IS emitted as a nullable typed property on `*Request`, so it gets the full
+    // type table (with a nullable note) rather than the "not emitted" message.
+    if (variable.role === 'asOfDate') {
+      // Map only the type token (drop any "= default" the SQL initializer adds).
+      const asOfType = variable.sqlType.split(/[\s=]/)[0];
+      md.appendMarkdown(`| | |\n|---|---|\n`);
+      md.appendMarkdown(`| **SQL type** | \`${variable.sqlType}\` |\n`);
+      md.appendMarkdown(`| **C# type** | \`${sqlToCSharp(asOfType)}?\` |\n`);
+      md.appendMarkdown(`| **C# name** | \`${variable.name}\` |\n`);
+      md.appendMarkdown(`| **Generated in** | \`*Request\` record (nullable) |\n`);
+      md.appendMarkdown(
+        `\n> ℹ️ Special SQuiL variable — emitted as a **nullable typed property** on \`*Request\`. ` +
+        `When null, the current time at execution is substituted.\n`,
+      );
+      return new vscode.Hover(md, wordRange);
+    }
+
+    const isSpecial = ['debug', 'suppressDebug', 'environmentName', 'error', 'errors', 'unknown'].includes(variable.role);
 
     if (!isSpecial) {
       md.appendMarkdown(`| | |\n|---|---|\n`);

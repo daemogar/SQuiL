@@ -46,11 +46,22 @@ The `@`-prefix is how the generator distinguishes inputs, outputs, and special v
 | `@Params_<Name>` | Input table-valued parameter | Collection field `<Name>` on the request model, plus a row class |
 | `@Return_<Name>` | Output scalar variable | Field `<Name>` on the response model |
 | `@Returns_<Name>` | Output table | Collection field `<Name>` on the response model, plus a row class |
-| `@Debug` | Toggles debug mode in generated code | Recognized specially; not in request/response |
-| `@EnvironmentName` | Bound to current environment at runtime | Recognized specially; not in request/response |
+| `@Debug` | Diagnostic toggle (opt-in) | When declared, a `bool Debug` on the request model |
+| `@SuppressDebug` | Suppresses the auto-debug expression (opt-in) | When declared, a `bool SuppressDebug` on the request model |
+| `@AsOfDate` | Caller-supplied point-in-time (opt-in) | When declared *bare*, a **nullable** typed property on the request model |
+| `@EnvironmentName` | Bound to current environment at runtime (opt-in) | Sent as a SQL parameter when declared; not a request/response property |
 | `@Error` / `@Errors` | Error reporting from inside the SQL | Surface as `SQuiLException` / `SQuiLAggregateException` of `SQuiLError` |
 
 A scalar uses a primitive declared type (`int`, `varchar(10)`, `datetime`, `bit`, …). A table uses `Declare @Returns_<Name> table(...)` or `Declare @Params_<Name> table(...)` with column definitions; each column becomes a property on a generated row class.
+
+### Special variables (opt-in)
+
+The four input-side special variables only affect the generated C# when you **declare them** in the header — nothing is emitted implicitly. They all share the same placement rules: declaring one after the `Use` statement is a build error (SP0016); declaring one after other header declarations is a warning. Put them first in the header.
+
+- **`@Debug`** — declare it (`Declare @Debug bit = 0;`) to get a `bool Debug` on the request model and to read the value in the SQL body. (Previously `@Debug` was *always* on the request along with a `DebugOnly` property; both behaviors are gone — `@Debug` is now opt-in and `DebugOnly` no longer exists.)
+- **`@SuppressDebug`** — declare it to get a `bool SuppressDebug` on the request model. It **requires `@Debug` to also be declared**; declaring it alone is a build error (**SP0019**). It replaces the old `DebugOnly` property and gates the auto-debug expression SQuiL sends: `!request.SuppressDebug && (request.Debug || EnvironmentName != "Production")`.
+- **`@AsOfDate`** — declared *bare* (`Declare @AsOfDate date = '2008-10-01';`), it becomes a **nullable** typed property on the request model whose type follows the SQL type map (e.g. `date` → `System.DateOnly?`). When the caller leaves it `null`, the current time is substituted at execution; the SQL initializer is ignored at runtime. An ordinary `@Param_AsOfDate` (with the prefix) is *not* special — it is a normal input scalar.
+- **`@EnvironmentName`** — declare it to have the current environment sent as a SQL parameter for the body to read; it is not emitted as a request property.
 
 ### Minimal example — single scalar return
 

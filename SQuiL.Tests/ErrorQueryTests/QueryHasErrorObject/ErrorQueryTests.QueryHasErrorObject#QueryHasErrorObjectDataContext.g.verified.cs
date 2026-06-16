@@ -28,8 +28,7 @@ partial class QueryHasErrorObjectDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, request.Debug || EnvironmentName != "Production"),
 			CreateParameter("@Param_Elapsed", System.Data.SqlDbType.BigInt, request.Elapsed ?? (object)System.DBNull.Value
 			, p => p.IsNullable = true)
 		};
@@ -163,9 +162,9 @@ partial class QueryHasErrorObjectDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isSampleID) errors.Add(new(51001, 12, 1, 165, "SampleID", "Expected return scaler `SampleID`"));
-		if (!isSampleEntity) errors.Add(new(51001, 12, 1, 166, "SampleEntity", "Expected return object `SampleEntity`"));
-		if (!isSamples) errors.Add(new(51001, 12, 1, 167, "Samples", "Expected return table `Samples`"));
+		if (!isSampleID) errors.Add(new(51001, 12, 1, 164, "SampleID", "Expected return scaler `SampleID`"));
+		if (!isSampleEntity) errors.Add(new(51001, 12, 1, 165, "SampleEntity", "Expected return object `SampleEntity`"));
+		if (!isSamples) errors.Add(new(51001, 12, 1, 166, "Samples", "Expected return table `Samples`"));
 		
 		if(errors.Count == 0)
 			return new(response);

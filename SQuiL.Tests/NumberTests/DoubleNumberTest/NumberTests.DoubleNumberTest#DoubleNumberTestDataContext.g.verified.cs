@@ -28,8 +28,6 @@ partial class DoubleNumberTestDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
 			CreateParameter("@Param_Number1", System.Data.SqlDbType.Float, request.Number1 ?? (object)System.DBNull.Value
 			, p => p.IsNullable = true),
 			CreateParameter("@Param_Number4", System.Data.SqlDbType.Float, request.Number4 ?? (object)System.DBNull.Value

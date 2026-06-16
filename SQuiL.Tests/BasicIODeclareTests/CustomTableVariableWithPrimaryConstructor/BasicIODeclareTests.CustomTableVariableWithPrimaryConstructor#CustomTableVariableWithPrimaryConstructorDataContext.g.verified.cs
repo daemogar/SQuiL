@@ -28,8 +28,6 @@ partial class CustomTableVariableWithPrimaryConstructorDataContext : SQuiLBaseDa
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production"))
 		};
 		
 		command.CommandText = Query(parameters);
@@ -96,7 +94,7 @@ partial class CustomTableVariableWithPrimaryConstructorDataContext : SQuiLBaseDa
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTable) errors.Add(new(51001, 12, 1, 98, "Table", "Expected return table `Table`"));
+		if (!isTable) errors.Add(new(51001, 12, 1, 96, "Table", "Expected return table `Table`"));
 		
 		if(errors.Count == 0)
 			return new(response);

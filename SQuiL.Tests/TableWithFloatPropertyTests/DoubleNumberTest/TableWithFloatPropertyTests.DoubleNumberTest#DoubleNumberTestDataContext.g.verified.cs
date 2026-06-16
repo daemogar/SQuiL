@@ -28,8 +28,6 @@ partial class DoubleNumberTestDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production"))
 		};
 		
 		command.CommandText = Query(parameters);
@@ -90,7 +88,7 @@ partial class DoubleNumberTestDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isAnswers) errors.Add(new(51001, 12, 1, 92, "Answers", "Expected return table `Answers`"));
+		if (!isAnswers) errors.Add(new(51001, 12, 1, 90, "Answers", "Expected return table `Answers`"));
 		
 		if(errors.Count == 0)
 			return new(response);

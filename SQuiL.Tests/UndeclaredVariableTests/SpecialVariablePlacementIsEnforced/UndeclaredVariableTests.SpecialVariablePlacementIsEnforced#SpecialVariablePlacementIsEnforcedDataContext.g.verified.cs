@@ -28,8 +28,7 @@ partial class SpecialVariablePlacementIsEnforcedDataContext : SQuiLBaseDataConte
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production")),
+			CreateParameter("@Debug", System.Data.SqlDbType.Bit, request.Debug || EnvironmentName != "Production"),
 			CreateParameter("@Param_Name", System.Data.SqlDbType.VarChar, 100, request.Name switch
 			{
 				null => (object)System.DBNull.Value,
@@ -88,7 +87,7 @@ partial class SpecialVariablePlacementIsEnforcedDataContext : SQuiLBaseDataConte
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isCount) errors.Add(new(51001, 12, 1, 90, "Count", "Expected return scaler `Count`"));
+		if (!isCount) errors.Add(new(51001, 12, 1, 89, "Count", "Expected return scaler `Count`"));
 		
 		if(errors.Count == 0)
 			return new(response);

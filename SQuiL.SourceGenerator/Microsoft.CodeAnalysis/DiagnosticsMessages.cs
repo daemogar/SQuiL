@@ -194,6 +194,17 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0019 — <c>@SuppressDebug</c> is declared without a <c>@Debug</c> declaration in the same file.
+	/// <c>@SuppressDebug</c> only has meaning alongside <c>@Debug</c> (it gates the auto-debug
+	/// expression), so declaring it alone is a build error.
+	/// </summary>
+	public static void ReportSuppressDebugWithoutDebug(this SourceProductionContext context, string filename, SQuiL.SourceGenerator.Parser.SQuiLVariableValidator.Finding finding)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0019", "SuppressDebug Requires Debug",
+			$"{filename}: `{finding.Name}` (line {finding.Line}, column {finding.Column}) may only be declared when `@Debug` is also declared in the same file."));
+	}
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

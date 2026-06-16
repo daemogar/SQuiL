@@ -111,9 +111,9 @@ export function generateCSharpPreview(
     }
   }
 
-  // ── Request record (always partial; Debug + DebugOnly always present)
+  // ── Request record (always partial; specials are opt-in)
   lines.push(`// ── Request ─────────────────────────────────────────────`);
-  emitModelRecord(lines, `${queryName}Request`, params, /*isResponse*/ false);
+  emitModelRecord(lines, `${queryName}Request`, params, /*isResponse*/ false, parsed.variables);
 
   // ── Table-row records (output side)
   for (const v of returns) {
@@ -196,15 +196,33 @@ function emitModelRecord(
   typeName: string,
   vars: SQuiLVariable[],
   isResponse: boolean,
+  allVars?: SQuiLVariable[],
 ): void {
   lines.push(`public partial record ${typeName}`);
   lines.push(`{`);
 
-  // Request always exposes Debug + DebugOnly, regardless of SQL declarations.
+  // *Request specials are OPT-IN — each appears only when its bare special is
+  // declared in the SQL header. `@Debug` → `bool Debug`, `@SuppressDebug` →
+  // `bool SuppressDebug` (replaces the old always-on `DebugOnly`), `@AsOfDate`
+  // → a nullable typed property. `@EnvironmentName` is a sent parameter only,
+  // never a property.
   if (!isResponse) {
-    lines.push(`    public bool Debug { get; set; }`);
-    lines.push(`    public bool DebugOnly { get; set; }`);
-    if (vars.length > 0) lines.push('');
+    const declared = allVars ?? [];
+    const hasDebug = declared.some(v => v.role === 'debug');
+    const hasSuppressDebug = declared.some(v => v.role === 'suppressDebug');
+    const asOfDate = declared.find(v => v.role === 'asOfDate');
+
+    if (hasDebug) lines.push(`    public bool Debug { get; set; }`);
+    if (hasSuppressDebug) lines.push(`    public bool SuppressDebug { get; set; }`);
+    if (asOfDate) {
+      // Take only the type token (drop any "= default" the SQL initializer adds),
+      // matching the generator which maps the bare declared type. AsOfDate is
+      // always nullable on *Request.
+      const asOfType = asOfDate.sqlType.split(/[\s=]/)[0];
+      lines.push(`    public ${sqlToCSharp(asOfType)}? AsOfDate { get; set; }`);
+    }
+
+    if ((hasDebug || hasSuppressDebug || asOfDate) && vars.length > 0) lines.push('');
   }
 
   vars.forEach(v => {

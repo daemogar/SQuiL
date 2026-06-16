@@ -69,7 +69,7 @@ public class SQuiLParser(List<Token> Tokens)
 				if (SQuiLGenerator.IsSpecial(parts[0]))
 				{
 					if (!SQuiLGenerator.IsError(parts[0]))
-						return new(token, CodeType.INPUT_ARGUMENT, false, false, parts[0]);
+						return new(token, CodeType.INPUT_ARGUMENT, false, false, parts[0], IsSpecialDeclaration: true);
 
 					if (Current.Type != TokenType.TYPE_TABLE)
 						ThrowError();
@@ -268,7 +268,8 @@ public class SQuiLParser(List<Token> Tokens)
 									Original = $"{variable.Token.Original} {type.Original}"
 								})
 							{
-								Size = type.Value
+								Size = type.Value,
+								IsSpecialDeclaration = variable.IsSpecialDeclaration
 							};
 							CodeBlocks.Add(codeBlock);
 
@@ -298,7 +299,8 @@ public class SQuiLParser(List<Token> Tokens)
 							Original = $"{variable.Token.Original} {type.Original}"
 						}, variable.Name, defaultValue)
 						{
-							Size = type.Value
+							Size = type.Value,
+							IsSpecialDeclaration = variable.IsSpecialDeclaration
 						});
 					}
 					finally
@@ -385,4 +387,4 @@ public class SQuiLParser(List<Token> Tokens)
 	private DiagnosticException DE(string message) => new(message);
 }
 
-file record Variable(Token Token, CodeType Type, bool IsObject, bool IsTable, string Name);
+file record Variable(Token Token, CodeType Type, bool IsObject, bool IsTable, string Name, bool IsSpecialDeclaration = false);

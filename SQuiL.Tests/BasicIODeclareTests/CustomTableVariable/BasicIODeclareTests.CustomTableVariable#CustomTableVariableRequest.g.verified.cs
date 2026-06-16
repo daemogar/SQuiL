@@ -7,8 +7,5 @@ namespace TestCase;
 
 public partial record CustomTableVariableRequest
 {
-	public bool Debug { get; set; }
-	public bool DebugOnly { get; set; }
-	
 	public System.Collections.Generic.List<CustomFile>? Table { get; set; } = [];
 }

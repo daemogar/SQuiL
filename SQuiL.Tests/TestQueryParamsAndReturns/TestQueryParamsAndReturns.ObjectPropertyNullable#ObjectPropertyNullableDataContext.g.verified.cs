@@ -28,8 +28,6 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production"))
 		};
 		
 		command.CommandText = Query(parameters);
@@ -131,8 +129,8 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isStudent) errors.Add(new(51001, 12, 1, 133, "Student", "Expected return object `Student`"));
-		if (!isParents) errors.Add(new(51001, 12, 1, 134, "Parents", "Expected return table `Parents`"));
+		if (!isStudent) errors.Add(new(51001, 12, 1, 131, "Student", "Expected return object `Student`"));
+		if (!isParents) errors.Add(new(51001, 12, 1, 132, "Parents", "Expected return table `Parents`"));
 		
 		if(errors.Count == 0)
 			return new(response);

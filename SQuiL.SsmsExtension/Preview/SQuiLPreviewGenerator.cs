@@ -75,9 +75,9 @@ internal static class SQuiLPreviewGenerator
             if (v.Columns is { Count: > 0 })
                 EmitTableRecord(lines, RecordTypeName(v), v);
 
-        // ── Request record (always partial; Debug + DebugOnly always present) ──
+        // ── Request record (always partial; specials are opt-in) ──
         lines.Add("// ── Request ─────────────────────────────────────────────");
-        EmitModelRecord(lines, $"{queryName}Request", paramVars, isResponse: false);
+        EmitModelRecord(lines, $"{queryName}Request", paramVars, isResponse: false, parsed.Variables);
 
         // ── Table-row records (output side) ─────────────────────────────
         foreach (var v in returnVars)
@@ -157,17 +157,37 @@ internal static class SQuiLPreviewGenerator
         lines.Add("");
     }
 
-    private static void EmitModelRecord(List<string> lines, string typeName, List<SQuiLVariable> vars, bool isResponse)
+    private static void EmitModelRecord(
+        List<string> lines, string typeName, List<SQuiLVariable> vars, bool isResponse,
+        IReadOnlyList<SQuiLVariable>? allVars = null)
     {
         lines.Add($"public partial record {typeName}");
         lines.Add("{");
 
-        // *Request always exposes Debug + DebugOnly regardless of SQL declarations.
+        // *Request specials are OPT-IN — each appears only when its bare special
+        // is declared in the SQL header.  @Debug → bool Debug, @SuppressDebug →
+        // bool SuppressDebug (replaces the old always-on DebugOnly), @AsOfDate →
+        // a nullable typed property.  @EnvironmentName is a sent parameter only,
+        // never a property.
         if (!isResponse)
         {
-            lines.Add("    public bool Debug { get; set; }");
-            lines.Add("    public bool DebugOnly { get; set; }");
-            if (vars.Count > 0) lines.Add("");
+            var declared = allVars ?? new List<SQuiLVariable>();
+            bool hasDebug = declared.Any(v => v.Role == VariableRole.Debug);
+            bool hasSuppressDebug = declared.Any(v => v.Role == VariableRole.SuppressDebug);
+            var asOfDate = declared.FirstOrDefault(v => v.Role == VariableRole.AsOfDate);
+
+            if (hasDebug) lines.Add("    public bool Debug { get; set; }");
+            if (hasSuppressDebug) lines.Add("    public bool SuppressDebug { get; set; }");
+            if (asOfDate != null)
+            {
+                // Take only the type token (drop any "= default" the SQL initializer
+                // adds), matching the generator which maps the bare declared type.
+                // AsOfDate is always nullable on *Request.
+                string asOfType = asOfDate.SqlType.Split(new[] { ' ', '=' }, 2)[0];
+                lines.Add($"    public {SqlTypeMap.SqlToCSharp(asOfType)}? AsOfDate {{ get; set; }}");
+            }
+
+            if ((hasDebug || hasSuppressDebug || asOfDate != null) && vars.Count > 0) lines.Add("");
         }
 
         foreach (var v in vars)

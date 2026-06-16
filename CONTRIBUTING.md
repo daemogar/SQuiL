@@ -78,9 +78,16 @@ and are git-ignored — never commit them.
   `@Param_UserID`, `UserID`, `NewID()` — never `Id`.
 - **Generated record naming:** table-valued variables produce `<Name>Table`
   records; single-object variables produce `<Name>Object` records.
-- **Special variables:** `@Debug` and `@EnvironmentName` belong on the request;
-  `@Error` / `@Errors` on the response. `@Debug` is always emitted on the
-  request (`bool Debug` + `bool DebugOnly`) whether or not the SQL declares it.
+- **Special variables (all opt-in):** the four input specials — `@Debug`,
+  `@SuppressDebug`, `@EnvironmentName`, `@AsOfDate` — only affect the generated
+  code when the SQL declares them; nothing is emitted implicitly. `@Debug` →
+  `bool Debug` on the request when declared (the old always-on behavior and the
+  `DebugOnly` property are gone). `@SuppressDebug` → `bool SuppressDebug` on the
+  request; requires `@Debug` (else build error SP0019); replaces `DebugOnly`.
+  `@AsOfDate` (declared bare) → a nullable typed request property (e.g. `date` →
+  `System.DateOnly?`); null at the call site means current-time-at-execution.
+  `@EnvironmentName` → sent as a SQL parameter when declared, not a property.
+  `@Error` / `@Errors` → on the response when declared.
 - Match the surrounding code style (tabs for indentation; see `.editorconfig`).
 
 ## Packaging note (important)

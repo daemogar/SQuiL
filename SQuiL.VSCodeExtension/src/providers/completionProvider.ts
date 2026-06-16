@@ -87,12 +87,21 @@ const HEADER_VARS: VarDescriptor[] = [
   {
     prefix: '@Debug',
     snippet: '@Debug bit = 1',
-    detail: 'Debug flag — always on *Request',
+    detail: 'Debug flag — on *Request as `bool Debug` when declared',
     docs:
-      'Special SQuiL variable. `*Request` **always** exposes `bool Debug` (plus `bool DebugOnly`); ' +
-      'you only need to declare `@Debug` in SQL if the query body itself reads the value. ' +
+      'Opt-in special SQuiL variable. `*Request` exposes `bool Debug` **only when `@Debug` is declared**. ' +
+      'Declare `@SuppressDebug` alongside it to gate the auto-debug expression. ' +
       'The default `= 1` is convenient when running the query directly in SSMS.\n\n' +
       '```sql\nDeclare @Debug bit = 1;\n```',
+  },
+  {
+    prefix: '@SuppressDebug',
+    snippet: '@SuppressDebug bit = 0',
+    detail: 'Suppress auto-debug — on *Request as `bool SuppressDebug` when declared',
+    docs:
+      'Opt-in special SQuiL variable. Gates the auto-debug expression (replaces the old `DebugOnly` property). ' +
+      'Must be declared together with `@Debug`, otherwise **SP0019** is reported.\n\n' +
+      '```sql\nDeclare @Debug bit = 1;\nDeclare @SuppressDebug bit = 0;\n```',
   },
   {
     prefix: '@EnvironmentName',
@@ -101,8 +110,18 @@ const HEADER_VARS: VarDescriptor[] = [
     docs:
       'Resolved by `SQuiLBaseDataContext` from `IConfiguration["EnvironmentName"]` or the ' +
       '`ASPNETCORE_ENVIRONMENT` environment variable (defaulting to `"Development"`). ' +
-      'Declare in SQL only when the query body needs to read it.\n\n' +
+      'Declare in SQL only when the query body needs to read it. Sent as a parameter only — never a C# property.\n\n' +
       '```sql\nDeclare @EnvironmentName varchar(50);\n```',
+  },
+  {
+    prefix: '@AsOfDate',
+    snippet: "@AsOfDate date = '2008-10-01'",
+    detail: 'Point-in-time — nullable typed property on *Request',
+    docs:
+      'Opt-in special SQuiL variable. Caller-supplied point-in-time value, surfaced as a **nullable typed property** ' +
+      'on `*Request` (its type follows the SQL type map, e.g. `date` → `DateOnly?`). ' +
+      'When null, the **current time at execution** is substituted; the SQL initializer is ignored at runtime.\n\n' +
+      "```sql\nDeclare @AsOfDate date = '2008-10-01';\n```",
   },
   {
     prefix: '@Error',

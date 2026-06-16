@@ -1,11 +1,11 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
 namespace SQuiL.VisualStudioExtension.Parsing;
 
 /// <summary>
 /// Secondary lint passes that aren't part of <see cref="SQuiLParser"/>'s
-/// core parse â€” port of the <c>lintVariableNames</c> and
+/// core parse — port of the <c>lintVariableNames</c> and
 /// <c>lintStatementTerminators</c> methods in
 /// <c>SQuiL.VSCodeExtension/src/providers/diagnosticsProvider.ts</c>.
 ///
@@ -37,7 +37,7 @@ internal static class SQuiLLinter
 
     /// <summary>
     /// Append "Prefer 'Param_'" suggestions and "DECLARE missing ;" hints to
-    /// <paramref name="diagnostics"/>.  Severity for both is <c>Info</c> â€” these
+    /// <paramref name="diagnostics"/>.  Severity for both is <c>Info</c> — these
     /// are style hints, not errors.  Also runs the undeclared-variable /
     /// special-placement validation (errors/warnings).
     /// </summary>
@@ -69,7 +69,7 @@ internal static class SQuiLLinter
             string actual = m.Value;
             // Only flag when the casing differs from canonical PascalCase.
             // (The TS implementation has a clearer guard for this; the second
-            // clause there is redundant â€” equivalent to "actual != correct".)
+            // clause there is redundant — equivalent to "actual != correct".)
             if (actual == correct) continue;
 
             diagnostics.Add(new SQuiLDiagnostic
@@ -91,7 +91,7 @@ internal static class SQuiLLinter
         if (BlockCommentEnd.IsMatch(trimmed)) return;
 
         // Multi-line TABLE declarations defer the semicolon to the closing
-        // line â€” skip while the open paren has not been balanced yet.
+        // line — skip while the open paren has not been balanced yet.
         if (TableOpenWithoutClose.IsMatch(trimmed) && !trimmed.Contains(")"))
             return;
 
@@ -105,16 +105,16 @@ internal static class SQuiLLinter
         });
     }
 
-    // â”€â”€ Undeclared-variable / special-placement validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Undeclared-variable / special-placement validation ──────────────────
     //
     // A SQuiL file must be valid T-SQL: every @variable reference needs a
     // textually-preceding DECLARE for that exact name (SQL Server rejects the
-    // whole batch otherwise) â€” no remapping, no implicit specials. @Debug and
+    // whole batch otherwise) — no remapping, no implicit specials. @Debug and
     // @EnvironmentName must additionally be declared before the USE statement,
     // and preferably before any other declaration.
     //
     // Port of SQuiLVariableValidator.cs (source generator) and
-    // variableValidator.ts (VS Code extension) â€” change one, change the others.
+    // variableValidator.ts (VS Code extension) — change one, change the others.
 
     private enum ScanState { Normal, ExpectVariable, InType, InDefault }
 
@@ -127,7 +127,9 @@ internal static class SQuiLLinter
 
     private static bool IsSpecialVariable(string name)
         => string.Equals(name, "@Debug", System.StringComparison.OrdinalIgnoreCase)
-        || string.Equals(name, "@EnvironmentName", System.StringComparison.OrdinalIgnoreCase);
+        || string.Equals(name, "@SuppressDebug", System.StringComparison.OrdinalIgnoreCase)
+        || string.Equals(name, "@EnvironmentName", System.StringComparison.OrdinalIgnoreCase)
+        || string.Equals(name, "@AsOfDate", System.StringComparison.OrdinalIgnoreCase);
 
     private static bool IsNameChar(char c)
         => char.IsLetterOrDigit(c) || c == '_' || c == '$' || c == '#';
@@ -136,7 +138,7 @@ internal static class SQuiLLinter
     {
         string text = MaskNonCode(sql);
 
-        var declarations = new List<KeyValuePair<string, int>>(); // name â†’ offset
+        var declarations = new List<KeyValuePair<string, int>>(); // name → offset
         var references = new List<KeyValuePair<string, int>>();
         int? useOffset = null;
 
@@ -181,7 +183,7 @@ internal static class SQuiLLinter
                 i++;
                 if (i < text.Length && text[i] == '@')
                 {
-                    // system variable (@@ROWCOUNT etc.) â€” skip the whole token
+                    // system variable (@@ROWCOUNT etc.) — skip the whole token
                     i++;
                     while (i < text.Length && IsNameChar(text[i])) i++;
                     continue;
@@ -224,7 +226,7 @@ internal static class SQuiLLinter
                     continue;
                 }
 
-                // CASEâ€¦END pairs inside a default-value expression must not end
+                // CASE…END pairs inside a default-value expression must not end
                 // the declare statement when END is reached.
                 if (state == ScanState.InDefault && word.Equals("CASE", System.StringComparison.OrdinalIgnoreCase))
                 {
@@ -243,7 +245,7 @@ internal static class SQuiLLinter
                 {
                     state = ScanState.Normal;
                     caseDepth = 0;
-                    // no semicolon between the declare and the next statement â€”
+                    // no semicolon between the declare and the next statement —
                     // re-read the word in Normal state so DECLARE/USE chains work
                     i = start;
                 }
@@ -269,7 +271,7 @@ internal static class SQuiLLinter
             AddFinding(sql, diagnostics, reference.Key, reference.Value, DiagnosticSeverity.Error,
                 declaredAnywhere
                     ? $"Variable '{reference.Key}' is referenced before its declaration. Move the Declare above the first use."
-                    : $"Variable '{reference.Key}' is referenced but never declared. SQuiL files must be valid T-SQL â€” declare it before use.");
+                    : $"Variable '{reference.Key}' is referenced but never declared. SQuiL files must be valid T-SQL — declare it before use.");
         }
 
         foreach (var declaration in declarations)
@@ -292,6 +294,25 @@ internal static class SQuiLLinter
                 break;
             }
         }
+
+        // @SuppressDebug only has meaning alongside @Debug (it gates the
+        // auto-debug expression). Declaring it without @Debug is an error —
+        // mirrors the generator's SP0019 (SuppressDebugWithoutDebug finding).
+        bool hasDebug = false;
+        foreach (var declaration in declarations)
+            if (string.Equals(declaration.Key, "@Debug", System.StringComparison.OrdinalIgnoreCase))
+            {
+                hasDebug = true;
+                break;
+            }
+
+        if (!hasDebug)
+            foreach (var declaration in declarations)
+            {
+                if (!string.Equals(declaration.Key, "@SuppressDebug", System.StringComparison.OrdinalIgnoreCase)) continue;
+                AddFinding(sql, diagnostics, declaration.Key, declaration.Value, DiagnosticSeverity.Error,
+                    $"'{declaration.Key}' may only be declared when '@Debug' is also declared in the same file.");
+            }
     }
 
     private static void AddFinding(
@@ -396,4 +417,3 @@ internal static class SQuiLLinter
         return new string(chars);
     }
 }
-

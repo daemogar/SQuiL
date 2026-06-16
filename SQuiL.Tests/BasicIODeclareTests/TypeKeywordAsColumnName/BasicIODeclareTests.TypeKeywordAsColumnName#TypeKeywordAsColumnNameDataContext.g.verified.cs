@@ -28,8 +28,6 @@ partial class TypeKeywordAsColumnNameDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@EnvironmentName", System.Data.SqlDbType.VarChar, EnvironmentName.Length, EnvironmentName),
-			CreateParameter("@Debug", System.Data.SqlDbType.Bit, !request.DebugOnly && (request.Debug || EnvironmentName != "Production"))
 		};
 		
 		command.CommandText = Query(parameters);
@@ -99,7 +97,7 @@ partial class TypeKeywordAsColumnNameDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isRecords) errors.Add(new(51001, 12, 1, 101, "Records", "Expected return table `Records`"));
+		if (!isRecords) errors.Add(new(51001, 12, 1, 99, "Records", "Expected return table `Records`"));
 		
 		if(errors.Count == 0)
 			return new(response);

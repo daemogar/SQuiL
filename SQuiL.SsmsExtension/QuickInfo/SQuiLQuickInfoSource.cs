@@ -105,30 +105,58 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
               + "  @Params_Name     input table-valued\r\n"
               + "  @Return_Name     output scalar\r\n"
               + "  @Returns_Name    output table\r\n"
-              + "  @Debug, @EnvironmentName, @Error, @Errors  special variables"));
+              + "  @Debug, @SuppressDebug, @EnvironmentName, @AsOfDate, @Error, @Errors  special variables"));
 
         return new ContainerElement(ContainerElementStyle.Stacked, header, hint);
     }
 
     private static ContainerElement BuildVariableContent(SQuiLVariable v)
     {
-        bool isSpecial = v.Role
-            is VariableRole.Debug
-            or VariableRole.EnvironmentName
-            or VariableRole.Error
-            or VariableRole.Errors
-            or VariableRole.Unknown;
-
         var header = new ClassifiedTextElement(
             new ClassifiedTextRun(PredefinedClassificationTypeNames.Identifier, v.RawName),
             new ClassifiedTextRun(PredefinedClassificationTypeNames.Other, "  —  "),
             new ClassifiedTextRun(PredefinedClassificationTypeNames.Comment, SQuiLParser.DescribeRole(v.Role)));
 
+        // @AsOfDate is a special only in recognition — unlike the other specials
+        // it IS emitted as a nullable typed property on *Request, so it gets the
+        // full type details below (with a nullable note) rather than the
+        // "not emitted as a C# property" message.
+        if (v.Role == VariableRole.AsOfDate)
+        {
+            // Map only the type token (drop any "= default" the SQL initializer adds).
+            string asOfType = v.SqlType.Split(new[] { ' ', '=' }, 2)[0];
+            var asOfDetails = new ClassifiedTextElement(
+                Field("SQL type",     v.SqlType),
+                NewLine,
+                Field("C# type",      $"{SqlTypeMap.SqlToCSharp(asOfType)}?"),
+                NewLine,
+                Field("C# name",      v.Name),
+                NewLine,
+                Field("Generated in", "*Request"));
+            var asOfNote = new ClassifiedTextElement(
+                new ClassifiedTextRun(PredefinedClassificationTypeNames.Comment,
+                    "Special SQuiL variable — emitted as a nullable typed property on *Request. "
+                  + "When null, the current time at execution is substituted."));
+            return new ContainerElement(ContainerElementStyle.Stacked, header, asOfDetails, asOfNote);
+        }
+
+        bool isSpecial = v.Role
+            is VariableRole.Debug
+            or VariableRole.SuppressDebug
+            or VariableRole.EnvironmentName
+            or VariableRole.Error
+            or VariableRole.Errors
+            or VariableRole.Unknown;
+
         if (isSpecial)
         {
+            // @Debug / @SuppressDebug surface as bool properties on *Request when
+            // declared but are not ordinary mapped params; @EnvironmentName/@Error/
+            // @Errors are not emitted as properties at all. The shared note keeps the
+            // tooltip simple — the role description above carries the precise behavior.
             var note = new ClassifiedTextElement(
                 new ClassifiedTextRun(PredefinedClassificationTypeNames.Comment,
-                    "Special SQuiL variable — not emitted as a C# property."));
+                    "Special SQuiL variable — not emitted as an ordinary mapped C# property."));
             return new ContainerElement(ContainerElementStyle.Stacked, header, note);
         }
 

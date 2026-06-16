@@ -510,29 +510,62 @@ public class SQuiLDataContext(
 			writer.WriteLine("{");
 			writer.Indent++;
 
-			writer.WriteLine($$"""CreateParameter("@{{SQuiLGenerator.EnvironmentName}}", System.Data.SqlDbType.VarChar, {{SQuiLGenerator.EnvironmentName}}.Length, {{SQuiLGenerator.EnvironmentName}}),""");
-
-			var debug = $$"""!request.DebugOnly && (request.Debug || {{SQuiLGenerator.EnvironmentName}} != "Production")""";
-			writer.Write($$"""CreateParameter("@{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit, {{debug}})""");
-
-			var parameters = Blocks
+			var inputArgs = Blocks
 				.Where(p => p.CodeType == CodeType.INPUT_ARGUMENT)
 				.ToList();
 
-			if (parameters.Count == 0)
+			bool HasSpecial(string name) => inputArgs.Any(p => p.IsSpecialDeclaration && p.Name == name);
+			var hasDebug = HasSpecial(SQuiLGenerator.Debug);
+			var hasSuppressDebug = HasSpecial(SQuiLGenerator.SuppressDebug);
+			var hasEnvironmentName = HasSpecial(SQuiLGenerator.EnvironmentName);
+			var asOfDate = inputArgs.FirstOrDefault(p => p.IsSpecialDeclaration && p.Name == SQuiLGenerator.AsOfDate);
+
+			var notFirst = false;
+			void Comma()
 			{
-				writer.Indent--;
-				writer.WriteLine();
-				writer.WriteLine("};");
-				return;
+				if (notFirst) writer.WriteLine(",");
+				notFirst = true;
 			}
 
-			foreach (var parameter in parameters)
+			// All input specials are opt-in: each command parameter is emitted only when the
+			// corresponding bare special is declared in the header. Every emitted parameter
+			// shares the same `Comma()` separator discipline (no leading/trailing comma).
+			// Order: EnvironmentName, Debug, SuppressDebug, AsOfDate, then the regular params.
+			if (hasEnvironmentName)
 			{
-				if (SQuiLGenerator.IsSpecial(parameter.Name))
+				Comma();
+				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.EnvironmentName}}", System.Data.SqlDbType.VarChar, {{SQuiLGenerator.EnvironmentName}}.Length, {{SQuiLGenerator.EnvironmentName}})""");
+			}
+
+			if (hasDebug)
+			{
+				var debug = hasSuppressDebug
+					? $$"""!request.SuppressDebug && (request.Debug || {{SQuiLGenerator.EnvironmentName}} != "Production")"""
+					: $"request.Debug || {SQuiLGenerator.EnvironmentName} != \"Production\"";
+				Comma();
+				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit, {{debug}})""");
+			}
+
+			if (hasSuppressDebug)
+			{
+				Comma();
+				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.SuppressDebug}}", System.Data.SqlDbType.Bit, request.SuppressDebug)""");
+			}
+
+			if (asOfDate is not null)
+			{
+				Comma();
+				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.AsOfDate}}", {{asOfDate.SqlDbType()}}, request.AsOfDate ?? {{AsOfDateNowExpression(asOfDate)}})""");
+			}
+
+			foreach (var parameter in inputArgs)
+			{
+				// Skip bare specials (handled above / in Task 6). @Param_AsOfDate
+				// (IsSpecialDeclaration == false) emits normally through this loop.
+				if (parameter.IsSpecialDeclaration)
 					continue;
 
-				writer.WriteLine(",");
+				Comma();
 				writer.Write($$"""CreateParameter("@Param_{{parameter.Name}}", {{parameter.SqlDbType()}}, """);
 
 				WriteValue();
@@ -570,9 +603,23 @@ public class SQuiLDataContext(
 				}
 			}
 
-			writer.WriteLine();
+			if (notFirst)
+				writer.WriteLine();
 			writer.Indent--;
 			writer.WriteLine("};");
+
+			// The C# expression substituted for a null @AsOfDate. `.Now` is not uniform across
+			// the date/time CLR types the type map can produce, so switch on the SAME mapped
+			// CLR type Task 5 used for the Request property (`block.CSharpType("")`):
+			//   System.DateOnly       -> System.DateOnly.FromDateTime(System.DateTime.Now)  (DateOnly has no .Now)
+			//   System.DateTime       -> System.DateTime.Now
+			//   System.DateTimeOffset -> System.DateTimeOffset.Now
+			static string AsOfDateNowExpression(CodeBlock block) => block.CSharpType("") switch
+			{
+				"System.DateOnly" => "System.DateOnly.FromDateTime(System.DateTime.Now)",
+				"System.DateTimeOffset" => "System.DateTimeOffset.Now",
+				_ => "System.DateTime.Now",
+			};
 		}
 		/*
 		string F(IEnumerable<string> lines)

@@ -26,10 +26,12 @@ public static class SQuiLVariableValidator
 		Undeclared,
 		/// <summary>The variable is referenced before its declaration. Error.</summary>
 		UsedBeforeDeclared,
-		/// <summary>@Debug/@EnvironmentName is declared after the USE statement. Error.</summary>
+		/// <summary>An input special is declared after the USE statement. Error.</summary>
 		SpecialAfterUse,
-		/// <summary>@Debug/@EnvironmentName is declared in the header but other declarations precede it. Warning.</summary>
+		/// <summary>An input special is declared in the header but other declarations precede it. Warning.</summary>
 		SpecialNotFirst,
+		/// <summary>@SuppressDebug declared but @Debug is not declared. Error.</summary>
+		SuppressDebugWithoutDebug,
 	}
 
 	/// <summary>One validation finding in the SQL text.</summary>
@@ -50,7 +52,9 @@ public static class SQuiLVariableValidator
 
 	private static bool IsSpecial(string name)
 		=> name.Equals("@Debug", StringComparison.OrdinalIgnoreCase)
-		|| name.Equals("@EnvironmentName", StringComparison.OrdinalIgnoreCase);
+		|| name.Equals("@SuppressDebug", StringComparison.OrdinalIgnoreCase)
+		|| name.Equals("@EnvironmentName", StringComparison.OrdinalIgnoreCase)
+		|| name.Equals("@AsOfDate", StringComparison.OrdinalIgnoreCase);
 
 	/// <summary>
 	/// Scans <paramref name="sql"/> and returns every rule violation in document order.
@@ -218,6 +222,15 @@ public static class SQuiLVariableValidator
 				break;
 			}
 		}
+
+		var hasDebug = declarations.Any(d => d.Name.Equals("@Debug", StringComparison.OrdinalIgnoreCase));
+		if (!hasDebug)
+			foreach (var (name, offset) in declarations)
+			{
+				if (!name.Equals("@SuppressDebug", StringComparison.OrdinalIgnoreCase)) continue;
+				var (line, column) = Position(sql, offset);
+				findings.Add((offset, new(FindingKind.SuppressDebugWithoutDebug, name, line, column)));
+			}
 
 		return [.. findings.OrderBy(f => f.Offset).Select(f => f.Finding)];
 	}

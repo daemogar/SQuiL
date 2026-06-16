@@ -7,8 +7,7 @@ namespace CourseEvaluation.Application.Data;
 
 public partial record GetSectionDetailsRequest
 {
-	public bool Debug { get; set; }
-	public bool DebugOnly { get; set; }
+	public bool Debug { get; set; } = true;
 	
 	public string? SectionID { get; set; }
 }

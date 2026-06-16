@@ -7,8 +7,5 @@ namespace TestCase;
 
 public partial record DateTypeVariableRequest
 {
-	public bool Debug { get; set; }
-	public bool DebugOnly { get; set; }
-	
 	public System.DateOnly? AsOfDate { get; set; }
 }

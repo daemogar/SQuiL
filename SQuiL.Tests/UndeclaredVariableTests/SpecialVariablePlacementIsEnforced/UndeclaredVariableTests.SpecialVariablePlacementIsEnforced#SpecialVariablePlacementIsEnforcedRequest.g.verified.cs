@@ -8,7 +8,6 @@ namespace TestCase;
 public partial record SpecialVariablePlacementIsEnforcedRequest
 {
 	public bool Debug { get; set; }
-	public bool DebugOnly { get; set; }
 	
 	public string? Name { get; set; }
 }

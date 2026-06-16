@@ -1,0 +1,368 @@
+﻿{
+  Diagnostics: [
+    {
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = 15, Value = , Original = @Debug bit }, Name = Debug, DefaultValue = 1, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = 15, Value = , Original = @Debug bit }, Name = Debug, DefaultValue = 1, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = 47, Value = , Original = @SuppressDebug bit }, Name = SuppressDebug, DefaultValue = 0, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = 47, Value = , Original = @SuppressDebug bit }, Name = SuppressDebug, DefaultValue = 0, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATE, Offset = 74, Value = , Original = @AsOfDate date }, Name = AsOfDate, DefaultValue = 2008-10-01, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATE, Offset = 74, Value = , Original = @AsOfDate date }, Name = AsOfDate, DefaultValue = 2008-10-01, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = OUTPUT_VARIABLE, DatabaseType = Token { Type = TYPE_INT, Offset = 117, Value = Count, Original = @Return_Count int }, Name = Count, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties =  },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = OUTPUT_VARIABLE, DatabaseType = Token { Type = TYPE_INT, Offset = 117, Value = Count, Original = @Return_Count int }, Name = Count, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties =  },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 126, Value = MyDatabase, Original = MyDatabase }, Name = MyDatabase, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties =  },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = 126, Value = MyDatabase, Original = MyDatabase }, Name = MyDatabase, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties =  },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 138, Value = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select 'Return_Count' As [__SQuiL__Table__Type__Return_Count__], @Return_Count; , Original = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count; }, Name = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select 'Return_Count' As [__SQuiL__Table__Type__Return_Count__], @Return_Count; , DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties =  },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = 138, Value = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select 'Return_Count' As [__SQuiL__Table__Type__Return_Count__], @Return_Count; , Original = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count; }, Name = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select 'Return_Count' As [__SQuiL__Table__Type__Return_Count__], @Return_Count; , DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties =  },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_DECLARE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: VARIABLE => Debug,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => Debug,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_BOOLEAN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_BOOLEAN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_EQUAL => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_EQUAL => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: LITERAL_NUMBER => 1,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: LITERAL_NUMBER => 1,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_DECLARE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: VARIABLE => SuppressDebug,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => SuppressDebug,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_BOOLEAN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_BOOLEAN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_EQUAL => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_EQUAL => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: LITERAL_NUMBER => 0,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: LITERAL_NUMBER => 0,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_DECLARE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: VARIABLE => AsOfDate,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => AsOfDate,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_DATE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_DATE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_EQUAL => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_EQUAL => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: LITERAL_STRING => 2008-10-01,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: LITERAL_STRING => 2008-10-01,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_DECLARE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: VARIABLE => Return_Count,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => Return_Count,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_INT => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_INT => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_USE => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_USE => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => MyDatabase,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => MyDatabase,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SELECT_VARIABLE => Return_Count,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SELECT_VARIABLE => Return_Count,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: BODY => Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count;,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: BODY => Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count;,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}
