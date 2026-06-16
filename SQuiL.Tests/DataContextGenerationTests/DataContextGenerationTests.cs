@@ -216,10 +216,11 @@ public class DataContextGenerationTests //: DataContextUsedTests
 				// Only the first partial declaration of a class may carry the
 				// primary constructor (CS8863), and the shared record types may
 				// only be defined once (CS0101) — so subsequent sources of a
-				// generic-name (split) context get a partial that names the base
-				// type without arguments (legal C#, and required by the
-				// generator's per-declaration SP0010 inheritance check), and
-				// only the first source of any test carries the shared records.
+				// generic-name (split) context declare `: SQuiLBaseDataContext`
+				// explicitly by this test fixture's own convention (the generator
+				// no longer requires it; it auto-supplies the base type and
+				// constructor for context partials that declare no constructor),
+				// and only the first source of any test carries the shared records.
 				return useGenericName && index > 0
 					? $$"""
 						using {{NamespaceName}};

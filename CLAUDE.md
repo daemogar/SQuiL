@@ -357,6 +357,7 @@ For a SQL file `MyQuery.sql`, the generator creates:
 - `<Namespace>.<Context>DataContext.MyQueryDataContext.g.cs` - Main method to execute query
 - `<Namespace>.<Context>DataContext.MyQueryRequest.g.cs` - Request model from `@Param*` variables
 - `<Namespace>.<Context>DataContext.MyQueryResponse.g.cs` - Response model from `@Return*` variables
+- `<Namespace>.<Context>DataContext.Constructor.g.cs` - Base class inheritance + `IConfiguration` constructor (emitted only when no constructor is declared on the context class; see Optional Inheritance below)
 - Partial classes for custom tables if `[SQuiLTable]` attributes are used
 
 ### Key Components
@@ -455,8 +456,21 @@ Generated data contexts expect connection strings in `IConfiguration`:
 The `[SQuiLQuery]` attribute accepts an optional `setting` parameter to specify which connection string to use:
 ```csharp
 [SQuiLQuery(QueryFiles.MyQuery, setting: "CustomName")]
-public partial class MyDataContext : SQuiLBaseDataContext { }
+public partial class MyDataContext { }
 ```
+
+### Optional inheritance (`SQuiLBaseDataContext`)
+
+Inheriting `SQuiLBaseDataContext` explicitly is **not required**. When the context class declares no constructor of its own, the generator emits a `<Ctx>.Constructor.g.cs` file that supplies:
+
+```csharp
+public partial class MyDataContext : SQuiLBaseDataContext
+{
+    public MyDataContext(IConfiguration Configuration) : base(Configuration) { }
+}
+```
+
+Declaring **any** constructor (primary or ordinary) on the class opts out — the generator skips the constructor file, and the hand-written constructor must chain `: base(configuration)`. The class must still be `partial` (diagnostic **SP0006**). The explicit form — `public partial class MyDataContext(IConfiguration Configuration) : SQuiLBaseDataContext(Configuration) { }` — is still valid and compiles unchanged (backward-compatible). **SP0010 is retired** — do not reuse that diagnostic ID.
 
 ## Special Handling
 

@@ -69,12 +69,15 @@ Declare a data context and point it at the query:
 
 ```csharp
 [SQuiLQuery(QueryFiles.GetUser)]
-public partial class MyDataContext : SQuiLBaseDataContext { }
+public partial class MyDataContext { }
 ```
 
 SQuiL generates `GetUserRequest`, `GetUserResponse`, the
-`MyDataContext.GetUser(…)` method, and an `AddSQuiL…()` extension for DI. The
-connection string is read from `IConfiguration` (default name
+`MyDataContext.GetUser(…)` method, and an `AddSQuiL…()` extension for DI.
+It also auto-supplies `: SQuiLBaseDataContext` and an `IConfiguration` constructor
+(into a generated `Constructor.g.cs` file) when the class declares no constructor
+of its own — declaring any constructor opts out (it must chain `: base(configuration)`).
+The connection string is read from `IConfiguration` (default name
 `SQuiLDatabase`, overridable per query via `[SQuiLQuery(…, setting: "Name")]`).
 
 ## Variable-naming conventions

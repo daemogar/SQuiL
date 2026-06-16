@@ -296,7 +296,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 	/// enums, resolves table-type mappings, and drives <see cref="FileGenerator"/> for each
 	/// SQL file / data-context pair.
 	/// </summary>
-	private void Execute(Compilation _, ImmutableArray<SQuiLDependency> dependencies, ImmutableArray<AdditionalText> files, ImmutableArray<SQuiLDefinition> definitions, ImmutableDictionary<string, SQuiLPartialModel> records, SourceProductionContext context)
+	private void Execute(Compilation compilation, ImmutableArray<SQuiLDependency> dependencies, ImmutableArray<AdditionalText> files, ImmutableArray<SQuiLDefinition> definitions, ImmutableDictionary<string, SQuiLPartialModel> records, SourceProductionContext context)
 	{
 		var missingDependencyInjectable = !dependencies.Any(p => p?.DependencyInjection == true);
 		if (missingDependencyInjectable)
@@ -322,6 +322,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		}
 
 		List<string> contexts = [];
+		HashSet<string> emittedConstructors = [];
 		SQuiLTableMap tableMap = new();
 
 		foreach (var record in records)
@@ -383,27 +384,15 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				return;
 
 			var text = file.GetText(context.CancellationToken);
-			var inherits = definition.Class.BaseList?.Types
-				.Any(p => p.ToString() == BaseDataContextClassName
-					|| p.ToString().StartsWith($"{BaseDataContextClassName}(")) == true;
 
-			if (!definition.HasPartialKeyword || text is null || !inherits)
+			if (text is null)
 			{
-				if (text is null)
-				{
-					context.FileNotFound(file.Path, location);
-					continue;
-				}
-
-				if (!inherits)
-					context.MissingBaseDataContextDeclaration(location);
-
-				if (definition.HasPartialKeyword)
-					continue;
-
-				location = definition.Class.Keyword.GetLocation();
-				context.MissingPartialDeclaration(location);
+				context.FileNotFound(file.Path, location);
+				continue;
 			}
+
+			if (!definition.HasPartialKeyword)
+				context.MissingPartialDeclaration(definition.Class.Keyword.GetLocation());
 
 			var classname = definition.Class.Identifier.ValueText;
 			var @namespace = definition.Class.Parent switch
@@ -424,6 +413,18 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				continue;
 
 			contexts.Add($"{@namespace}.{classname}");
+
+			var symbol = compilation
+				.GetSemanticModel(definition.Class.SyntaxTree)
+				.GetDeclaredSymbol(definition.Class);
+
+			if (symbol is not null
+				&& emittedConstructors.Add(symbol.ToDisplayString())
+				&& !symbol.InstanceConstructors.Any(p => !p.IsImplicitlyDeclared))
+			{
+				EmitConstructor(@namespace, classname);
+			}
+
 			var generation = generator
 				.Create(@namespace, classname, method, setting, text, records);
 
@@ -487,6 +488,25 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				});
 
 			context.AddSource($"{NamespaceName}Extensions.g.cs", SourceText.From(text.ToString(), Encoding.UTF8));
+		}
+
+		void EmitConstructor(string @namespace, string classname)
+		{
+			StringWriter text = new();
+			IndentedTextWriter writer = new(text);
+
+			writer.Block($$"""
+				{{FileHeader}}using Microsoft.Extensions.Configuration;
+
+				using {{NamespaceName}};
+
+				namespace {{@namespace}};
+
+				partial class {{classname}} : {{BaseDataContextClassName}}
+				""",
+				() => writer.WriteLine($"public {classname}(IConfiguration Configuration) : base(Configuration) {{ }}"));
+
+			context.AddSource($"{@namespace}.{classname}.Constructor.g.cs", SourceText.From(text.ToString(), Encoding.UTF8));
 		}
 
 		static void GenerateQueryFilesEnum(SourceProductionContext context, ImmutableArray<AdditionalText> files)

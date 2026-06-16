@@ -530,7 +530,7 @@ and re-running it replaces the existing block in place. <strong>Existing blocks 
 
 <p>To use a different key, pass it to the <code>[SQuiLQuery]</code> attribute:</p>
 <pre><code>[<span class="cs-attr">SQuiLQuery</span>(<span class="cs-cls">QueryFiles</span>.GetUserCount, <span class="cs-pn">setting</span>: <span class="str">"CustomKey"</span>)]
-<span class="cs-kw">public partial class</span> <span class="cs-cls">GetUserCountDataContext</span> : <span class="cs-cls">SQuiLBaseDataContext</span> { }</code></pre>
+<span class="cs-kw">public partial class</span> <span class="cs-cls">GetUserCountDataContext</span> { }</code></pre>
 
 <!-- ──────────────────── Project Setup ────────────────────────────────── -->
 <h2>Project Setup</h2>
@@ -554,20 +554,19 @@ and re-running it replaces the existing block in place. <strong>Existing blocks 
   (forward slashes work too).
 </div>
 
-<h3>3. Declare the data context (<code>[SQuiLQuery]</code> + <code>IConfiguration</code>)</h3>
+<h3>3. Declare the data context (<code>[SQuiLQuery]</code>)</h3>
 <p>Your data context is a <code>partial class</code> decorated with one <code>[SQuiLQuery]</code> attribute per <code>.squil</code> file
-it owns. It must inherit from <code>SQuiLBaseDataContext</code> and forward an <code>IConfiguration</code> to the base
-constructor so connection strings can be resolved:</p>
+it owns. Inheriting <code>SQuiLBaseDataContext</code> explicitly is <strong>not required</strong> — SQuiL supplies the base
+type and an <code>IConfiguration</code> constructor automatically when the class declares no constructor of its own.
+Declaring any constructor (primary or ordinary) opts out; that constructor must then chain <code>: base(configuration)</code>.</p>
 
-<pre><code><span class="cs-kw">using</span> <span class="cs-cls">Microsoft</span>.<span class="cs-cls">Extensions</span>.<span class="cs-cls">Configuration</span>;
-<span class="cs-kw">using</span> <span class="cs-cls">SQuiL</span>;
+<pre><code><span class="cs-kw">using</span> <span class="cs-cls">SQuiL</span>;
 
 <span class="cs-kw">namespace</span> <span class="cs-cls">YourApp</span>.<span class="cs-cls">Data</span>;
 
 [<span class="cs-attr">SQuiLQuery</span>(<span class="cs-cls">QueryFiles</span>.GetUserName)]
 [<span class="cs-attr">SQuiLQuery</span>(<span class="cs-cls">QueryFiles</span>.ListUsersByDepartment, <span class="cs-pn">setting</span>: <span class="str">"HrDatabase"</span>)]
-<span class="cs-kw">public partial class</span> <span class="cs-cls">UserDataContext</span>(<span class="cs-cls">IConfiguration</span> <span class="cs-pn">configuration</span>)
-    : <span class="cs-cls">SQuiLBaseDataContext</span>(<span class="cs-pn">configuration</span>);</code></pre>
+<span class="cs-kw">public partial class</span> <span class="cs-cls">UserDataContext</span> { }</code></pre>
 
 <p>Two things to note:</p>
 <ul>
@@ -586,7 +585,7 @@ context for you. Call it once in <code>Program.cs</code>:</p>
 builder already provides it) or each data context individually (<code>AddSQuiL</code> handles them).
 The base class resolves connection strings from <code>IConfiguration.GetConnectionString(setting)</code>;
 the optional <code>setting:</code> argument on <code>[SQuiLQuery]</code> selects the key, and if omitted
-SQuiL uses the database name from the SQL file's <code>Use</code> statement.</p>
+SQuiL uses <code>SQuiLDatabase</code> as the default key.</p>
 
 <h3>5. Shared table types (optional)</h3>
 <p>If multiple queries return the same row shape, declare it once with <code>[SQuiLTable]</code>:</p>

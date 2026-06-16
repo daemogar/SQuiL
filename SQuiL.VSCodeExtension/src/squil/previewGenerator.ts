@@ -130,9 +130,10 @@ export function generateCSharpPreview(
 
   // ── Data context
   lines.push(`// ── DataContext ─────────────────────────────────────────`);
-  lines.push(`// SQuiL emits this method into your partial class:`);
-  lines.push(`//   public partial class ${queryName}DataContext(IConfiguration configuration)`);
-  lines.push(`//       : SQuiLBaseDataContext(configuration);`);
+  lines.push(`// SQuiL emits this method into your partial class. You may omit the`);
+  lines.push(`// base type and constructor — SQuiL supplies both when absent:`);
+  lines.push(`//   public partial class ${queryName}DataContext { }`);
+  lines.push(`// (Add your own constructor to customize; it must call : base(configuration).)`);
   lines.push('');
 
   const responseType = returns.length === 0

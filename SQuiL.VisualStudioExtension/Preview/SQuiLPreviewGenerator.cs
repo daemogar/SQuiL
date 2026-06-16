@@ -93,9 +93,10 @@ internal static class SQuiLPreviewGenerator
 
         // ── Data context ────────────────────────────────────────────────
         lines.Add("// ── DataContext ─────────────────────────────────────────");
-        lines.Add("// SQuiL emits this method into your partial class:");
-        lines.Add($"//   public partial class {queryName}DataContext(IConfiguration configuration)");
-        lines.Add("//       : SQuiLBaseDataContext(configuration);");
+        lines.Add("// SQuiL emits this method into your partial class. You may omit the");
+        lines.Add("// base type and constructor — SQuiL supplies both when absent:");
+        lines.Add($"//   public partial class {queryName}DataContext {{ }}");
+        lines.Add("// (Add your own constructor to customize; it must call : base(configuration).)");
         lines.Add("");
 
         string responseType = returnVars.Count == 0

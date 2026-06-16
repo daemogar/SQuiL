@@ -30,12 +30,6 @@ public static class DiagnosticsMessages
 		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0006", "Missing Partial", $"Add the partial keyword to the class definition", location));
 	}
 
-	/// <summary>SP0010 — The data-context class does not inherit from <see cref="SourceGeneratorHelper.BaseDataContextClassName"/>.</summary>
-	public static void MissingBaseDataContextDeclaration(this SourceProductionContext context, Location location)
-	{
-		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0010", $"Missing {SourceGeneratorHelper.BaseDataContextClassName}", $"DataContext must inherit from {SourceGeneratorHelper.BaseDataContextClassName}", location));
-	}
-
 	/// <summary>SP0002 — A required directory was not found.</summary>
 	public static void DirectoryNotFound(this SourceProductionContext context, string message, Location location)
 	{

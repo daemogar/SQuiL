@@ -204,17 +204,17 @@ MyProject/
 This file is the single source of truth for which queries exist and which connection-string each uses. The class is `partial` so per-query files can extend it.
 
 ```csharp
-using Microsoft.Extensions.Configuration;
 using SQuiL;
 
 namespace MyProject;
 
 [SQuiLQuery(QueryFiles.QueriesExample1, setting: "ExampleOne")]
 [SQuiLQuery(QueryFiles.QueriesExample2, setting: "ExampleTwo")]
-public partial class MyDataContext(IConfiguration configuration)
-    : SQuiLBaseDataContext(configuration)
-{
-}
+public partial class MyDataContext { }
+
+// SQuiL auto-supplies : SQuiLBaseDataContext and an IConfiguration constructor
+// when no constructor is declared. Declare any constructor to opt out
+// (it must chain : base(configuration)).
 
 [SQuiLTable(TableType.Participation)]
 [SQuiLTable(TableType.Overrides)]
