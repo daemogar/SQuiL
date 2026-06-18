@@ -33,7 +33,7 @@
     <!-- Editor extensions (SSMS / Visual Studio) -->
     <PackageVersion Include="Microsoft.VSSDK.BuildTools" Version="17.13.2126" />
     <PackageVersion Include="Microsoft.VisualStudio.SDK" Version="17.11.40262" />
-    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.2592.51" />
+    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4022.49" />
   </ItemGroup>
 
 </Project>
