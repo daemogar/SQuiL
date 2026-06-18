@@ -6,8 +6,7 @@ namespace SQuiL.VisualStudioExtension.Parsing;
 /// SQL → C# type mapping, matching the table in
 /// <c>SQuiL.VSCodeExtension/src/squil/previewGenerator.ts</c> (and the smaller
 /// duplicate in hoverProvider.ts).  Both VS Code editor surfaces use this set,
-/// and the SQuiL source generator follows the same conventions — most notably
-/// <c>datetimeoffset</c> collapses to <c>DateTime</c>, not <c>DateTimeOffset</c>.
+/// and the SQuiL source generator follows the same conventions.
 /// </summary>
 public static class SqlTypeMap
 {
@@ -20,7 +19,7 @@ public static class SqlTypeMap
         ["date"]              = "DateOnly",
         ["datetime"]          = "DateTime",
         ["datetime2"]         = "DateTime",
-        ["datetimeoffset"]    = "DateTime",  // SQuiL converts → DateTime, not DateTimeOffset
+        ["datetimeoffset"]    = "DateTimeOffset",
         ["decimal"]           = "decimal",
         ["float"]             = "double",
         ["image"]             = "byte[]",

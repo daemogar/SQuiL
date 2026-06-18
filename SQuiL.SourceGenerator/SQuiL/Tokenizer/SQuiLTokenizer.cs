@@ -324,8 +324,9 @@ public class SQuiLTokenizer(string Text)
 					return T(TokenType.TYPE_TIME, p.Value);
 				case "datetime":
 				case "datetime2":
-				case "datetimeoffset":
 					return T(TokenType.TYPE_DATETIME, p.Value);
+				case "datetimeoffset":
+					return T(TokenType.TYPE_DATETIMEOFFSET, p.Value);
 				case "identity":
 					return T(TokenType.TYPE_IDENTITY, p.Value,
 						value.Length == 1 ? "1,1" : Value());

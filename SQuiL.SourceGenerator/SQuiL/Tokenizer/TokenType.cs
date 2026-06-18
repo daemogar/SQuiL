@@ -64,10 +64,12 @@ public enum TokenType
 	TYPE_DATE = TYPE + 6,
 	/// <summary><c>time</c> — maps to C# <c>System.TimeOnly</c>.</summary>
 	TYPE_TIME = TYPE + 7,
-	/// <summary><c>datetime</c> / <c>datetime2</c> / <c>datetimeoffset</c> — maps to C# <c>System.DateTime</c>.</summary>
+	/// <summary><c>datetime</c> / <c>datetime2</c> — maps to C# <c>System.DateTime</c>.</summary>
 	TYPE_DATETIME = TYPE + 8,
 	/// <summary><c>uniqueidentifier</c> — maps to C# <c>System.Guid</c>.</summary>
 	TYPE_GUID = TYPE + 9,
+	/// <summary><c>datetimeoffset</c> — maps to C# <c>System.DateTimeOffset</c>.</summary>
+	TYPE_DATETIMEOFFSET = TYPE + 10,
 	/// <summary><c>float</c> — maps to C# <c>double</c>.</summary>
 	TYPE_FLOAT = TYPE + 11,
 	/// <summary><c>double</c> — maps to C# <c>double</c>.</summary>

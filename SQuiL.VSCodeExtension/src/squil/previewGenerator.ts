@@ -18,7 +18,7 @@ const SQL_TO_CS: Record<string, string> = {
   date: 'DateOnly',
   datetime: 'DateTime',
   datetime2: 'DateTime',
-  datetimeoffset: 'DateTime',   // SQuiL converts datetimeoffset → DateTime
+  datetimeoffset: 'DateTimeOffset',
   decimal: 'decimal',
   float: 'double',
   image: 'byte[]',

@@ -6,7 +6,7 @@ import { parseSQuiL, SQuiLVariable, describeRole } from '../squil/parser';
 const SQL_CS: Record<string, string> = {
   bigint: 'long', binary: 'byte[]', bit: 'bool',
   char: 'string', date: 'DateOnly', datetime: 'DateTime',
-  datetime2: 'DateTime', datetimeoffset: 'DateTime',
+  datetime2: 'DateTime', datetimeoffset: 'DateTimeOffset',
   decimal: 'decimal', float: 'double', image: 'byte[]',
   int: 'int', money: 'decimal', nchar: 'string', ntext: 'string',
   numeric: 'decimal', nvarchar: 'string', real: 'float',

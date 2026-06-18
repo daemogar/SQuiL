@@ -83,6 +83,56 @@ public class BasicIODeclareTests
 	}
 
 	[Fact]
+	public Task DateTimeOffsetVariable()
+	{
+		var name = nameof(DateTimeOffsetVariable);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @AsOfDate datetimeoffset = Null;
+			Declare @Param_CreatedAt datetimeoffset;
+			Declare @Return_ModifiedAt datetimeoffset;
+			Use [Database];
+			Select 1;
+			"""]);
+	}
+
+	[Fact]
+	public Task ScalarVariableDefaults()
+	{
+		// Non-null defaults for scalar types must emit a compiling initializer.
+		// uniqueidentifier in particular must parse, not assign a bare string.
+		var name = nameof(ScalarVariableDefaults);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Param_Id uniqueidentifier = '12345678-1234-1234-1234-123456789012';
+			Declare @Param_AmountWhole decimal(18,2) = 5;
+			Declare @Param_Count int = 7;
+			Declare @Param_Ratio float = 2;
+			Declare @Param_Flag bit = 1;
+			Declare @Param_Label varchar(50) = 'hello';
+			Use [Database];
+			Select 1;
+			"""]);
+	}
+
+	[Fact]
+	public Task DateFamilyVariableDefaults()
+	{
+		// Non-null defaults for every date-family type must emit a compiling
+		// initializer (a parse expression, not a bare quoted string).
+		var name = nameof(DateFamilyVariableDefaults);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Param_OnDate date = '2024-01-01';
+			Declare @Param_AtTime time = '13:45:30';
+			Declare @Param_StampedAt datetime = '2024-01-01 13:45:30';
+			Declare @Param_CreatedAt datetimeoffset = '2024-01-01 12:00:00 +05:00';
+			Use [Database];
+			Select 1;
+			"""]);
+	}
+
+	[Fact]
 	public Task TypeKeywordAsColumnName()
 	{
 		var name = nameof(TypeKeywordAsColumnName);

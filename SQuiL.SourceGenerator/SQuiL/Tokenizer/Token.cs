@@ -37,6 +37,7 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_DATE => $"{nameof(SqlDataReader.GetFieldValue)}<System.DateOnly>",
 		TokenType.TYPE_TIME => $"{nameof(SqlDataReader.GetFieldValue)}<System.TimeOnly>",
 		TokenType.TYPE_DATETIME => nameof(SqlDataReader.GetDateTime),
+		TokenType.TYPE_DATETIMEOFFSET => $"{nameof(SqlDataReader.GetFieldValue)}<System.DateTimeOffset>",
 		TokenType.TYPE_GUID => nameof(SqlDataReader.GetGuid),
 		TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY => $"{nameof(SqlDataReader.GetFieldValue)}<byte[]>",
 		_ => throw new Exception($"Invalid database type `{Type}`")
@@ -60,6 +61,7 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_DATE => "Date",
 		TokenType.TYPE_TIME => "Time",
 		TokenType.TYPE_DATETIME => "DateTime",
+		TokenType.TYPE_DATETIMEOFFSET => nameof(System.Data.SqlDbType.DateTimeOffset),
 		TokenType.TYPE_GUID => "UniqueIdentifier",
 		TokenType.TYPE_BINARY => nameof(System.Data.SqlDbType.Binary),
 		TokenType.TYPE_VARBINARY => nameof(System.Data.SqlDbType.VarBinary),
@@ -78,6 +80,7 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_DATE => "System.DateOnly",
 		TokenType.TYPE_TIME => "System.TimeOnly",
 		TokenType.TYPE_DATETIME => "System.DateTime",
+		TokenType.TYPE_DATETIMEOFFSET => "System.DateTimeOffset",
 		TokenType.TYPE_GUID => "System.Guid",
 		TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY => "byte[]",
 		TokenType.TYPE_OBJECT when tableType is not null => tableType(),
@@ -98,10 +101,11 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_FLOAT or TokenType.TYPE_DOUBLE => defaultValue,
 		TokenType.TYPE_DECIMAL => defaultValue,
 		TokenType.TYPE_STRING => defaultValue is null ? null : $"\"{defaultValue}\"",
-		TokenType.TYPE_DATE => DateTime.TryParse(defaultValue, out var date) ? $"\"{date:yyyy-MM-dd}\"" : defaultValue,
-		TokenType.TYPE_TIME => DateTime.TryParse(defaultValue, out var time) ? $"\"{time:HH:mm:ss.fffffff}\"" : defaultValue,
-		TokenType.TYPE_DATETIME => DateTime.TryParse(defaultValue, out var date) ? $"\"{date:yyyy-MM-dd} {date:HH:mm:ss.fffffff}\"" : defaultValue,
-		TokenType.TYPE_GUID => Guid.TryParse(defaultValue, out var identifier) ? $"\"{identifier}\"" : defaultValue,
+		TokenType.TYPE_DATE => DateTime.TryParse(defaultValue, out var date) ? $"System.DateOnly.Parse(\"{date:yyyy-MM-dd}\", System.Globalization.CultureInfo.InvariantCulture)" : defaultValue,
+		TokenType.TYPE_TIME => DateTime.TryParse(defaultValue, out var time) ? $"System.TimeOnly.Parse(\"{time:HH:mm:ss.fffffff}\", System.Globalization.CultureInfo.InvariantCulture)" : defaultValue,
+		TokenType.TYPE_DATETIME => DateTime.TryParse(defaultValue, out var date) ? $"System.DateTime.Parse(\"{date:yyyy-MM-dd} {date:HH:mm:ss.fffffff}\", System.Globalization.CultureInfo.InvariantCulture)" : defaultValue,
+		TokenType.TYPE_DATETIMEOFFSET => DateTimeOffset.TryParse(defaultValue, out var dto) ? $"System.DateTimeOffset.Parse(\"{dto:yyyy-MM-dd HH:mm:ss.fffffff zzz}\", System.Globalization.CultureInfo.InvariantCulture)" : defaultValue,
+		TokenType.TYPE_GUID => Guid.TryParse(defaultValue, out var identifier) ? $"System.Guid.Parse(\"{identifier}\")" : defaultValue,
 		TokenType.TYPE_OBJECT when tableType is not null => tableType(),
 		TokenType.TYPE_TABLE when tableType is not null => tableType(),
 		_ => throw new Exception($"Invalid database type `{Type}`")
@@ -128,6 +132,7 @@ public record Token(TokenType Type, int Offset, string Value)
 			TokenType.TYPE_DATE => D($"{property}:yyyy-MM-dd"),
 			TokenType.TYPE_TIME => D($"{property}:HH:mm:ss.FFFFFFF"),
 			TokenType.TYPE_DATETIME => D($"{property}:yyyy-MM-dd HH:mm:ss.FFFFFFF"),
+			TokenType.TYPE_DATETIMEOFFSET => D($"{property}:yyyy-MM-dd HH:mm:ss.FFFFFFF zzz"),
 			TokenType.TYPE_GUID => $"{property}",
 			_ => throw new DiagnosticException($"Invalid model {property} type `{Type}`")
 		};

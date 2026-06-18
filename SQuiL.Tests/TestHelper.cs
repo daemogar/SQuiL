@@ -66,6 +66,19 @@ public static class TestHelper
 			settings = new();
 			settings.UseDirectory(path);
 			//settings.UseTypeName("bob");
+
+			// Token.Offset is an absolute character position into the input SQL,
+			// so it shifts with CRLF vs LF line endings (autocrlf checkouts vs
+			// LF/CI). It carries no behavioral meaning in these AST-dump
+			// snapshots, so scrub it to keep snapshots line-ending-independent
+			// across Windows and Linux CI.
+			settings.AddScrubber(builder =>
+			{
+				var scrubbed = System.Text.RegularExpressions.Regex.Replace(
+					builder.ToString(), @"Offset = \d+", "Offset = {scrubbed}");
+				builder.Clear();
+				builder.Append(scrubbed);
+			});
 		}
 
 		return Verifier.Verify(driver, settings);

@@ -475,6 +475,6 @@ Declaring **any** constructor (primary or ordinary) on the class opts out — th
 ## Special Handling
 
 - **Identifiers starting with SQL keywords**: The generator adds special handling for cases where an identifier starts with a keyword (see test for USE keyword)
-- **DateTimeOffset → DateTime**: The project converts `datetimeoffset` SQL type to `datetime` C# type
+- **datetimeoffset → DateTimeOffset**: `datetimeoffset` maps end-to-end to C# `System.DateTimeOffset` (read via `GetFieldValue<DateTimeOffset>`, parameterized as `SqlDbType.DateTimeOffset`). `datetime` / `datetime2` map to `System.DateTime`.
 - **Binary data**: Supports binary data input/output
 - **Blank lines between data**: Adds formatting for better readability in generated code
