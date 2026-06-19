@@ -35,3 +35,23 @@ jobs:
 
     - name: Test Generator
       run: dotnet test --no-build --verbosity normal "./SQuiL.Tests/SQuiL.Tests.csproj"
+
+    # The required `build` check must also exercise the VS Code extension, so a
+    # dependency bump that breaks `tsc` / `vsce package` is caught on the PR
+    # (before Renovate automerge) instead of only failing later in publish.
+    # This is the gap that let npm bumps break publish runs #154/#155: `build`
+    # validated only the .NET side, so a broken VS Code dev-dep sailed through.
+    # `vsce package` runs vscode:prepublish (sync-shared + tsc), so this single
+    # step covers both compilation and packaging.
+    - name: Setup Node
+      uses: actions/setup-node@v6
+      with:
+        node-version: 20.x
+
+    - name: Install VS Code Extension Dependencies
+      working-directory: ./SQuiL.VSCodeExtension
+      run: npm ci
+
+    - name: Package VS Code Extension (compile + vsce)
+      working-directory: ./SQuiL.VSCodeExtension
+      run: npx --no-install @vscode/vsce package --allow-missing-repository
