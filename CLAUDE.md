@@ -177,6 +177,32 @@ SQuiL/
   personal install — when editing one, mirror the other (hash-verify).
   Consumers install via `/plugin marketplace add daemogar/SQuiL` +
   `/plugin install squil@squil`.
+  - **KEEP SKILL.md IN SYNC WITH THE GENERATED SURFACE.** `SKILL.md`
+    documents the *consumer-facing* generated API by example, so any change
+    to what the generator emits can silently invalidate it. Whenever you
+    touch the generator's emitted names, signatures, return types, DI
+    helpers, type map, or authoring rules, re-verify SKILL.md against the
+    `SQuiL.Tests/**/*.verified.cs` snapshots (snapshots are ground truth) and
+    update both SKILL.md copies (repo + `~/.claude/skills/squil/`,
+    hash-verify). Facts SKILL.md must keep correct:
+    - method = `Process<QueryName>Async`, request = `<QueryName>Request`,
+      response = `<QueryName>Response` (NO `Process` prefix on the models);
+      `<QueryName>` is the `QueryFiles` enum member (folder+file PascalCased).
+    - methods return `Task<SQuiLResultType<TResponse>>` (or non-generic
+      `Task<SQuiLResultType>` when the query declares no `@Return*`); the
+      caller unwraps with `result.TryGetValue(out var value, out var errors)`.
+      The error path is RESULT-based (errors returned), not exception-based —
+      `SQuiLException`/`SQuiLAggregateException` are NOT thrown by generated
+      code.
+    - row records are `<Name>Table` (table-valued) / `<Name>Object`
+      (single-object), never `<Name>Row`/`<Name>Item`; response collections
+      are `List<<Name>Table>? = []`.
+    - DI: a `services.AddSQuiL()` extension (namespace
+      `Microsoft.Extensions.DependencyInjection`) IS generated and registers
+      the context as a singleton.
+    - authoring features that exist: table-column defaults (trailing-only,
+      SP0010), `datetimeoffset`→`DateTimeOffset` + the SQL→C# type map,
+      undeclared-variable validation (SP0013) and special-placement (SP0016).
 - **Provider logic ported to both surfaces.** `parser.ts` ↔ `SQuiLParser.cs`,
   `previewGenerator.ts` ↔ `SQuiLPreviewGenerator.cs`,
   `sampleDataGenerator.ts` ↔ `SampleDataGenerator.cs`,

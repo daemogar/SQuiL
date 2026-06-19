@@ -1,6 +1,6 @@
 ---
 name: squil
-description: Use this skill whenever the user is working with SQuiL — the C# source generator at https://github.com/daemogar/SQuiL that turns .squil/.sql query files into strongly-typed C# data contexts. Trigger on any mention of SQuiL or any .squil file; on SQuiLBaseDataContext, [SQuiLQuery], [SQuiLTable], SQuiLException, SQuiLAggregateException, ProcessQueriesAsync; on .sql files paired with a C# project that uses AdditionalFiles for queries; on the @-prefix naming conventions (@Param_, @Params_, @Return_, @Returns_, @Debug, @EnvironmentName, @Error, @Errors); or whenever the user asks to author SQuiL query files, set up a .csproj for SQuiL, register a SQuiL data context, or write wrappers around generated ProcessQueries…Async methods. Trigger even when the user does not say "SQuiL" by name — if their .csproj references SQuiL.SourceGenerator or SQuiL.Library, this skill applies. Prefer this skill over generic "C# / SQL" guidance for any project that uses SQuiL.
+description: Use this skill whenever the user is working with SQuiL — the C# source generator at https://github.com/daemogar/SQuiL that turns .squil/.sql query files into strongly-typed C# data contexts. Trigger on any mention of SQuiL or any .squil file; on SQuiLBaseDataContext, SQuiLResultType, [SQuiLQuery], [SQuiLTable], SQuiLException, SQuiLAggregateException, AddSQuiL, Process…Async; on .sql files paired with a C# project that uses AdditionalFiles for queries; on the @-prefix naming conventions (@Param_, @Params_, @Return_, @Returns_, @Debug, @SuppressDebug, @AsOfDate, @EnvironmentName, @Error, @Errors); or whenever the user asks to author SQuiL query files, set up a .csproj for SQuiL, register a SQuiL data context, or write wrappers around generated Process…Async methods. Trigger even when the user does not say "SQuiL" by name — if their .csproj references SQuiL.SourceGenerator or SQuiL.Library, this skill applies. Prefer this skill over generic "C# / SQL" guidance for any project that uses SQuiL.
 ---
 
 # SQuiL skill
@@ -13,7 +13,7 @@ This skill covers three things:
 
 1. **Authoring `.squil` files** that the generator can parse.
 2. **Wiring up a `.csproj`** to consume SQuiL.
-3. **Using the generated code** through a recommended file layout — one partial data context that registers queries, plus per-query partial files that wrap the generated `ProcessQueries…Async` methods so callers never touch the generated surface directly.
+3. **Using the generated code** through a recommended file layout — one partial data context that registers queries, plus per-query partial files that wrap the generated `Process…Async` methods so callers never touch the generated surface directly.
 
 This skill does not cover contributing to SQuiL itself (the source generator's parser/tokenizer/codegen). For that, work against the live repo and its snapshot tests.
 
@@ -52,7 +52,19 @@ The `@`-prefix is how the generator distinguishes inputs, outputs, and special v
 | `@EnvironmentName` | Bound to current environment at runtime (opt-in) | Sent as a SQL parameter when declared; not a request/response property |
 | `@Error` / `@Errors` | Error reporting from inside the SQL | Surface as `SQuiLException` / `SQuiLAggregateException` of `SQuiLError` |
 
-A scalar uses a primitive declared type (`int`, `varchar(10)`, `datetime`, `bit`, …). A table uses `Declare @Returns_<Name> table(...)` or `Declare @Params_<Name> table(...)` with column definitions; each column becomes a property on a generated row class.
+A scalar uses a primitive declared type (`int`, `varchar(10)`, `datetime`, `bit`, …). A table uses `Declare @Returns_<Name> table(...)` or `Declare @Params_<Name> table(...)` with column definitions; each column becomes a property on a generated row record.
+
+### Column types and defaults
+
+The declared SQL type maps to a C# type: `int`/`bigint`/`smallint`/`tinyint` → the matching integer type, `bit` → `bool`, `varchar`/`nvarchar`/`char`/`text` → `string`, `decimal(p,s)`/`numeric(p,s)` → `decimal` (precision and scale are preserved), `float` → `double`, `real` → `float`, `date` → `System.DateOnly`, `datetime`/`datetime2`/`smalldatetime` → `System.DateTime`, `datetimeoffset` → `System.DateTimeOffset`, `uniqueidentifier` → `System.Guid`, `varbinary`/`binary`/`image` → `byte[]`. A nullable SQL column produces a nullable C# type.
+
+A table column may carry a SQL `default`, which becomes a default value on the generated record parameter:
+
+```sql
+Declare @Params_Rows table(RowID int, Amount decimal(18,2) default 1.5, Note varchar(50) default 'hello');
+```
+
+generates `record RowsTable(int RowID, decimal Amount = 1.5m, string Note = "hello")`. Because C# optional parameters must be **trailing**, a defaulted column followed by a column *without* a default is a build error (**SP0010**) — keep every defaulted column last. (Defaults in arbitrary positions is a deferred feature; the editor extensions don't parse column `default`s yet.)
 
 ### Special variables (opt-in)
 
@@ -117,6 +129,7 @@ The trailing `Select * From @Returns_…` statements are how rows actually leave
 - **Adding new `Declare` statements after the `Use`.** Belongs in the leading block.
 - **Mixing return tables and ad-hoc scalar `Select` results.** Every result-set the SQL emits should correspond to a declared `@Return_/@Returns_` variable, in matching order.
 - **Reusing a name across input and output with different columns.** Table variables that share a base name (`@Param_Foo table(...)` + `@Return_Foo table(...)`, in one file or across query files) share a single generated record, so their column lists must be identical — same names, types, nullability, and order (sizes may differ). A mismatch is build error SP0017; either align the columns or rename one variable. When in doubt, just use distinct names.
+- **Referencing an `@variable` that was never declared.** A SQuiL file must be valid T-SQL *as written* — every `@variable` reference (including the specials like `@Debug` and `@EnvironmentName`) needs a textually-preceding `Declare` for that exact name. An undeclared reference is build error SP0013; the generator never invents or remaps names.
 - **Forgetting to PascalCase the suffix.** `@Param_personid` works but generates `personid` as a C# field, which fights every other naming convention in the project.
 
 ---
@@ -183,7 +196,16 @@ builder.AddInMemoryCollection(new Dictionary<string, string?>
 
 ## 3. Using the generated code — recommended layout
 
-The generator emits a partial data-context class plus per-query types: a request, a response, row classes for tables, and a `ProcessQueries<QueryName>Async` method on the data context. **Don't call those generated methods from the rest of the app.** They are a low-level surface — every call site would have to remember the right request shape, the right error handling, and the right cancellation pattern, and any rename in the SQL would break consumers.
+The generator emits a partial data-context class plus per-query types. For a query whose `QueryFiles` enum member is `<QueryName>`, you get:
+
+- a method `Process<QueryName>Async(<QueryName>Request request, CancellationToken)` on the data context;
+- a request record `<QueryName>Request` and a response record `<QueryName>Response` (note: **no `Process` prefix** on the model types — only the method has it);
+- row records for table-valued variables, named `<Name>Table` (table-valued) or `<Name>Object` (single-object) — never `<Name>Row`/`<Name>Item`;
+- the method returns `Task<SQuiLResultType<<QueryName>Response>>` (or the non-generic `Task<SQuiLResultType>` when the query declares no `@Return*`). `SQuiLResultType<T>` is a result wrapper, **not** the response itself — unwrap it with `result.TryGetValue(out var value, out var errors)`. Errors are *returned in the result*, not thrown.
+
+`<QueryName>` is the enum member: folder name + file name, both PascalCased and joined. So `Queries/Example1.squil` → `QueriesExample1` → method `ProcessQueriesExample1Async`, types `QueriesExample1Request` / `QueriesExample1Response`.
+
+**Don't call those generated methods from the rest of the app.** They are a low-level surface — every call site would have to remember the right request shape, unwrap the result, and apply the right cancellation pattern, and any rename in the SQL would break consumers.
 
 Instead, use this layout:
 
@@ -221,7 +243,7 @@ public partial class MyDataContext { }
 public partial class Table { }
 ```
 
-The `QueryFiles` enum is generated from the query-file paths: `Queries/Example1.squil` becomes `QueryFiles.QueriesExample1` (folder name + file name, both PascalCased, joined). The `TableType` enum is generated from `@Returns_<Name>` and `@Params_<Name>` table declarations — one entry per distinct table name across all query files. Add a `[SQuiLTable]` for each table the project actually uses so the row class is emitted.
+The `QueryFiles` enum is generated from the query-file paths: `Queries/Example1.squil` becomes `QueryFiles.QueriesExample1` (folder name + file name, both PascalCased, joined). The `TableType` enum is generated from `@Returns_<Name>` and `@Params_<Name>` table declarations — one entry per distinct table name across all query files. Add a `[SQuiLTable]` for each table the project actually uses so the row record is emitted.
 
 Two rules govern `[SQuiLTable]` types:
 
@@ -240,18 +262,23 @@ public partial record TermTable { }
 
 ### `<queryfilename>.cs` — per-query wrappers
 
-Each `.squil` gets a sibling `.cs` that adds wrapper methods to `MyDataContext` via `partial`. These wrappers are the public API: callers call `GetParticipationForPersonAsync(personId)`, not `ProcessQueriesExample2Async(new ProcessQueriesExample2Request { … })`.
+Each `.squil` gets a sibling `.cs` that adds wrapper methods to `MyDataContext` via `partial`. These wrappers are the public API: callers call `GetParticipationForPersonAsync(personId)`, not `ProcessQueriesExample2Async(new QueriesExample2Request { … })` followed by unwrapping a `SQuiLResultType`. The wrapper is also where the result is unwrapped — decide there what an error *means* (return a default, throw, log), so call sites never see `SQuiLResultType`.
 
 ```csharp
+using SQuiL;
+
 namespace MyProject;
 
 public partial class MyDataContext
 {
     public async Task<int> GetExample1ScalerAsync(CancellationToken ct = default)
     {
-        var response = await ProcessQueriesExample1Async(
-            new ProcessQueriesExample1Request(),
+        var result = await ProcessQueriesExample1Async(
+            new QueriesExample1Request(),
             ct);
+
+        if (!result.TryGetValue(out var response, out var errors))
+            throw new SQuiLAggregateException(errors);
 
         return response.Scaler;
     }
@@ -259,6 +286,8 @@ public partial class MyDataContext
 ```
 
 ```csharp
+using SQuiL;
+
 namespace MyProject;
 
 public partial class MyDataContext
@@ -267,27 +296,32 @@ public partial class MyDataContext
         string personId,
         CancellationToken ct = default)
     {
-        var response = await ProcessQueriesExample2Async(
-            new ProcessQueriesExample2Request { PersonID = personId },
+        var result = await ProcessQueriesExample2Async(
+            new QueriesExample2Request { PersonID = personId },
             ct);
 
+        if (!result.TryGetValue(out var response, out var errors))
+            throw new SQuiLAggregateException(errors);
+
         return new ParticipationResult(
-            response.Participation.ToList(),
-            response.Overrides.ToList());
+            response.Participation ?? [],
+            response.Overrides ?? []);
     }
 }
 
 public record ParticipationResult(
-    IReadOnlyList<ParticipationRow> Participation,
-    IReadOnlyList<OverridesRow> Overrides);
+    IReadOnlyList<ParticipationTable> Participation,
+    IReadOnlyList<OverridesTable> Overrides);
 ```
+
+`response.Participation` / `response.Overrides` are `List<ParticipationTable>?` / `List<OverridesTable>?` (the generated response initializes them to `[]`, but they are typed nullable). Throwing `SQuiLAggregateException` here is one choice; the wrapper could equally return an empty/sentinel result or surface the `errors` list directly.
 
 Why this layout matters:
 
 - **One place to register queries.** Adding a new query is two steps (drop the `.squil`, add an attribute on `MyDataContext`) — not a hunt across the codebase.
 - **Authoring files travel together.** SQL + its wrapper live in the same folder. Renaming a `@Param_` and the call-site update is one folder, not two.
 - **Stable consumer API.** Callers see hand-named methods describing intent (`GetParticipationForPersonAsync`), not generator-named methods describing mechanics (`ProcessQueriesExample2Async`). The wrapper absorbs SQL-shape changes without breaking consumers.
-- **Error handling has a home.** `SQuiLException` / `SQuiLAggregateException` get caught and translated in the wrapper, where there's enough context to know what the error *means*; call sites only see the translated outcome.
+- **Error handling has a home.** The `SQuiLResultType` is unwrapped in the wrapper, where there's enough context to know what an error *means* — turn it into a thrown `SQuiLAggregateException`, a default, or a domain result; call sites only see the translated outcome.
 - **Cancellation and instrumentation in one spot.** Logging, metrics, retries, timeouts: applied per-query in the wrapper, not sprinkled at every call site.
 
 ### `.filenesting.json` — IDE polish
@@ -314,24 +348,46 @@ This is purely cosmetic — it doesn't affect the generator or the build — but
 
 ### DI registration
 
-Once the data context is in place, register it like any other service:
+The generator emits an `AddSQuiL()` extension method (in the
+`Microsoft.Extensions.DependencyInjection` namespace) that registers every
+generated data context as a singleton. Prefer it — new contexts come along
+automatically as queries are added:
 
 ```csharp
 services.AddSingleton<IConfiguration>(configuration);
-services.AddSingleton<MyDataContext>();
+services.AddSQuiL();
 ```
 
-If a newer SQuiL version generates an `AddSQuiL…` extension method on `IServiceCollection`, prefer that — any future generator-managed services will come along automatically.
+You still need `IConfiguration` registered (or otherwise injectable) so the
+context's constructor can resolve connection strings. `AddSQuiL()` is idempotent
+(guarded by an `IsLoaded` flag).
 
 ### Error handling
 
-`SQuiLBaseDataContext` and the generated code surface three types from `SQuiL.Library`:
+A query's result comes back as `SQuiLResultType<TResponse>` (or non-generic
+`SQuiLResultType`). Inspect it with `TryGetValue`:
 
-- `SQuiLException` — single error from the generated/runtime layer.
-- `SQuiLAggregateException` — multiple errors, typically from a query that uses `@Errors` (the table-valued error variable).
-- `SQuiLError` — the per-error record carried by both of the above.
+```csharp
+if (result.TryGetValue(out var response, out var errors))
+{
+    // success — use `response`
+}
+else
+{
+    // failure — `errors` is an IReadOnlyList<SQuiLError>
+}
+```
 
-Catch these inside the wrapper methods. The wrapper knows what an error from *this* query means; the call site only knows what to do about the wrapper's translated outcome.
+`SQuiL.Library` provides three related types:
+
+- `SQuiLError` — the per-error record (SQL error number, severity, state, line, procedure, message); this is what `errors` holds.
+- `SQuiLException` — wraps a single `SQuiLError`; build one with `error.AsSQuiLException()`.
+- `SQuiLAggregateException` — wraps an `IReadOnlyList<SQuiLError>`; `new SQuiLAggregateException(errors)`.
+
+The generated code **does not throw** these — it returns the errors in the
+result. Whether to throw (`SQuiLException`/`SQuiLAggregateException`), return a
+default, or surface a domain-specific outcome is the wrapper's decision, made
+where there's enough context to know what an error from *this* query means.
 
 ---
 

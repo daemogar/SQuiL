@@ -182,7 +182,7 @@ public class BasicIODeclareTests
 	public Task ColumnDefaultBeforeRequiredIsError()
 	{
 		// A defaulted column followed by a non-defaulted one cannot compile as a
-		// positional record (CS1737); SQuiL reports SP0020 instead.
+		// positional record (CS1737); SQuiL reports SP0010 instead.
 		var name = nameof(ColumnDefaultBeforeRequiredIsError);
 		return TestHelper.Verify([TestHeader([name])], [$$"""
 			--Name: {{name}}
