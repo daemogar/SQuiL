@@ -239,8 +239,12 @@ SQuiL/
     `@EnvironmentName`/`@AsOfDate`):** declaring one after the `Use`
     statement is an error (SP0016); after other header declarations, a
     warning. Prefer first in the header.
-  - **Diagnostic IDs:** SP0019 is TAKEN (SuppressDebug-without-Debug). Shape
-    detection, when built later, must start at SP0020+.
+  - **Diagnostic IDs:** assign the lowest FREE id, **reusing ids that were
+    retired and are no longer referenced** (Paul's ruling 2026-06-19). Currently
+    taken: SP0000–SP0009, SP0011–SP0019. **SP0010 was retired then REUSED** for
+    the column-default-before-required error (see "Column defaults" below). Next
+    free is SP0020. (Verify an id is truly unreferenced with a repo-wide grep
+    before reusing it.)
 - **Sample data detection** — the extension detects an existing sample-data
   block by the `Insert Into @Param_…` statement itself; NO comment markers.
   `@Params_` (list) prompts for row count; `@Param_…Table(...)` (single
@@ -470,7 +474,24 @@ public partial class MyDataContext : SQuiLBaseDataContext
 }
 ```
 
-Declaring **any** constructor (primary or ordinary) on the class opts out — the generator skips the constructor file, and the hand-written constructor must chain `: base(configuration)`. The class must still be `partial` (diagnostic **SP0006**). The explicit form — `public partial class MyDataContext(IConfiguration Configuration) : SQuiLBaseDataContext(Configuration) { }` — is still valid and compiles unchanged (backward-compatible). **SP0010 is retired** — do not reuse that diagnostic ID.
+Declaring **any** constructor (primary or ordinary) on the class opts out — the generator skips the constructor file, and the hand-written constructor must chain `: base(configuration)`. The class must still be `partial` (diagnostic **SP0006**). The explicit form — `public partial class MyDataContext(IConfiguration Configuration) : SQuiLBaseDataContext(Configuration) { }` — is still valid and compiles unchanged (backward-compatible). **SP0010 was freed by this change and has since been REUSED** for the column-default diagnostic (diagnostic ids are reused once retired and unreferenced — see Diagnostic IDs above).
+
+### Table-column defaults (trailing-only)
+
+A table-variable column may declare a SQL `default`:
+`@Params_Rows table(RowID int, Amount decimal(18,2) default 1.5, Note varchar(50) default 'hello')`.
+Each default becomes a C# positional-record default parameter
+(`record RowsTable(int RowID, decimal Amount = 1.5m, string Note = "hello")`),
+reusing the per-type `Token.CSharpValue` mapping (decimal gets an `m` suffix,
+dates/guids are parsed, strings quoted). Numeric literals may be fractional
+(`NumberRegex` accepts `\d+(\.\d+)?`).
+
+Because C# requires optional parameters to be **trailing**, a defaulted column
+followed by a column without a default is a build error (**SP0010**); the
+generator suppresses the offending defaults (emits plain params) so no CS1737
+piles on top of SP0010. **Defaults in any position is a DEFERRED feature**
+(needs a positional→property-initializer record shape change); the editor
+extensions do **not** yet parse column `default`s (parity follow-up).
 
 ## Special Handling
 

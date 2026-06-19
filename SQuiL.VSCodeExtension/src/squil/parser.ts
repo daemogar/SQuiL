@@ -27,6 +27,8 @@ export interface TableColumn {
   name: string;
   sqlType: string;
   nullable: boolean;
+  /** Raw `DEFAULT <literal>` value (string literals keep their single quotes), or undefined. */
+  defaultValue?: string;
 }
 
 export interface SQuiLVariable {
@@ -251,13 +253,14 @@ function parseTableColumns(columnsStr: string): TableColumn[] {
   const parts = splitTopLevelCommas(columnsStr);
   for (const part of parts) {
     const trimmed = part.trim();
-    const match = trimmed.match(/^(\w+)\s+([\w]+(?:\([^)]*\))?)\s*(NULL|NOT\s+NULL)?$/i);
+    const match = trimmed.match(/^(\w+)\s+([\w]+(?:\([^)]*\))?)\s*(NULL|NOT\s+NULL)?\s*(?:DEFAULT\s+('[^']*'|\S+))?$/i);
     if (match) {
       const nullability = (match[3] ?? '').toUpperCase().trim();
       cols.push({
         name: match[1],
         sqlType: match[2].trim(),
         nullable: nullability !== 'NOT NULL',
+        defaultValue: match[4],
       });
     }
   }

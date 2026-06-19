@@ -178,6 +178,19 @@ function pad(s: string, len: number): string {
   return s.length >= len ? s.substring(0, len) : s + ' '.repeat(len - s.length);
 }
 
+/**
+ * Approximates the generator's per-type default initializer for a column
+ * `DEFAULT <raw>`: decimal gets an `m` suffix, single-quoted SQL strings become
+ * double-quoted C#, everything else is emitted as-is (date/guid are approximate
+ * in the preview — the real generator wraps them in a Parse call).
+ */
+function csharpDefault(sqlType: string, raw: string): string {
+  if (raw.startsWith("'") && raw.endsWith("'")) return `"${raw.slice(1, -1)}"`;
+  const base = sqlType.toLowerCase().replace(/\s*\(.*\)/, '').trim();
+  if (base === 'decimal' || base === 'numeric' || base === 'money' || base === 'smallmoney') return `${raw}m`;
+  return raw;
+}
+
 function emitTableRecord(lines: string[], typeName: string, v: SQuiLVariable): void {
   if (!v.columns || v.columns.length === 0) return;
   lines.push(`public partial record ${typeName}`);
@@ -186,7 +199,8 @@ function emitTableRecord(lines: string[], typeName: string, v: SQuiLVariable): v
     const cs = sqlToCSharp(col.sqlType);
     const isRefType = cs === 'string' || cs === 'byte[]';
     const csType = isRefType || col.nullable ? `${cs}?` : cs;
-    lines.push(`    public ${csType} ${col.name} { get; set; }`);
+    const init = col.defaultValue ? ` = ${csharpDefault(col.sqlType, col.defaultValue)};` : '';
+    lines.push(`    public ${csType} ${col.name} { get; set; }${init}`);
   });
   lines.push(`}`);
   lines.push('');

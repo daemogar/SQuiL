@@ -99,7 +99,7 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_BOOLEAN => int.TryParse(defaultValue, out var value) && value == 0 ? null : "true",
 		TokenType.TYPE_INT => defaultValue,
 		TokenType.TYPE_FLOAT or TokenType.TYPE_DOUBLE => defaultValue,
-		TokenType.TYPE_DECIMAL => defaultValue,
+		TokenType.TYPE_DECIMAL => defaultValue is null ? null : $"{defaultValue}m",
 		TokenType.TYPE_STRING => defaultValue is null ? null : $"\"{defaultValue}\"",
 		TokenType.TYPE_DATE => DateTime.TryParse(defaultValue, out var date) ? $"System.DateOnly.Parse(\"{date:yyyy-MM-dd}\", System.Globalization.CultureInfo.InvariantCulture)" : defaultValue,
 		TokenType.TYPE_TIME => DateTime.TryParse(defaultValue, out var time) ? $"System.TimeOnly.Parse(\"{time:HH:mm:ss.fffffff}\", System.Globalization.CultureInfo.InvariantCulture)" : defaultValue,

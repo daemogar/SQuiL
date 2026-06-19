@@ -29,7 +29,7 @@ public class SQuiLTokenizer(string Text)
 	/// the parens is never mistaken for a column separator.
 	/// </summary>
 	private static Regex TypeRegex { get; } = new(
-		"""^((bit|int|float|double|uniqueidentifier|date(?!time)|time|datetime(2|offset|)|n?text)\b|(decimal|numeric)(\s*\(\s*\d+\s*(,\s*\d+\s*)?\)|\b)|identity(\s*\(\s*\d+\s*,\s*\d+\s*\)|\b)|n?(var)?char\s*\(\s*(\d+|max)\s*\)|table\s*\(|default\s+(\d+|'.*?')|varbinary\s*\(\s*max\s*\)|binary\s*\(\s*\d+\s*\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+		"""^((bit|int|float|double|uniqueidentifier|date(?!time)|time|datetime(2|offset|)|n?text)\b|(decimal|numeric)(\s*\(\s*\d+\s*(,\s*\d+\s*)?\)|\b)|identity(\s*\(\s*\d+\s*,\s*\d+\s*\)|\b)|n?(var)?char\s*\(\s*(\d+|max)\s*\)|table\s*\(|default\s+(\d+(\.\d+)?|'.*?')|varbinary\s*\(\s*max\s*\)|binary\s*\(\s*\d+\s*\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
 
 	/// <summary>Matches built-in SQL function calls such as <c>GETDATE()</c>.</summary>
 	private static Regex FunctionRegex { get; } = new(
@@ -41,7 +41,7 @@ public class SQuiLTokenizer(string Text)
 
 	/// <summary>Matches a sequence of decimal digits (integer literals).</summary>
 	private static Regex NumberRegex { get; } = new(
-		"""^(\d+)""", RegexOptions.Compiled | RegexOptions.Singleline);
+		"""^(\d+(\.\d+)?)""", RegexOptions.Compiled | RegexOptions.Singleline);
 
 	/// <summary>Matches SQL identifiers, <c>@variable</c> names, bracket-quoted names, and the internal SQuiL sentinel.</summary>
 	private static Regex IdentifierRegex { get; } = new(
@@ -286,6 +286,17 @@ public class SQuiLTokenizer(string Text)
 		bool Type() => Try(TypeRegex, p =>
 		{
 			var value = p.Value.ToLower().Split('(', ')');
+
+			// `default <literal>` column specifier: carry the literal as the token
+			// Value (string literals stripped of their surrounding quotes); the
+			// parser attaches it to the preceding column.
+			if (value[0].Trim().StartsWith("default"))
+			{
+				var literal = p.Value.Substring(p.Value.IndexOf(' ') + 1).Trim();
+				if (literal.Length >= 2 && literal[0] == '\'' && literal[literal.Length - 1] == '\'')
+					literal = literal.Substring(1, literal.Length - 2);
+				return T(TokenType.TYPE_DEFAULT, p.Value, literal);
+			}
 
 			switch (value[0].Trim())
 			{

@@ -151,11 +151,23 @@ public class SQuiLTable(
 		{
 			record.Write($"{tableName}(");
 			record.Indent++;
+
+			// Column defaults become positional-record default parameters, which C#
+			// requires to be trailing. Only emit a default on columns within the final
+			// all-defaulted run; a default before a required column is reported as
+			// SP0010 (in FileGenerator) and suppressed here to avoid CS1737 noise.
+			var trailingDefaultStart = properties.Count;
+			for (var i = properties.Count - 1; i >= 0 && properties[i].DefaultValue is not null; i--)
+				trailingDefaultStart = i;
+
 			var comma = "";
-			foreach (var item in properties)
+			for (var i = 0; i < properties.Count; i++)
 			{
+				var item = properties[i];
 				record.WriteLine(comma);
 				record.Write($"{item.CSharpType()} {callback(item.Identifier.Value)}");
+				if (i >= trailingDefaultStart && item.CSharpValue() is { } value)
+					record.Write($" = {value}");
 				comma = ",";
 			}
 			record.Write(")");

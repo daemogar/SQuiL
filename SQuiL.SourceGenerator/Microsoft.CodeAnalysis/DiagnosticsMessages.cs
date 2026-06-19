@@ -161,6 +161,19 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0010 — A table column declares a <c>default</c> value but is followed by a column
+	/// without one. The generated record is positional, so optional (defaulted) parameters
+	/// must be trailing (otherwise C# emits CS1737). Move all defaulted columns to the end.
+	/// (ID reused — SP0010 was retired with the optional-inheritance change.)
+	/// </summary>
+	public static void ReportColumnDefaultBeforeRequired(this SourceProductionContext context, string filename, string tableName, string defaultColumn, string requiredColumn)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0010", "Column Default Before Required",
+			$"{filename}: in table `{tableName}`, column `{defaultColumn}` has a default but is followed by `{requiredColumn}`, which has none. " +
+			"Columns with a default must be declared last (C# positional records require optional parameters to be trailing)."));
+	}
+
+	/// <summary>
 	/// SP0017 — Declarations that share one generated record type (same table name, or
 	/// different names mapped to one class via <c>[SQuiLTableAttribute]</c>) declare
 	/// different column shapes. The shared record's positional constructor cannot serve

@@ -17,6 +17,19 @@ public record CodeItem(Token Identifier, Token Type)
 	/// <summary><c>true</c> when the column was declared with <c>Null</c>, making it nullable in C#.</summary>
 	public bool IsNullable { get; init; }
 
+	/// <summary>
+	/// The raw default-value literal from a <c>default &lt;value&gt;</c> column specifier,
+	/// or <c>null</c> when the column has no default.
+	/// </summary>
+	public string? DefaultValue { get; init; }
+
+	/// <summary>
+	/// The C# default-value expression for this column (type-aware: decimal gets an
+	/// <c>m</c> suffix, dates/guids are parsed, strings are quoted), or <c>null</c> when
+	/// the column has no default.
+	/// </summary>
+	public string? CSharpValue() => DefaultValue is null ? null : Type.CSharpValue(DefaultValue);
+
 	/// <summary>Returns the <c>reader.GetXxx</c> method fragment appropriate for this column's SQL type.</summary>
 	public string DataReader() => Type.DataReader();
 

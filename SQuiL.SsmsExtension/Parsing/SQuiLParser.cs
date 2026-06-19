@@ -39,6 +39,8 @@ public sealed class TableColumn
     public string Name { get; set; } = "";
     public string SqlType { get; set; } = "";
     public bool Nullable { get; set; } = true;
+    /// <summary>Raw <c>DEFAULT &lt;literal&gt;</c> value (string literals keep their single quotes), or null.</summary>
+    public string? DefaultValue { get; set; }
 }
 
 public sealed class SQuiLVariable
@@ -99,7 +101,7 @@ public static class SQuiLParser
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
     private static readonly Regex ColumnSpec = new(
-        @"^(\w+)\s+(\w+(?:\([^)]*\))?)\s*(NULL|NOT\s+NULL)?$",
+        @"^(\w+)\s+(\w+(?:\([^)]*\))?)\s*(NULL|NOT\s+NULL)?\s*(?:DEFAULT\s+('[^']*'|\S+))?$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static SQuiLParseResult Parse(string text)
@@ -294,9 +296,10 @@ public static class SQuiLParser
             string nullability = (match.Groups[3].Value ?? "").ToUpperInvariant().Trim();
             cols.Add(new TableColumn
             {
-                Name     = match.Groups[1].Value,
-                SqlType  = match.Groups[2].Value.Trim(),
-                Nullable = nullability != "NOT NULL",
+                Name         = match.Groups[1].Value,
+                SqlType      = match.Groups[2].Value.Trim(),
+                Nullable     = nullability != "NOT NULL",
+                DefaultValue = match.Groups[4].Success ? match.Groups[4].Value : null,
             });
         }
         return cols;

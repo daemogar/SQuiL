@@ -152,10 +152,26 @@ internal static class SQuiLPreviewGenerator
             string cs = SqlTypeMap.SqlToCSharp(col.SqlType);
             bool nullable = col.Nullable || SqlTypeMap.IsRefType(col.SqlType);
             string suffix = nullable ? "?" : "";
-            lines.Add($"    public {cs}{suffix} {col.Name} {{ get; set; }}");
+            string init = col.DefaultValue is null ? "" : $" = {CSharpDefault(col.SqlType, col.DefaultValue)};";
+            lines.Add($"    public {cs}{suffix} {col.Name} {{ get; set; }}{init}");
         }
         lines.Add("}");
         lines.Add("");
+    }
+
+    /// <summary>
+    /// Approximates the generator's per-type default initializer for a column
+    /// <c>DEFAULT &lt;raw&gt;</c>: decimal gets an <c>m</c> suffix, single-quoted SQL
+    /// strings become double-quoted C#, everything else is emitted as-is (date/guid
+    /// are approximate in the preview — the real generator wraps them in a Parse call).
+    /// </summary>
+    private static string CSharpDefault(string sqlType, string raw)
+    {
+        if (raw.Length >= 2 && raw[0] == '\'' && raw[raw.Length - 1] == '\'')
+            return $"\"{raw.Substring(1, raw.Length - 2)}\"";
+
+        string @base = sqlType.ToLowerInvariant().Split('(')[0].Trim();
+        return @base is "decimal" or "numeric" or "money" or "smallmoney" ? $"{raw}m" : raw;
     }
 
     private static void EmitModelRecord(

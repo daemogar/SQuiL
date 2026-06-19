@@ -76,6 +76,26 @@ public class FileGenerator(
 			var tokens = SQuiLTokenizer.GetTokens(sql);
 			var blocks = SQuiLParser.ParseTokens(tokens);
 
+			// SP0010: a column default must be trailing (positional records require
+			// optional parameters last). Flag the first defaulted column that is
+			// followed by a column without a default.
+			foreach (var block in blocks)
+			{
+				if (block.Properties is null) continue;
+
+				CodeItem? defaulted = null;
+				foreach (var column in block.Properties)
+				{
+					if (column.DefaultValue is not null)
+						defaulted = column;
+					else if (defaulted is not null)
+					{
+						Context.ReportColumnDefaultBeforeRequired(method, block.Name, defaulted.Identifier.Value, column.Identifier.Value);
+						break;
+					}
+				}
+			}
+
 			if (ShowDebugMessages)
 			{
 				foreach (var code in blocks)

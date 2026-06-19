@@ -340,6 +340,12 @@ public class SQuiLParser(List<Token> Tokens)
 							Consume();
 						}
 
+						if (Current.Type == TokenType.TYPE_DEFAULT)
+						{
+							item = item with { DefaultValue = Current.Value };
+							Consume();
+						}
+
 						block.Properties.Add(item);
 					}
 					while (Current.Type == TokenType.SYMBOL_COMMA);

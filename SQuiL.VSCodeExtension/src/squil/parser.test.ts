@@ -31,3 +31,22 @@ test('bare @SuppressDebug and @AsOfDate are recognized header specials (no namin
   assert.ok(asOf, '@AsOfDate should be parsed');
   assert.strictEqual(asOf!.role, 'asOfDate');
 });
+
+// Parity with the generator: a column DEFAULT must be parsed (not dropped) and
+// its raw literal captured, so the preview and SP0010 lint can use it.
+test('table column DEFAULT is parsed and its literal captured', () => {
+  const result = parseSQuiL([
+    '--Name: Defaults',
+    "Declare @Params_Rows table(RowID int, Amount decimal(18,2) default 1.5, Note varchar(50) default 'hello');",
+    'Use MyDatabase;',
+    'Select 1;',
+  ].join('\n'));
+
+  const rows = result.variables.find((v) => v.rawName === '@Params_Rows');
+  assert.ok(rows, '@Params_Rows should be parsed');
+  // All three columns survive parsing (defaulted columns are not dropped).
+  assert.strictEqual(rows!.columns?.length, 3);
+  assert.strictEqual(rows!.columns![0].defaultValue, undefined);
+  assert.strictEqual(rows!.columns![1].defaultValue, '1.5');
+  assert.strictEqual(rows!.columns![2].defaultValue, "'hello'");
+});

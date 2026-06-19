@@ -9,7 +9,7 @@ public partial record ScalarVariableDefaultsRequest
 {
 	public System.Guid Id { get; set; } = System.Guid.Parse("12345678-1234-1234-1234-123456789012");
 	
-	public decimal AmountWhole { get; set; } = 5;
+	public decimal AmountWhole { get; set; } = 5m;
 	
 	public int Count { get; set; } = 7;
 	

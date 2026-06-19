@@ -133,6 +133,66 @@ public class BasicIODeclareTests
 	}
 
 	[Fact]
+	public Task MultiLineCommentInHeader()
+	{
+		// A multi-line comment in the header is tokenized as COMMENT_MULTILINE;
+		// its dumped value must be line-ending-independent (no embedded CR).
+		var name = nameof(MultiLineCommentInHeader);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			/* multi
+			   line
+			   comment */
+			Declare @Param_Count int;
+			Use [Database];
+			Select 1;
+			"""]);
+	}
+
+	[Fact]
+	public Task FractionalNumericDefaults()
+	{
+		// Fractional defaults must tokenize (not SP1001) and compile:
+		// decimal needs an 'm' suffix; double accepts the bare literal.
+		var name = nameof(FractionalNumericDefaults);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Param_Amount decimal(18,2) = 1.5;
+			Declare @Param_Ratio float = 2.5;
+			Use [Database];
+			Select 1;
+			"""]);
+	}
+
+	[Fact]
+	public Task ColumnDefaultsTrailing()
+	{
+		// Trailing column defaults become positional-record default params,
+		// reusing the per-type CSharpValue logic (decimal 'm', string quotes).
+		var name = nameof(ColumnDefaultsTrailing);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Params_Rows table(RowID int, Amount decimal(18,2) default 1.5, Note varchar(50) default 'hello');
+			Use [Database];
+			Select 1;
+			"""]);
+	}
+
+	[Fact]
+	public Task ColumnDefaultBeforeRequiredIsError()
+	{
+		// A defaulted column followed by a non-defaulted one cannot compile as a
+		// positional record (CS1737); SQuiL reports SP0020 instead.
+		var name = nameof(ColumnDefaultBeforeRequiredIsError);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Params_Bad table(Amount decimal(18,2) default 5, Note varchar(50));
+			Use [Database];
+			Select 1;
+			"""], compileCheck: false);
+	}
+
+	[Fact]
 	public Task TypeKeywordAsColumnName()
 	{
 		var name = nameof(TypeKeywordAsColumnName);
