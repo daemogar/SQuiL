@@ -162,7 +162,10 @@ jobs:
         max_stable=$(printf '%s\n' $versions | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
 
         # Candidate = newest -beta.<N> (highest run-number N; globally monotonic).
-        candidate=$(printf '%s\n' $versions \
+        # Fold in THIS run's just-published version: the search index lags behind
+        # a fresh push, so without this the previous beta is mistaken for the
+        # newest, kept as the keeper, and never unlisted (leaving two betas live).
+        candidate=$( { printf '%s\n' $versions; printf '%s\n' "$JUST_PUBLISHED"; } \
           | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$' \
           | awk -F'-beta[.]' '{print $2" "$0}' | sort -n | tail -1 | awk '{print $2}' || true)
 
