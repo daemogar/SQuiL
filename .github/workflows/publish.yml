@@ -34,6 +34,14 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    # Declaring a permissions block drops the default GITHUB_TOKEN grants, so we
+    # must list everything this job uses:
+    #   id-token: write  → GitHub OIDC token for NuGet Trusted Publishing.
+    #   contents: write  → ncipollo/release-action creates the release/tag below.
+    permissions:
+      id-token: write
+      contents: write
+
     # Expose the computed release version (and channel) so the VSIX jobs can
     # attach their assets to the very same release/tag this job creates.
     outputs:
@@ -98,11 +106,91 @@ jobs:
       working-directory: ./${{ env.DIRECTORY }}
       run: dotnet pack -c Release --include-symbols -p:SymbolPackageFormat=snupkg /p:Version=${{ env.VERSION }} /p:PackageReleaseNotes="See ${{ env.RELEASE_NOTE }}"
 
+    # Trusted Publishing: exchange the GitHub OIDC token for a short-lived
+    # (1-hour) nuget.org API key. No long-lived NUGET_API_KEY secret needed.
+    # Requires a Trusted Publishing policy on nuget.org (owner = the package's
+    # nuget.org owner; repo owner `daemogar`, repo `SQuiL`, workflow `publish.yml`)
+    # and a repo secret NUGET_USER = your nuget.org profile name (not email).
+    # Requested here, immediately before the push, so the key is fresh.
+    - name: NuGet login (OIDC → temp API key)
+      uses: NuGet/login@v1
+      id: login
+      with:
+        user: ${{ secrets.NUGET_USER }}
+
     - name: Push Nuget
-      env:
-        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
       working-directory: ./${{ env.DIRECTORY }}
-      run: dotnet nuget push **/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
+      run: dotnet nuget push **/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+
+    # Keep nuget.org tidy: leave all stable releases listed, plus the single
+    # newest -beta.<N> pre-release ONLY while its base version outranks every
+    # stable. Unlist all other -beta.<N> versions. Reuses the OIDC temp key.
+    #
+    # Non-fatal: publishing is the critical path — a cleanup hiccup (search lag,
+    # transient error) must never fail a release.
+    #
+    # FALLBACK: if the trusted-publishing temp key is push-only and `dotnet
+    # nuget delete` returns 403, create an nuget.org API key scoped to *Unlist*
+    # only, store it as a secret (e.g. NUGET_UNLIST_KEY), and use it here
+    # instead of steps.login.outputs.NUGET_API_KEY.
+    - name: Unlist superseded pre-releases
+      continue-on-error: true
+      env:
+        API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        JUST_PUBLISHED: ${{ env.VERSION }}
+      run: |
+        set -u
+        PKG="SQuiL.SourceGenerator"
+        PKG_LC="squil.sourcegenerator"
+        SOURCE="https://api.nuget.org/v3/index.json"
+
+        # Search index excludes unlisted versions, so this is exactly the set of
+        # currently-LISTED versions (idempotent — no per-version state to read).
+        versions=$(curl -fsS "https://azuresearch-usnc.nuget.org/query?q=packageid:${PKG_LC}&prerelease=true&semVerLevel=2.0.0" \
+          | jq -r --arg id "$PKG_LC" '.data[]? | select((.id | ascii_downcase) == $id) | .versions[].version')
+
+        if [ -z "$versions" ]; then
+          echo "No listed versions returned (search-index lag?). Nothing to clean up."
+          exit 0
+        fi
+
+        # Highest stable X.Y.Z (no pre-release suffix).
+        max_stable=$(printf '%s\n' $versions | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+
+        # Candidate = newest -beta.<N> (highest run-number N; globally monotonic).
+        candidate=$(printf '%s\n' $versions \
+          | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$' \
+          | awk -F'-beta[.]' '{print $2" "$0}' | sort -n | tail -1 | awk '{print $2}' || true)
+
+        # Keep the candidate only if its base version strictly outranks every
+        # stable (SemVer: equal base means the stable release wins).
+        keep_candidate=""
+        if [ -n "$candidate" ]; then
+          cand_base="${candidate%%-beta.*}"
+          if [ -z "$max_stable" ]; then
+            keep_candidate="$candidate"
+          else
+            higher=$(printf '%s\n%s\n' "$cand_base" "$max_stable" | sort -V | tail -1)
+            if [ "$higher" = "$cand_base" ] && [ "$cand_base" != "$max_stable" ]; then
+              keep_candidate="$candidate"
+            fi
+          fi
+        fi
+
+        echo "Listed versions : $(printf '%s ' $versions)"
+        echo "Highest stable  : ${max_stable:-<none>}"
+        echo "Newest beta     : ${candidate:-<none>}"
+        echo "Keeping prerel  : ${keep_candidate:-<none>}"
+
+        for v in $versions; do
+          # Only ever touch our own -beta.<N> shape; stable + foreign prereleases untouched.
+          printf '%s' "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$' || continue
+          [ "$v" = "$keep_candidate" ] && continue
+          [ "$v" = "$JUST_PUBLISHED" ] && continue
+          echo "Unlisting $PKG $v"
+          dotnet nuget delete "$PKG" "$v" --non-interactive --api-key "$API_KEY" --source "$SOURCE" \
+            || echo "::warning::Failed to unlist $PKG $v (continuing)."
+        done
 
   # ───────────────────────────────────────────────────────────────────────
   # Build the two compiled VSIX extensions — SSMS and Visual Studio 2026 —
