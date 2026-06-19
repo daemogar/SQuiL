@@ -17,6 +17,33 @@
       "groupName": "all dependencies",
       "groupSlug": "all-dependencies",
       "automerge": true
+    },
+    {
+      "description": "@types/vscode MUST stay <= engines.vscode (^1.85.0) or `vsce package` refuses to package the extension (broke publish runs #154/#155). Bump it manually only when raising the engines floor.",
+      "matchPackageNames": [
+        "@types/vscode"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "@types/node tracks the extension-host / CI Node runtime (20.x). Hold it on that major; allow minor/patch.",
+      "matchPackageNames": [
+        "@types/node"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "typescript majors (6.x) drop the node global typings under module:Node16 and break tsc (broke publish runs #154/#155). Allow minor/patch only.",
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
     }
   ],
   "platformAutomerge": true,
