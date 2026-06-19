@@ -520,7 +520,11 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				{
 				""");
 			var comma = "";
-			foreach (var method in files.Where(p => IsSqlFile(p.Path)).Select(p => StripSqlExtension(FlattenPath(p.Path))))
+			// Sort ordinally so the emitted enum is deterministic regardless of the
+			// order AdditionalFiles arrive (Directory enumeration / MSBuild glob order
+			// differs across OSes — e.g. Windows vs Linux CI). Mirrors TableType, which
+			// already sorts via SQuiLTableMap.TableNames.
+			foreach (var method in files.Where(p => IsSqlFile(p.Path)).Select(p => StripSqlExtension(FlattenPath(p.Path))).OrderBy(p => p, System.StringComparer.Ordinal))
 			{
 				sb.AppendLine(comma);
 				sb.Append($"\t{method}");

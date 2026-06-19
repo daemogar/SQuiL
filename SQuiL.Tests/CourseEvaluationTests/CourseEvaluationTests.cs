@@ -11,6 +11,9 @@ public class CourseEvaluationTests
 		var sourceDir = Path.Combine(path!, "..", "..", "..", nameof(CourseEvaluationTests));
 		var files = Directory
 			.GetFiles(sourceDir, "*.sql", SearchOption.AllDirectories)
+			// Directory enumeration order is OS-dependent (Windows returns sorted,
+			// Linux does not); sort so the test feeds files deterministically.
+			.OrderBy(p => p, StringComparer.Ordinal)
 			.Select(p => $"""
 				--Name: {Path.GetFileNameWithoutExtension(p)}
 				{File.ReadAllText(p)}
