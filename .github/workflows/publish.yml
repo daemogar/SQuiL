@@ -50,13 +50,13 @@ jobs:
 
     steps:
     - name: Checkout Source
-      uses: actions/checkout@v4.1.1
+      uses: actions/checkout@v7.0.0
 
     - name: Git Fetch
       run: git fetch --prune --unshallow
 
     - name: Setup DotNet
-      uses: actions/setup-dotnet@v4.0.0
+      uses: actions/setup-dotnet@v5.3.0
       with:
         dotnet-version: 10.0.x
 
@@ -91,7 +91,7 @@ jobs:
         echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
 
     - name: Create Release
-      uses: ncipollo/release-action@v1.14.0
+      uses: ncipollo/release-action@v1.21.0
       with:
         tag: ${{ env.VERSION }}
         name: ${{ env.VERSION }}
@@ -233,13 +233,13 @@ jobs:
 
     steps:
     - name: Checkout Source
-      uses: actions/checkout@v4.1.1
+      uses: actions/checkout@v7.0.0
 
     - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v2
+      uses: microsoft/setup-msbuild@v3
 
     - name: Setup DotNet
-      uses: actions/setup-dotnet@v4.0.0
+      uses: actions/setup-dotnet@v5.3.0
       with:
         dotnet-version: 10.0.x
 
@@ -348,7 +348,7 @@ jobs:
         Get-ChildItem $files | Select-Object Name, Length
 
     - name: Attach VSIX assets to release
-      uses: ncipollo/release-action@v1.14.0
+      uses: ncipollo/release-action@v1.21.0
       with:
         tag: ${{ needs.build.outputs.version }}
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -377,10 +377,10 @@ jobs:
 
     steps:
     - name: Checkout Source
-      uses: actions/checkout@v4.1.1
+      uses: actions/checkout@v7.0.0
 
     - name: Setup Node
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: 20.x
 
@@ -410,7 +410,7 @@ jobs:
         Get-ChildItem $vsix.FullName, 'INSTALL-VSCode.md' | Select-Object Name, Length
 
     - name: Attach VS Code assets to release
-      uses: ncipollo/release-action@v1.14.0
+      uses: ncipollo/release-action@v1.21.0
       with:
         tag: ${{ needs.build.outputs.version }}
         token: ${{ secrets.GITHUB_TOKEN }}
