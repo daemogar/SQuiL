@@ -1184,17 +1184,13 @@
       }
     },
     {
-      Message:
-COMMENT_SINGLELINE => --Set @CourseCode = 'MATH-120-A';
-,
+      Message: COMMENT_SINGLELINE => --Set @CourseCode = 'MATH-120-A';,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat:
-COMMENT_SINGLELINE => --Set @CourseCode = 'MATH-120-A';
-,
+        MessageFormat: COMMENT_SINGLELINE => --Set @CourseCode = 'MATH-120-A';,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -2436,17 +2432,13 @@ COMMENT_SINGLELINE => --Set @CourseCode = 'MATH-120-A';
       }
     },
     {
-      Message:
-COMMENT_SINGLELINE => --SectionID varchar(20),
-,
+      Message: COMMENT_SINGLELINE => --SectionID varchar(20),,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat:
-COMMENT_SINGLELINE => --SectionID varchar(20),
-,
+        MessageFormat: COMMENT_SINGLELINE => --SectionID varchar(20),,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -4000,17 +3992,13 @@ COMMENT_SINGLELINE => --SectionID varchar(20),
       }
     },
     {
-      Message:
-COMMENT_SINGLELINE => -- Chemistry Course with Section Questions W02
-,
+      Message: COMMENT_SINGLELINE => -- Chemistry Course with Section Questions W02,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat:
-COMMENT_SINGLELINE => -- Chemistry Course with Section Questions W02
-,
+        MessageFormat: COMMENT_SINGLELINE => -- Chemistry Course with Section Questions W02,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -4069,17 +4057,13 @@ COMMENT_SINGLELINE => -- Chemistry Course with Section Questions W02
       }
     },
     {
-      Message:
-COMMENT_SINGLELINE => -- Engineering 121 Connections F05
-,
+      Message: COMMENT_SINGLELINE => -- Engineering 121 Connections F05,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat:
-COMMENT_SINGLELINE => -- Engineering 121 Connections F05
-,
+        MessageFormat: COMMENT_SINGLELINE => -- Engineering 121 Connections F05,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -4138,17 +4122,13 @@ COMMENT_SINGLELINE => -- Engineering 121 Connections F05
       }
     },
     {
-      Message:
-COMMENT_SINGLELINE => -- Music Lessons 334 F05
-,
+      Message: COMMENT_SINGLELINE => -- Music Lessons 334 F05,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat:
-COMMENT_SINGLELINE => -- Music Lessons 334 F05
-,
+        MessageFormat: COMMENT_SINGLELINE => -- Music Lessons 334 F05,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true

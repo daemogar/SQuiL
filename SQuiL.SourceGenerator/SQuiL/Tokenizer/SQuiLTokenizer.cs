@@ -254,7 +254,11 @@ public class SQuiLTokenizer(string Text)
 
 							var trimmed = text[2..].Trim().TrimStart('-').TrimStart();
 
-							return T(TokenType.COMMENT_SINGLELINE, trimmed, text);
+							// Strip the trailing carriage return left when the line
+							// ends with CRLF (truncation above stops before the \n,
+							// keeping the \r). Comments carry no line terminator, so
+							// this keeps the token value line-ending-independent.
+							return T(TokenType.COMMENT_SINGLELINE, trimmed, text.TrimEnd('\r'));
 					}
 					break;
 				case '/':
