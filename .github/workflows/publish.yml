@@ -124,7 +124,11 @@ jobs:
 
     # Keep nuget.org tidy: leave all stable releases listed, plus the single
     # newest -beta.<N> pre-release ONLY while its base version outranks every
-    # stable. Unlist all other -beta.<N> versions. Reuses the OIDC temp key.
+    # stable. Unlist EVERY other pre-release (any version with a '-'), including
+    # legacy -beta formats and any hand-pushed -rc/-preview. Reuses the OIDC
+    # temp key. The keeper is always the newest current-scheme -beta.<N> (NOT a
+    # raw SemVer max — the version scheme was reset from 10.0.x.x-beta down to
+    # 1.0.0-beta.<N>, so a SemVer max would wrongly prefer a stale 10.x beta).
     #
     # Non-fatal: publishing is the critical path — a cleanup hiccup (search lag,
     # transient error) must never fail a release.
@@ -183,8 +187,11 @@ jobs:
         echo "Keeping prerel  : ${keep_candidate:-<none>}"
 
         for v in $versions; do
-          # Only ever touch our own -beta.<N> shape; stable + foreign prereleases untouched.
-          printf '%s' "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$' || continue
+          # Unlist EVERY pre-release (any version containing '-') except the kept
+          # candidate and this run's version. Stable releases (no '-') are never
+          # touched. This sweeps legacy '-beta' formats and any hand-pushed
+          # -rc/-preview too (only the newest -beta.<N> survives).
+          case "$v" in *-*) ;; *) continue ;; esac
           [ "$v" = "$keep_candidate" ] && continue
           [ "$v" = "$JUST_PUBLISHED" ] && continue
           echo "Unlisting $PKG $v"
