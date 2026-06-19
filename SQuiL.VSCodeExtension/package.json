@@ -138,9 +138,9 @@
     "test": "npm run compile && node --test ./out"
   },
   "devDependencies": {
-    "@types/node": "^20.19.41",
-    "@types/vscode": "^1.85.0",
+    "@types/node": "^26.0.0",
+    "@types/vscode": "^1.125.0",
     "@vscode/vsce": "^3.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   }
 }
