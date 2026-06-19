@@ -1,0 +1,26 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "timezone": "America/New_York",
+  "schedule": [
+    "before 5am on monday"
+  ],
+  "separateMajorMinor": false,
+  "packageRules": [
+    {
+      "description": "One combined PR for every dependency across nuget, npm, and github-actions — Paul merges a single PR.",
+      "matchPackageNames": [
+        "*"
+      ],
+      "groupName": "all dependencies",
+      "groupSlug": "all-dependencies",
+      "automerge": true
+    }
+  ],
+  "platformAutomerge": true,
+  "vulnerabilityAlerts": {
+    "automerge": true
+  }
+}
