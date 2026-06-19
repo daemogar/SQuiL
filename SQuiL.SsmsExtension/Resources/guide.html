@@ -148,6 +148,19 @@
   }
 
   .section-rule { border: none; border-top: 1px solid var(--border); margin: 32px 0 0; }
+
+  .toc {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 16px 14px;
+    margin: 20px 0;
+  }
+  .toc-title { color: var(--heading); font-weight: 600; font-size: 0.95em; margin: 0 0 8px; }
+  .toc ol { margin: 0; padding-left: 22px; columns: 2; column-gap: 32px; }
+  .toc li { margin: 3px 0; break-inside: avoid; }
+  .toc a { text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -166,8 +179,25 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
   connection. Install with the bundled <code>install.cmd</code>.
 </div>
 
+<!-- ───────────────────────────── Contents ─────────────────────────────── -->
+<nav class="toc" aria-label="On this page">
+  <p class="toc-title">On this page</p>
+  <ol>
+    <li><a href="#file-structure">File Structure</a></li>
+    <li><a href="#naming-conventions">Variable Naming Conventions</a></li>
+    <li><a href="#variable-rules">Variable Rules</a></li>
+    <li><a href="#type-reference">SQL Type → C# Type Reference</a></li>
+    <li><a href="#examples">Examples</a></li>
+    <li><a href="#sample-data">Sample Data Insertion</a></li>
+    <li><a href="#connection-strings">Connection String Configuration</a></li>
+    <li><a href="#project-setup">Project Setup</a></li>
+    <li><a href="#file-nesting">Solution Explorer File Nesting</a></li>
+    <li><a href="#quick-reference">Quick Reference</a></li>
+  </ol>
+</nav>
+
 <!-- ───────────────────────── File Structure ───────────────────────────── -->
-<h2>File Structure</h2>
+<h2 id="file-structure">File Structure</h2>
 <p>Every SQuiL file follows this three-part layout:</p>
 
 <pre><code><span class="cm">--Name: QueryName          ← optional, overrides filename as the C# class name</span>
@@ -194,7 +224,7 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
 </div>
 
 <!-- ─────────────────── Naming Conventions ────────────────────────────── -->
-<h2>Variable Naming Conventions</h2>
+<h2 id="naming-conventions">Variable Naming Conventions</h2>
 <p>The prefix determines the variable's role and what C# code gets generated.</p>
 
 <table>
@@ -259,7 +289,7 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
 </table>
 
 <!-- ──────────────────── Variable Rules ───────────────────────────────── -->
-<h2>Variable Rules</h2>
+<h2 id="variable-rules">Variable Rules</h2>
 <p>A SQuiL file is <strong>valid T-SQL, full stop</strong>. SQuiL never renames or remaps a
 variable for you, so the same rule SQL Server enforces at batch compile time applies in the
 editor and at build time:</p>
@@ -309,7 +339,7 @@ editor and at build time:</p>
 SQuiL prefix, but they still must be declared before they are referenced.</p>
 
 <!-- ──────────────────── SQL → C# Type Map ────────────────────────────── -->
-<h2>SQL Type → C# Type Reference</h2>
+<h2 id="type-reference">SQL Type → C# Type Reference</h2>
 
 <table>
   <tr><th>SQL Type</th><th>C# Type</th><th>Notes</th></tr>
@@ -331,7 +361,7 @@ SQuiL prefix, but they still must be declared before they are referenced.</p>
 </table>
 
 <!-- ─────────────────────── Examples ──────────────────────────────────── -->
-<h2>Examples</h2>
+<h2 id="examples">Examples</h2>
 
 <h3>1. Lookup by ID — scalar in, scalar out</h3>
 <pre><code><span class="ann">--Name: GetUserName</span>
@@ -489,7 +519,7 @@ a <code>bool SuppressDebug</code> appears on the request too and gates the auto-
 </div>
 
 <!-- ──────────────────── Sample Data Insertion ────────────────────────── -->
-<h2>Sample Data Insertion</h2>
+<h2 id="sample-data">Sample Data Insertion</h2>
 <p>For local testing, you can have SQuiL generate an <code>Insert Into</code> block populated with type-aware
 sample rows for any <code class="par">@Params_</code> (list) or <code class="par">@Param_…&nbsp;Table(...)</code> (single object) variable.</p>
 
@@ -519,7 +549,7 @@ and re-running it replaces the existing block in place. <strong>Existing blocks 
 </div>
 
 <!-- ──────────────────── Connection Strings ────────────────────────────── -->
-<h2>Connection String Configuration</h2>
+<h2 id="connection-strings">Connection String Configuration</h2>
 <p>SQuiL uses the database name from the <code>Use</code> statement as the connection string key:</p>
 
 <pre><code><span class="cm">// appsettings.json</span>
@@ -534,7 +564,7 @@ and re-running it replaces the existing block in place. <strong>Existing blocks 
 <span class="cs-kw">public partial class</span> <span class="cs-cls">GetUserCountDataContext</span> { }</code></pre>
 
 <!-- ──────────────────── Project Setup ────────────────────────────────── -->
-<h2>Project Setup</h2>
+<h2 id="project-setup">Project Setup</h2>
 <h3>1. NuGet reference</h3>
 <pre><code>&lt;<span class="cs-cls">PackageReference</span> <span class="cs-pn">Include</span>=<span class="str">"SQuiL.SourceGenerator"</span> <span class="cs-pn">Version</span>=<span class="str">"*"</span> /&gt;</code></pre>
 
@@ -615,7 +645,7 @@ SQuiL uses <code>SQuiLDatabase</code> as the default key.</p>
 <span class="cm">// public partial record UserTable(string UserID);</span></code></pre>
 
 <!-- ──────────────────── File Nesting ─────────────────────────────────── -->
-<h2>Solution Explorer File Nesting (<code>.filenesting.json</code>)</h2>
+<h2 id="file-nesting">Solution Explorer File Nesting (<code>.filenesting.json</code>)</h2>
 <p>Drop a <code>.filenesting.json</code> at your solution or project root so Visual Studio tucks
 each <code>.squil</code> file under its companion <code>.cs</code> partial-class file in Solution Explorer
 (and gives Razor / appsettings the same treatment):</p>
@@ -641,7 +671,7 @@ each <code>.squil</code> file under its companion <code>.cs</code> partial-class
 </div>
 
 <!-- ──────────────────── Quick Reference ──────────────────────────────── -->
-<h2>Quick Reference</h2>
+<h2 id="quick-reference">Quick Reference</h2>
 <table>
   <tr><th>IntelliSense trigger</th><th>Where</th><th>What you get</th></tr>
   <tr><td><code>@</code> on blank line</td><td>Header (before <code>Use</code>)</td><td>Full <code>Declare @Prefix_</code> snippet <em>plus</em> variables already declared above the cursor <em>plus</em> a <code>⊕ Insert/Modify sample data</code> entry when the previous variable is a table-typed param.</td></tr>
