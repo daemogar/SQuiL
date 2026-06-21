@@ -29,8 +29,6 @@ public enum VariableRole
     SuppressDebug,
     EnvironmentName,
     AsOfDate,
-    Error,
-    Errors,
     Unknown,
 }
 
@@ -215,8 +213,6 @@ public static class SQuiLParser
         VariableRole.SuppressDebug   => "Suppress auto-debug flag (bool on *Request when declared; requires @Debug)",
         VariableRole.EnvironmentName => "Environment name (not a C# parameter)",
         VariableRole.AsOfDate        => "Point-in-time value (nullable typed property on *Request)",
-        VariableRole.Error           => "Error variable (not a C# parameter)",
-        VariableRole.Errors          => "Errors collection (not a C# parameter)",
         _                            => "Unknown — does not match SQuiL naming convention",
     };
 
@@ -236,8 +232,6 @@ public static class SQuiLParser
         else if (upper == "@SUPPRESSDEBUG")     { role = VariableRole.SuppressDebug;   name = "SuppressDebug"; }
         else if (upper == "@ENVIRONMENTNAME")   { role = VariableRole.EnvironmentName; name = "EnvironmentName"; }
         else if (upper == "@ASOFDATE")          { role = VariableRole.AsOfDate;        name = "AsOfDate"; }
-        else if (upper == "@ERROR")             { role = VariableRole.Error;           name = "Error"; }
-        else if (upper == "@ERRORS")            { role = VariableRole.Errors;          name = "Errors"; }
         else if (upper.StartsWith("@PARAMS_", StringComparison.Ordinal))
         { role = VariableRole.Params; name = rawName.Substring("@Params_".Length); }
         else if (upper.StartsWith("@PARAM_", StringComparison.Ordinal))
@@ -258,7 +252,7 @@ public static class SQuiLParser
                 result.Diagnostics.Add(new SQuiLDiagnostic
                 {
                     Message  = $"Variable '{rawName}' doesn't follow SQuiL naming conventions. "
-                             + "Expected: @Param_*, @Params_*, @Return_*, @Returns_*, @Debug, @SuppressDebug, @EnvironmentName, @AsOfDate, @Error, or @Errors.",
+                             + "Expected: @Param_*, @Params_*, @Return_*, @Returns_*, @Debug, @SuppressDebug, @EnvironmentName, @AsOfDate.",
                     Line     = lineNum,
                     StartChar= Math.Max(0, varStart),
                     EndChar  = (varStart >= 0 ? varStart : 0) + rawName.Length,

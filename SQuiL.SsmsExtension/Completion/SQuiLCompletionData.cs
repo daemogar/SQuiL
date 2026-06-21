@@ -136,13 +136,6 @@ internal static class SQuiLCompletionData
           + "property on *Request. When null, the current time at execution is substituted. "
           + "The SQL initializer is ignored at runtime."),
 
-        new("@Error",           "@Error varchar(max)",
-            "Error string — appears on *Response when declared",
-            "Populated on the response when the query produces an error."),
-
-        new("@Errors",          "@Errors table (Message varchar(max))",
-            "Error rows — appears on *Response when declared",
-            "Populated on the response with structured error rows."),
     };
 
     // ── File-level scaffold snippets ──────────────────────────────────

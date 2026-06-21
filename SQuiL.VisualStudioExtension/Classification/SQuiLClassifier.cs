@@ -331,7 +331,7 @@ internal sealed class SQuiLClassifier : IClassifier
         // Match against parser.ts ClassifyAtVariable in SQuiL.VSCodeExtension
         // so a variable that lights up green in VS Code lights up green in SSMS.
         var upper = raw.ToUpperInvariant();
-        if (upper == "@DEBUG" || upper == "@ENVIRONMENTNAME" || upper == "@ERROR" || upper == "@ERRORS")
+        if (upper == "@DEBUG" || upper == "@ENVIRONMENTNAME")
             return SQuiLClassificationTypes.SQuiLSpecialVariable;
         if (upper.StartsWith("@PARAMS_") || upper.StartsWith("@PARAM_"))
             return SQuiLClassificationTypes.SQuiLParamVariable;

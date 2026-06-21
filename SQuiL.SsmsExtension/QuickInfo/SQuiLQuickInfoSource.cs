@@ -105,7 +105,7 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
               + "  @Params_Name     input table-valued\r\n"
               + "  @Return_Name     output scalar\r\n"
               + "  @Returns_Name    output table\r\n"
-              + "  @Debug, @SuppressDebug, @EnvironmentName, @AsOfDate, @Error, @Errors  special variables"));
+              + "  @Debug, @SuppressDebug, @EnvironmentName, @AsOfDate  special variables"));
 
         return new ContainerElement(ContainerElementStyle.Stacked, header, hint);
     }
@@ -144,16 +144,14 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
             is VariableRole.Debug
             or VariableRole.SuppressDebug
             or VariableRole.EnvironmentName
-            or VariableRole.Error
-            or VariableRole.Errors
             or VariableRole.Unknown;
 
         if (isSpecial)
         {
             // @Debug / @SuppressDebug surface as bool properties on *Request when
-            // declared but are not ordinary mapped params; @EnvironmentName/@Error/
-            // @Errors are not emitted as properties at all. The shared note keeps the
-            // tooltip simple — the role description above carries the precise behavior.
+            // declared but are not ordinary mapped params; @EnvironmentName is not
+            // emitted as a property at all. The shared note keeps the tooltip simple —
+            // the role description above carries the precise behavior.
             var note = new ClassifiedTextElement(
                 new ClassifiedTextRun(PredefinedClassificationTypeNames.Comment,
                     "Special SQuiL variable — not emitted as an ordinary mapped C# property."));
