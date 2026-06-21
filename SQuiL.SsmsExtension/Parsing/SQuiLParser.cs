@@ -36,7 +36,9 @@ public sealed class TableColumn
 {
     public string Name { get; set; } = "";
     public string SqlType { get; set; } = "";
-    public bool Nullable { get; set; } = true;
+    public bool Nullable { get; set; } = false;
+    /// <summary>"NULL", "NOT NULL", or null when unspecified.</summary>
+    public string? NullabilityMarker { get; set; }
     /// <summary>Raw <c>DEFAULT &lt;literal&gt;</c> value (string literals keep their single quotes), or null.</summary>
     public string? DefaultValue { get; set; }
 }
@@ -52,6 +54,9 @@ public sealed class SQuiLVariable
     public string SqlType { get; set; } = "";
     /// <summary>Column definitions when this variable is a TABLE type.</summary>
     public List<TableColumn>? Columns { get; set; }
+    public bool Nullable { get; set; } = false;
+    /// <summary>"NULL", "NOT NULL", or null when unspecified.  Always null for TABLE variables (nullability is per-column).</summary>
+    public string? NullabilityMarker { get; set; }
     public int Line { get; set; }
     public int Character { get; set; }
 }
@@ -266,15 +271,26 @@ public static class SQuiLParser
         if (tableMatch.Success)
             columns = ParseTableColumns(tableMatch.Groups[1].Value);
 
+        // Scalar nullability marker — derived from the type string.
+        // Table variables have per-column nullability; guard with isTable.
+        bool isNull    = !isTable
+                      && Regex.IsMatch(typeStr, @"\bnull\b",     RegexOptions.IgnoreCase)
+                      && !Regex.IsMatch(typeStr, @"\bnot\s+null\b", RegexOptions.IgnoreCase);
+        bool isNotNull = !isTable
+                      && Regex.IsMatch(typeStr, @"\bnot\s+null\b", RegexOptions.IgnoreCase);
+        string? scalarMarker = isTable ? null : isNull ? "NULL" : isNotNull ? "NOT NULL" : null;
+
         result.Variables.Add(new SQuiLVariable
         {
-            Role      = role,
-            RawName   = rawName,
-            Name      = name,
-            SqlType   = isTable ? "TABLE" : typeStr.TrimEnd(';').Trim(),
-            Columns   = columns,
-            Line      = lineNum,
-            Character = Math.Max(0, varStart),
+            Role              = role,
+            RawName           = rawName,
+            Name              = name,
+            SqlType           = isTable ? "TABLE" : typeStr.TrimEnd(';').Trim(),
+            Columns           = columns,
+            Nullable          = scalarMarker == "NULL",
+            NullabilityMarker = scalarMarker,
+            Line              = lineNum,
+            Character         = Math.Max(0, varStart),
         });
     }
 
@@ -288,12 +304,14 @@ public static class SQuiLParser
             if (!match.Success) continue;
 
             string nullability = (match.Groups[3].Value ?? "").ToUpperInvariant().Trim();
+            string? colMarker  = nullability == "NULL" ? "NULL" : nullability == "NOT NULL" ? "NOT NULL" : null;
             cols.Add(new TableColumn
             {
-                Name         = match.Groups[1].Value,
-                SqlType      = match.Groups[2].Value.Trim(),
-                Nullable     = nullability != "NOT NULL",
-                DefaultValue = match.Groups[4].Success ? match.Groups[4].Value : null,
+                Name              = match.Groups[1].Value,
+                SqlType           = match.Groups[2].Value.Trim(),
+                Nullable          = colMarker == "NULL",
+                NullabilityMarker = colMarker,
+                DefaultValue      = match.Groups[4].Success ? match.Groups[4].Value : null,
             });
         }
         return cols;
