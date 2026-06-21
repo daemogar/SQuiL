@@ -9,5 +9,5 @@ public partial record GetQuestionsForEvaluationRequest
 {
 	public bool Debug { get; set; } = true;
 	
-	public SectionTable Section { get; set; } = default!;
+	public SectionTable? Section { get; set; } = default!;
 }

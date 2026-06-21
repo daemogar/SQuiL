@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record SharedTable1Response
 {
-	public BobObject Bob { get; set; } = default!;
+	public BobObject? Bob { get; set; } = default!;
 }

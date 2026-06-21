@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.Data.SqlClient;
 
 using SQuiL.Generator;
@@ -268,6 +268,8 @@ public class SQuiLDataContext(
 						}
 						writer.WriteLine($"is{block.Name} = true;");
 						writer.WriteLine();
+						if (block.IsTable)
+							writer.WriteLine($"response.{block.Name} ??= [];");
 						writer.WriteLine("if (!await reader.ReadAsync(cancellationToken)) break;");
 						if (block.IsTable)
 						{

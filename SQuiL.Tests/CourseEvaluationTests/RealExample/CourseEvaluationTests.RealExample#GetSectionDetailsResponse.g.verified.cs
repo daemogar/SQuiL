@@ -7,5 +7,5 @@ namespace CourseEvaluation.Application.Data;
 
 public partial record GetSectionDetailsResponse
 {
-	public System.Collections.Generic.List<SectionTable> Sections { get; set; } = [];
+	public System.Collections.Generic.List<SectionTable>? Sections { get; set; }
 }

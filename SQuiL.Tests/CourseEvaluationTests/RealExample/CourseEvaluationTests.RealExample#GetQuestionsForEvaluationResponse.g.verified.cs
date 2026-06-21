@@ -7,5 +7,5 @@ namespace CourseEvaluation.Application.Data;
 
 public partial record GetQuestionsForEvaluationResponse
 {
-	public System.Collections.Generic.List<QuestionsTable> Questions { get; set; } = [];
+	public System.Collections.Generic.List<QuestionsTable>? Questions { get; set; }
 }
