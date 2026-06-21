@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { parseSQuiL, SQuiLDiagnostic, SQuiLVariable } from '../squil/parser';
+import { parseSQuiL, SQuiLDiagnostic } from '../squil/parser';
 
 export class SQuiLDiagnosticsProvider {
   private readonly collection: vscode.DiagnosticCollection;
@@ -24,7 +24,6 @@ export class SQuiLDiagnosticsProvider {
     // Additional linting passes
     vsDiags.push(...this.lintVariableNames(document, text));
     vsDiags.push(...this.lintStatementTerminators(document, text));
-    vsDiags.push(...this.lintColumnDefaults(document, parsed.variables));
 
     this.collection.set(document.uri, vsDiags);
   }
@@ -38,45 +37,6 @@ export class SQuiLDiagnosticsProvider {
   }
 
   // ─── Private helpers ─────────────────────────────────────────────────
-
-  /**
-   * SP0010 — a table column with a `default` followed by a column without one.
-   * The generated record is positional, so optional (defaulted) parameters must
-   * be trailing (else C# emits CS1737). Mirrors the source generator's check.
-   */
-  private lintColumnDefaults(
-    document: vscode.TextDocument,
-    variables: SQuiLVariable[],
-  ): vscode.Diagnostic[] {
-    const diags: vscode.Diagnostic[] = [];
-    for (const v of variables) {
-      if (!v.columns) continue;
-      let defaulted: string | undefined;
-      for (const col of v.columns) {
-        if (col.defaultValue !== undefined) {
-          defaulted = col.name;
-        } else if (defaulted !== undefined) {
-          const line = Math.min(v.line, document.lineCount - 1);
-          const lineLength = document.lineAt(line).text.length;
-          const range = new vscode.Range(
-            new vscode.Position(line, Math.min(v.character, lineLength)),
-            new vscode.Position(line, lineLength),
-          );
-          const d = new vscode.Diagnostic(
-            range,
-            `SP0010: column '${defaulted}' has a default but is followed by '${col.name}', which has none. ` +
-              `Columns with a default must be declared last (C# positional records require optional parameters to be trailing).`,
-            vscode.DiagnosticSeverity.Error,
-          );
-          d.source = 'squil';
-          d.code = 'SP0010';
-          diags.push(d);
-          break;
-        }
-      }
-    }
-    return diags;
-  }
 
   private toDiagnostic(document: vscode.TextDocument, d: SQuiLDiagnostic): vscode.Diagnostic {
     const line = Math.min(d.line, document.lineCount - 1);

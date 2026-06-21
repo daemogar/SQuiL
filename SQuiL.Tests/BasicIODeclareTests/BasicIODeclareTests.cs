@@ -167,7 +167,8 @@ public class BasicIODeclareTests
 	[Fact]
 	public Task ColumnDefaultsTrailing()
 	{
-		// Trailing column defaults become positional-record default params,
+		// Column defaults produce a hybrid record: non-defaulted columns are positional
+		// constructor parameters; defaulted columns become { get; init; } = <value> properties,
 		// reusing the per-type CSharpValue logic (decimal 'm', string quotes).
 		var name = nameof(ColumnDefaultsTrailing);
 		return TestHelper.Verify([TestHeader([name])], [$$"""
@@ -179,17 +180,18 @@ public class BasicIODeclareTests
 	}
 
 	[Fact]
-	public Task ColumnDefaultBeforeRequiredIsError()
+	public Task ColumnDefaultBeforeRequired()
 	{
-		// A defaulted column followed by a non-defaulted one cannot compile as a
-		// positional record (CS1737); SQuiL reports SP0010 instead.
-		var name = nameof(ColumnDefaultBeforeRequiredIsError);
+		// A default may now sit before a required column: the table becomes a hybrid
+		// record (positional ctor for non-defaulted columns + init props for defaulted).
+		// (SP0010 retired — this used to be an error.)
+		var name = nameof(ColumnDefaultBeforeRequired);
 		return TestHelper.Verify([TestHeader([name])], [$$"""
 			--Name: {{name}}
-			Declare @Params_Bad table(Amount decimal(18,2) default 5, Note varchar(50));
+			Declare @Params_Rows table(RowID int, Amount decimal(18,2) default 1.5, Qty int, Note varchar(50) default 'hello');
 			Use [Database];
 			Select 1;
-			"""], compileCheck: false);
+			"""]);
 	}
 
 	[Fact]
@@ -320,6 +322,20 @@ public class BasicIODeclareTests
 	}
 
 	[Fact]
+	public Task ReturnTableColumnDefault()
+	{
+		// A return table with a default must read into the hybrid record via an
+		// object initializer for the defaulted column(s).
+		var name = nameof(ReturnTableColumnDefault);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Returns_Rows table(RowID int, Amount decimal(18,2) default 1.5, Qty int);
+			Use [Database];
+			Select 1;
+			"""]);
+	}
+
+	[Fact]
 	public Task CustomTableVariable()
 	{
 		// @Params_Table/@Returns_Table share the CustomFile record, so their
@@ -351,6 +367,27 @@ public class BasicIODeclareTests
 			"""], files: [$$"""
 			--Name: {{name}}
 			Declare @Returns_Table table(TableID int, IsBoth bit, NickName varchar(100));
+			Use [Database];
+			Select 1;
+			"""]);
+	}
+
+	[Fact]
+	public Task CustomTableVariableWithColumnDefault()
+	{
+		// Merge path (user partial with empty primary ctor) + a column default:
+		// the defaulted column becomes an init property; non-defaulted columns
+		// remain positional ctor params.
+		var name = nameof(CustomTableVariableWithColumnDefault);
+		return TestHelper.Verify(sources: [$$"""
+			{{TestHeader([name])}}
+
+			[SQuiLTable(TableType.Table)]
+			public partial record CustomFile() {}
+			"""], files: [$$"""
+			--Name: {{name}}
+			Declare	@Params_Table table(TableID int, IsActive bit default 1, LastName varchar(100));
+			Declare	@Returns_Table table(TableID int, IsActive bit default 1, LastName varchar(100));
 			Use [Database];
 			Select 1;
 			"""]);

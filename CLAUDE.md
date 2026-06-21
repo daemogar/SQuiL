@@ -200,8 +200,9 @@ SQuiL/
     - DI: a `services.AddSQuiL()` extension (namespace
       `Microsoft.Extensions.DependencyInjection`) IS generated and registers
       the context as a singleton.
-    - authoring features that exist: table-column defaults (trailing-only,
-      SP0010), `datetimeoffset`→`DateTimeOffset` + the SQL→C# type map,
+    - authoring features that exist: table-column defaults (any-position hybrid
+      record; SP0010 RETIRED — free pool),
+      `datetimeoffset`→`DateTimeOffset` + the SQL→C# type map,
       undeclared-variable validation (SP0013) and special-placement (SP0016).
 - **Provider logic ported to both surfaces.** `parser.ts` ↔ `SQuiLParser.cs`,
   `previewGenerator.ts` ↔ `SQuiLPreviewGenerator.cs`,
@@ -267,10 +268,10 @@ SQuiL/
     warning. Prefer first in the header.
   - **Diagnostic IDs:** assign the lowest FREE id, **reusing ids that were
     retired and are no longer referenced** (Paul's ruling 2026-06-19). Currently
-    taken: SP0000–SP0009, SP0011–SP0019. **SP0010 was retired then REUSED** for
-    the column-default-before-required error (see "Column defaults" below). Next
-    free is SP0020. (Verify an id is truly unreferenced with a repo-wide grep
-    before reusing it.)
+    taken: SP0000–SP0009, SP0011–SP0019. **SP0010 is now RETIRED again** — the
+    column-default-before-required error it guarded no longer exists (any-position
+    defaults are now valid). Next free: SP0010, then SP0020. (Verify an id is truly
+    unreferenced with a repo-wide grep before reusing it.)
 - **Sample data detection** — the extension detects an existing sample-data
   block by the `Insert Into @Param_…` statement itself; NO comment markers.
   `@Params_` (list) prompts for row count; `@Param_…Table(...)` (single
@@ -500,24 +501,39 @@ public partial class MyDataContext : SQuiLBaseDataContext
 }
 ```
 
-Declaring **any** constructor (primary or ordinary) on the class opts out — the generator skips the constructor file, and the hand-written constructor must chain `: base(configuration)`. The class must still be `partial` (diagnostic **SP0006**). The explicit form — `public partial class MyDataContext(IConfiguration Configuration) : SQuiLBaseDataContext(Configuration) { }` — is still valid and compiles unchanged (backward-compatible). **SP0010 was freed by this change and has since been REUSED** for the column-default diagnostic (diagnostic ids are reused once retired and unreferenced — see Diagnostic IDs above).
+Declaring **any** constructor (primary or ordinary) on the class opts out — the generator skips the constructor file, and the hand-written constructor must chain `: base(configuration)`. The class must still be `partial` (diagnostic **SP0006**). The explicit form — `public partial class MyDataContext(IConfiguration Configuration) : SQuiLBaseDataContext(Configuration) { }` — is still valid and compiles unchanged (backward-compatible). **SP0010 was freed by this change, reused for the trailing-only column-default error, then RETIRED again** when any-position defaults were implemented (see Diagnostic IDs above).
 
-### Table-column defaults (trailing-only)
+### Table-column defaults (any position — hybrid record)
 
-A table-variable column may declare a SQL `default`:
-`@Params_Rows table(RowID int, Amount decimal(18,2) default 1.5, Note varchar(50) default 'hello')`.
-Each default becomes a C# positional-record default parameter
-(`record RowsTable(int RowID, decimal Amount = 1.5m, string Note = "hello")`),
-reusing the per-type `Token.CSharpValue` mapping (decimal gets an `m` suffix,
-dates/guids are parsed, strings quoted). Numeric literals may be fractional
-(`NumberRegex` accepts `\d+(\.\d+)?`).
+A table-variable column may declare a SQL `default` in **any** position. The
+generator produces a **hybrid record**: non-defaulted columns become positional
+constructor parameters (SQL relative order preserved), and defaulted columns
+become `public <type> <Name> { get; init; } = <value>;` properties. Example:
 
-Because C# requires optional parameters to be **trailing**, a defaulted column
-followed by a column without a default is a build error (**SP0010**); the
-generator suppresses the offending defaults (emits plain params) so no CS1737
-piles on top of SP0010. **Defaults in any position is a DEFERRED feature**
-(needs a positional→property-initializer record shape change); the editor
-extensions do **not** yet parse column `default`s (parity follow-up).
+`@Params_Rows table(RowID int, Amount decimal(18,2) default 1.5, Qty int, Note varchar(50) default 'hello')`
+
+generates:
+
+```csharp
+public partial record RowsTable(int RowID, int Qty)
+{
+    public decimal Amount { get; init; } = 1.5m;
+    public string Note { get; init; } = "hello";
+}
+```
+
+Construct with `new RowsTable(1, 5)` or override defaults with
+`new RowsTable(1, 5) { Amount = 2.5m, Note = "x" }`. Tables with no defaults
+emit a plain positional record (unchanged). Default values are mapped via the
+per-type `Token.CSharpValue` mapping (decimal gets an `m` suffix, dates/guids
+are parsed, strings quoted). Numeric literals may be fractional (`NumberRegex`
+accepts `\d+(\.\d+)?`).
+
+**SP0010 is RETIRED** — it guarded the old trailing-only rule (a defaulted
+column followed by a non-defaulted column was an error). That restriction is
+gone; SP0010 is back in the free pool (next free id: SP0010, then SP0020).
+The editor extensions parse `default` values and emit the hybrid shape in their
+C# preview; they no longer emit an SP0010 lint.
 
 ## Special Handling
 

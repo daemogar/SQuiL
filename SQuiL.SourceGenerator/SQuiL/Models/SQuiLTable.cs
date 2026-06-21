@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 using SQuiL.SourceGenerator.Parser;
@@ -118,7 +118,8 @@ public class SQuiLTable(
 						? item.CSharpType(() => tableName)
 						: item.CSharpType();
 
-					record.WriteLine($$"""public {{type}} {{item.Identifier.Value}} { get; init; }""");
+					var initializer = item.DefaultValue is null ? "" : $" = {item.CSharpValue()};";
+					record.WriteLine($$"""public {{type}} {{item.Identifier.Value}} { get; init; }{{initializer}}""");
 					record.WriteLine();
 				}
 
@@ -126,7 +127,7 @@ public class SQuiLTable(
 				WriteParameterizedConstructor(CamelCase);
 				record.Block(" : this()", () =>
 				{
-					foreach (var item in Block.Properties)
+					foreach (var item in Block.Properties.Where(p => p.DefaultValue is null))
 					{
 						var variable = item.Identifier.Value;
 						record.WriteLine($"{variable} = {CamelCase(variable)};");
@@ -137,7 +138,19 @@ public class SQuiLTable(
 		else
 		{
 			WriteParameterizedConstructor(p => p);
-			record.WriteLine(";");
+			var defaulted = properties.Where(p => p.DefaultValue is not null).ToList();
+			if (defaulted.Count == 0)
+				record.WriteLine(";");
+			else
+			{
+				record.WriteLine();
+				record.WriteLine("{");
+				record.Indent++;
+				foreach (var item in defaulted)
+					record.WriteLine($"public {item.CSharpType()} {item.Identifier.Value} {{ get; init; }} = {item.CSharpValue()};");
+				record.Indent--;
+				record.WriteLine("}");
+			}
 		}
 
 		if (exceptions.Count > 0)
@@ -149,28 +162,22 @@ public class SQuiLTable(
 
 		void WriteParameterizedConstructor(Func<string, string> callback)
 		{
+			// Only non-defaulted columns are positional ctor params; defaulted
+			// columns are emitted by the caller as init properties. This lifts the
+			// trailing-only restriction (defaults may sit in any position).
+			var positional = properties.Where(p => p.DefaultValue is null).ToList();
+
 			record.Write($"{tableName}(");
 			record.Indent++;
-
-			// Column defaults become positional-record default parameters, which C#
-			// requires to be trailing. Only emit a default on columns within the final
-			// all-defaulted run; a default before a required column is reported as
-			// SP0010 (in FileGenerator) and suppressed here to avoid CS1737 noise.
-			var trailingDefaultStart = properties.Count;
-			for (var i = properties.Count - 1; i >= 0 && properties[i].DefaultValue is not null; i--)
-				trailingDefaultStart = i;
-
 			var comma = "";
-			for (var i = 0; i < properties.Count; i++)
+			foreach (var item in positional)
 			{
-				var item = properties[i];
 				record.WriteLine(comma);
 				record.Write($"{item.CSharpType()} {callback(item.Identifier.Value)}");
-				if (i >= trailingDefaultStart && item.CSharpValue() is { } value)
-					record.Write($" = {value}");
 				comma = ",";
 			}
 			record.Write(")");
+			record.Indent--;
 		}
 	}
 }

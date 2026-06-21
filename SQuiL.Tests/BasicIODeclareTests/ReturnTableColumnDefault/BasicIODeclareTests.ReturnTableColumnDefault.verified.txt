@@ -1,25 +1,13 @@
 ﻿{
   Diagnostics: [
     {
-      Message: ColumnDefaultBeforeRequiredIsError: in table `Bad`, column `Amount` has a default but is followed by `Note`, which has none. Columns with a default must be declared last (C# positional records require optional parameters to be trailing).,
-      Severity: Error,
-      Descriptor: {
-        Id: SP0010,
-        Title: Column Default Before Required,
-        MessageFormat: ColumnDefaultBeforeRequiredIsError: in table `Bad`, column `Amount` has a default but is followed by `Note`, which has none. Columns with a default must be declared last (C# positional records require optional parameters to be trailing).,
-        Category: Design,
-        DefaultSeverity: Error,
-        IsEnabledByDefault: true
-      }
-    },
-    {
-      Message: CodeBlock { CodeType = INPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = {scrubbed}, Value = Bad, Original = @Params_Bad table }, Name = Bad, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = {scrubbed}, Value = Rows, Original = @Returns_Rows table }, Name = Rows, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = INPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = {scrubbed}, Value = Bad, Original = @Params_Bad table }, Name = Bad, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+        MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = {scrubbed}, Value = Rows, Original = @Returns_Rows table }, Name = Rows, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -65,13 +53,13 @@
       }
     },
     {
-      Message: VARIABLE => Params_Bad,
+      Message: VARIABLE => Returns_Rows,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: VARIABLE => Params_Bad,
+        MessageFormat: VARIABLE => Returns_Rows,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -104,6 +92,45 @@
       }
     },
     {
+      Message: IDENTIFIER => RowID,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => RowID,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_INT => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_INT => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
       Message: IDENTIFIER => Amount,
       Severity: Warning,
       WarningLevel: 1,
@@ -130,13 +157,13 @@
       }
     },
     {
-      Message: TYPE_DEFAULT => 5,
+      Message: TYPE_DEFAULT => 1.5,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: TYPE_DEFAULT => 5,
+        MessageFormat: TYPE_DEFAULT => 1.5,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -156,26 +183,26 @@
       }
     },
     {
-      Message: IDENTIFIER => Note,
+      Message: IDENTIFIER => Qty,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: IDENTIFIER => Note,
+        MessageFormat: IDENTIFIER => Qty,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
     },
     {
-      Message: TYPE_STRING => 50,
+      Message: TYPE_INT => ,
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: TYPE_STRING => 50,
+        MessageFormat: TYPE_INT => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true

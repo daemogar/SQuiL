@@ -15,7 +15,7 @@ public static class SQuiLExtensions
         if (IsLoaded) return services;
         IsLoaded = true;
         
-        services.AddSingleton<TestCase.ColumnDefaultBeforeRequiredIsErrorDataContext>();
+        services.AddSingleton<TestCase.ReturnTableColumnDefaultDataContext>();
         
         return services;
     }

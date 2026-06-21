@@ -7,5 +7,5 @@ namespace SQuiL;
 
 public enum QueryFiles
 {
-	ColumnDefaultBeforeRequiredIsError
+	ReturnTableColumnDefault
 }

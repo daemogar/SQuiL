@@ -92,7 +92,6 @@ internal sealed class SQuiLErrorTagger : ITagger<IErrorTag>
 
         var parsed = SQuiLParser.Parse(text);
         SQuiLLinter.Lint(text, parsed.Diagnostics);
-        SQuiLLinter.LintColumnDefaults(parsed.Variables, parsed.Diagnostics);
 
         foreach (var d in parsed.Diagnostics)
         {
