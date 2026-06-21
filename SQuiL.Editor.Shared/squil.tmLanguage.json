@@ -66,9 +66,9 @@
       }
     },
     "squil-special-vars": {
-      "comment": "@Debug, @EnvironmentName, @Error, @Errors — special SQuiL-managed variables",
+      "comment": "@Debug, @EnvironmentName — special SQuiL-managed variables",
       "name": "variable.other.special.squil",
-      "match": "(?i)@(Debug|EnvironmentName|Errors?)"
+      "match": "(?i)@(Debug|EnvironmentName)"
     },
     "squil-return-vars": {
       "comment": "@Return_Name and @Returns_Name — output variables",
