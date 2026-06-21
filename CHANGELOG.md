@@ -31,6 +31,12 @@ from 1.0.0 onward.
 - Project onboarding documentation (`README`, `CONTRIBUTING`, this changelog,
   `.editorconfig`).
 
+### Removed
+- **Breaking:** the `@Error`/`@Errors` in-SQL error-collection variables. SQL
+  errors now surface solely via `SQuiLResultType` (unwrap with
+  `result.TryGetValue(out value, out errors)`). The
+  `SQuiLError`/`SQuiLException`/`SQuiLAggregateException` types are unchanged.
+
 ### Changed
 - **Breaking:** a SQuiL file must be valid T-SQL. Referencing an `@` variable
   without a textually-preceding `DECLARE` now fails the build (`SP0013`).

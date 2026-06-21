@@ -1,4 +1,4 @@
-# SQuiL SQL Editor — VS Code Extension
+﻿# SQuiL SQL Editor — VS Code Extension
 
 Language support for [SQuiL](https://github.com/daemogar/SQuiL), the C# source generator ORM that converts annotated SQL files into strongly-typed C# code.
 
@@ -50,8 +50,7 @@ The highlighting, hover info, and linting all understand these patterns:
 | `@Returns_Name` | Output table | `IEnumerable<NameItem>` on `*Response` |
 | `@Return_Name TABLE(...)` | Output object | `NameItem` on `*Response` |
 | `@Debug` | Debug flag | Not emitted as C# |
-| `@EnvironmentName` | Environment | Not emitted as C# |
-| `@Error` / `@Errors` | Error handling | Not emitted as C# |
+| `@EnvironmentName` | Environment | Not emitted as C# |
 
 ---
 

@@ -87,7 +87,7 @@ and are git-ignored — never commit them.
   `@AsOfDate` (declared bare) → a nullable typed request property (e.g. `date` →
   `System.DateOnly?`); null at the call site means current-time-at-execution.
   `@EnvironmentName` → sent as a SQL parameter when declared, not a property.
-  `@Error` / `@Errors` → on the response when declared.
+  (`@Error`/`@Errors` were removed — errors surface via `SQuiLResultType` only.)
 - Match the surrounding code style (tabs for indentation; see `.editorconfig`).
 
 ## Packaging note (important)
