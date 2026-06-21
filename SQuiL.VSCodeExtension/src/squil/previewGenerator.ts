@@ -58,6 +58,10 @@ function recordTypeName(v: SQuiLVariable): string {
   return v.name;
 }
 
+function isCollectionRole(v: SQuiLVariable): boolean {
+  return v.role === 'params' || v.role === 'returns';
+}
+
 function getPropertyType(v: SQuiLVariable): string {
   if (v.role === 'params' || v.role === 'returns') {
     return `List<${recordTypeName(v)}>?`;
@@ -248,7 +252,8 @@ function emitModelRecord(
   }
 
   vars.forEach(v => {
-    lines.push(`    public ${getPropertyType(v)} ${v.name} { get; set; };`);
+    const initializer = (!isResponse && isCollectionRole(v)) ? ' = []' : '';
+    lines.push(`    public ${getPropertyType(v)} ${v.name} { get; set; }${initializer};`);
   });
 
   lines.push(`}`);

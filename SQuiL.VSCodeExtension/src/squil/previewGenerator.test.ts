@@ -116,7 +116,9 @@ test('preview mirrors generator nullability', () => {
   assert.ok(!out.includes('string? LastName'), 'unmarked varchar must NOT be string?');
   // Scalar @Param_Name varchar(100), no null marker → non-nullable string Request property
   assert.ok(out.includes('public string Name { get; set; };'), 'ref type scalar, unmarked → non-nullable');
-  // List response property: List<XTable>? with no = []
+  // Request input list: List<XTable>? with = []
+  assert.ok(out.includes('public List<PeopleTable>? People { get; set; } = [];'), 'list request → List<XTable>? with = [] initializer');
+  // Response output list: List<XTable>? with NO = []
   assert.ok(out.includes('public List<RowsTable>? Rows { get; set; };'), 'list response → List<XTable>? with no initializer');
-  assert.ok(!out.includes('= [];'), 'no = [] initializer anywhere');
+  assert.ok(!out.includes('List<RowsTable>? Rows { get; set; } = []'), 'response list must not have = [] initializer');
 });
