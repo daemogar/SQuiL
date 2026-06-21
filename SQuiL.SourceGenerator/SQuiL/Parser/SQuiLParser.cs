@@ -250,6 +250,10 @@ public class SQuiLParser(List<Token> Tokens)
 					{
 						var type = Expect(TokenType.TYPE);
 
+						bool? nullableMarker = null;
+						if (Current.Type == TokenType.LITERAL_NULL) { nullableMarker = true; Consume(); }
+						else if (Current.Type == TokenType.LITERAL_NOT_NULL) { nullableMarker = false; Consume(); }
+
 						if (Current.Type != TokenType.SYMBOL_EQUAL)
 						{
 							codeBlock = new(variable.Type,
@@ -260,7 +264,8 @@ public class SQuiLParser(List<Token> Tokens)
 								})
 							{
 								Size = type.Value,
-								IsSpecialDeclaration = variable.IsSpecialDeclaration
+								IsSpecialDeclaration = variable.IsSpecialDeclaration,
+								IsNullableMarker = nullableMarker
 							};
 							CodeBlocks.Add(codeBlock);
 
@@ -291,7 +296,8 @@ public class SQuiLParser(List<Token> Tokens)
 						}, variable.Name, defaultValue)
 						{
 							Size = type.Value,
-							IsSpecialDeclaration = variable.IsSpecialDeclaration
+							IsSpecialDeclaration = variable.IsSpecialDeclaration,
+							IsNullableMarker = nullableMarker
 						});
 					}
 					finally

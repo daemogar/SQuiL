@@ -7,5 +7,5 @@ namespace CourseEvaluation.Application.Data;
 
 public partial record GetActiveTermsForStudentEvaluationsRequest
 {
-	public System.DateOnly? AsOfDate { get; set; }
+	public System.DateOnly AsOfDate { get; set; }
 }

@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record ZeroConfigResponse
 {
-	public int? Count { get; set; }
+	public int Count { get; set; }
 }

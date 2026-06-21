@@ -11,13 +11,13 @@ public partial record TranscriptProcessingRequest
 	
 	public bool IncludeCompletedTranscripts { get; set; }
 	
-	public int? ReferenceID { get; set; }
+	public int ReferenceID { get; set; }
 	
-	public System.DateTime? IssueDate { get; set; }
+	public System.DateTime IssueDate { get; set; }
 	
-	public StudentObject? Student { get; set; } = default!;
+	public StudentObject Student { get; set; } = default!;
 	
-	public InstitutionObject? Institution { get; set; } = default!;
+	public InstitutionObject Institution { get; set; } = default!;
 	
-	public System.Collections.Generic.List<CoursesTable>? Courses { get; set; } = [];
+	public System.Collections.Generic.List<CoursesTable> Courses { get; set; } = [];
 }

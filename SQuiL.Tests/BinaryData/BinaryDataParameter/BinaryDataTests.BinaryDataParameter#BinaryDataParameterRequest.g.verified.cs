@@ -7,7 +7,7 @@ namespace TestCase;
 
 public partial record BinaryDataParameterRequest
 {
-	public byte[]? BinaryDataField { get; set; }
+	public byte[] BinaryDataField { get; set; }
 	
-	public byte[]? VarBinaryDataField { get; set; }
+	public byte[] VarBinaryDataField { get; set; }
 }

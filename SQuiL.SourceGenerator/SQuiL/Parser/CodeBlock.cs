@@ -25,23 +25,12 @@ public record CodeBlock(CodeType CodeType, Token DatabaseType, string Name, stri
 	/// <summary><c>true</c> when the variable has no default value and must be supplied by the caller.</summary>
 	public bool IsRequired { get; }
 
-	/// <summary>
-	/// <c>true</c> when the generated C# property should be nullable —
-	/// scalars without a default, binary types, and non-table types that default to <c>Null</c>.
-	/// </summary>
-	public bool IsNullable
-	{
-		get
-		{
-			if (IsTable || IsBinary)
-				return true;
+	/// <summary>Explicit nullability marker on the declare: true=<c>null</c>, false=<c>not null</c>, null=unmarked.</summary>
+	public bool? IsNullableMarker { get; init; }
 
-			if (IsRequired || DefaultValue is null || DefaultValue == "Null")
-				return true;
-
-			return false;
-		}
-	}
+	/// <summary><c>true</c> when the generated C# property should be nullable —
+	/// non-nullable UNLESS an explicit <c>null</c> marker is present (unified rule).</summary>
+	public bool IsNullable => IsNullableMarker == true;
 
 	/// <summary>The string size or precision extracted from the type token (e.g. <c>"50"</c> for <c>varchar(50)</c>).</summary>
 	public string? Size { get; set; }

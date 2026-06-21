@@ -9,7 +9,7 @@ public partial record GetStudentParticipationAndSectionOverridesRequest
 {
 	public bool Debug { get; set; } = true;
 	
-	public string? PersonID { get; set; }
+	public string PersonID { get; set; }
 	
-	public System.Collections.Generic.List<TermTable>? Terms { get; set; } = [];
+	public System.Collections.Generic.List<TermTable> Terms { get; set; } = [];
 }

@@ -351,6 +351,23 @@ public class BasicIODeclareTests
 	}
 
 	[Fact]
+	public Task ScalarNullabilityMatrix()
+	{
+		var name = nameof(ScalarNullabilityMatrix);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Param_Required int;
+			Declare @Param_Nullable int null;
+			Declare @Param_NotNull int not null;
+			Declare @Param_Defaulted int = 5;
+			Declare @Param_NullAndDefault int null = 5;
+			Declare @Return_Count int;
+			Use MyDb;
+			Select @Return_Count = 1;
+			"""]);
+	}
+
+	[Fact]
 	public Task CustomTableVariable()
 	{
 		// @Params_Table/@Returns_Table share the CustomFile record, so their

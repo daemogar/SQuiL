@@ -30,10 +30,8 @@ partial class TranscriptProcessingDataContext : SQuiLBaseDataContext
 		{
 			CreateParameter("@Debug", System.Data.SqlDbType.Bit, request.Debug || EnvironmentName != "Production"),
 			CreateParameter("@Param_IncludeCompletedTranscripts", System.Data.SqlDbType.Bit, request.IncludeCompletedTranscripts),
-			CreateParameter("@Param_ReferenceID", System.Data.SqlDbType.BigInt, request.ReferenceID ?? (object)System.DBNull.Value
-			, p => p.IsNullable = true),
-			CreateParameter("@Param_IssueDate", System.Data.SqlDbType.DateTime, request.IssueDate ?? (object)System.DBNull.Value
-			, p => p.IsNullable = true)
+			CreateParameter("@Param_ReferenceID", System.Data.SqlDbType.BigInt, request.ReferenceID),
+			CreateParameter("@Param_IssueDate", System.Data.SqlDbType.DateTime, request.IssueDate)
 		};
 		
 		command.CommandText = Query(parameters);

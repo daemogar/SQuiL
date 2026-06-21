@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record InputParameterTakesMaxStringConvertToTableArrayRequest
 {
-	public string? LongText { get; set; }
+	public string LongText { get; set; }
 }

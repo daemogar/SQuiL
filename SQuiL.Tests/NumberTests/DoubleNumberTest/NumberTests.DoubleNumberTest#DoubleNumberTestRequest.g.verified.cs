@@ -7,7 +7,7 @@ namespace TestCase;
 
 public partial record DoubleNumberTestRequest
 {
-	public double? Number1 { get; set; }
+	public double Number1 { get; set; }
 	
-	public double? Number4 { get; set; }
+	public double Number4 { get; set; }
 }

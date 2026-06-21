@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record ColumnDefaultsTrailingRequest
 {
-	public System.Collections.Generic.List<RowsTable>? Rows { get; set; } = [];
+	public System.Collections.Generic.List<RowsTable> Rows { get; set; } = [];
 }

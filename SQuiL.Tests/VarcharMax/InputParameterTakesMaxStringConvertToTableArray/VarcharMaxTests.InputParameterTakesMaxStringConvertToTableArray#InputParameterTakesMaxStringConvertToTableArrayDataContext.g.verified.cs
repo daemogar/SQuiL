@@ -28,8 +28,7 @@ partial class InputParameterTakesMaxStringConvertToTableArrayDataContext : SQuiL
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@Param_LongText", System.Data.SqlDbType.VarChar, -1, request.LongText ?? (object)System.DBNull.Value
-			, p => p.IsNullable = true)
+			CreateParameter("@Param_LongText", System.Data.SqlDbType.VarChar, -1, request.LongText)
 		};
 		
 		command.CommandText = Query(parameters);

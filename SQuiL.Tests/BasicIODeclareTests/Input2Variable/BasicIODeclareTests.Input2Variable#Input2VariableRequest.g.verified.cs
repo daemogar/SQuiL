@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record Input2VariableRequest
 {
-	public ObjectObject? Object { get; set; } = default!;
+	public ObjectObject Object { get; set; } = default!;
 }

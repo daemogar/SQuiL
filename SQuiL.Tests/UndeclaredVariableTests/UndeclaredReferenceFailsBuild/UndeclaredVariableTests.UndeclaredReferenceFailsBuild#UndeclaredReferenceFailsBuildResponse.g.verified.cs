@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record UndeclaredReferenceFailsBuildResponse
 {
-	public int? Count { get; set; }
+	public int Count { get; set; }
 }

@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record TypeKeywordAsColumnNameResponse
 {
-	public System.Collections.Generic.List<RecordsTable>? Records { get; set; } = [];
+	public System.Collections.Generic.List<RecordsTable> Records { get; set; } = [];
 }
