@@ -42,7 +42,7 @@ const SQL_TO_CS: Record<string, string> = {
   xml: 'string',
 };
 
-function sqlToCSharp(sqlType: string): string {
+export function sqlToCSharp(sqlType: string): string {
   const base = sqlType.toLowerCase().replace(/\s*\(.*\)/, '').trim();
   return SQL_TO_CS[base] ?? 'object';
 }

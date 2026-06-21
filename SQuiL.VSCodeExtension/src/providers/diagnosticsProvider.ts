@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { parseSQuiL, SQuiLDiagnostic } from '../squil/parser';
+import { nullabilityHints } from '../squil/nullabilityHints';
 
 export class SQuiLDiagnosticsProvider {
   private readonly collection: vscode.DiagnosticCollection;
@@ -19,6 +20,22 @@ export class SQuiLDiagnosticsProvider {
     for (const d of parsed.diagnostics) {
       const vsDiag = this.toDiagnostic(document, d);
       vsDiags.push(vsDiag);
+    }
+
+    // SP0010: nullability hints (unmarked scalars and table columns)
+    for (const hint of nullabilityHints(parsed)) {
+      const line = Math.min(hint.line, document.lineCount - 1);
+      const lineLength = document.lineAt(line).text.length;
+      const startChar = Math.min(hint.character, lineLength);
+      const endChar = Math.min(hint.character + hint.length, lineLength);
+      const range = new vscode.Range(
+        new vscode.Position(line, startChar),
+        new vscode.Position(line, endChar),
+      );
+      const d = new vscode.Diagnostic(range, hint.message, vscode.DiagnosticSeverity.Hint);
+      d.source = 'squil';
+      d.code = hint.code;
+      vsDiags.push(d);
     }
 
     // Additional linting passes
