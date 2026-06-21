@@ -68,12 +68,6 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 				{
 					switch (tableTag)
 					{
-						case "__SQuiL__Table__Type__Error__":
-						{
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							break;
-						}
 						case "__SQuiL__Table__Type__Returns_Courses__":
 						{
 							isCourses = true;
@@ -126,7 +120,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isCourses) errors.Add(new(51001, 12, 1, 128, "Courses", "Expected return table `Courses`"));
+		if (!isCourses) errors.Add(new(51001, 12, 1, 122, "Courses", "Expected return table `Courses`"));
 		
 		if(errors.Count == 0)
 			return new(response);

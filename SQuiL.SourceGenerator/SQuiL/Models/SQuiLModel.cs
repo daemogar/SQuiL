@@ -133,14 +133,6 @@ public class SQuiLModel(
 				continue;
 			}
 
-			// Error/Errors (@Return_Error/@Returns_Errors and bare @Error/@Errors output
-			// specials) are never surfaced as ordinary model properties — they drive the
-			// dedicated error-collection path in the data context. Skip them here.
-			// A name-collided ordinary param (e.g. @Param_Debug) has IsSpecialDeclaration
-			// == false and is NOT an error, so it falls through and emits as an ordinary
-			// property — matching the data context's parameter emission for the same block.
-			if (SQuiLGenerator.IsError(block.Name))
-				continue;
 			var inherits = InheritsProperty(ModelName, block.Name);
 			if (block.IsTable || block.IsObject)
 				CreateTableObject(block, !inherits);

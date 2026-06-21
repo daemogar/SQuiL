@@ -51,12 +51,6 @@ partial class TypeKeywordAsColumnNameDataContext : SQuiLBaseDataContext
 				{
 					switch (tableTag)
 					{
-						case "__SQuiL__Table__Type__Error__":
-						{
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							break;
-						}
 						case "__SQuiL__Table__Type__Returns_Records__":
 						{
 							isRecords = true;
@@ -97,7 +91,7 @@ partial class TypeKeywordAsColumnNameDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isRecords) errors.Add(new(51001, 12, 1, 99, "Records", "Expected return table `Records`"));
+		if (!isRecords) errors.Add(new(51001, 12, 1, 93, "Records", "Expected return table `Records`"));
 		
 		if(errors.Count == 0)
 			return new(response);

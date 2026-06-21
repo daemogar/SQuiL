@@ -53,12 +53,6 @@ partial class DateTypeVariableDataContext : SQuiLBaseDataContext
 				{
 					switch (tableTag)
 					{
-						case "__SQuiL__Table__Type__Error__":
-						{
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							break;
-						}
 						case "__SQuiL__Table__Type__Returns_Rows__":
 						{
 							isRows = true;
@@ -96,7 +90,7 @@ partial class DateTypeVariableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isRows) errors.Add(new(51001, 12, 1, 98, "Rows", "Expected return table `Rows`"));
+		if (!isRows) errors.Add(new(51001, 12, 1, 92, "Rows", "Expected return table `Rows`"));
 		
 		if(errors.Count == 0)
 			return new(response);

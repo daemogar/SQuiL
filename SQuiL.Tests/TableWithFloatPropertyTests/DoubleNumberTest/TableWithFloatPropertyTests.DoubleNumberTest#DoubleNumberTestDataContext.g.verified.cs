@@ -51,12 +51,6 @@ partial class DoubleNumberTestDataContext : SQuiLBaseDataContext
 				{
 					switch (tableTag)
 					{
-						case "__SQuiL__Table__Type__Error__":
-						{
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							break;
-						}
 						case "__SQuiL__Table__Type__Returns_Answers__":
 						{
 							isAnswers = true;
@@ -88,7 +82,7 @@ partial class DoubleNumberTestDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isAnswers) errors.Add(new(51001, 12, 1, 90, "Answers", "Expected return table `Answers`"));
+		if (!isAnswers) errors.Add(new(51001, 12, 1, 84, "Answers", "Expected return table `Answers`"));
 		
 		if(errors.Count == 0)
 			return new(response);

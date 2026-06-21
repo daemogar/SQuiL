@@ -59,16 +59,10 @@ public class SQuiLDataContext(
 			.ToList();
 
 		var outputs = Blocks
-			.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT
-				&& !SQuiLGenerator.IsError(p.Name))
+			.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT)
 			.Select(p => (CodeBlock: p, Query: p.CodeType == CodeType.OUTPUT_VARIABLE
 				? $"Declare {p.DatabaseType.Original};"
 				: TableDeclaration(p.DatabaseType.Original!, p)))
-			.ToList();
-
-		var errors = Blocks
-			.Where(p => SQuiLGenerator.IsError(p.Name))
-			.Select(p => (CodeBlock: p, Query: TableDeclaration(p.DatabaseType.Original!, p)))
 			.ToList();
 
 		writer.WriteLine($$"""
@@ -98,7 +92,7 @@ public class SQuiLDataContext(
 				var returnType = generation.Response.ModelName;
 				var noResponse = outputs.Count() == 0;
 
-				if (noResponse && errors.Count() == 0)
+				if (noResponse)
 					errorReturnType = false;
 				//else
 				returnType = noResponse
@@ -236,12 +230,6 @@ public class SQuiLDataContext(
 				writer.Block(output.Query);
 				writer.WriteLine();
 			}
-
-			foreach (var error in errors)
-			{
-				writer.Block(error.Query);
-				writer.WriteLine();
-			}
 		}
 
 		void VariableSetTracking()
@@ -260,15 +248,6 @@ public class SQuiLDataContext(
 
 		void SwitchStatements()
 		{
-			writer.Block($"""case "{SQuiLTableTypeDatabaseTagName}Error__":""", () =>
-			{
-				writer.WriteLine("if (!await reader.ReadAsync(cancellationToken)) break;");
-				foreach (var error in errors)
-					LoopProperties("Error", "errors", error.CodeBlock.Properties);
-				writer.WriteLine();
-				writer.WriteLine("break;");
-			});
-
 			try
 			{
 				foreach (var (block, query) in outputs)
@@ -508,8 +487,6 @@ public class SQuiLDataContext(
 		string TableDeclaration(string name, CodeBlock block)
 		{
 			name = name[1..^6].Trim();
-			if (name == "Errors")
-				name = "Error";
 
 			return $"""
 				Declare {block.DatabaseType.Original}(

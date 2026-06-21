@@ -51,12 +51,6 @@ partial class CustomTableVariableDataContext : SQuiLBaseDataContext
 				{
 					switch (tableTag)
 					{
-						case "__SQuiL__Table__Type__Error__":
-						{
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							break;
-						}
 						case "__SQuiL__Table__Type__Returns_Table__":
 						{
 							isTable = true;
@@ -94,7 +88,7 @@ partial class CustomTableVariableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTable) errors.Add(new(51001, 12, 1, 96, "Table", "Expected return table `Table`"));
+		if (!isTable) errors.Add(new(51001, 12, 1, 90, "Table", "Expected return table `Table`"));
 		
 		if(errors.Count == 0)
 			return new(response);

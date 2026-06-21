@@ -60,12 +60,6 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 				{
 					switch (tableTag)
 					{
-						case "__SQuiL__Table__Type__Error__":
-						{
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							break;
-						}
 						case "__SQuiL__Table__Type__Return_SectionID__":
 						{
 							if (isSectionID) throw new Exception(
@@ -112,9 +106,9 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isSectionID) errors.Add(new(51001, 12, 1, 114, "SectionID", "Expected return scaler `SectionID`"));
-		if (!isPersonID) errors.Add(new(51001, 12, 1, 115, "PersonID", "Expected return scaler `PersonID`"));
-		if (!isTermCode) errors.Add(new(51001, 12, 1, 116, "TermCode", "Expected return scaler `TermCode`"));
+		if (!isSectionID) errors.Add(new(51001, 12, 1, 108, "SectionID", "Expected return scaler `SectionID`"));
+		if (!isPersonID) errors.Add(new(51001, 12, 1, 109, "PersonID", "Expected return scaler `PersonID`"));
+		if (!isTermCode) errors.Add(new(51001, 12, 1, 110, "TermCode", "Expected return scaler `TermCode`"));
 		
 		if(errors.Count == 0)
 			return new(response);

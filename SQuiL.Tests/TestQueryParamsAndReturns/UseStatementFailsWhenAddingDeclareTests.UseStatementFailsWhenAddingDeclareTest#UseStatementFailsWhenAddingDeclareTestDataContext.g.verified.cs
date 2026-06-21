@@ -51,12 +51,6 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 				{
 					switch (tableTag)
 					{
-						case "__SQuiL__Table__Type__Error__":
-						{
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							break;
-						}
 						case "__SQuiL__Table__Type__Returns_ExtendedCourses__":
 						{
 							isExtendedCourses = true;
@@ -91,7 +85,7 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isExtendedCourses) errors.Add(new(51001, 12, 1, 93, "ExtendedCourses", "Expected return table `ExtendedCourses`"));
+		if (!isExtendedCourses) errors.Add(new(51001, 12, 1, 87, "ExtendedCourses", "Expected return table `ExtendedCourses`"));
 		
 		if(errors.Count == 0)
 			return new(response);

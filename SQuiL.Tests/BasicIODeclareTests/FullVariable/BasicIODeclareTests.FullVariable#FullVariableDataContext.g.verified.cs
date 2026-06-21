@@ -56,12 +56,6 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 				{
 					switch (tableTag)
 					{
-						case "__SQuiL__Table__Type__Error__":
-						{
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							break;
-						}
 						case "__SQuiL__Table__Type__Return_Scaler__":
 						{
 							if (isScaler) throw new Exception(
@@ -141,9 +135,9 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isScaler) errors.Add(new(51001, 12, 1, 143, "Scaler", "Expected return scaler `Scaler`"));
-		if (!isObject) errors.Add(new(51001, 12, 1, 144, "Object", "Expected return object `Object`"));
-		if (!isTable) errors.Add(new(51001, 12, 1, 145, "Table", "Expected return table `Table`"));
+		if (!isScaler) errors.Add(new(51001, 12, 1, 137, "Scaler", "Expected return scaler `Scaler`"));
+		if (!isObject) errors.Add(new(51001, 12, 1, 138, "Object", "Expected return object `Object`"));
+		if (!isTable) errors.Add(new(51001, 12, 1, 139, "Table", "Expected return table `Table`"));
 		
 		if(errors.Count == 0)
 			return new(response);
