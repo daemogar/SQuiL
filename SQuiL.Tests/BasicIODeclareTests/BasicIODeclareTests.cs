@@ -195,6 +195,21 @@ public class BasicIODeclareTests
 	}
 
 	[Fact]
+	public Task AllColumnsDefaulted()
+	{
+		// Every column defaulted: the positional ctor is empty (record Name()) and the
+		// return-table reader builds rows via a bare object initializer (new() { ... }).
+		// Locks the empty-positional-list branch in both SQuiLTable and SQuiLDataContext.
+		var name = nameof(AllColumnsDefaulted);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Returns_Rows table(Amount decimal(18,2) default 1.5, Note varchar(50) default 'hello');
+			Use [Database];
+			Select 1;
+			"""]);
+	}
+
+	[Fact]
 	public Task TypeKeywordAsColumnName()
 	{
 		var name = nameof(TypeKeywordAsColumnName);
