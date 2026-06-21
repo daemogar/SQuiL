@@ -57,6 +57,59 @@ internal static class SQuiLLinter
         }
 
         LintUndeclaredVariables(text, diagnostics);
+        LintNullabilityHints(text, diagnostics);
+    }
+
+    // ── Nullability hints (SP0010) ───────────────────────────────────────────
+    //
+    // Emits an Info-level hint for every scalar @Param_* / @Return_* variable
+    // and every table column that carries no explicit NULL / NOT NULL marker.
+    // When left unmarked the generator produces a non-nullable C# type; the hint
+    // nudges the author to make the intent explicit.
+    //
+    // Port of nullabilityHints.ts (VS Code extension) — message must stay
+    // byte-exact across all three editor surfaces.
+
+    internal static void LintNullabilityHints(string sql, List<SQuiLDiagnostic> diagnostics)
+    {
+        var parsed = SQuiLParser.Parse(sql);
+        foreach (var v in parsed.Variables)
+        {
+            if (v.Columns is { Count: > 0 })
+            {
+                // Table variable — check each column individually.
+                foreach (var col in v.Columns)
+                {
+                    if (col.NullabilityMarker is null)
+                    {
+                        string csType = SqlTypeMap.SqlToCSharp(col.SqlType);
+                        diagnostics.Add(new SQuiLDiagnostic
+                        {
+                            Message   = $"No `null`/`not null` marker — generated C# is non-nullable `{csType} {col.Name}`. "
+                                      + $"Add `not null` to confirm, or `null` to make it nullable.",
+                            Line      = v.Line,
+                            StartChar = v.Character,
+                            EndChar   = v.Character + col.Name.Length,
+                            Severity  = DiagnosticSeverity.Info,
+                        });
+                    }
+                }
+            }
+            else if ((v.Role == VariableRole.Param || v.Role == VariableRole.Return)
+                     && v.NullabilityMarker is null)
+            {
+                string csType = SqlTypeMap.SqlToCSharp(v.SqlType);
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message   = $"No `null`/`not null` marker — generated C# is non-nullable `{csType} {v.Name}`. "
+                              + $"Add `not null` to confirm, or `null` to make it nullable.",
+                    Line      = v.Line,
+                    StartChar = v.Character,
+                    EndChar   = v.Character + v.Name.Length,
+                    Severity  = DiagnosticSeverity.Info,
+                });
+            }
+        }
     }
 
     private static void LintCasing(string line, int lineNum, List<SQuiLDiagnostic> diagnostics)
