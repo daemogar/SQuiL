@@ -19,8 +19,6 @@ export type VariableRole =
   | 'suppressDebug'   // @SuppressDebug — bool special, not emitted as an ordinary property
   | 'environmentName' // @EnvironmentName
   | 'asOfDate'        // @AsOfDate — nullable typed Request property
-  | 'error'           // @Error
-  | 'errors'          // @Errors
   | 'unknown';        // unrecognised — triggers a warning
 
 export interface TableColumn {
@@ -192,12 +190,6 @@ function parseVariable(
   } else if (upper === '@ASOFDATE') {
     role = 'asOfDate';
     name = 'AsOfDate';
-  } else if (upper === '@ERROR') {
-    role = 'error';
-    name = 'Error';
-  } else if (upper === '@ERRORS') {
-    role = 'errors';
-    name = 'Errors';
   } else if (upper.startsWith('@PARAMS_')) {
     role = 'params';
     name = rawName.substring('@Params_'.length);
@@ -220,7 +212,7 @@ function parseVariable(
       result.diagnostics.push({
         message:
           `Variable '${rawName}' doesn't follow SQuiL naming conventions. ` +
-          `Expected: @Param_*, @Params_*, @Return_*, @Returns_*, @Debug, @SuppressDebug, @EnvironmentName, @AsOfDate, @Error, or @Errors.`,
+          `Expected: @Param_*, @Params_*, @Return_*, @Returns_*, @Debug, @SuppressDebug, @EnvironmentName, or @AsOfDate.`,
         line: lineNum,
         startChar: varStart >= 0 ? varStart : 0,
         endChar: varStart >= 0 ? varStart + rawName.length : rawName.length,
@@ -296,8 +288,6 @@ export function describeRole(role: VariableRole): string {
     case 'suppressDebug': return 'Suppress auto-debug flag (bool on *Request when declared; requires @Debug)';
     case 'environmentName': return 'Environment name (not a C# parameter)';
     case 'asOfDate':      return 'Point-in-time value (nullable typed property on *Request)';
-    case 'error':         return 'Error variable (not a C# parameter)';
-    case 'errors':        return 'Errors collection (not a C# parameter)';
     case 'unknown':       return 'Unknown — does not match SQuiL naming convention';
   }
 }

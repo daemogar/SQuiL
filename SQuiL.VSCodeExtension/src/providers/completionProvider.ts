@@ -123,18 +123,6 @@ const HEADER_VARS: VarDescriptor[] = [
       'When null, the **current time at execution** is substituted; the SQL initializer is ignored at runtime.\n\n' +
       "```sql\nDeclare @AsOfDate date = '2008-10-01';\n```",
   },
-  {
-    prefix: '@Error',
-    snippet: '@Error varchar(max)',
-    detail: 'Error variable — appears on *Response when declared',
-    docs: 'Special SQuiL error-handling variable. Populated on the response when the query produces an error.',
-  },
-  {
-    prefix: '@Errors',
-    snippet: '@Errors table (Message varchar(max))',
-    detail: 'Error collection — appears on *Response when declared',
-    docs: 'Special SQuiL error-handling collection. Populated on the response with structured error rows.',
-  },
 ];
 
 // ─── File-level scaffold snippets ─────────────────────────────────────────
