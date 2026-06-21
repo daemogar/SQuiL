@@ -44,6 +44,7 @@ test('column nullable only with explicit NULL; scalar marker captured', () => {
   const x = r.variables.find(v => v.name === 'X')!;
   assert.deepStrictEqual(x.columns!.map(c => c.nullable), [false, true, false]);
   assert.deepStrictEqual(x.columns!.map(c => c.nullabilityMarker), [undefined, 'NULL', 'NOT NULL']);
+  assert.strictEqual(x.nullabilityMarker, undefined, 'table var must not inherit nullabilityMarker from column text');
   assert.strictEqual(r.variables.find(v => v.name === 'S')!.nullabilityMarker, undefined);
   assert.strictEqual(r.variables.find(v => v.name === 'SN')!.nullabilityMarker, 'NULL');
 });

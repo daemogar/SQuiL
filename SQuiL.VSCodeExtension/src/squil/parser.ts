@@ -234,9 +234,10 @@ function parseVariable(
     columns = parseTableColumns(tableMatch[1]);
   }
 
-  const scalarNull = /\bnull\b/i.test(typeStr) && !/\bnot\s+null\b/i.test(typeStr);
-  const scalarNotNull = /\bnot\s+null\b/i.test(typeStr);
-  const scalarMarker: 'NULL' | 'NOT NULL' | undefined = scalarNull ? 'NULL' : scalarNotNull ? 'NOT NULL' : undefined;
+  const scalarNull = !isTable && /\bnull\b/i.test(typeStr) && !/\bnot\s+null\b/i.test(typeStr);
+  const scalarNotNull = !isTable && /\bnot\s+null\b/i.test(typeStr);
+  const scalarMarker: 'NULL' | 'NOT NULL' | undefined = isTable ? undefined :
+    (scalarNull ? 'NULL' : scalarNotNull ? 'NOT NULL' : undefined);
 
   result.variables.push({
     role,
