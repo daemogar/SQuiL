@@ -25,6 +25,8 @@ export interface TableColumn {
   name: string;
   sqlType: string;
   nullable: boolean;
+  /** Explicit nullability keyword from the column declaration, if present. */
+  nullabilityMarker?: 'NULL' | 'NOT NULL';
   /** Raw `DEFAULT <literal>` value (string literals keep their single quotes), or undefined. */
   defaultValue?: string;
 }
@@ -39,6 +41,10 @@ export interface SQuiLVariable {
   sqlType: string;
   /** Column definitions if this is a TABLE type */
   columns?: TableColumn[];
+  /** Whether the scalar variable is nullable (true only when NULL is explicit) */
+  nullable?: boolean;
+  /** Explicit nullability keyword from the scalar declaration, if present. */
+  nullabilityMarker?: 'NULL' | 'NOT NULL';
   line: number;
   character: number;
 }
@@ -228,12 +234,18 @@ function parseVariable(
     columns = parseTableColumns(tableMatch[1]);
   }
 
+  const scalarNull = /\bnull\b/i.test(typeStr) && !/\bnot\s+null\b/i.test(typeStr);
+  const scalarNotNull = /\bnot\s+null\b/i.test(typeStr);
+  const scalarMarker: 'NULL' | 'NOT NULL' | undefined = scalarNull ? 'NULL' : scalarNotNull ? 'NOT NULL' : undefined;
+
   result.variables.push({
     role,
     rawName,
     name,
     sqlType: isTable ? 'TABLE' : typeStr.replace(/;$/, '').trim(),
     columns,
+    nullable: scalarMarker === 'NULL',
+    nullabilityMarker: scalarMarker,
     line: lineNum,
     character: varStart >= 0 ? varStart : 0,
   });
@@ -248,10 +260,12 @@ function parseTableColumns(columnsStr: string): TableColumn[] {
     const match = trimmed.match(/^(\w+)\s+([\w]+(?:\([^)]*\))?)\s*(NULL|NOT\s+NULL)?\s*(?:DEFAULT\s+('[^']*'|\S+))?$/i);
     if (match) {
       const nullability = (match[3] ?? '').toUpperCase().trim();
+      const marker = nullability === 'NULL' ? 'NULL' : nullability === 'NOT NULL' ? 'NOT NULL' : undefined;
       cols.push({
         name: match[1],
         sqlType: match[2].trim(),
-        nullable: nullability !== 'NOT NULL',
+        nullable: marker === 'NULL',
+        nullabilityMarker: marker,
         defaultValue: match[4],
       });
     }

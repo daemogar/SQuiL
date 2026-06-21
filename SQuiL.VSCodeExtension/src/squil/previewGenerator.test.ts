@@ -85,7 +85,7 @@ test('Table record with defaults uses hybrid positional ctor + init props', () =
   ].join('\n'));
 
   assert.ok(out.includes('public partial record RowsTable('), 'has positional ctor');
-  assert.ok(out.includes('public decimal? Amount { get; init; } = 1.5m;'), 'Amount is an init prop with default (stays nullable)');
+  assert.ok(out.includes('public decimal Amount { get; init; } = 1.5m;'), 'Amount is an init prop with default (non-nullable: no explicit NULL)');
   assert.ok(out.includes('public string? Note { get; init; } = "hello";'), 'Note is an init prop with default');
   assert.ok(!/RowsTable\([^)]*Amount/.test(out), 'Amount must not be a ctor param');
 });
