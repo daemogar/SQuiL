@@ -40,9 +40,9 @@ internal static class SQuiLPreviewGenerator
         if (v.Role is VariableRole.ParamTable or VariableRole.ReturnTable)
             return $"{RecordTypeName(v)}?";
 
-        // Scalars: ref types get `?`, value types stay as-is.
+        // Scalars: nullable only when explicitly marked NULL in the SQL declaration.
         string cs = SqlTypeMap.SqlToCSharp(v.SqlType);
-        return SqlTypeMap.IsRefType(v.SqlType) ? $"{cs}?" : cs;
+        return v.Nullable ? $"{cs}?" : cs;
     }
 
     private static bool IsCollection(SQuiLVariable v) =>
@@ -145,16 +145,28 @@ internal static class SQuiLPreviewGenerator
     {
         if (v.Columns is null || v.Columns.Count == 0) return;
 
-        lines.Add($"public partial record {typeName}");
-        lines.Add("{");
-        foreach (var col in v.Columns)
+        string CsType(TableColumn col)
         {
             string cs = SqlTypeMap.SqlToCSharp(col.SqlType);
-            bool nullable = col.Nullable || SqlTypeMap.IsRefType(col.SqlType);
-            string suffix = nullable ? "?" : "";
-            string init = col.DefaultValue is null ? "" : $" = {CSharpDefault(col.SqlType, col.DefaultValue)};";
-            lines.Add($"    public {cs}{suffix} {col.Name} {{ get; set; }}{init}");
+            bool nullable = col.Nullable;
+            return nullable ? cs + "?" : cs;
         }
+
+        var positional = v.Columns.Where(c => c.DefaultValue is null).ToList();
+        var defaulted = v.Columns.Where(c => c.DefaultValue is not null).ToList();
+        string @params = string.Join(", ", positional.Select(c => $"{CsType(c)} {c.Name}"));
+
+        if (defaulted.Count == 0)
+        {
+            lines.Add($"public partial record {typeName}({@params});");
+            lines.Add("");
+            return;
+        }
+
+        lines.Add($"public partial record {typeName}({@params})");
+        lines.Add("{");
+        foreach (var col in defaulted)
+            lines.Add($"    public {CsType(col)} {col.Name} {{ get; init; }} = {CSharpDefault(col.SqlType, col.DefaultValue!)};");
         lines.Add("}");
         lines.Add("");
     }
@@ -210,7 +222,7 @@ internal static class SQuiLPreviewGenerator
         foreach (var v in vars)
         {
             string type = GetPropertyType(v);
-            string initializer = IsCollection(v) ? " = []" : "";
+            string initializer = (!isResponse && IsCollection(v)) ? " = []" : "";
             lines.Add($"    public {type} {v.Name} {{ get; set; }}{initializer};");
         }
 

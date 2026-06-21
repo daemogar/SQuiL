@@ -40,9 +40,9 @@ internal static class SQuiLPreviewGenerator
         if (v.Role is VariableRole.ParamTable or VariableRole.ReturnTable)
             return $"{RecordTypeName(v)}?";
 
-        // Scalars: ref types get `?`, value types stay as-is.
+        // Scalars: nullable only when explicitly marked NULL in the SQL declaration.
         string cs = SqlTypeMap.SqlToCSharp(v.SqlType);
-        return SqlTypeMap.IsRefType(v.SqlType) ? $"{cs}?" : cs;
+        return v.Nullable ? $"{cs}?" : cs;
     }
 
     private static bool IsCollection(SQuiLVariable v) =>
@@ -148,7 +148,7 @@ internal static class SQuiLPreviewGenerator
         string CsType(TableColumn col)
         {
             string cs = SqlTypeMap.SqlToCSharp(col.SqlType);
-            bool nullable = col.Nullable || SqlTypeMap.IsRefType(col.SqlType);
+            bool nullable = col.Nullable;
             return nullable ? cs + "?" : cs;
         }
 
@@ -222,7 +222,7 @@ internal static class SQuiLPreviewGenerator
         foreach (var v in vars)
         {
             string type = GetPropertyType(v);
-            string initializer = IsCollection(v) ? " = []" : "";
+            string initializer = (!isResponse && IsCollection(v)) ? " = []" : "";
             lines.Add($"    public {type} {v.Name} {{ get; set; }}{initializer};");
         }
 
