@@ -33,7 +33,7 @@ test('bare @SuppressDebug and @AsOfDate are recognized header specials (no namin
 });
 
 // Parity with the generator: a column DEFAULT must be parsed (not dropped) and
-// its raw literal captured, so the preview and SP0010 lint can use it.
+// its raw literal captured, so the preview can render it as an init-property default.
 test('table column DEFAULT is parsed and its literal captured', () => {
   const result = parseSQuiL([
     '--Name: Defaults',

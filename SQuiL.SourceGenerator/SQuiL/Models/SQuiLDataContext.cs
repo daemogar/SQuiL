@@ -371,17 +371,32 @@ public class SQuiLDataContext(
 						}
 
 						writer.WriteLine();
+						var positional = properties.Where(p => p.DefaultValue is null).ToList();
+						var defaulted = properties.Where(p => p.DefaultValue is not null).ToList();
 						writer.Write($"{model}.Add(new(");
 						writer.Indent++;
 						var comma = "";
-						foreach (var item in properties)
+						foreach (var item in positional)
 						{
 							writer.WriteLine(comma);
 							writer.Write($"value{item.Identifier.Value}");
 							comma = ",";
 						}
 						writer.Indent--;
-						writer.WriteLine("));");
+						if (defaulted.Count == 0)
+						{
+							writer.WriteLine("));");
+						}
+						else
+						{
+							writer.WriteLine(")");
+							writer.WriteLine("{");
+							writer.Indent++;
+							foreach (var item in defaulted)
+								writer.WriteLine($"{item.Identifier.Value} = value{item.Identifier.Value},");
+							writer.Indent--;
+							writer.WriteLine("});");
+						}
 					});
 				}, $"""while (await reader.ReadAsync(cancellationToken));""");
 			}

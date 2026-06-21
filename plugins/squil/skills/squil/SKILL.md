@@ -58,13 +58,23 @@ A scalar uses a primitive declared type (`int`, `varchar(10)`, `datetime`, `bit`
 
 The declared SQL type maps to a C# type: `int`/`bigint`/`smallint`/`tinyint` → the matching integer type, `bit` → `bool`, `varchar`/`nvarchar`/`char`/`text` → `string`, `decimal(p,s)`/`numeric(p,s)` → `decimal` (precision and scale are preserved), `float` → `double`, `real` → `float`, `date` → `System.DateOnly`, `datetime`/`datetime2`/`smalldatetime` → `System.DateTime`, `datetimeoffset` → `System.DateTimeOffset`, `uniqueidentifier` → `System.Guid`, `varbinary`/`binary`/`image` → `byte[]`. A nullable SQL column produces a nullable C# type.
 
-A table column may carry a SQL `default`, which becomes a default value on the generated record parameter:
+A table column may carry a SQL `default` in **any** position. The generator produces a **hybrid record**: non-defaulted columns become positional constructor parameters (SQL relative order preserved), and defaulted columns become `{ get; init; } = <value>` properties. For example:
 
 ```sql
-Declare @Params_Rows table(RowID int, Amount decimal(18,2) default 1.5, Note varchar(50) default 'hello');
+Declare @Params_Rows table(RowID int, Amount decimal(18,2) default 1.5, Qty int, Note varchar(50) default 'hello');
 ```
 
-generates `record RowsTable(int RowID, decimal Amount = 1.5m, string Note = "hello")`. Because C# optional parameters must be **trailing**, a defaulted column followed by a column *without* a default is a build error (**SP0010**) — keep every defaulted column last. (Defaults in arbitrary positions is a deferred feature; the editor extensions don't parse column `default`s yet.)
+generates:
+
+```csharp
+public partial record RowsTable(int RowID, int Qty)
+{
+    public decimal Amount { get; init; } = 1.5m;
+    public string Note { get; init; } = "hello";
+}
+```
+
+Construct with `new RowsTable(1, 5)` or `new RowsTable(1, 5) { Amount = 2.5m, Note = "x" }`. Tables with no defaults are unchanged (plain positional record). The editor extensions parse `default` values and emit this same hybrid shape in their C# preview. Default values are mapped per-type via `Token.CSharpValue` (decimal gets an `m` suffix, strings are quoted).
 
 ### Special variables (opt-in)
 

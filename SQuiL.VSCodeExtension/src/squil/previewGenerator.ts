@@ -193,14 +193,27 @@ function csharpDefault(sqlType: string, raw: string): string {
 
 function emitTableRecord(lines: string[], typeName: string, v: SQuiLVariable): void {
   if (!v.columns || v.columns.length === 0) return;
-  lines.push(`public partial record ${typeName}`);
-  lines.push(`{`);
-  v.columns.forEach(col => {
+
+  const csType = (col: typeof v.columns[number]): string => {
     const cs = sqlToCSharp(col.sqlType);
     const isRefType = cs === 'string' || cs === 'byte[]';
-    const csType = isRefType || col.nullable ? `${cs}?` : cs;
-    const init = col.defaultValue ? ` = ${csharpDefault(col.sqlType, col.defaultValue)};` : '';
-    lines.push(`    public ${csType} ${col.name} { get; set; }${init}`);
+    return isRefType || col.nullable ? `${cs}?` : cs;
+  };
+
+  const positional = v.columns.filter(c => !c.defaultValue);
+  const defaulted = v.columns.filter(c => c.defaultValue);
+  const params = positional.map(c => `${csType(c)} ${c.name}`).join(', ');
+
+  if (defaulted.length === 0) {
+    lines.push(`public partial record ${typeName}(${params});`);
+    lines.push('');
+    return;
+  }
+
+  lines.push(`public partial record ${typeName}(${params})`);
+  lines.push(`{`);
+  defaulted.forEach(col => {
+    lines.push(`    public ${csType(col)} ${col.name} { get; init; } = ${csharpDefault(col.sqlType, col.defaultValue!)};`);
   });
   lines.push(`}`);
   lines.push('');

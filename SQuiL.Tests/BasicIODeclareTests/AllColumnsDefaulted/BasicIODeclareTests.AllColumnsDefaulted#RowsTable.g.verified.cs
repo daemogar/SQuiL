@@ -5,8 +5,7 @@
 
 namespace TestCase;
 
-public partial record RowsTable(
-	int RowID)
+public partial record RowsTable()
 {
 	public decimal Amount { get; init; } = 1.5m;
 	public string Note { get; init; } = "hello";

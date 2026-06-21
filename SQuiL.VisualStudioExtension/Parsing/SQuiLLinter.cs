@@ -315,40 +315,6 @@ internal static class SQuiLLinter
             }
     }
 
-    /// <summary>
-    /// SP0010 — a table column with a <c>default</c> followed by a column without one.
-    /// The generated record is positional, so optional (defaulted) parameters must be
-    /// trailing (else C# emits CS1737). Mirrors the source generator's check and
-    /// <c>lintColumnDefaults</c> in diagnosticsProvider.ts.
-    /// </summary>
-    public static void LintColumnDefaults(List<SQuiLVariable> variables, List<SQuiLDiagnostic> diagnostics)
-    {
-        foreach (var v in variables)
-        {
-            if (v.Columns is null) continue;
-
-            string? defaulted = null;
-            foreach (var col in v.Columns)
-            {
-                if (col.DefaultValue is not null)
-                    defaulted = col.Name;
-                else if (defaulted is not null)
-                {
-                    diagnostics.Add(new SQuiLDiagnostic
-                    {
-                        Message = $"SP0010: column '{defaulted}' has a default but is followed by '{col.Name}', which has none. " +
-                                  "Columns with a default must be declared last (C# positional records require optional parameters to be trailing).",
-                        Line = v.Line,
-                        StartChar = v.Character,
-                        EndChar = v.Character + v.Name.Length,
-                        Severity = DiagnosticSeverity.Error,
-                    });
-                    break;
-                }
-            }
-        }
-    }
-
     private static void AddFinding(
         string sql, List<SQuiLDiagnostic> diagnostics,
         string name, int offset, DiagnosticSeverity severity, string message)

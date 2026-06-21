@@ -63,3 +63,40 @@ test('@EnvironmentName is never emitted as a Request property', () => {
   assert.ok(!out.includes('EnvironmentName'), '@EnvironmentName must not be a Request property');
   assert.ok(!out.includes('DebugOnly'), 'DebugOnly must never be emitted');
 });
+
+test('Table record with no defaults is positional', () => {
+  const out = preview([
+    '--Name: NoDefaults',
+    'Declare @Params_Rows table(RowID int, Name varchar(50));',
+    'Use MyDatabase;',
+    'Select 1;',
+  ].join('\n'));
+
+  assert.ok(out.includes('public partial record RowsTable('), 'should be positional');
+  assert.ok(!out.includes('{ get; init; }'), 'no-default table must not use init props');
+});
+
+test('Table record with defaults uses hybrid positional ctor + init props', () => {
+  const out = preview([
+    '--Name: WithDefaults',
+    "Declare @Params_Rows table(RowID int, Amount decimal(18,2) default 1.5, Qty int, Note varchar(50) default 'hello');",
+    'Use MyDatabase;',
+    'Select 1;',
+  ].join('\n'));
+
+  assert.ok(out.includes('public partial record RowsTable('), 'has positional ctor');
+  assert.ok(out.includes('public decimal? Amount { get; init; } = 1.5m;'), 'Amount is an init prop with default (stays nullable)');
+  assert.ok(out.includes('public string? Note { get; init; } = "hello";'), 'Note is an init prop with default');
+  assert.ok(!/RowsTable\([^)]*Amount/.test(out), 'Amount must not be a ctor param');
+});
+
+test('nullable value-type column with a default renders as nullable init prop', () => {
+  const out = preview([
+    '--Name: NullableDefault',
+    'Declare @Params_Rows table(RowID int, Score int null default 0);',
+    'Use MyDatabase;',
+    'Select 1;',
+  ].join('\n'));
+
+  assert.ok(out.includes('public int? Score { get; init; } = 0;'), 'nullable value-type default stays nullable');
+});
