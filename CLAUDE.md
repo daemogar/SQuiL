@@ -195,13 +195,16 @@ SQuiL/
       `SQuiLException`/`SQuiLAggregateException` are NOT thrown by generated
       code.
     - row records are `<Name>Table` (table-valued) / `<Name>Object`
-      (single-object), never `<Name>Row`/`<Name>Item`; response collections
-      are `List<<Name>Table>? = []`.
+      (single-object), never `<Name>Row`/`<Name>Item`; response list
+      collections are `List<<Name>Table>?` with **no** `= []` (null when
+      absent, `[]` when empty, `[...]` when populated); input request lists
+      keep `= []`; object returns are `<Name>Object?` with `= default!`.
     - DI: a `services.AddSQuiL()` extension (namespace
       `Microsoft.Extensions.DependencyInjection`) IS generated and registers
       the context as a singleton.
-    - authoring features that exist: table-column defaults (any-position hybrid
-      record; SP0010 RETIRED — free pool),
+    - authoring features that exist: unified nullability rule (marker-driven,
+      non-nullable by default; SP0010 editor-only Hint for unmarked declares),
+      table-column defaults (any-position hybrid record),
       `datetimeoffset`→`DateTimeOffset` + the SQL→C# type map,
       undeclared-variable validation (SP0013) and special-placement (SP0016).
 - **Provider logic ported to both surfaces.** `parser.ts` ↔ `SQuiLParser.cs`,
@@ -271,10 +274,12 @@ SQuiL/
     warning. Prefer first in the header.
   - **Diagnostic IDs:** assign the lowest FREE id, **reusing ids that were
     retired and are no longer referenced** (Paul's ruling 2026-06-19). Currently
-    taken: SP0000–SP0009, SP0011–SP0019. **SP0010 is now RETIRED again** — the
-    column-default-before-required error it guarded no longer exists (any-position
-    defaults are now valid). Next free: SP0010, then SP0020. (Verify an id is truly
-    unreferenced with a repo-wide grep before reusing it.)
+    taken: SP0000–SP0019. **SP0010 is now TAKEN** — it is the editor-only
+    nullability-hint diagnostic ("no null/not null marker — generated C# is
+    non-nullable; add `not null` to confirm, or `null` to make it nullable"). It
+    is editor-only; it is NOT emitted by the source generator at build time.
+    Next free: SP0020. (Verify an id is truly unreferenced with a repo-wide grep
+    before reusing it.)
 - **Sample data detection** — the extension detects an existing sample-data
   block by the `Insert Into @Param_…` statement itself; NO comment markers.
   `@Params_` (list) prompts for row count; `@Param_…Table(...)` (single
@@ -506,6 +511,42 @@ public partial class MyDataContext : SQuiLBaseDataContext
 
 Declaring **any** constructor (primary or ordinary) on the class opts out — the generator skips the constructor file, and the hand-written constructor must chain `: base(configuration)`. The class must still be `partial` (diagnostic **SP0006**). The explicit form — `public partial class MyDataContext(IConfiguration Configuration) : SQuiLBaseDataContext(Configuration) { }` — is still valid and compiles unchanged (backward-compatible). **SP0010 was freed by this change, reused for the trailing-only column-default error, then RETIRED again** when any-position defaults were implemented (see Diagnostic IDs above).
 
+### Nullability rule (unified — applies to both scalars and table columns)
+
+**One rule:** a column or scalar is non-nullable UNLESS its `Declare` carries an
+explicit `null` marker. Reference types (`string`, `byte[]`) are **never**
+auto-`?`. An explicit `null` wins even alongside a default value.
+
+| Declaration | C# type |
+|---|---|
+| `@Param_X int` (no marker) | `int X { get; set; }` (non-nullable) |
+| `@Param_X int null` | `int? X { get; set; }` (nullable) |
+| `@Param_X int not null` | `int X { get; set; }` (non-nullable) |
+| `@Param_X int = 5` (default, no marker) | `int X { get; set; } = 5` (non-nullable) |
+| `@Param_X int null = 5` (null marker + default) | `int? X { get; set; } = 5` (nullable wins) |
+| `@Param_X varchar(10)` (ref type, no marker) | `string X { get; set; }` (never auto-`?`) |
+| `@Param_X varchar(10) null` | `string? X { get; set; }` (nullable) |
+| `@Param_X varbinary(max)` | `byte[] X { get; set; }` (never auto-`?`) |
+| `@Param_X varbinary(max) null` | `byte[]? X { get; set; }` (nullable) |
+
+The same rule applies to table columns in `@Param_/@Params_/…` and
+`@Return_/…@Returns_` table declarations.
+
+**List and object result-set types:**
+- `@Returns_X table(...)` → `List<XTable>? X { get; set; }` on `*Response`
+  with **NO** `= []` initializer. Null when the result set is absent, `[]` when
+  returned empty, `[...]` when 1+ rows.
+- `@Params_X table(...)` → `List<XTable>? X { get; set; } = []` on `*Request`
+  (input lists KEEP `= []`).
+- `@Return_X table(...)` → `XObject? X { get; set; } = default!` on `*Response`.
+  Null when absent/0-row, the object when exactly 1 row; 2+ rows throws.
+
+**Editor-only hint — SP0010:** every unmarked column/scalar (no `null` or
+`not null` in the declare) gets a low-severity nudge: "No null/not null marker —
+generated C# is non-nullable …; add `not null` to confirm, or `null` to make it
+nullable." VS Code uses Hint severity; the C# extensions use Info (their enum
+has no Hint). SP0010 is **editor-only — NOT a build/generator diagnostic**.
+
 ### Table-column defaults (any position — hybrid record)
 
 A table-variable column may declare a SQL `default` in **any** position. The
@@ -532,15 +573,14 @@ per-type `Token.CSharpValue` mapping (decimal gets an `m` suffix, dates/guids
 are parsed, strings quoted). Numeric literals may be fractional (`NumberRegex`
 accepts `\d+(\.\d+)?`).
 
-**SP0010 is RETIRED** — it guarded the old trailing-only rule (a defaulted
-column followed by a non-defaulted column was an error). That restriction is
-gone; SP0010 is back in the free pool (next free id: SP0010, then SP0020).
-The editor extensions parse `default` values and emit the hybrid shape in their
-C# preview; they no longer emit an SP0010 lint.
+**SP0010 is TAKEN** (since the nullability-unification feature) — it is the
+editor-only Hint that fires on any unmarked column or scalar declare (no `null`
+or `not null`). It is NOT a build/generator diagnostic. Next free id: SP0020.
 
 ## Special Handling
 
 - **Identifiers starting with SQL keywords**: The generator adds special handling for cases where an identifier starts with a keyword (see test for USE keyword)
 - **datetimeoffset → DateTimeOffset**: `datetimeoffset` maps end-to-end to C# `System.DateTimeOffset` (read via `GetFieldValue<DateTimeOffset>`, parameterized as `SqlDbType.DateTimeOffset`). `datetime` / `datetime2` map to `System.DateTime`.
-- **Binary data**: Supports binary data input/output
+- **Binary data**: `varbinary`/`binary` map to `byte[]`; nullability follows the unified rule — `byte[]` is non-nullable by default, `byte[]?` only with an explicit `null` marker.
+- **Nullability**: See the "Nullability rule (unified)" section under SQuiL naming conventions.
 - **Blank lines between data**: Adds formatting for better readability in generated code

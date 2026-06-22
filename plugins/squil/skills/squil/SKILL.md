@@ -55,7 +55,23 @@ A scalar uses a primitive declared type (`int`, `varchar(10)`, `datetime`, `bit`
 
 ### Column types and defaults
 
-The declared SQL type maps to a C# type: `int`/`bigint`/`smallint`/`tinyint` → the matching integer type, `bit` → `bool`, `varchar`/`nvarchar`/`char`/`text` → `string`, `decimal(p,s)`/`numeric(p,s)` → `decimal` (precision and scale are preserved), `float` → `double`, `real` → `float`, `date` → `System.DateOnly`, `datetime`/`datetime2`/`smalldatetime` → `System.DateTime`, `datetimeoffset` → `System.DateTimeOffset`, `uniqueidentifier` → `System.Guid`, `varbinary`/`binary`/`image` → `byte[]`. A nullable SQL column produces a nullable C# type.
+The declared SQL type maps to a C# type: `int`/`bigint`/`smallint`/`tinyint` → the matching integer type, `bit` → `bool`, `varchar`/`nvarchar`/`char`/`text` → `string`, `decimal(p,s)`/`numeric(p,s)` → `decimal` (precision and scale are preserved), `float` → `double`, `real` → `float`, `date` → `System.DateOnly`, `datetime`/`datetime2`/`smalldatetime` → `System.DateTime`, `datetimeoffset` → `System.DateTimeOffset`, `uniqueidentifier` → `System.Guid`, `varbinary`/`binary`/`image` → `byte[]`.
+
+**Nullability — the one rule:** a column or scalar is non-nullable UNLESS its `Declare` carries an explicit `null` marker. Reference types (`string`, `byte[]`) are **never** auto-`?`. An explicit `null` wins even alongside a default value.
+
+| Declaration | C# type |
+|---|---|
+| `@Param_X int` (no marker) | `int X { get; set; }` |
+| `@Param_X int null` | `int? X { get; set; }` |
+| `@Param_X int not null` | `int X { get; set; }` |
+| `@Param_X int = 5` (default, no marker) | `int X { get; set; } = 5` |
+| `@Param_X int null = 5` (null + default) | `int? X { get; set; } = 5` |
+| `@Param_X varchar(10)` (ref type, no marker) | `string X { get; set; }` |
+| `@Param_X varchar(10) null` | `string? X { get; set; }` |
+| `@Param_X varbinary(max)` | `byte[] X { get; set; }` |
+| `@Param_X varbinary(max) null` | `byte[]? X { get; set; }` |
+
+The same rule applies to table columns in `table(...)` declarations.
 
 A table column may carry a SQL `default` in **any** position. The generator produces a **hybrid record**: non-defaulted columns become positional constructor parameters (SQL relative order preserved), and defaulted columns become `{ get; init; } = <value>` properties. For example:
 
@@ -323,7 +339,7 @@ public record ParticipationResult(
     IReadOnlyList<OverridesTable> Overrides);
 ```
 
-`response.Participation` / `response.Overrides` are `List<ParticipationTable>?` / `List<OverridesTable>?` (the generated response initializes them to `[]`, but they are typed nullable). Throwing `SQuiLAggregateException` here is one choice; the wrapper could equally return an empty/sentinel result or surface the `errors` list directly.
+`response.Participation` / `response.Overrides` are `List<ParticipationTable>?` / `List<OverridesTable>?`. Response lists have **no** `= []` initializer: they are `null` when the result set is absent, `[]` when returned empty, and `[...]` when 1+ rows — so a `?? []` guard in the wrapper is appropriate. Throwing `SQuiLAggregateException` here is one choice; the wrapper could equally return an empty/sentinel result or surface the `errors` list directly.
 
 Why this layout matters:
 
