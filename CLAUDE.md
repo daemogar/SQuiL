@@ -509,7 +509,7 @@ public partial class MyDataContext : SQuiLBaseDataContext
 }
 ```
 
-Declaring **any** constructor (primary or ordinary) on the class opts out — the generator skips the constructor file, and the hand-written constructor must chain `: base(configuration)`. The class must still be `partial` (diagnostic **SP0006**). The explicit form — `public partial class MyDataContext(IConfiguration Configuration) : SQuiLBaseDataContext(Configuration) { }` — is still valid and compiles unchanged (backward-compatible). **SP0010 was freed by this change, reused for the trailing-only column-default error, then RETIRED again** when any-position defaults were implemented (see Diagnostic IDs above).
+Declaring **any** constructor (primary or ordinary) on the class opts out — the generator skips the constructor file, and the hand-written constructor must chain `: base(configuration)`. The class must still be `partial` (diagnostic **SP0006**). The explicit form — `public partial class MyDataContext(IConfiguration Configuration) : SQuiLBaseDataContext(Configuration) { }` — is still valid and compiles unchanged (backward-compatible). **SP0010** was freed by this change, then went through the trailing-only column-default error and a free-pool stint, and is now **TAKEN by the editor-only nullability hint** (see Diagnostic IDs / Nullability rule below).
 
 ### Nullability rule (unified — applies to both scalars and table columns)
 
