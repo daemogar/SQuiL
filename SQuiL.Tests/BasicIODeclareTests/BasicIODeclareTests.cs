@@ -184,7 +184,7 @@ public class BasicIODeclareTests
 	{
 		// A default may now sit before a required column: the table becomes a hybrid
 		// record (positional ctor for non-defaulted columns + init props for defaulted).
-		// (SP0010 retired — this used to be an error.)
+		// (SP0010 now used by the editor nullability hint.)
 		var name = nameof(ColumnDefaultBeforeRequired);
 		return TestHelper.Verify([TestHeader([name])], [$$"""
 			--Name: {{name}}

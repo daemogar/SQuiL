@@ -185,7 +185,7 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
             foreach (var col in v.Columns)
             {
                 string colCs = SqlTypeMap.SqlToCSharp(col.SqlType);
-                bool nullable = col.Nullable || SqlTypeMap.IsRefType(col.SqlType);
+                bool nullable = col.Nullable;
                 string suffix = nullable ? "?" : "";
                 sb.AppendLine($"  {colCs}{suffix} {col.Name}");
             }
