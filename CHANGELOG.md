@@ -43,10 +43,6 @@ from 1.0.0 onward.
   This applies to every variable — `@Debug` and `@EnvironmentName` included —
   and there is no name remapping: `@PersonID` is not shorthand for
   `@Param_PersonID`.
-- **Breaking:** `@Error` and `@Errors` are no longer interchangeable. The
-  parser previously accepted `Insert Into @Errors` against a declared
-  `@Error` (and vice versa); now the referenced name must match the declared
-  name exactly.
 - **Breaking:** `@Debug` and `@EnvironmentName` must be declared before the
   `USE` statement (error) and should be declared before any other header
   declaration (warning).

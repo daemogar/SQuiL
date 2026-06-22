@@ -22,7 +22,7 @@ This skill does not cover contributing to SQuiL itself (the source generator's p
 The canonical TextMate grammar for SQuiL ships with this skill at `squil.tmLanguage.json` (scope `source.squil`, same file the VS Code extension bundles). Use it whenever syntax-aware handling of `.squil` content is needed:
 
 - **Rendering SQuiL in markdown** — fence SQuiL code blocks with ` ```sql ` (closest supported language; SQuiL is a T-SQL superset by convention, so SQL highlighting is correct for everything except the `@`-prefix semantics).
-- **Tokenizing/classifying SQuiL text** (building editor support, HTML rendering, docs generation) — read `squil.tmLanguage.json` from this skill's directory and apply its patterns; the SQuiL-specific scopes are `variable.parameter.input.squil` (`@Param_`/`@Params_`), `support.variable.return.squil` (`@Return_`/`@Returns_`), `variable.other.special.squil` (`@Debug`, `@SuppressDebug`, `@EnvironmentName`, `@AsOfDate`), and `meta.annotation.name.squil` (the `--Name:` header).
+- **Tokenizing/classifying SQuiL text** (building editor support, HTML rendering, docs generation) — read `squil.tmLanguage.json` from this skill's directory and apply its patterns; the SQuiL-specific scopes are `variable.parameter.input.squil` (`@Param_`/`@Params_`), `support.variable.return.squil` (`@Return_`/`@Returns_`), `variable.other.special.squil` (`@Debug`, `@EnvironmentName`), and `meta.annotation.name.squil` (the `--Name:` header).
 
 ---
 
