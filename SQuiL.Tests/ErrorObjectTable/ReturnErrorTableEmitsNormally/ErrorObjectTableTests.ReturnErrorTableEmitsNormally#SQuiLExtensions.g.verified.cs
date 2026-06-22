@@ -15,7 +15,7 @@ public static class SQuiLExtensions
         if (IsLoaded) return services;
         IsLoaded = true;
         
-        services.AddSingleton<TestCase.MakeSureErrorTableObjectDoesNotEmitDataContext>();
+        services.AddSingleton<TestCase.ReturnErrorTableEmitsNormallyDataContext>();
         
         return services;
     }

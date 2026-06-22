@@ -53,12 +53,6 @@ partial class DecimalPrecisionScaleTestDataContext : SQuiLBaseDataContext
 				{
 					switch (tableTag)
 					{
-						case "__SQuiL__Table__Type__Error__":
-						{
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							break;
-						}
 						case "__SQuiL__Table__Type__Returns_Totals__":
 						{
 							isTotals = true;
@@ -96,7 +90,7 @@ partial class DecimalPrecisionScaleTestDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTotals) errors.Add(new(51001, 12, 1, 98, "Totals", "Expected return table `Totals`"));
+		if (!isTotals) errors.Add(new(51001, 12, 1, 92, "Totals", "Expected return table `Totals`"));
 		
 		if(errors.Count == 0)
 			return new(response);

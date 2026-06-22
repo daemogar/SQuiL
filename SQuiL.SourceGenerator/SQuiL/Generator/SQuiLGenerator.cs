@@ -61,9 +61,6 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 	/// <summary>SQL variable name for the debug-mode flag: <c>Debug</c>.</summary>
 	public static string Debug { get; } = nameof(Debug);
 
-	/// <summary>SQL variable name for the error table: <c>Error</c>.</summary>
-	public static string Error { get; } = nameof(Error);
-
 	/// <summary>SQL variable name for the environment name: <c>EnvironmentName</c>.</summary>
 	public static string EnvironmentName { get; } = nameof(EnvironmentName);
 
@@ -74,15 +71,8 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 	public static string AsOfDate { get; } = nameof(AsOfDate);
 
 	/// <summary>
-	/// Returns <c>true</c> if <paramref name="value"/> is the singular or plural error variable name
-	/// (<c>Error</c> or <c>Errors</c>).
-	/// </summary>
-	public static bool IsError(string value)
-		=> Error.Equals(value) || $"{Error}s".Equals(value);
-
-	/// <summary>
 	/// Returns <c>true</c> if <paramref name="value"/> is any reserved special variable name:
-	/// <c>Debug</c>, <c>SuppressDebug</c>, <c>EnvironmentName</c>, <c>AsOfDate</c>, <c>Error</c>, or <c>Errors</c>.
+	/// <c>Debug</c>, <c>SuppressDebug</c>, <c>EnvironmentName</c>, or <c>AsOfDate</c>.
 	/// </summary>
 	public static bool IsSpecial(string value)
 	{
@@ -92,14 +82,12 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			return true;
 		if (EnvironmentName.Equals(value))
 			return true;
-		if (AsOfDate.Equals(value))
-			return true;
-		return IsError(value);
+		return AsOfDate.Equals(value);
 	}
 
 	/// <summary>
 	/// Returns <c>true</c> for the four input-side specials that may be declared in a query header
-	/// (<c>Debug</c>, <c>SuppressDebug</c>, <c>EnvironmentName</c>, <c>AsOfDate</c>). Error/Errors are output-side.
+	/// (<c>Debug</c>, <c>SuppressDebug</c>, <c>EnvironmentName</c>, <c>AsOfDate</c>).
 	/// </summary>
 	public static bool IsInputSpecial(string value)
 		=> Debug.Equals(value) || SuppressDebug.Equals(value)
@@ -551,9 +539,6 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				var comma = "";
 				foreach (var table in tableMap.TableNames)
 				{
-					if (IsError(table))
-						continue;
-
 					sb.AppendLine(comma);
 					sb.Append($"\t{table}");
 					comma = ",";

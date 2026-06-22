@@ -92,7 +92,7 @@ export class SQuiLHoverProvider implements vscode.HoverProvider {
       return new vscode.Hover(md, wordRange);
     }
 
-    const isSpecial = ['debug', 'suppressDebug', 'environmentName', 'error', 'errors', 'unknown'].includes(variable.role);
+    const isSpecial = ['debug', 'suppressDebug', 'environmentName', 'unknown'].includes(variable.role);
 
     if (!isSpecial) {
       md.appendMarkdown(`| | |\n|---|---|\n`);

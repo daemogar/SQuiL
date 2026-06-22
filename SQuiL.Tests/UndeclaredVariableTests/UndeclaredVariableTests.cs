@@ -39,30 +39,6 @@ public class UndeclaredVariableTests
 	}
 
 	[Fact]
-	public Task ErrorAndErrorsAreNotInterchangeable()
-	{
-		// Declaring @Error (singular) does NOT satisfy a reference to @Errors
-		// (plural) — the parser no longer cross-matches them, and SP0013 flags
-		// the mismatch as an undeclared variable.
-		var name = nameof(ErrorAndErrorsAreNotInterchangeable);
-		return TestHelper.Verify([TestHeader()], [$$"""
-			--Name: {{name}}
-			Declare @Return_Count int;
-			Declare @Error table(
-				Number int,
-				Severity int,
-				[State] int,
-				Line int,
-				[Procedure] varchar(max),
-				[Message] varchar(max)
-			);
-			Use [Database];
-			Insert Into @Errors;
-			Select @Return_Count;
-			"""]);
-	}
-
-	[Fact]
 	public Task SpecialVariablePlacementIsEnforced()
 	{
 		var name = nameof(SpecialVariablePlacementIsEnforced);

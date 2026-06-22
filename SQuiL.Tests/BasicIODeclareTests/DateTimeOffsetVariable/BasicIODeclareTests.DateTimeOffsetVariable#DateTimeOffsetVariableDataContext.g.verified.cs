@@ -54,12 +54,6 @@ partial class DateTimeOffsetVariableDataContext : SQuiLBaseDataContext
 				{
 					switch (tableTag)
 					{
-						case "__SQuiL__Table__Type__Error__":
-						{
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							break;
-						}
 						case "__SQuiL__Table__Type__Return_ModifiedAt__":
 						{
 							if (isModifiedAt) throw new Exception(
@@ -82,7 +76,7 @@ partial class DateTimeOffsetVariableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isModifiedAt) errors.Add(new(51001, 12, 1, 84, "ModifiedAt", "Expected return scaler `ModifiedAt`"));
+		if (!isModifiedAt) errors.Add(new(51001, 12, 1, 78, "ModifiedAt", "Expected return scaler `ModifiedAt`"));
 		
 		if(errors.Count == 0)
 			return new(response);

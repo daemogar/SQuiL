@@ -35,13 +35,9 @@ public class SQuiLProperty(
 	/// <summary>
 	/// Resolves the C# record type name for this property: uses the <see cref="SQuiLTableMap"/>
 	/// mapping if present; otherwise combines <see cref="OriginalName"/> with <see cref="Type"/>.
-	/// Error-named variables are prefixed with <c>SQuiL</c>.
 	/// </summary>
 	public string TableName()
 	{
-		if (SQuiLGenerator.IsError(OriginalName))
-			return $"SQuiL{OriginalName}";
-
 		if (!TableMap.TryGetName(OriginalName, out var tableName))
 			tableName = $"{OriginalName}{Type}";
 

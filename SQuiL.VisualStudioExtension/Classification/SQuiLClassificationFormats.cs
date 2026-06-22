@@ -77,7 +77,7 @@ internal sealed class SQuiLReturnVariableFormat : ClassificationFormatDefinition
     }
 }
 
-// ── @Debug, @EnvironmentName, @Error, @Errors ────────────────────────────
+// ── @Debug, @EnvironmentName ────────────────────────────────────────────
 [Export(typeof(EditorFormatDefinition))]
 [ClassificationType(ClassificationTypeNames = SQuiLClassificationTypes.SQuiLSpecialVariable)]
 [Name(SQuiLClassificationTypes.SQuiLSpecialVariable)]

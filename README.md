@@ -93,7 +93,6 @@ SQuiL reads the `DECLARE` statements to decide each variable's role:
 | `@Returns_<name>` | output table (list) |
 | `@Return_<name> table(…)` | output object |
 | `@Debug`, `@SuppressDebug`, `@EnvironmentName`, `@AsOfDate` | special input variables (all opt-in — emitted only when declared) |
-| `@Error`, `@Errors` | error-handling response variables |
 
 Table-valued variables generate `<Name>Table` records; single-object variables
 generate `<Name>Object` records. Note the casing rule: an identifier ending in

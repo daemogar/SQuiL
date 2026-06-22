@@ -51,7 +51,6 @@ The highlighting, hover info, and linting all understand these patterns:
 | `@Return_Name TABLE(...)` | Output object | `NameItem` on `*Response` |
 | `@Debug` | Debug flag | Not emitted as C# |
 | `@EnvironmentName` | Environment | Not emitted as C# |
-| `@Error` / `@Errors` | Error handling | Not emitted as C# |
 
 ---
 

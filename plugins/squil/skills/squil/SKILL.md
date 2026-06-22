@@ -1,6 +1,6 @@
 ---
 name: squil
-description: Use this skill whenever the user is working with SQuiL — the C# source generator at https://github.com/daemogar/SQuiL that turns .squil/.sql query files into strongly-typed C# data contexts. Trigger on any mention of SQuiL or any .squil file; on SQuiLBaseDataContext, SQuiLResultType, [SQuiLQuery], [SQuiLTable], SQuiLException, SQuiLAggregateException, AddSQuiL, Process…Async; on .sql files paired with a C# project that uses AdditionalFiles for queries; on the @-prefix naming conventions (@Param_, @Params_, @Return_, @Returns_, @Debug, @SuppressDebug, @AsOfDate, @EnvironmentName, @Error, @Errors); or whenever the user asks to author SQuiL query files, set up a .csproj for SQuiL, register a SQuiL data context, or write wrappers around generated Process…Async methods. Trigger even when the user does not say "SQuiL" by name — if their .csproj references SQuiL.SourceGenerator or SQuiL.Library, this skill applies. Prefer this skill over generic "C# / SQL" guidance for any project that uses SQuiL.
+description: Use this skill whenever the user is working with SQuiL — the C# source generator at https://github.com/daemogar/SQuiL that turns .squil/.sql query files into strongly-typed C# data contexts. Trigger on any mention of SQuiL or any .squil file; on SQuiLBaseDataContext, SQuiLResultType, [SQuiLQuery], [SQuiLTable], SQuiLException, SQuiLAggregateException, AddSQuiL, Process…Async; on .sql files paired with a C# project that uses AdditionalFiles for queries; on the @-prefix naming conventions (@Param_, @Params_, @Return_, @Returns_, @Debug, @SuppressDebug, @AsOfDate, @EnvironmentName); or whenever the user asks to author SQuiL query files, set up a .csproj for SQuiL, register a SQuiL data context, or write wrappers around generated Process…Async methods. Trigger even when the user does not say "SQuiL" by name — if their .csproj references SQuiL.SourceGenerator or SQuiL.Library, this skill applies. Prefer this skill over generic "C# / SQL" guidance for any project that uses SQuiL.
 ---
 
 # SQuiL skill
@@ -22,7 +22,7 @@ This skill does not cover contributing to SQuiL itself (the source generator's p
 The canonical TextMate grammar for SQuiL ships with this skill at `squil.tmLanguage.json` (scope `source.squil`, same file the VS Code extension bundles). Use it whenever syntax-aware handling of `.squil` content is needed:
 
 - **Rendering SQuiL in markdown** — fence SQuiL code blocks with ` ```sql ` (closest supported language; SQuiL is a T-SQL superset by convention, so SQL highlighting is correct for everything except the `@`-prefix semantics).
-- **Tokenizing/classifying SQuiL text** (building editor support, HTML rendering, docs generation) — read `squil.tmLanguage.json` from this skill's directory and apply its patterns; the SQuiL-specific scopes are `variable.parameter.input.squil` (`@Param_`/`@Params_`), `support.variable.return.squil` (`@Return_`/`@Returns_`), `variable.other.special.squil` (`@Debug`, `@EnvironmentName`, `@Error`, `@Errors`), and `meta.annotation.name.squil` (the `--Name:` header).
+- **Tokenizing/classifying SQuiL text** (building editor support, HTML rendering, docs generation) — read `squil.tmLanguage.json` from this skill's directory and apply its patterns; the SQuiL-specific scopes are `variable.parameter.input.squil` (`@Param_`/`@Params_`), `support.variable.return.squil` (`@Return_`/`@Returns_`), `variable.other.special.squil` (`@Debug`, `@EnvironmentName`), and `meta.annotation.name.squil` (the `--Name:` header).
 
 ---
 
@@ -50,7 +50,6 @@ The `@`-prefix is how the generator distinguishes inputs, outputs, and special v
 | `@SuppressDebug` | Suppresses the auto-debug expression (opt-in) | When declared, a `bool SuppressDebug` on the request model |
 | `@AsOfDate` | Caller-supplied point-in-time (opt-in) | When declared *bare*, a **nullable** typed property on the request model |
 | `@EnvironmentName` | Bound to current environment at runtime (opt-in) | Sent as a SQL parameter when declared; not a request/response property |
-| `@Error` / `@Errors` | Error reporting from inside the SQL | Surface as `SQuiLException` / `SQuiLAggregateException` of `SQuiLError` |
 
 A scalar uses a primitive declared type (`int`, `varchar(10)`, `datetime`, `bit`, …). A table uses `Declare @Returns_<Name> table(...)` or `Declare @Params_<Name> table(...)` with column definitions; each column becomes a property on a generated row record.
 

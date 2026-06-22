@@ -51,12 +51,6 @@ partial class SharedTableDataContext : SQuiLBaseDataContext
 				{
 					switch (tableTag)
 					{
-						case "__SQuiL__Table__Type__Error__":
-						{
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							break;
-						}
 						case "__SQuiL__Table__Type__Return_Bob__":
 						{
 							if (isBob) throw new Exception(
@@ -95,7 +89,7 @@ partial class SharedTableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isBob) errors.Add(new(51001, 12, 1, 97, "Bob", "Expected return object `Bob`"));
+		if (!isBob) errors.Add(new(51001, 12, 1, 91, "Bob", "Expected return object `Bob`"));
 		
 		if(errors.Count == 0)
 			return new(response);

@@ -55,12 +55,6 @@ partial class BinaryDataParameterDataContext : SQuiLBaseDataContext
 				{
 					switch (tableTag)
 					{
-						case "__SQuiL__Table__Type__Error__":
-						{
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							break;
-						}
 						case "__SQuiL__Table__Type__Returns_BinaryTable__":
 						{
 							isBinaryTable = true;
@@ -95,7 +89,7 @@ partial class BinaryDataParameterDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isBinaryTable) errors.Add(new(51001, 12, 1, 97, "BinaryTable", "Expected return table `BinaryTable`"));
+		if (!isBinaryTable) errors.Add(new(51001, 12, 1, 91, "BinaryTable", "Expected return table `BinaryTable`"));
 		
 		if(errors.Count == 0)
 			return new(response);

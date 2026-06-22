@@ -280,11 +280,6 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
     <td><span class="badge badge-special">Special</span></td>
     <td><strong>Opt-in.</strong> Sent as a SQL parameter <em>only when declared</em> (not emitted as a <code>*Request</code> property). Resolved by <code>SQuiLBaseDataContext</code> from <code>IConfiguration</code> (key <code>"EnvironmentName"</code>) or the environment variable. Declare in SQL only when the query body needs to read it.</td>
   </tr>
-  <tr>
-    <td><code class="spc">@Error</code> / <code class="spc">@Errors</code></td>
-    <td><span class="badge badge-special">Special</span></td>
-    <td>On <code>*Response</code> when declared in SQL — scalar <code>Error</code> or <code>Errors</code> collection populated when the query produces structured error rows.</td>
-  </tr>
 </table>
 
 <!-- ──────────────────── Variable Rules ───────────────────────────────── -->
@@ -304,9 +299,6 @@ editor and at build time:</p>
     generated C# when the file declares them, and the SQL body may only <em>reference</em> them if
     declared. <code class="spc">@SuppressDebug</code> additionally requires <code class="spc">@Debug</code>
     to be declared; declaring it alone fails the build with diagnostic <code>SP0019</code>.</li>
-  <li><strong>Singular and plural are different variables.</strong> Declaring
-    <code class="spc">@Error</code> does not let the body write to <code class="spc">@Errors</code>
-    (or vice versa) — reference exactly the name you declared.</li>
   <li><strong>Declare the input specials in the header, first.</strong> All four input specials
     (<code class="spc">@Debug</code>, <code class="spc">@SuppressDebug</code>,
     <code class="spc">@EnvironmentName</code>, <code class="spc">@AsOfDate</code>) share the same

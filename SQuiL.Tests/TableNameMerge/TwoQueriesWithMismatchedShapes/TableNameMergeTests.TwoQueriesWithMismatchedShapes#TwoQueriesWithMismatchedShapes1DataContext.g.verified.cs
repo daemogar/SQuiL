@@ -51,12 +51,6 @@ partial class TwoQueriesWithMismatchedShapesDataContext : SQuiLBaseDataContext
 				{
 					switch (tableTag)
 					{
-						case "__SQuiL__Table__Type__Error__":
-						{
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							break;
-						}
 						case "__SQuiL__Table__Type__Returns_Questions__":
 						{
 							isQuestions = true;
@@ -91,7 +85,7 @@ partial class TwoQueriesWithMismatchedShapesDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isQuestions) errors.Add(new(51001, 12, 1, 93, "Questions", "Expected return table `Questions`"));
+		if (!isQuestions) errors.Add(new(51001, 12, 1, 87, "Questions", "Expected return table `Questions`"));
 		
 		if(errors.Count == 0)
 			return new(response);

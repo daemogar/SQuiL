@@ -59,12 +59,6 @@ partial class SpecialVariablePlacementIsEnforcedDataContext : SQuiLBaseDataConte
 				{
 					switch (tableTag)
 					{
-						case "__SQuiL__Table__Type__Error__":
-						{
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							break;
-						}
 						case "__SQuiL__Table__Type__Return_Count__":
 						{
 							if (isCount) throw new Exception(
@@ -87,7 +81,7 @@ partial class SpecialVariablePlacementIsEnforcedDataContext : SQuiLBaseDataConte
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isCount) errors.Add(new(51001, 12, 1, 89, "Count", "Expected return scaler `Count`"));
+		if (!isCount) errors.Add(new(51001, 12, 1, 83, "Count", "Expected return scaler `Count`"));
 		
 		if(errors.Count == 0)
 			return new(response);

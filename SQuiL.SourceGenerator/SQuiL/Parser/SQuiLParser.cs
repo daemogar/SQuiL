@@ -66,19 +66,10 @@ public class SQuiLParser(List<Token> Tokens)
 				var token = Expect(TokenType.VARIABLE);
 				var parts = token.Value.Split(['_'], 2);
 
+				// NEW: only the four input specials are recognized; a bare @Error/@Errors is
+				// no longer special and falls through to the unprefixed-declare error below.
 				if (SQuiLGenerator.IsSpecial(parts[0]))
-				{
-					if (!SQuiLGenerator.IsError(parts[0]))
-						return new(token, CodeType.INPUT_ARGUMENT, false, false, parts[0], IsSpecialDeclaration: true);
-
-					if (Current.Type != TokenType.TYPE_TABLE)
-						ThrowError();
-
-					if (parts[0].Last() == 's')
-						return new(token, CodeType.OUTPUT_TABLE, false, true, parts[0]);
-
-					return new(token, CodeType.OUTPUT_OBJECT, true, false, parts[0]);
-				}
+					return new(token, CodeType.INPUT_ARGUMENT, false, false, parts[0], IsSpecialDeclaration: true);
 
 				if (parts[0].StartsWith("param", StringComparison.CurrentCultureIgnoreCase))
 				{

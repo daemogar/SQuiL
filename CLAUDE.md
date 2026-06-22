@@ -261,7 +261,10 @@ SQuiL/
     the SQL initializer is ignored at runtime.
   - `@EnvironmentName` → sent as a SQL parameter ONLY when declared; not a
     `*Request` property.
-  - `@Error` and `@Errors` appear on `*Response` when declared.
+  - **Note:** `@Error`/`@Errors` in-SQL error-collection variables have been
+    **removed**. SQL errors now surface solely via the result-based path
+    (`SQuiLResultType` / `result.TryGetValue(out value, out errors)`). The
+    `SQuiLError`/`SQuiLException`/`SQuiLAggregateException` types are unchanged.
   - **Placement (all four input specials — `@Debug`/`@SuppressDebug`/
     `@EnvironmentName`/`@AsOfDate`):** declaring one after the `Use`
     statement is an error (SP0016); after other header declarations, a
@@ -277,9 +280,10 @@ SQuiL/
   `@Params_` (list) prompts for row count; `@Param_…Table(...)` (single
   object) auto-inserts exactly one row.
 - **`@AsOfDate`** — IMPLEMENTED. The source generator's `IsSpecial()` now
-  recognizes `Debug`, `SuppressDebug`, `EnvironmentName`, `AsOfDate`, `Error`,
-  and `Errors`; `IsInputSpecial()` covers the four input-side specials. See
-  the opt-in semantics above and document it as a special variable everywhere.
+  recognizes `Debug`, `SuppressDebug`, `EnvironmentName`, and `AsOfDate`;
+  `IsInputSpecial()` covers the same four input-side specials. (`Error` and
+  `Errors` were removed — they are no longer special variables.) See the opt-in
+  semantics above and document `@AsOfDate` as a special variable everywhere.
 
 ### SSMS extension testing workflow (SSMS 22.6)
 
@@ -378,7 +382,6 @@ The parser recognizes specific naming patterns in SQL `DECLARE` statements:
 - `@Return_<name> table(...)` → Output object
 - `@Debug` / `@SuppressDebug` / `@EnvironmentName` / `@AsOfDate` → Input special
   variables (all opt-in; see the special-variables rules above)
-- `@Error` / `@Errors` → Error handling variables (on `*Response` when declared)
 
 These conventions determine the signature of generated C# methods.
 

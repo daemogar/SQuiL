@@ -31,16 +31,18 @@ from 1.0.0 onward.
 - Project onboarding documentation (`README`, `CONTRIBUTING`, this changelog,
   `.editorconfig`).
 
+### Removed
+- **Breaking:** the `@Error`/`@Errors` in-SQL error-collection variables. SQL
+  errors now surface solely via `SQuiLResultType` (unwrap with
+  `result.TryGetValue(out value, out errors)`). The
+  `SQuiLError`/`SQuiLException`/`SQuiLAggregateException` types are unchanged.
+
 ### Changed
 - **Breaking:** a SQuiL file must be valid T-SQL. Referencing an `@` variable
   without a textually-preceding `DECLARE` now fails the build (`SP0013`).
   This applies to every variable — `@Debug` and `@EnvironmentName` included —
   and there is no name remapping: `@PersonID` is not shorthand for
   `@Param_PersonID`.
-- **Breaking:** `@Error` and `@Errors` are no longer interchangeable. The
-  parser previously accepted `Insert Into @Errors` against a declared
-  `@Error` (and vice versa); now the referenced name must match the declared
-  name exactly.
 - **Breaking:** `@Debug` and `@EnvironmentName` must be declared before the
   `USE` statement (error) and should be declared before any other header
   declaration (warning).
