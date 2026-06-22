@@ -9,5 +9,5 @@ public partial record SpecialVariablePlacementIsEnforcedRequest
 {
 	public bool Debug { get; set; }
 	
-	public string? Name { get; set; }
+	public string Name { get; set; }
 }

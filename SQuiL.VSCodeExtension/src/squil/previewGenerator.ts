@@ -42,7 +42,7 @@ const SQL_TO_CS: Record<string, string> = {
   xml: 'string',
 };
 
-function sqlToCSharp(sqlType: string): string {
+export function sqlToCSharp(sqlType: string): string {
   const base = sqlType.toLowerCase().replace(/\s*\(.*\)/, '').trim();
   return SQL_TO_CS[base] ?? 'object';
 }
@@ -58,6 +58,10 @@ function recordTypeName(v: SQuiLVariable): string {
   return v.name;
 }
 
+function isCollectionRole(v: SQuiLVariable): boolean {
+  return v.role === 'params' || v.role === 'returns';
+}
+
 function getPropertyType(v: SQuiLVariable): string {
   if (v.role === 'params' || v.role === 'returns') {
     return `List<${recordTypeName(v)}>?`;
@@ -65,14 +69,9 @@ function getPropertyType(v: SQuiLVariable): string {
   if (v.role === 'param-table' || v.role === 'return-table') {
     return `${recordTypeName(v)}?`;
   }
-  // Scalars: nullable for reference types and explicit-nullable; non-nullable value types stay as-is.
+  // Scalars: non-nullable unless an explicit `null` marker was declared. Ref types are NOT auto-?.
   const cs = sqlToCSharp(v.sqlType);
-  const isRefType = cs === 'string' || cs === 'byte[]';
-  return isRefType ? `${cs}?` : cs;
-}
-
-function isCollectionRole(v: SQuiLVariable): boolean {
-  return v.role === 'params' || v.role === 'returns';
+  return v.nullable ? `${cs}?` : cs;
 }
 
 // ─── Main entry point ─────────────────────────────────────────────────────
@@ -196,8 +195,7 @@ function emitTableRecord(lines: string[], typeName: string, v: SQuiLVariable): v
 
   const csType = (col: typeof v.columns[number]): string => {
     const cs = sqlToCSharp(col.sqlType);
-    const isRefType = cs === 'string' || cs === 'byte[]';
-    return isRefType || col.nullable ? `${cs}?` : cs;
+    return col.nullable ? `${cs}?` : cs;
   };
 
   const positional = v.columns.filter(c => !c.defaultValue);
@@ -254,9 +252,8 @@ function emitModelRecord(
   }
 
   vars.forEach(v => {
-    const type = getPropertyType(v);
-    const initializer = isCollectionRole(v) ? ' = []' : '';
-    lines.push(`    public ${type} ${v.name} { get; set; }${initializer};`);
+    const initializer = (!isResponse && isCollectionRole(v)) ? ' = []' : '';
+    lines.push(`    public ${getPropertyType(v)} ${v.name} { get; set; }${initializer};`);
   });
 
   lines.push(`}`);

@@ -9,5 +9,5 @@ public partial record ObjectPropertyNullableResponse
 {
 	public StudentObject? Student { get; set; } = default!;
 	
-	public System.Collections.Generic.List<ParentsTable>? Parents { get; set; } = [];
+	public System.Collections.Generic.List<ParentsTable>? Parents { get; set; }
 }

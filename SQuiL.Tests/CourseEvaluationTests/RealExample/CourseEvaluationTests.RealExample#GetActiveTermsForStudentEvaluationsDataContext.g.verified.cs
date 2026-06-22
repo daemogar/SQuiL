@@ -28,8 +28,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@Param_AsOfDate", System.Data.SqlDbType.Date, request.AsOfDate ?? (object)System.DBNull.Value
-			, p => p.IsNullable = true)
+			CreateParameter("@Param_AsOfDate", System.Data.SqlDbType.Date, request.AsOfDate)
 		};
 		
 		command.CommandText = Query(parameters);
@@ -57,6 +56,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 						{
 							isTerms = true;
 							
+							response.Terms ??= [];
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
 							var indexTermCode = reader.GetOrdinal("TermCode");

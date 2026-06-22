@@ -55,6 +55,7 @@ partial class NotPrefixedColumnNamesDataContext : SQuiLBaseDataContext
 						{
 							isRecords = true;
 							
+							response.Records ??= [];
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
 							var indexRecordID = reader.GetOrdinal("RecordID");
@@ -94,7 +95,7 @@ partial class NotPrefixedColumnNamesDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isRecords) errors.Add(new(51001, 12, 1, 96, "Records", "Expected return table `Records`"));
+		if (!isRecords) errors.Add(new(51001, 12, 1, 97, "Records", "Expected return table `Records`"));
 		
 		if(errors.Count == 0)
 			return new(response);

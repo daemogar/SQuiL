@@ -29,8 +29,7 @@ partial class DateTimeOffsetVariableDataContext : SQuiLBaseDataContext
 		List<DbParameter> parameters = new()
 		{
 			CreateParameter("@AsOfDate", System.Data.SqlDbType.DateTimeOffset, request.AsOfDate ?? System.DateTimeOffset.Now),
-			CreateParameter("@Param_CreatedAt", System.Data.SqlDbType.DateTimeOffset, request.CreatedAt ?? (object)System.DBNull.Value
-			, p => p.IsNullable = true)
+			CreateParameter("@Param_CreatedAt", System.Data.SqlDbType.DateTimeOffset, request.CreatedAt)
 		};
 		
 		command.CommandText = Query(parameters);
@@ -63,7 +62,7 @@ partial class DateTimeOffsetVariableDataContext : SQuiLBaseDataContext
 							
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
-							response.ModifiedAt = !reader.IsDBNull(1) ? reader.GetFieldValue<System.DateTimeOffset>(1) : null;
+							response.ModifiedAt = !reader.IsDBNull(1) ? reader.GetFieldValue<System.DateTimeOffset>(1) : throw new NullReferenceException("Return value for Return_ModifiedAt cannot be null.");
 							break;
 						}
 					}
@@ -76,7 +75,7 @@ partial class DateTimeOffsetVariableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isModifiedAt) errors.Add(new(51001, 12, 1, 78, "ModifiedAt", "Expected return scaler `ModifiedAt`"));
+		if (!isModifiedAt) errors.Add(new(51001, 12, 1, 77, "ModifiedAt", "Expected return scaler `ModifiedAt`"));
 		
 		if(errors.Count == 0)
 			return new(response);

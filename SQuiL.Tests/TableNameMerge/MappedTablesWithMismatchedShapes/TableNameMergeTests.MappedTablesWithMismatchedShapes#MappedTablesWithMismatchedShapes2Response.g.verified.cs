@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record MappedTablesWithMismatchedShapes2Response
 {
-	public System.Collections.Generic.List<SharedTable>? Persons { get; set; } = [];
+	public System.Collections.Generic.List<SharedTable>? Persons { get; set; }
 }

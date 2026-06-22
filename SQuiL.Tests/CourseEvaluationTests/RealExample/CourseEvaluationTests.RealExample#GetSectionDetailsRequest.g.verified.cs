@@ -9,5 +9,5 @@ public partial record GetSectionDetailsRequest
 {
 	public bool Debug { get; set; } = true;
 	
-	public string? SectionID { get; set; }
+	public string SectionID { get; set; }
 }

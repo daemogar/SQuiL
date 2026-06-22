@@ -7,5 +7,5 @@ namespace CourseEvaluation.Application.Data;
 
 public partial record GetCourseForEvaluationByEvaluationIDRequest
 {
-	public string? EvaluationID { get; set; }
+	public string EvaluationID { get; set; }
 }

@@ -61,7 +61,7 @@ partial class SuppressOnlyDataContext : SQuiLBaseDataContext
 							
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
-							response.Count = !reader.IsDBNull(1) ? reader.GetInt32(1) : null;
+							response.Count = !reader.IsDBNull(1) ? reader.GetInt32(1) : throw new NullReferenceException("Return value for Return_Count cannot be null.");
 							break;
 						}
 					}

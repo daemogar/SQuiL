@@ -9,5 +9,5 @@ public partial record DateTimeOffsetVariableRequest
 {
 	public System.DateTimeOffset? AsOfDate { get; set; }
 	
-	public System.DateTimeOffset? CreatedAt { get; set; }
+	public System.DateTimeOffset CreatedAt { get; set; }
 }

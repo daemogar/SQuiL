@@ -34,7 +34,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 				{ Length: <= 21 } => request.EvaluationID,
 				_ => throw new Exception(
 					"Request model data is larger then database size for the property [EvaluationID].")
-			}, p => p.IsNullable = true)
+			})
 		};
 		
 		command.CommandText = Query(parameters);

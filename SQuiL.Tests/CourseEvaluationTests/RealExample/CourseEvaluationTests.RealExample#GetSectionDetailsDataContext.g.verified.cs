@@ -35,7 +35,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 				{ Length: <= 20 } => request.SectionID,
 				_ => throw new Exception(
 					"Request model data is larger then database size for the property [SectionID].")
-			}, p => p.IsNullable = true)
+			})
 		};
 		
 		command.CommandText = Query(parameters);
@@ -63,6 +63,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 						{
 							isSections = true;
 							
+							response.Sections ??= [];
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
 							var indexSectionID = reader.GetOrdinal("SectionID");
@@ -120,7 +121,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isSections) errors.Add(new(51001, 12, 1, 122, "Sections", "Expected return table `Sections`"));
+		if (!isSections) errors.Add(new(51001, 12, 1, 123, "Sections", "Expected return table `Sections`"));
 		
 		if(errors.Count == 0)
 			return new(response);

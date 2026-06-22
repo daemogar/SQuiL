@@ -11,9 +11,9 @@ public partial record TranscriptProcessingRequest
 	
 	public bool IncludeCompletedTranscripts { get; set; }
 	
-	public int? ReferenceID { get; set; }
+	public int ReferenceID { get; set; }
 	
-	public System.DateTime? IssueDate { get; set; }
+	public System.DateTime IssueDate { get; set; }
 	
 	public StudentObject? Student { get; set; } = default!;
 	

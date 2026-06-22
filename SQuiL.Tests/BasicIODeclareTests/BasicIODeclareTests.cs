@@ -184,7 +184,7 @@ public class BasicIODeclareTests
 	{
 		// A default may now sit before a required column: the table becomes a hybrid
 		// record (positional ctor for non-defaulted columns + init props for defaulted).
-		// (SP0010 retired — this used to be an error.)
+		// (SP0010 now used by the editor nullability hint.)
 		var name = nameof(ColumnDefaultBeforeRequired);
 		return TestHelper.Verify([TestHeader([name])], [$$"""
 			--Name: {{name}}
@@ -347,6 +347,23 @@ public class BasicIODeclareTests
 			Declare @Returns_Rows table(RowID int, Amount decimal(18,2) default 1.5, Qty int);
 			Use [Database];
 			Select 1;
+			"""]);
+	}
+
+	[Fact]
+	public Task ScalarNullabilityMatrix()
+	{
+		var name = nameof(ScalarNullabilityMatrix);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Param_Required int;
+			Declare @Param_Nullable int null;
+			Declare @Param_NotNull int not null;
+			Declare @Param_Defaulted int = 5;
+			Declare @Param_NullAndDefault int null = 5;
+			Declare @Return_Count int;
+			Use MyDb;
+			Select @Return_Count = 1;
 			"""]);
 	}
 

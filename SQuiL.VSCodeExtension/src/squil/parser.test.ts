@@ -32,6 +32,23 @@ test('bare @SuppressDebug and @AsOfDate are recognized header specials (no namin
   assert.strictEqual(asOf!.role, 'asOfDate');
 });
 
+// Task 5: flip column nullable polarity (non-nullable by default) and capture
+// nullabilityMarker on both columns and scalars.
+test('column nullable only with explicit NULL; scalar marker captured', () => {
+  const r = parseSQuiL([
+    'Declare @Params_X table(A int, B varchar(50) null, C varchar(50) not null);',
+    'Declare @Param_S int;',
+    'Declare @Param_SN int null;',
+    'Use Db;', 'Select 1;',
+  ].join('\n'));
+  const x = r.variables.find(v => v.name === 'X')!;
+  assert.deepStrictEqual(x.columns!.map(c => c.nullable), [false, true, false]);
+  assert.deepStrictEqual(x.columns!.map(c => c.nullabilityMarker), [undefined, 'NULL', 'NOT NULL']);
+  assert.strictEqual(x.nullabilityMarker, undefined, 'table var must not inherit nullabilityMarker from column text');
+  assert.strictEqual(r.variables.find(v => v.name === 'S')!.nullabilityMarker, undefined);
+  assert.strictEqual(r.variables.find(v => v.name === 'SN')!.nullabilityMarker, 'NULL');
+});
+
 // Parity with the generator: a column DEFAULT must be parsed (not dropped) and
 // its raw literal captured, so the preview can render it as an init-property default.
 test('table column DEFAULT is parsed and its literal captured', () => {

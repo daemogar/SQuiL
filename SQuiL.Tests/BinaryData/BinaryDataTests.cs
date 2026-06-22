@@ -1,7 +1,28 @@
-﻿namespace SQuiL.Tests.BinaryData;
+﻿using static Microsoft.CodeAnalysis.SourceGeneratorHelper;
+
+namespace SQuiL.Tests.BinaryData;
 
 public class BinaryDataTests : BaseTest
 {
+	[Fact]
+	public Task BinaryNullabilityFollowsMarker()
+		=> TestHelper.Verify([$$"""
+			using {{NamespaceName}};
+
+			namespace TestCase;
+
+			[{{QueryAttributeName}}(QueryFiles.Q)]
+			public partial class C
+			{
+			}
+			"""], ["""
+			--Name: Q
+			Declare @Param_Blob varbinary(max);
+			Declare @Param_BlobNull varbinary(max) null;
+			Use MyDb;
+			Select 1;
+			"""]);
+
 	[Fact]
 	public Task BinaryDataParameter()
 	{

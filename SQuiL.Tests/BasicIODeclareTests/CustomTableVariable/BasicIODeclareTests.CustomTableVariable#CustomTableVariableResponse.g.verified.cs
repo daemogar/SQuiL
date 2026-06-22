@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record CustomTableVariableResponse
 {
-	public System.Collections.Generic.List<CustomFile>? Table { get; set; } = [];
+	public System.Collections.Generic.List<CustomFile>? Table { get; set; }
 }

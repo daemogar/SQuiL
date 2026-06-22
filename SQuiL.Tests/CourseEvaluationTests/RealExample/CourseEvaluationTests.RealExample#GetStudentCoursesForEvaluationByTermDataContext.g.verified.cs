@@ -35,16 +35,15 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 				{ Length: <= 10 } => request.PersonID,
 				_ => throw new Exception(
 					"Request model data is larger then database size for the property [PersonID].")
-			}, p => p.IsNullable = true),
+			}),
 			CreateParameter("@Param_CourseCode", System.Data.SqlDbType.VarChar, 20, request.CourseCode switch
 			{
 				null => (object)System.DBNull.Value,
 				{ Length: <= 20 } => request.CourseCode,
 				_ => throw new Exception(
 					"Request model data is larger then database size for the property [CourseCode].")
-			}, p => p.IsNullable = true),
-			CreateParameter("@Param_AsOfDate", System.Data.SqlDbType.Date, request.AsOfDate ?? (object)System.DBNull.Value
-			, p => p.IsNullable = true)
+			}),
+			CreateParameter("@Param_AsOfDate", System.Data.SqlDbType.Date, request.AsOfDate)
 		};
 		
 		command.CommandText = Query(parameters);
@@ -72,6 +71,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 						{
 							isCourses = true;
 							
+							response.Courses ??= [];
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
 							var indexEvalationID = reader.GetOrdinal("EvalationID");

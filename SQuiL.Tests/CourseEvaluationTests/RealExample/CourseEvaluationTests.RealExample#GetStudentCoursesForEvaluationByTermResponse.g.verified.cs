@@ -7,5 +7,5 @@ namespace CourseEvaluation.Application.Data;
 
 public partial record GetStudentCoursesForEvaluationByTermResponse
 {
-	public System.Collections.Generic.List<CoursesTable>? Courses { get; set; } = [];
+	public System.Collections.Generic.List<CoursesTable>? Courses { get; set; }
 }

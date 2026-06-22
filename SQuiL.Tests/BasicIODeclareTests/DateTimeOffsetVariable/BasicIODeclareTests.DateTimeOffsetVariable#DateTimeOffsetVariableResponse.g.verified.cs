@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record DateTimeOffsetVariableResponse
 {
-	public System.DateTimeOffset? ModifiedAt { get; set; }
+	public System.DateTimeOffset ModifiedAt { get; set; }
 }

@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record UndeclaredReferenceFailsBuildRequest
 {
-	public string? PersonID { get; set; }
+	public string PersonID { get; set; }
 }

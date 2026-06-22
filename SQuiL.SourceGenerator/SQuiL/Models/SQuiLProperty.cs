@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 
 using SQuiL.Generator;
 using SQuiL.SourceGenerator.Parser;
@@ -58,7 +58,7 @@ public class SQuiLProperty(
 	{
 		try
 		{
-			var nullable = Block.IsNullable ? "?" : "";
+			var nullable = (Block.IsTable || Block.IsObject || Block.IsNullable) ? "?" : "";
 
 			writer.Write($$"""public {{Block.CSharpType(TableName())}}{{nullable}} {{Block.Name}} { get; set; }""");
 
@@ -88,7 +88,10 @@ public class SQuiLProperty(
 		{
 			if (!Block.IsTable) return false;
 
-			writer.Write($" = [];");
+			// Output lists are null when their result set is absent (initialized in the reader);
+			// input lists (@Params_) keep their empty-list default.
+			if ((Block.CodeType & CodeType.OUTPUT) != CodeType.OUTPUT)
+				writer.Write($" = [];");
 			return true;
 		}
 	}

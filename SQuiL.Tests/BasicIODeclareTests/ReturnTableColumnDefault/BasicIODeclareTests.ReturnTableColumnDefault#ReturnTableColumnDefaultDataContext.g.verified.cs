@@ -55,6 +55,7 @@ partial class ReturnTableColumnDefaultDataContext : SQuiLBaseDataContext
 						{
 							isRows = true;
 							
+							response.Rows ??= [];
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
 							var indexRowID = reader.GetOrdinal("RowID");
@@ -90,7 +91,7 @@ partial class ReturnTableColumnDefaultDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isRows) errors.Add(new(51001, 12, 1, 92, "Rows", "Expected return table `Rows`"));
+		if (!isRows) errors.Add(new(51001, 12, 1, 93, "Rows", "Expected return table `Rows`"));
 		
 		if(errors.Count == 0)
 			return new(response);

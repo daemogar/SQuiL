@@ -29,8 +29,7 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 		List<DbParameter> parameters = new()
 		{
 			CreateParameter("@Debug", System.Data.SqlDbType.Bit, request.Debug || EnvironmentName != "Production"),
-			CreateParameter("@Param_Scaler", System.Data.SqlDbType.BigInt, request.Scaler ?? (object)System.DBNull.Value
-			, p => p.IsNullable = true)
+			CreateParameter("@Param_Scaler", System.Data.SqlDbType.BigInt, request.Scaler)
 		};
 		
 		command.CommandText = Query(parameters);
@@ -65,7 +64,7 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 							
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
-							response.Scaler = !reader.IsDBNull(1) ? reader.GetInt32(1) : null;
+							response.Scaler = !reader.IsDBNull(1) ? reader.GetInt32(1) : throw new NullReferenceException("Return value for Return_Scaler cannot be null.");
 							break;
 						}
 						case "__SQuiL__Table__Type__Return_Object__":
@@ -102,6 +101,7 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 						{
 							isTable = true;
 							
+							response.Table ??= [];
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
 							var indexTableID = reader.GetOrdinal("TableID");

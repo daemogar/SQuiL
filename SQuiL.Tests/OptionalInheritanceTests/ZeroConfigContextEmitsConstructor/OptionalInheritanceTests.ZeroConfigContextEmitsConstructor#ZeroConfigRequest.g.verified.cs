@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record ZeroConfigRequest
 {
-	public string? PersonID { get; set; }
+	public string PersonID { get; set; }
 }
