@@ -55,6 +55,7 @@ partial class AllColumnsDefaultedDataContext : SQuiLBaseDataContext
 						{
 							isRows = true;
 							
+							response.Rows ??= [];
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
 							var indexAmount = reader.GetOrdinal("Amount");
@@ -87,7 +88,7 @@ partial class AllColumnsDefaultedDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isRows) errors.Add(new(51001, 12, 1, 89, "Rows", "Expected return table `Rows`"));
+		if (!isRows) errors.Add(new(51001, 12, 1, 90, "Rows", "Expected return table `Rows`"));
 		
 		if(errors.Count == 0)
 			return new(response);

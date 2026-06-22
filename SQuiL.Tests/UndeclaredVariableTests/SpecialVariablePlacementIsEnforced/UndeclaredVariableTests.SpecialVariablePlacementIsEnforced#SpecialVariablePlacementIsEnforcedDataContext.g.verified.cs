@@ -35,7 +35,7 @@ partial class SpecialVariablePlacementIsEnforcedDataContext : SQuiLBaseDataConte
 				{ Length: <= 100 } => request.Name,
 				_ => throw new Exception(
 					"Request model data is larger then database size for the property [Name].")
-			}, p => p.IsNullable = true)
+			})
 		};
 		
 		command.CommandText = Query(parameters);
@@ -68,7 +68,7 @@ partial class SpecialVariablePlacementIsEnforcedDataContext : SQuiLBaseDataConte
 							
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
-							response.Count = !reader.IsDBNull(1) ? reader.GetInt32(1) : null;
+							response.Count = !reader.IsDBNull(1) ? reader.GetInt32(1) : throw new NullReferenceException("Return value for Return_Count cannot be null.");
 							break;
 						}
 					}

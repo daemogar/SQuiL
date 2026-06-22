@@ -55,6 +55,7 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 						{
 							isExtendedCourses = true;
 							
+							response.ExtendedCourses ??= [];
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
 							var indexProfessorID = reader.GetOrdinal("ProfessorID");
@@ -85,7 +86,7 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isExtendedCourses) errors.Add(new(51001, 12, 1, 87, "ExtendedCourses", "Expected return table `ExtendedCourses`"));
+		if (!isExtendedCourses) errors.Add(new(51001, 12, 1, 88, "ExtendedCourses", "Expected return table `ExtendedCourses`"));
 		
 		if(errors.Count == 0)
 			return new(response);

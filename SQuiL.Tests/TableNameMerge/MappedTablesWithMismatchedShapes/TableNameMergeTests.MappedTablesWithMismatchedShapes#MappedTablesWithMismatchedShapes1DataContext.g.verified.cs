@@ -55,6 +55,7 @@ partial class MappedTablesWithMismatchedShapesDataContext : SQuiLBaseDataContext
 						{
 							isPeople = true;
 							
+							response.People ??= [];
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
 							var indexPersonID = reader.GetOrdinal("PersonID");
@@ -85,7 +86,7 @@ partial class MappedTablesWithMismatchedShapesDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isPeople) errors.Add(new(51001, 12, 1, 87, "People", "Expected return table `People`"));
+		if (!isPeople) errors.Add(new(51001, 12, 1, 88, "People", "Expected return table `People`"));
 		
 		if(errors.Count == 0)
 			return new(response);

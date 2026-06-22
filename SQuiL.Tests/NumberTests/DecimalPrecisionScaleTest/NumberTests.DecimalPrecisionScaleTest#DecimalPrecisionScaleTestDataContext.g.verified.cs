@@ -28,8 +28,7 @@ partial class DecimalPrecisionScaleTestDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@Param_Price", System.Data.SqlDbType.Decimal, request.Price ?? (object)System.DBNull.Value
-			, p => p.IsNullable = true)
+			CreateParameter("@Param_Price", System.Data.SqlDbType.Decimal, request.Price)
 		};
 		
 		command.CommandText = Query(parameters);
@@ -57,6 +56,7 @@ partial class DecimalPrecisionScaleTestDataContext : SQuiLBaseDataContext
 						{
 							isTotals = true;
 							
+							response.Totals ??= [];
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
 							var indexTotalID = reader.GetOrdinal("TotalID");

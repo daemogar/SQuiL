@@ -55,6 +55,7 @@ partial class CustomTableVariableWithColumnDefaultDataContext : SQuiLBaseDataCon
 						{
 							isTable = true;
 							
+							response.Table ??= [];
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
 							var indexTableID = reader.GetOrdinal("TableID");
@@ -90,7 +91,7 @@ partial class CustomTableVariableWithColumnDefaultDataContext : SQuiLBaseDataCon
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTable) errors.Add(new(51001, 12, 1, 92, "Table", "Expected return table `Table`"));
+		if (!isTable) errors.Add(new(51001, 12, 1, 93, "Table", "Expected return table `Table`"));
 		
 		if(errors.Count == 0)
 			return new(response);

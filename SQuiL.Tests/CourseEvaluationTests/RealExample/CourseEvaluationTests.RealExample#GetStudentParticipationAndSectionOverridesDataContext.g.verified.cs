@@ -35,7 +35,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 				{ Length: <= 10 } => request.PersonID,
 				_ => throw new Exception(
 					"Request model data is larger then database size for the property [PersonID].")
-			}, p => p.IsNullable = true)
+			})
 		};
 		
 		command.CommandText = Query(parameters);
@@ -64,6 +64,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 						{
 							isParticipation = true;
 							
+							response.Participation ??= [];
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
 							var indexSectionID = reader.GetOrdinal("SectionID");
@@ -97,6 +98,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 						{
 							isOverrides = true;
 							
+							response.Overrides ??= [];
 							if (!await reader.ReadAsync(cancellationToken)) break;
 							
 							var indexSectionID = reader.GetOrdinal("SectionID");
@@ -136,8 +138,8 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isParticipation) errors.Add(new(51001, 12, 1, 138, "Participation", "Expected return table `Participation`"));
-		if (!isOverrides) errors.Add(new(51001, 12, 1, 139, "Overrides", "Expected return table `Overrides`"));
+		if (!isParticipation) errors.Add(new(51001, 12, 1, 140, "Participation", "Expected return table `Participation`"));
+		if (!isOverrides) errors.Add(new(51001, 12, 1, 141, "Overrides", "Expected return table `Overrides`"));
 		
 		if(errors.Count == 0)
 			return new(response);
