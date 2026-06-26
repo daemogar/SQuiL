@@ -60,6 +60,7 @@ internal static class SQuiLLinter
         LintUndeclaredVariables(text, diagnostics);
         LintNullabilityHints(text, diagnostics);
         LintShapeMismatch(text, diagnostics);
+        LintSimilarSignatures(text, diagnostics);
     }
 
     // ── Shape-mismatch detection (SP0017) ────────────────────────────────────
@@ -107,6 +108,74 @@ internal static class SQuiLLinter
                 RelatedEndChar   = first.Character + first.RawName.Length,
                 RelatedMessage   = "first declared here",
             });
+        }
+    }
+
+    // ── Similar-signature hints (SP0020) ────────────────────────────────────
+    //
+    // Emits an Info-level hint for every table/object variable that shares an
+    // EXACT column signature (same names, types, nullability, and order) with
+    // a DIFFERENTLY-named variable in the same file.  This is the complement
+    // of LintShapeMismatch (SP0017), which fires on same-name + different shape.
+    //
+    // Trigger:  different name + same signature.
+    // Silent:   same name (SP0017's domain), or no matching signature found.
+    //
+    // Port of shapeHints.ts (VS Code extension) — change one, change all three.
+
+    internal static void LintSimilarSignatures(string sql, List<SQuiLDiagnostic> diagnostics)
+    {
+        var parsed = SQuiLParser.Parse(sql);
+        var tableVars = parsed.Variables.Where(v =>
+            (v.Role == VariableRole.Returns   || v.Role == VariableRole.ReturnTable ||
+             v.Role == VariableRole.Params    || v.Role == VariableRole.ParamTable)
+            && v.Columns != null && v.Columns.Count > 0)
+            .ToList();
+
+        if (tableVars.Count < 2) return;
+
+        // Build signature → list of variables.
+        var bySig = new Dictionary<string, List<SQuiLVariable>>();
+        foreach (var v in tableVars)
+        {
+            string sig = string.Join("|", v.Columns!.Select(c =>
+                $"{c.Name}:{c.SqlType.ToLowerInvariant()}:{(c.Nullable ? "N" : "NN")}"));
+            if (!bySig.TryGetValue(sig, out var group))
+            {
+                group = new List<SQuiLVariable>();
+                bySig[sig] = group;
+            }
+            group.Add(v);
+        }
+
+        foreach (var group in bySig.Values)
+        {
+            if (group.Count < 2) continue;
+
+            // Distinct base names — same-name groups belong to SP0017.
+            var distinctNames = new HashSet<string>(
+                group.Select(v => v.Name), System.StringComparer.OrdinalIgnoreCase);
+            if (distinctNames.Count < 2) continue;
+
+            foreach (var a in group)
+            {
+                // Find the first differently-named partner to mention.
+                var partner = group.FirstOrDefault(b =>
+                    !string.Equals(b.Name, a.Name, System.StringComparison.OrdinalIgnoreCase));
+                if (partner == null) continue;
+
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message   = $"`{a.Name}` has the same column signature as `{partner.Name}` " +
+                                $"(line {partner.Line + 1}). " +
+                                $"If these are the same shape, give them the same name to share one generated type.",
+                    Line      = a.Line,
+                    StartChar = a.Character,
+                    EndChar   = a.Character + a.Name.Length,
+                    Severity  = DiagnosticSeverity.Info,
+                    Code      = "SP0020",
+                });
+            }
         }
     }
 
