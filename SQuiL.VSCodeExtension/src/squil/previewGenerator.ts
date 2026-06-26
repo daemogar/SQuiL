@@ -48,13 +48,10 @@ export function sqlToCSharp(sqlType: string): string {
 }
 
 /**
- * Record-type name SQuiL generates for a table/object variable:
- *   - role 'params' / 'returns'           → `<Name>Table`  (collection element)
- *   - role 'param-table' / 'return-table' → `<Name>Object` (single object)
+ * Record-type name SQuiL generates for a table/object variable.
+ * The Table/Object suffix was dropped in TODO #3 — the bare name is used directly.
  */
 function recordTypeName(v: SQuiLVariable): string {
-  if (v.role === 'params' || v.role === 'returns') return `${v.name}Table`;
-  if (v.role === 'param-table' || v.role === 'return-table') return `${v.name}Object`;
   return v.name;
 }
 

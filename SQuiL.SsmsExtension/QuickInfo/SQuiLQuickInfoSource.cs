@@ -176,9 +176,7 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
 
         if (v.Columns is { Count: > 0 })
         {
-            string recordTypeName = v.Role is VariableRole.Params or VariableRole.Returns
-                ? $"{v.Name}Table"
-                : $"{v.Name}Object";
+            string recordTypeName = v.Name;
 
             var sb = new StringBuilder();
             sb.AppendLine($"Columns → {recordTypeName} record:");

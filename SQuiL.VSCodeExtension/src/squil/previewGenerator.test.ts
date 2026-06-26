@@ -72,7 +72,7 @@ test('Table record with no defaults is positional', () => {
     'Select 1;',
   ].join('\n'));
 
-  assert.ok(out.includes('public partial record RowsTable('), 'should be positional');
+  assert.ok(out.includes('public partial record Rows('), 'should be positional');
   assert.ok(!out.includes('{ get; init; }'), 'no-default table must not use init props');
 });
 
@@ -84,11 +84,11 @@ test('Table record with defaults uses hybrid positional ctor + init props', () =
     'Select 1;',
   ].join('\n'));
 
-  assert.ok(out.includes('public partial record RowsTable('), 'has positional ctor');
+  assert.ok(out.includes('public partial record Rows('), 'has positional ctor');
   assert.ok(out.includes('public decimal Amount { get; init; } = 1.5m;'), 'Amount is an init prop with default (non-nullable: no explicit NULL)');
   assert.ok(out.includes('public string Note { get; init; } = "hello";'), 'Note is an init prop with default (non-nullable: no explicit NULL)');
 
-  assert.ok(!/RowsTable\([^)]*Amount/.test(out), 'Amount must not be a ctor param');
+  assert.ok(!/Rows\([^)]*Amount/.test(out), 'Amount must not be a ctor param');
 });
 
 test('nullable value-type column with a default renders as nullable init prop', () => {
@@ -100,6 +100,22 @@ test('nullable value-type column with a default renders as nullable init prop', 
   ].join('\n'));
 
   assert.ok(out.includes('public int? Score { get; init; } = 0;'), 'nullable value-type default stays nullable');
+});
+
+test('row records drop the Table/Object suffix and share the bare name', () => {
+  const out = preview([
+    '--Name: People',
+    'Declare @Returns_Person table(PersonID int, FullName varchar(100));',
+    'Declare @Return_Person table(PersonID int, FullName varchar(100));',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n'));
+
+  assert.ok(out.includes('record Person('), 'must emit a bare `Person` record');
+  assert.ok(!out.includes('PersonTable'), 'no Table suffix');
+  assert.ok(!out.includes('PersonObject'), 'no Object suffix');
+  assert.ok(out.includes('List<Person>?'), 'table-valued use is List<Person>?');
+  assert.ok(out.includes('Person? Person'), 'single-object use is Person?');
 });
 
 test('preview mirrors generator nullability', () => {
@@ -116,9 +132,9 @@ test('preview mirrors generator nullability', () => {
   assert.ok(!out.includes('string? LastName'), 'unmarked varchar must NOT be string?');
   // Scalar @Param_Name varchar(100), no null marker → non-nullable string Request property
   assert.ok(out.includes('public string Name { get; set; };'), 'ref type scalar, unmarked → non-nullable');
-  // Request input list: List<XTable>? with = []
-  assert.ok(out.includes('public List<PeopleTable>? People { get; set; } = [];'), 'list request → List<XTable>? with = [] initializer');
-  // Response output list: List<XTable>? with NO = []
-  assert.ok(out.includes('public List<RowsTable>? Rows { get; set; };'), 'list response → List<XTable>? with no initializer');
-  assert.ok(!out.includes('List<RowsTable>? Rows { get; set; } = []'), 'response list must not have = [] initializer');
+  // Request input list: List<X>? with = []
+  assert.ok(out.includes('public List<People>? People { get; set; } = [];'), 'list request → List<X>? with = [] initializer');
+  // Response output list: List<X>? with NO = []
+  assert.ok(out.includes('public List<Rows>? Rows { get; set; };'), 'list response → List<X>? with no initializer');
+  assert.ok(!out.includes('List<Rows>? Rows { get; set; } = []'), 'response list must not have = [] initializer');
 });

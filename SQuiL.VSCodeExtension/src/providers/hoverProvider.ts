@@ -21,18 +21,12 @@ function sqlToCSharp(sqlType: string): string {
 }
 
 function getCSharpType(v: SQuiLVariable): string {
-  // Generated record naming, per CLAUDE.md:
-  //   table-valued (params / returns)   → `<Name>Table`   (collection element)
-  //   single-object (param/return-table) → `<Name>Object` (single object)
-  // The older `<Name>Item` suffix is legacy — do not reintroduce it.
-  if (v.role === 'params' || v.role === 'returns') return `IEnumerable<${v.name}Table>`;
-  if (v.role === 'param-table' || v.role === 'return-table') return `${v.name}Object`;
+  if (v.role === 'params' || v.role === 'returns') return `IEnumerable<${v.name}>`;
+  if (v.role === 'param-table' || v.role === 'return-table') return v.name;
   return sqlToCSharp(v.sqlType);
 }
 
 function recordTypeName(v: SQuiLVariable): string {
-  if (v.role === 'params' || v.role === 'returns') return `${v.name}Table`;
-  if (v.role === 'param-table' || v.role === 'return-table') return `${v.name}Object`;
   return v.name;
 }
 

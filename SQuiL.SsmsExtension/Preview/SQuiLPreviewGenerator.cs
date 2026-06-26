@@ -19,19 +19,10 @@ namespace SQuiL.SsmsExtension.Preview;
 internal static class SQuiLPreviewGenerator
 {
     /// <summary>
-    /// Record-type name for a TABLE-valued variable:
-    ///   • <c>Params</c>/<c>Returns</c> → <c>&lt;Name&gt;Table</c> (collection element)
-    ///   • <c>ParamTable</c>/<c>ReturnTable</c> → <c>&lt;Name&gt;Object</c> (single object)
-    /// Matches the convention recorded in CLAUDE.md.
+    /// Record-type name for a TABLE-valued variable.
+    /// The Table/Object suffix was dropped in TODO #3 — the bare name is used directly.
     /// </summary>
-    private static string RecordTypeName(SQuiLVariable v) => v.Role switch
-    {
-        VariableRole.Params      => $"{v.Name}Table",
-        VariableRole.Returns     => $"{v.Name}Table",
-        VariableRole.ParamTable  => $"{v.Name}Object",
-        VariableRole.ReturnTable => $"{v.Name}Object",
-        _                        => v.Name,
-    };
+    private static string RecordTypeName(SQuiLVariable v) => v.Name;
 
     private static string GetPropertyType(SQuiLVariable v)
     {
