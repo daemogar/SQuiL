@@ -72,6 +72,24 @@ export class SQuiLDiagnosticsProvider {
           : vscode.DiagnosticSeverity.Information,
     );
     diag.source = 'squil';
+
+    if (d.code !== undefined) {
+      diag.code = d.code;
+    }
+
+    if (d.relatedLine !== undefined) {
+      const relLine = Math.min(d.relatedLine, document.lineCount - 1);
+      const relLineLen = document.lineAt(relLine).text.length;
+      const relStart = new vscode.Position(relLine, Math.min(d.relatedStartChar ?? 0, relLineLen));
+      const relEnd = new vscode.Position(relLine, Math.min(d.relatedEndChar ?? relLineLen, relLineLen));
+      diag.relatedInformation = [
+        new vscode.DiagnosticRelatedInformation(
+          new vscode.Location(document.uri, new vscode.Range(relStart, relEnd)),
+          d.relatedMessage ?? 'first declared here',
+        ),
+      ];
+    }
+
     return diag;
   }
 

@@ -49,6 +49,24 @@ test('column nullable only with explicit NULL; scalar marker captured', () => {
   assert.strictEqual(r.variables.find(v => v.name === 'SN')!.nullabilityMarker, 'NULL');
 });
 
+// SP0017: shape mismatch between two same-name table variables in one file.
+test('SP0017 shape mismatch: same name different columns fires error with relatedInformation', () => {
+  const sql = [
+    '--Name: ShapeMismatch',
+    'Declare @Returns_Person table(PersonID int, FullName varchar(100));',
+    'Declare @Return_Person table(PersonID int, Age int);',
+    'Use [Database];',
+    'Select * From @Returns_Person;',
+    'Select * From @Return_Person;',
+  ].join('\n');
+
+  const result = parseSQuiL(sql);
+  const sp0017 = result.diagnostics.filter(d => d.code === 'SP0017');
+  assert.strictEqual(sp0017.length, 1, 'should emit exactly one SP0017 diagnostic');
+  assert.ok(sp0017[0].relatedLine !== undefined, 'should have relatedLine pointing at first declaration');
+  assert.strictEqual(sp0017[0].relatedLine, 1, 'first declaration is on line 1');
+});
+
 // Parity with the generator: a column DEFAULT must be parsed (not dropped) and
 // its raw literal captured, so the preview can render it as an init-property default.
 test('table column DEFAULT is parsed and its literal captured', () => {

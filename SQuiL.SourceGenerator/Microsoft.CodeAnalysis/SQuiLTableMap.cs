@@ -62,17 +62,19 @@ public class SQuiLTableMap
 	/// <summary>
 	/// SP0017 conflicts: declarations that share one generated record type but declare
 	/// different column shapes (name, type, nullability, and order must all match).
+	/// <c>FirstSourceName</c> is the query method/file name of the first registrant, or
+	/// empty string when the conflict was detected during the cross-query merge phase.
 	/// </summary>
-	private List<(string TableName, string Expected, string Actual)> ShapeConflicts { get; } = [];
+	private List<(string TableName, string Expected, string Actual, string FirstSourceName)> ShapeConflicts { get; } = [];
 
 	/// <summary>
 	/// Returns any shape conflicts collected while registering and merging tables.
 	/// Populated by <see cref="Add(SQuiLTable)"/> and <see cref="GenerateCode"/>, so only
 	/// complete after code generation has run.
 	/// </summary>
-	/// <param name="issues">Output list of (record name, expected shape, conflicting shape).</param>
+	/// <param name="issues">Output list of (record name, expected shape, conflicting shape, first source name).</param>
 	/// <returns><c>true</c> if at least one conflict exists.</returns>
-	public bool TryGetShapeIssues(out List<(string TableName, string Expected, string Actual)> issues)
+	public bool TryGetShapeIssues(out List<(string TableName, string Expected, string Actual, string FirstSourceName)> issues)
 	{
 		issues = ShapeConflicts;
 		return issues.Count > 0;
@@ -107,7 +109,7 @@ public class SQuiLTableMap
 		if (Dictionary.TryGetValue(property.OriginalName, out var existing))
 		{
 			if (!SameShape(existing.Items, property.CodeItems))
-				ShapeConflicts.Add((property.TableName(), Shape(existing.Items), Shape(property.CodeItems)));
+				ShapeConflicts.Add((property.TableName(), Shape(existing.Items), Shape(property.CodeItems), existing.Table.SourceName));
 			if (existing.Table.RecordNamespace != property.RecordNamespace)
 				NamespaceConflicts.Add((property.TableName(), existing.Table.RecordNamespace, property.RecordNamespace));
 		}
@@ -188,7 +190,7 @@ public class SQuiLTableMap
 			var reference = merge.First().Items;
 			foreach (var entry in merge.Skip(1))
 				if (!SameShape(reference, entry.Items))
-					ShapeConflicts.Add((merge.Key, Shape(reference), Shape(entry.Items)));
+					ShapeConflicts.Add((merge.Key, Shape(reference), Shape(entry.Items), ""));
 
 			// SP0017: a merged record with mismatched shapes cannot be emitted —
 			// its positional constructor would break every reader that shares it.

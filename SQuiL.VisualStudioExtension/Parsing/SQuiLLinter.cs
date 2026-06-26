@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace SQuiL.VisualStudioExtension.Parsing;
@@ -58,6 +59,55 @@ internal static class SQuiLLinter
 
         LintUndeclaredVariables(text, diagnostics);
         LintNullabilityHints(text, diagnostics);
+        LintShapeMismatch(text, diagnostics);
+    }
+
+    // ── Shape-mismatch detection (SP0017) ────────────────────────────────────
+    //
+    // Within a single file, detect table variables that share the same base name
+    // (after stripping @Returns_/@Return_/@Params_/@Param_ prefixes) but declare
+    // different column shapes.  Fires the second declaration as the primary
+    // location and carries a related-information pointer back to the first.
+    //
+    // Port of lintShapeMismatch() in parser.ts (VS Code extension) — change one, change all.
+
+    internal static void LintShapeMismatch(string sql, List<SQuiLDiagnostic> diagnostics)
+    {
+        var parsed = SQuiLParser.Parse(sql);
+        var tableVars = parsed.Variables.Where(v =>
+            (v.Role == VariableRole.Returns   || v.Role == VariableRole.ReturnTable ||
+             v.Role == VariableRole.Params    || v.Role == VariableRole.ParamTable)
+            && v.Columns != null && v.Columns.Count > 0)
+            .ToList();
+
+        var seen = new Dictionary<string, SQuiLVariable>(System.StringComparer.OrdinalIgnoreCase);
+        foreach (var v in tableVars)
+        {
+            string sig = string.Join("|", v.Columns!.Select(c => $"{c.Name}:{c.SqlType}:{c.Nullable}"));
+            if (!seen.TryGetValue(v.Name, out var first))
+            {
+                seen[v.Name] = v;
+                continue;
+            }
+            string firstSig = string.Join("|", first.Columns!.Select(c => $"{c.Name}:{c.SqlType}:{c.Nullable}"));
+            if (sig == firstSig) continue;
+
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message       = $"All declarations that generate the record `{v.Name}` must declare identical columns " +
+                                $"(same names, types, nullability, and order). " +
+                                $"Rename one of the variables or align the column lists.",
+                Line          = v.Line,
+                StartChar     = v.Character,
+                EndChar       = v.Character + v.RawName.Length,
+                Severity      = DiagnosticSeverity.Error,
+                Code          = "SP0017",
+                RelatedLine   = first.Line,
+                RelatedStartChar = first.Character,
+                RelatedEndChar   = first.Character + first.RawName.Length,
+                RelatedMessage   = "first declared here",
+            });
+        }
     }
 
     // ── Nullability hints (SP0010) ───────────────────────────────────────────

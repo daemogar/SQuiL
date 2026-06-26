@@ -70,6 +70,13 @@ public sealed class SQuiLDiagnostic
     public int StartChar { get; set; }
     public int EndChar { get; set; }
     public DiagnosticSeverity Severity { get; set; }
+    /// <summary>SP-prefixed diagnostic code, e.g. "SP0017".</summary>
+    public string? Code { get; set; }
+    /// <summary>Line of the first (related) declaration site for two-location diagnostics.</summary>
+    public int? RelatedLine { get; set; }
+    public int? RelatedStartChar { get; set; }
+    public int? RelatedEndChar { get; set; }
+    public string? RelatedMessage { get; set; }
 }
 
 public sealed class SQuiLParseResult

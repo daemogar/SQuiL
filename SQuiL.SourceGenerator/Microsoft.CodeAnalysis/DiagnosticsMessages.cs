@@ -166,13 +166,18 @@ public static class DiagnosticsMessages
 	/// different column shapes. The shared record's positional constructor cannot serve
 	/// mismatched shapes, so the record is not emitted.
 	/// </summary>
-	public static void ReportTableShapeMismatch(this SourceProductionContext context, List<(string TableName, string Expected, string Actual)> issues)
+	public static void ReportTableShapeMismatch(this SourceProductionContext context, List<(string TableName, string Expected, string Actual, string FirstSourceName)> issues)
 	{
-		foreach (var (table, expected, actual) in issues)
+		foreach (var (table, expected, actual, firstSourceName) in issues)
+		{
+			var firstDeclaredIn = string.IsNullOrEmpty(firstSourceName)
+				? ""
+				: $" ↳ first declared in: {firstSourceName}.";
 			context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0017", "Table Shape Mismatch",
 				$"All declarations that generate the record `{table}` must declare identical columns " +
-				$"(same names, types, nullability, and order). Found {expected} and {actual}. " +
+				$"(same names, types, nullability, and order). Found {expected} and {actual}.{firstDeclaredIn} " +
 				"Rename one of the variables or align the column lists."));
+		}
 	}
 
 	/// <summary>

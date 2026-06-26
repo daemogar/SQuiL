@@ -35,6 +35,13 @@ public class SQuiLTable(
 	/// <summary>The shared table-name-to-C#-type mapping used to resolve cross-query type names.</summary>
 	public SQuiLTableMap TableMap { get; } = TableMap;
 
+	/// <summary>
+	/// The query method/file name that first declared this table variable, used to
+	/// embed a cross-file "first declared in" hint in SP0017 messages.
+	/// Set by the caller immediately after construction; empty string when unknown.
+	/// </summary>
+	public string SourceName { get; init; } = "";
+
 	/// <summary>Creates a shallow clone of this table model with a fresh database-type token copy.</summary>
 	public SQuiLTable Clone()
 		=> new(NameSpace, Modifiers, Type, Block with

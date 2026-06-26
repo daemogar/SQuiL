@@ -32,6 +32,9 @@ public class SQuiLModel(
 	/// <summary>Full model type name, e.g. <c>MyQueryRequest</c> or <c>MyQueryResponse</c>.</summary>
 	public string ModelName { get; } = $"{ModelName}{ModelType}";
 
+	/// <summary>Base query name (without Request/Response suffix), used as the source name for SP0017 messages.</summary>
+	private string QueryName { get; } = ModelName;
+
 	/// <summary>The C# namespace row records are emitted into (e.g. <c>MyApp.Data.Models</c>).</summary>
 	public string RecordNamespace { get; init; } = "";
 
@@ -176,12 +179,14 @@ public class SQuiLModel(
 			? new SQuiLTable(NameSpace, Modifier(name), type, block, TableMap, Records)
 			{
 				HasParameterizedConstructor = hasParameterizedConstructor,
-				RecordNamespace = RecordNamespace
+				RecordNamespace = RecordNamespace,
+				SourceName = QueryName
 			}
 			: new SQuiLObject(NameSpace, Modifier(name), type, block, TableMap, Records)
 			{
 				HasParameterizedConstructor = hasParameterizedConstructor,
-				RecordNamespace = RecordNamespace
+				RecordNamespace = RecordNamespace,
+				SourceName = QueryName
 			};
 
 		if (addProperty) Properties.Add(table);
