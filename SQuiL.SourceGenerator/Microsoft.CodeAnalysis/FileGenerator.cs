@@ -142,6 +142,9 @@ public class FileGenerator(
 			if (TableMap.TryGetShapeIssues(out var shapeIssues))
 				Context.ReportTableShapeMismatch(shapeIssues);
 
+			if (TableMap.TryGetNamespaceIssues(out var nsIssues))
+				Context.ReportRecordNamespaceConflict(nsIssues);
+
 			foreach (var exception in exceptions)
 				Context.ReportMissingStatement(exception);
 

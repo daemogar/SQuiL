@@ -12,11 +12,15 @@ public class SQuiLQueryAttribute : System.Attribute
 
 	public string Setting { get; }
 
+	public string Namespace { get; }
+
 	public SQuiLQueryAttribute(
 		QueryFiles type,
-		string setting = "SQuiLDatabase")
+		string setting = "SQuiLDatabase",
+		string Namespace = "Models")
 	{
 		Type = type;
 		Setting = setting;
+		this.Namespace = Namespace;
 	}
 }

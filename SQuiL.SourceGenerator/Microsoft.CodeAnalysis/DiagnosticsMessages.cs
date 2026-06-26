@@ -199,6 +199,19 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0021 — A single generated row record is shared by more than one context whose
+	/// <c>[SQuiLQuery(..., Namespace: ...)]</c> declarations resolve to DIFFERENT namespaces.
+	/// The record can only live in one namespace; align the <c>Namespace</c> segments.
+	/// </summary>
+	public static void ReportRecordNamespaceConflict(this SourceProductionContext context, List<(string TableName, string First, string Second)> issues)
+	{
+		foreach (var (table, first, second) in issues)
+			context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0021", "Record Namespace Conflict",
+				$"The shared record `{table}` is placed in conflicting namespaces `{first}` and `{second}` " +
+				"by different [SQuiLQuery] Namespace declarations. Use the same Namespace segment for every context that shares this record."));
+	}
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

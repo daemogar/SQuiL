@@ -145,20 +145,24 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			.AddSource($"{QueryAttributeName}.g.cs", SourceText.From($$"""
 				{{FileHeader}}
 				namespace {{NamespaceName}};
-				
+
 				[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
 				public class {{QueryAttributeName}} : System.Attribute
 				{
 					public QueryFiles Type { get; }
-		
+
 					public string Setting { get; }
+
+					public string Namespace { get; }
 
 					public {{QueryAttributeName}}(
 						QueryFiles type,
-						string setting = "{{DefaultConnectionStringAppSettingName}}")
+						string setting = "{{DefaultConnectionStringAppSettingName}}",
+						string Namespace = "Models")
 					{
 						Type = type;
 						Setting = setting;
+						this.Namespace = Namespace;
 					}
 				}
 				""", Encoding.UTF8)));
@@ -360,7 +364,8 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 			var list = definition.Attribute.ArgumentList!;
 
-			var setting = (list.Arguments.Skip(1).FirstOrDefault()?.Expression as LiteralExpressionSyntax)?.Token.ValueText.Trim()
+			var setting = ((list.Arguments.FirstOrDefault(a => a.NameColon?.Name.Identifier.ValueText == "setting")?.Expression
+				?? list.Arguments.Skip(1).FirstOrDefault(a => a.NameColon is null)?.Expression) as LiteralExpressionSyntax)?.Token.ValueText.Trim()
 				?? DefaultConnectionStringAppSettingName;
 
 			var (method, location) = GetValueLocation(list);
@@ -397,6 +402,10 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				return;
 			}
 
+			var nsArg = (list.Arguments.FirstOrDefault(a => a.NameColon?.Name.Identifier.ValueText == "Namespace")?.Expression as LiteralExpressionSyntax)?.Token.ValueText
+				?? "Models";
+			var recordNamespace = string.IsNullOrEmpty(nsArg) ? @namespace : $"{@namespace}.{nsArg}";
+
 			if (missingDataClient)
 				continue;
 
@@ -414,7 +423,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			}
 
 			var generation = generator
-				.Create(@namespace, classname, method, setting, text, records, $"{@namespace}.Models");
+				.Create(@namespace, classname, method, setting, text, records, recordNamespace);
 
 			if (generation is not null)
 				generation.FilePath = file.Path;

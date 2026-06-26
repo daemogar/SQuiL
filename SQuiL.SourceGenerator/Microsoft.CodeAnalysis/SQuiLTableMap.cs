@@ -79,6 +79,23 @@ public class SQuiLTableMap
 	}
 
 	/// <summary>
+	/// SP0021 conflicts: declarations that share one generated record type but resolve to
+	/// different record namespaces via their <c>[SQuiLQuery(..., Namespace: ...)]</c> arguments.
+	/// </summary>
+	private List<(string TableName, string First, string Second)> NamespaceConflicts { get; } = [];
+
+	/// <summary>
+	/// Returns any namespace conflicts collected while registering tables.
+	/// </summary>
+	/// <param name="issues">Output list of (record name, first namespace, conflicting namespace).</param>
+	/// <returns><c>true</c> if at least one conflict exists.</returns>
+	public bool TryGetNamespaceIssues(out List<(string TableName, string First, string Second)> issues)
+	{
+		issues = NamespaceConflicts;
+		return issues.Count > 0;
+	}
+
+	/// <summary>
 	/// Registers a <see cref="SQuiLTable"/> and merges its columns into the shared dictionary.
 	/// If the same table was already added by another query, any new columns are appended.
 	/// Declarations that share a name but differ in shape are recorded as SP0017 conflicts —
@@ -91,6 +108,8 @@ public class SQuiLTableMap
 		{
 			if (!SameShape(existing.Items, property.CodeItems))
 				ShapeConflicts.Add((property.TableName(), Shape(existing.Items), Shape(property.CodeItems)));
+			if (existing.Table.RecordNamespace != property.RecordNamespace)
+				NamespaceConflicts.Add((property.TableName(), existing.Table.RecordNamespace, property.RecordNamespace));
 		}
 		else
 			Dictionary.Add(property.OriginalName, (property, []));
