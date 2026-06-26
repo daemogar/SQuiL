@@ -24,12 +24,18 @@ internal static class SQuiLPreviewGenerator
     /// </summary>
     private static string RecordTypeName(SQuiLVariable v) => v.Name;
 
-    private static string GetPropertyType(SQuiLVariable v)
+    private static string GetPropertyType(SQuiLVariable v, string? modelsNs = null)
     {
         if (v.Role is VariableRole.Params or VariableRole.Returns)
-            return $"List<{RecordTypeName(v)}>?";
+        {
+            string typeName = modelsNs is not null ? $"{modelsNs}.{RecordTypeName(v)}" : RecordTypeName(v);
+            return $"List<{typeName}>?";
+        }
         if (v.Role is VariableRole.ParamTable or VariableRole.ReturnTable)
-            return $"{RecordTypeName(v)}?";
+        {
+            string typeName = modelsNs is not null ? $"{modelsNs}.{RecordTypeName(v)}" : RecordTypeName(v);
+            return $"{typeName}?";
+        }
 
         // Scalars: nullable only when explicitly marked NULL in the SQL declaration.
         string cs = SqlTypeMap.SqlToCSharp(v.SqlType);
@@ -49,6 +55,12 @@ internal static class SQuiLPreviewGenerator
         var returnVars = parsed.Variables.Where(v =>
             v.Role is VariableRole.Return or VariableRole.Returns or VariableRole.ReturnTable).ToList();
 
+        // Collect all table-valued variables that need row records
+        var tableVars = paramVars.Where(v => v.Columns is { Count: > 0 })
+            .Concat(returnVars.Where(v => v.Columns is { Count: > 0 }))
+            .ToList();
+        string modelsNs = $"{ns}.Models";
+
         EmitBanner(lines, queryName, db);
         lines.Add("");
         lines.Add($"namespace {ns};");
@@ -61,25 +73,22 @@ internal static class SQuiLPreviewGenerator
         lines.Add($"//   public enum QueryFiles {{ ..., {queryName} }}");
         lines.Add("");
 
-        // ── Table-row records (input side) ──────────────────────────────
-        foreach (var v in paramVars)
-            if (v.Columns is { Count: > 0 })
-                EmitTableRecord(lines, RecordTypeName(v), v);
+        // ── using for the Models sub-namespace (only when row records exist)
+        if (tableVars.Count > 0)
+        {
+            lines.Add($"using {modelsNs};");
+            lines.Add("");
+        }
 
         // ── Request record (always partial; specials are opt-in) ──
         lines.Add("// ── Request ─────────────────────────────────────────────");
-        EmitModelRecord(lines, $"{queryName}Request", paramVars, isResponse: false, parsed.Variables);
-
-        // ── Table-row records (output side) ─────────────────────────────
-        foreach (var v in returnVars)
-            if (v.Columns is { Count: > 0 })
-                EmitTableRecord(lines, RecordTypeName(v), v);
+        EmitModelRecord(lines, $"{queryName}Request", paramVars, isResponse: false, parsed.Variables, modelsNs);
 
         // ── Response record ─────────────────────────────────────────────
         if (returnVars.Count > 0)
         {
             lines.Add("// ── Response ────────────────────────────────────────────");
-            EmitModelRecord(lines, $"{queryName}Response", returnVars, isResponse: true);
+            EmitModelRecord(lines, $"{queryName}Response", returnVars, isResponse: true, modelsNs: modelsNs);
         }
 
         // ── Data context ────────────────────────────────────────────────
@@ -109,6 +118,18 @@ internal static class SQuiLPreviewGenerator
         lines.Add("//   builder.AddSQuiL();");
         lines.Add("//");
         lines.Add($"// Connection string key: \"ConnectionStrings:{db}\"");
+
+        // ── Row records emitted into the .Models sub-namespace
+        if (tableVars.Count > 0)
+        {
+            lines.Add("");
+            lines.Add("// ── Row records ─────────────────────────────────────────");
+            lines.Add("// Row records live in the .Models sub-namespace, mirroring the generator.");
+            lines.Add($"namespace {modelsNs};");
+            lines.Add("");
+            foreach (var v in tableVars)
+                EmitTableRecord(lines, RecordTypeName(v), v);
+        }
 
         return string.Join("\r\n", lines);
     }
@@ -179,7 +200,7 @@ internal static class SQuiLPreviewGenerator
 
     private static void EmitModelRecord(
         List<string> lines, string typeName, List<SQuiLVariable> vars, bool isResponse,
-        IReadOnlyList<SQuiLVariable>? allVars = null)
+        IReadOnlyList<SQuiLVariable>? allVars = null, string? modelsNs = null)
     {
         lines.Add($"public partial record {typeName}");
         lines.Add("{");
@@ -212,7 +233,7 @@ internal static class SQuiLPreviewGenerator
 
         foreach (var v in vars)
         {
-            string type = GetPropertyType(v);
+            string type = GetPropertyType(v, modelsNs);
             string initializer = (!isResponse && IsCollection(v)) ? " = []" : "";
             lines.Add($"    public {type} {v.Name} {{ get; set; }}{initializer};");
         }

@@ -114,8 +114,21 @@ test('row records drop the Table/Object suffix and share the bare name', () => {
   assert.ok(out.includes('record Person('), 'must emit a bare `Person` record');
   assert.ok(!out.includes('PersonTable'), 'no Table suffix');
   assert.ok(!out.includes('PersonObject'), 'no Object suffix');
-  assert.ok(out.includes('List<Person>?'), 'table-valued use is List<Person>?');
-  assert.ok(out.includes('Person? Person'), 'single-object use is Person?');
+  // properties qualify the type with the .Models sub-namespace
+  assert.ok(out.includes('List<YourNamespace.Models.Person>?'), 'table-valued use is List<ns.Models.Person>?');
+  assert.ok(out.includes('YourNamespace.Models.Person? Person'), 'single-object use is ns.Models.Person?');
+});
+
+test('preview emits row records into the .Models sub-namespace', () => {
+  const out = preview([
+    '--Name: People',
+    'Declare @Returns_Person table(PersonID int, FullName varchar(100));',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n'));
+
+  assert.ok(/namespace \w+\.Models;/.test(out), 'records go into <ns>.Models');
+  assert.ok(out.includes('record Person('), 'bare record name');
 });
 
 test('preview mirrors generator nullability', () => {
@@ -132,9 +145,9 @@ test('preview mirrors generator nullability', () => {
   assert.ok(!out.includes('string? LastName'), 'unmarked varchar must NOT be string?');
   // Scalar @Param_Name varchar(100), no null marker → non-nullable string Request property
   assert.ok(out.includes('public string Name { get; set; };'), 'ref type scalar, unmarked → non-nullable');
-  // Request input list: List<X>? with = []
-  assert.ok(out.includes('public List<People>? People { get; set; } = [];'), 'list request → List<X>? with = [] initializer');
-  // Response output list: List<X>? with NO = []
-  assert.ok(out.includes('public List<Rows>? Rows { get; set; };'), 'list response → List<X>? with no initializer');
-  assert.ok(!out.includes('List<Rows>? Rows { get; set; } = []'), 'response list must not have = [] initializer');
+  // Request input list: List<ns.Models.X>? with = []
+  assert.ok(out.includes('public List<YourNamespace.Models.People>? People { get; set; } = [];'), 'list request → List<ns.Models.X>? with = [] initializer');
+  // Response output list: List<ns.Models.X>? with NO = []
+  assert.ok(out.includes('public List<YourNamespace.Models.Rows>? Rows { get; set; };'), 'list response → List<ns.Models.X>? with no initializer');
+  assert.ok(!out.includes('List<YourNamespace.Models.Rows>? Rows { get; set; } = []'), 'response list must not have = [] initializer');
 });
