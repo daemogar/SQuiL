@@ -67,6 +67,23 @@ test('SP0017 shape mismatch: same name different columns fires error with relate
   assert.strictEqual(sp0017[0].relatedLine, 1, 'first declaration is on line 1');
 });
 
+// SP0017: same-name pair that differs ONLY in a column size must NOT fire —
+// the generator's SameShape is size-independent (sizes may differ).
+// This is a RED→GREEN regression guard added by the size-strip fix.
+test('SP0017 silent when same-name tables differ only in column size', () => {
+  const sql = [
+    '--Name: SizeOnly',
+    'Declare @Returns_Person table(PersonID int, FullName varchar(100));',
+    'Declare @Return_Person  table(PersonID int, FullName varchar(50));',
+    'Use [Database];',
+    'Select 1;',
+  ].join('\n');
+
+  const result = parseSQuiL(sql);
+  const sp0017 = result.diagnostics.filter(d => d.code === 'SP0017');
+  assert.strictEqual(sp0017.length, 0, 'SP0017 must not fire when shapes differ only in column size');
+});
+
 // Parity with the generator: a column DEFAULT must be parsed (not dropped) and
 // its raw literal captured, so the preview can render it as an init-property default.
 test('table column DEFAULT is parsed and its literal captured', () => {

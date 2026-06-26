@@ -194,7 +194,7 @@ export function lintShapeMismatch(result: SQuiLParseResult): SQuiLDiagnostic[] {
 
   for (const v of tableVars) {
     const key = v.name.toLowerCase();
-    const sig = (v.columns ?? []).map(c => `${c.name}:${c.sqlType}:${c.nullable}`).join('|');
+    const sig = (v.columns ?? []).map(c => `${c.name}:${c.sqlType.replace(/\s*\([^)]*\)/, '').toLowerCase()}:${c.nullable}`).join('|');
 
     const first = seen.get(key);
     if (!first) {
@@ -202,7 +202,7 @@ export function lintShapeMismatch(result: SQuiLParseResult): SQuiLDiagnostic[] {
       continue;
     }
 
-    const firstSig = (first.columns ?? []).map(c => `${c.name}:${c.sqlType}:${c.nullable}`).join('|');
+    const firstSig = (first.columns ?? []).map(c => `${c.name}:${c.sqlType.replace(/\s*\([^)]*\)/, '').toLowerCase()}:${c.nullable}`).join('|');
     if (sig === firstSig) continue;
 
     diagnostics.push({

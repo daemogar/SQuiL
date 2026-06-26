@@ -36,14 +36,14 @@ const TABLE_ROLES: ReadonlySet<VariableRole> = new Set([
 
 /**
  * Build a canonical signature string for a column list.
- * Format: `name:sqltype(lowercased):N|NN` per column, joined by `|`.
- * Size precision is included verbatim — `varchar(100)` and `varchar(50)` are
- * distinct signatures. Intent: catch accidentally-renamed copies of the exact
- * same declaration.
+ * Format: `name:sqltype(size-stripped,lowercased):N|NN` per column, joined by `|`.
+ * Size is stripped — `varchar(100)` and `varchar(50)` produce the same signature
+ * because the generator's SameShape comparison is size-independent (sizes may differ).
+ * Intent: catch accidentally-renamed copies of the same logical declaration.
  */
 function columnSignature(cols: TableColumn[]): string {
   return cols
-    .map(c => `${c.name}:${c.sqlType.toLowerCase()}:${c.nullable ? 'N' : 'NN'}`)
+    .map(c => `${c.name}:${c.sqlType.replace(/\s*\([^)]*\)/, '').toLowerCase()}:${c.nullable ? 'N' : 'NN'}`)
     .join('|');
 }
 

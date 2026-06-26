@@ -26,6 +26,24 @@ test('SP0020 silent when signatures differ', () => {
   assert.strictEqual(hints.length, 0);
 });
 
+// SP0020: different-name pair that is identical EXCEPT for a column size SHOULD
+// fire — sizes may differ per spec, so they are "same shape" from the generator's
+// perspective.  This is a RED→GREEN regression guard added by the size-strip fix.
+test('SP0020 fires when differently-named tables share shape except column size', () => {
+  const hints = shapeHints(parseSQuiL([
+    'Declare @Returns_Person table(PersonID int, Name varchar(100));',
+    'Declare @Returns_People table(PersonID int, Name varchar(50));',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n')));
+  assert.ok(hints.length >= 2, 'SP0020 must fire for each participating declaration');
+  assert.ok(hints.every(h => h.code === 'SP0020'));
+  assert.ok(
+    hints.some(h => h.message.includes('People') || h.message.includes('Person')),
+    'hint must name a counterpart',
+  );
+});
+
 // ── SP0017 / SP0020 firewall ─────────────────────────────────────────────────
 // SP0017 (same-name + different-shape) and SP0020 (different-name + same-shape)
 // are complements and must never overlap.  These guard that boundary.

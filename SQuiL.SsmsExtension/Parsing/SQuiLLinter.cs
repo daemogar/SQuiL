@@ -81,16 +81,20 @@ internal static class SQuiLLinter
             && v.Columns != null && v.Columns.Count > 0)
             .ToList();
 
+        // Size-independent: strip the (...) size suffix from each SQL type before
+        // comparing — mirrors the generator's SameShape (sizes may differ).
+        static string StripSize(string t) => Regex.Replace(t, @"\s*\([^)]*\)", "").ToLowerInvariant();
+
         var seen = new Dictionary<string, SQuiLVariable>(System.StringComparer.OrdinalIgnoreCase);
         foreach (var v in tableVars)
         {
-            string sig = string.Join("|", v.Columns!.Select(c => $"{c.Name}:{c.SqlType}:{c.Nullable}"));
+            string sig = string.Join("|", v.Columns!.Select(c => $"{c.Name}:{StripSize(c.SqlType)}:{c.Nullable}"));
             if (!seen.TryGetValue(v.Name, out var first))
             {
                 seen[v.Name] = v;
                 continue;
             }
-            string firstSig = string.Join("|", first.Columns!.Select(c => $"{c.Name}:{c.SqlType}:{c.Nullable}"));
+            string firstSig = string.Join("|", first.Columns!.Select(c => $"{c.Name}:{StripSize(c.SqlType)}:{c.Nullable}"));
             if (sig == firstSig) continue;
 
             diagnostics.Add(new SQuiLDiagnostic
@@ -135,11 +139,13 @@ internal static class SQuiLLinter
         if (tableVars.Count < 2) return;
 
         // Build signature → list of variables.
+        // Size-independent: strip the (...) size suffix — mirrors the generator's SameShape.
+        static string StripSize(string t) => Regex.Replace(t, @"\s*\([^)]*\)", "").ToLowerInvariant();
         var bySig = new Dictionary<string, List<SQuiLVariable>>();
         foreach (var v in tableVars)
         {
             string sig = string.Join("|", v.Columns!.Select(c =>
-                $"{c.Name}:{c.SqlType.ToLowerInvariant()}:{(c.Nullable ? "N" : "NN")}"));
+                $"{c.Name}:{StripSize(c.SqlType)}:{(c.Nullable ? "N" : "NN")}"));
             if (!bySig.TryGetValue(sig, out var group))
             {
                 group = new List<SQuiLVariable>();
