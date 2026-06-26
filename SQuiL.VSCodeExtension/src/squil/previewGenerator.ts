@@ -95,6 +95,8 @@ export function generateCSharpPreview(
     ...params.filter(v => v.columns && v.columns.length > 0),
     ...returns.filter(v => v.columns && v.columns.length > 0),
   ];
+  // The Namespace override on [SQuiLQuery] is generator-only; editors cannot read C# attributes,
+  // so the preview always uses the default "Models" sub-namespace segment.
   const modelsNs = `${namespace}.Models`;
 
   banner(lines, queryName, db);

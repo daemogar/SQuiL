@@ -59,6 +59,8 @@ internal static class SQuiLPreviewGenerator
         var tableVars = paramVars.Where(v => v.Columns is { Count: > 0 })
             .Concat(returnVars.Where(v => v.Columns is { Count: > 0 }))
             .ToList();
+        // The Namespace override on [SQuiLQuery] is generator-only; editors cannot read C# attributes,
+        // so the preview always uses the default "Models" sub-namespace segment.
         string modelsNs = $"{ns}.Models";
 
         EmitBanner(lines, queryName, db);
