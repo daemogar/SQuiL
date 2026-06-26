@@ -588,7 +588,7 @@ accepts `\d+(\.\d+)?`).
 
 **SP0010 is TAKEN** (since the nullability-unification feature) — it is the
 editor-only Hint that fires on any unmarked column or scalar declare (no `null`
-or `not null`). It is NOT a build/generator diagnostic. Next free id: SP0020.
+or `not null`). It is NOT a build/generator diagnostic. Next free id: SP0022.
 
 ## Special Handling
 
