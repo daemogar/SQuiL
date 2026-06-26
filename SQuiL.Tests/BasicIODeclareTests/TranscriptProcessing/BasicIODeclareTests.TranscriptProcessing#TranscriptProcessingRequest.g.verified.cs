@@ -15,9 +15,9 @@ public partial record TranscriptProcessingRequest
 	
 	public System.DateTime IssueDate { get; set; }
 	
-	public Student? Student { get; set; } = default!;
+	public TestCase.Models.Student? Student { get; set; } = default!;
 	
-	public Institution? Institution { get; set; } = default!;
+	public TestCase.Models.Institution? Institution { get; set; } = default!;
 	
-	public System.Collections.Generic.List<Courses>? Courses { get; set; } = [];
+	public System.Collections.Generic.List<TestCase.Models.Courses>? Courses { get; set; } = [];
 }

@@ -414,7 +414,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			}
 
 			var generation = generator
-				.Create(@namespace, classname, method, setting, text, records);
+				.Create(@namespace, classname, method, setting, text, records, $"{@namespace}.Models");
 
 			if (generation is not null)
 				generation.FilePath = file.Path;

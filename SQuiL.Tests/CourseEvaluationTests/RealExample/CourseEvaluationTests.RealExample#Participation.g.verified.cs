@@ -3,7 +3,7 @@
 
 #nullable enable
 
-namespace CourseEvaluation.Application.Data;
+namespace CourseEvaluation.Application.Data.Models;
 
 public partial record Participation(
 	string SectionID,

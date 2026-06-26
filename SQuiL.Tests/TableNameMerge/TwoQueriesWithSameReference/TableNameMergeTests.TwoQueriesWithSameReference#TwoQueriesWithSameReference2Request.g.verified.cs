@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record TwoQueriesWithSameReference2Request
 {
-	public Question? Question { get; set; } = default!;
+	public TestCase.Models.Question? Question { get; set; } = default!;
 }

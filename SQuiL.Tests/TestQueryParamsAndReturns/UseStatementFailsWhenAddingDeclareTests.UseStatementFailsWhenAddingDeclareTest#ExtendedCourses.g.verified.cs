@@ -3,7 +3,7 @@
 
 #nullable enable
 
-namespace TestCase;
+namespace TestCase.Models;
 
 public partial record ExtendedCourses(
 	string ProfessorID,

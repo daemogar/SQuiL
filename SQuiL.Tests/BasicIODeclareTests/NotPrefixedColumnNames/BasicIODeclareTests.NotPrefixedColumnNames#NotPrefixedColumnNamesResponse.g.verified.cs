@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record NotPrefixedColumnNamesResponse
 {
-	public System.Collections.Generic.List<Records>? Records { get; set; }
+	public System.Collections.Generic.List<TestCase.Models.Records>? Records { get; set; }
 }

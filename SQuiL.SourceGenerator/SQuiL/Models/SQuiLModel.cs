@@ -32,6 +32,9 @@ public class SQuiLModel(
 	/// <summary>Full model type name, e.g. <c>MyQueryRequest</c> or <c>MyQueryResponse</c>.</summary>
 	public string ModelName { get; } = $"{ModelName}{ModelType}";
 
+	/// <summary>The C# namespace row records are emitted into (e.g. <c>MyApp.Data.Models</c>).</summary>
+	public string RecordNamespace { get; init; } = "";
+
 	/// <summary>All properties (scalar, table, and object) belonging to this model.</summary>
 	public List<SQuiLProperty> Properties { get; } = [];
 
@@ -55,15 +58,16 @@ public class SQuiLModel(
 	/// <returns>The request model and the response model as a tuple.</returns>
 	public static (SQuiLModel Request, SQuiLModel Response) Create(
 		string @namespace,
+		string recordNamespace,
 		string modelname,
 		List<CodeBlock> blocks,
 		SQuiLTableMap tableMap,
 		ImmutableDictionary<string, SQuiLPartialModel> records)
 	{
-		var request = new SQuiLModel(@namespace, modelname, "Request", tableMap, records)
+		var request = new SQuiLModel(@namespace, modelname, "Request", tableMap, records) { RecordNamespace = recordNamespace }
 			.Build(blocks.Where(p => (p.CodeType & CodeType.INPUT) == CodeType.INPUT));
 
-		var response = new SQuiLModel(@namespace, modelname, "Response", tableMap, records)
+		var response = new SQuiLModel(@namespace, modelname, "Response", tableMap, records) { RecordNamespace = recordNamespace }
 			.Build(blocks.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT));
 
 		return (request, response);
@@ -171,11 +175,13 @@ public class SQuiLModel(
 		SQuiLTable table = block.IsTable
 			? new SQuiLTable(NameSpace, Modifier(name), type, block, TableMap, Records)
 			{
-				HasParameterizedConstructor = hasParameterizedConstructor
+				HasParameterizedConstructor = hasParameterizedConstructor,
+				RecordNamespace = RecordNamespace
 			}
 			: new SQuiLObject(NameSpace, Modifier(name), type, block, TableMap, Records)
 			{
-				HasParameterizedConstructor = hasParameterizedConstructor
+				HasParameterizedConstructor = hasParameterizedConstructor,
+				RecordNamespace = RecordNamespace
 			};
 
 		if (addProperty) Properties.Add(table);

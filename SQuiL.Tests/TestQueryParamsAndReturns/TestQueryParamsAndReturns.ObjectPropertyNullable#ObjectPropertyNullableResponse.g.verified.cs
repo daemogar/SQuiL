@@ -7,7 +7,7 @@ namespace TestCase;
 
 public partial record ObjectPropertyNullableResponse
 {
-	public Student? Student { get; set; } = default!;
+	public TestCase.Models.Student? Student { get; set; } = default!;
 	
-	public System.Collections.Generic.List<Parents>? Parents { get; set; }
+	public System.Collections.Generic.List<TestCase.Models.Parents>? Parents { get; set; }
 }

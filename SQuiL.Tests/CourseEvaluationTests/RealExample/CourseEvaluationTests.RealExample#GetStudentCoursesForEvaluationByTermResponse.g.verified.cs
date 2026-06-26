@@ -7,5 +7,5 @@ namespace CourseEvaluation.Application.Data;
 
 public partial record GetStudentCoursesForEvaluationByTermResponse
 {
-	public System.Collections.Generic.List<Courses>? Courses { get; set; }
+	public System.Collections.Generic.List<CourseEvaluation.Application.Data.Models.Courses>? Courses { get; set; }
 }

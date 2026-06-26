@@ -7,7 +7,7 @@ namespace CourseEvaluation.Application.Data;
 
 public partial record GetStudentParticipationAndSectionOverridesResponse
 {
-	public System.Collections.Generic.List<Participation>? Participation { get; set; }
+	public System.Collections.Generic.List<CourseEvaluation.Application.Data.Models.Participation>? Participation { get; set; }
 	
-	public System.Collections.Generic.List<Overrides>? Overrides { get; set; }
+	public System.Collections.Generic.List<CourseEvaluation.Application.Data.Models.Overrides>? Overrides { get; set; }
 }

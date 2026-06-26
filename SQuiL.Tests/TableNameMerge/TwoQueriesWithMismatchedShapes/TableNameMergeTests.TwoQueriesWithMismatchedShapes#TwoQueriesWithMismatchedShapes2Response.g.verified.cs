@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record TwoQueriesWithMismatchedShapes2Response
 {
-	public System.Collections.Generic.List<Questions>? Questions { get; set; }
+	public System.Collections.Generic.List<TestCase.Models.Questions>? Questions { get; set; }
 }

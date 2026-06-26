@@ -68,7 +68,10 @@ public class SQuiLTable(
 		IndentedTextWriter record = new(text, "\t");
 
 		var tableName = TableName();
-		var @namespace = NameSpace;
+		// Only move auto-generated records into RecordNamespace; [SQuiLTable]-mapped records
+		// (user-provided partials) live in the context namespace and must not be relocated.
+		var isMapped = TableMap.TryGetName(OriginalName, out _);
+		var @namespace = RecordNamespace.Length > 0 && !isMapped ? RecordNamespace : NameSpace;
 
 		// SP0018 (reported in SQuiLGenerator): the user's partial owns a primary
 		// constructor, so emitting our parameter list would add CS8863 noise on top

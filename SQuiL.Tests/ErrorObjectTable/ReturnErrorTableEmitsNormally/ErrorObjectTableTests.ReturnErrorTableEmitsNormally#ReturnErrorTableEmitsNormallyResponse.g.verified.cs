@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record ReturnErrorTableEmitsNormallyResponse
 {
-	public Error? Error { get; set; } = default!;
+	public TestCase.Models.Error? Error { get; set; } = default!;
 }
