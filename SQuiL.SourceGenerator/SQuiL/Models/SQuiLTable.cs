@@ -42,6 +42,13 @@ public class SQuiLTable(
 	/// </summary>
 	public string SourceName { get; init; } = "";
 
+	/// <summary>
+	/// 1-based line number of this table's declaration within its source SQL file, used to
+	/// point SP0017 at the first declaration so the developer can navigate to it. <c>0</c> when
+	/// the line is unknown (e.g. the cross-query merge path in <see cref="SQuiLTableMap.GenerateCode"/>).
+	/// </summary>
+	public int SourceLine { get; init; }
+
 	/// <summary>Creates a shallow clone of this table model with a fresh database-type token copy.</summary>
 	public SQuiLTable Clone()
 		=> new(NameSpace, Modifiers, Type, Block with

@@ -35,6 +35,9 @@ public class SQuiLModel(
 	/// <summary>Base query name (without Request/Response suffix), used as the source name for SP0017 messages.</summary>
 	private string QueryName { get; } = ModelName;
 
+	/// <summary>The raw SQL text of the query, used to compute 1-based declaration line numbers for SP0017.</summary>
+	private string Sql { get; init; } = "";
+
 	/// <summary>The C# namespace row records are emitted into (e.g. <c>MyApp.Data.Models</c>).</summary>
 	public string RecordNamespace { get; init; } = "";
 
@@ -65,15 +68,33 @@ public class SQuiLModel(
 		string modelname,
 		List<CodeBlock> blocks,
 		SQuiLTableMap tableMap,
-		ImmutableDictionary<string, SQuiLPartialModel> records)
+		ImmutableDictionary<string, SQuiLPartialModel> records,
+		string sql = "")
 	{
-		var request = new SQuiLModel(@namespace, modelname, "Request", tableMap, records) { RecordNamespace = recordNamespace }
+		var request = new SQuiLModel(@namespace, modelname, "Request", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql }
 			.Build(blocks.Where(p => (p.CodeType & CodeType.INPUT) == CodeType.INPUT));
 
-		var response = new SQuiLModel(@namespace, modelname, "Response", tableMap, records) { RecordNamespace = recordNamespace }
+		var response = new SQuiLModel(@namespace, modelname, "Response", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql }
 			.Build(blocks.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT));
 
 		return (request, response);
+	}
+
+	/// <summary>
+	/// Computes the 1-based line number for a character <paramref name="offset"/> into <see cref="Sql"/>.
+	/// Returns <c>0</c> when the SQL text or offset is unavailable, signalling "line unknown".
+	/// </summary>
+	private int LineOf(int offset)
+	{
+		if (Sql.Length == 0 || offset < 0)
+			return 0;
+
+		var cap = offset < Sql.Length ? offset : Sql.Length;
+		var line = 1;
+		for (var i = 0; i < cap; i++)
+			if (Sql[i] == '\n')
+				line++;
+		return line;
 	}
 
 	/// <summary>
@@ -175,18 +196,22 @@ public class SQuiLModel(
 
 		if (addProperty) name = $"{NameSpace}{block.Name}"; else type = "";
 
+		var sourceLine = LineOf(block.DatabaseType.Offset);
+
 		SQuiLTable table = block.IsTable
 			? new SQuiLTable(NameSpace, Modifier(name), type, block, TableMap, Records)
 			{
 				HasParameterizedConstructor = hasParameterizedConstructor,
 				RecordNamespace = RecordNamespace,
-				SourceName = QueryName
+				SourceName = QueryName,
+				SourceLine = sourceLine
 			}
 			: new SQuiLObject(NameSpace, Modifier(name), type, block, TableMap, Records)
 			{
 				HasParameterizedConstructor = hasParameterizedConstructor,
 				RecordNamespace = RecordNamespace,
-				SourceName = QueryName
+				SourceName = QueryName,
+				SourceLine = sourceLine
 			};
 
 		if (addProperty) Properties.Add(table);

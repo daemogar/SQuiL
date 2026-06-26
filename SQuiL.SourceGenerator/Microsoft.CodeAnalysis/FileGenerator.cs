@@ -84,7 +84,7 @@ public class FileGenerator(
 					Context.Debug(token.Expect());
 			}
 
-			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, recordNamespace, method, blocks, TableMap, records);
+			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, recordNamespace, method, blocks, TableMap, records, sql);
 
 			foreach (var property in generation.Request.Properties.Union(generation.Response.Properties))
 				if (property is SQuiLTable table)

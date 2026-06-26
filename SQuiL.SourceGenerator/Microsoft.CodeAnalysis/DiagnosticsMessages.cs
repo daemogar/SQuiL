@@ -166,13 +166,21 @@ public static class DiagnosticsMessages
 	/// different column shapes. The shared record's positional constructor cannot serve
 	/// mismatched shapes, so the record is not emitted.
 	/// </summary>
-	public static void ReportTableShapeMismatch(this SourceProductionContext context, List<(string TableName, string Expected, string Actual, string FirstSourceName)> issues)
+	public static void ReportTableShapeMismatch(this SourceProductionContext context, List<(string TableName, string Expected, string Actual, string FirstSourceName, int FirstSourceLine)> issues)
 	{
-		foreach (var (table, expected, actual, firstSourceName) in issues)
+		foreach (var (table, expected, actual, firstSourceName, firstSourceLine) in issues)
 		{
-			var firstDeclaredIn = string.IsNullOrEmpty(firstSourceName)
-				? ""
-				: $" ↳ first declared in: {firstSourceName}.";
+			// Point the developer at the EARLIER declaration. Real Roslyn Locations are not
+			// available for AdditionalText SQL files, so surface a navigable file+line in the
+			// message text instead: "<query> (line N)" when both are known, "line N" when only
+			// the line is (same-file conflict), and nothing on the cross-query merge path.
+			var hasName = !string.IsNullOrEmpty(firstSourceName);
+			var hasLine = firstSourceLine > 0;
+			var firstDeclaredIn =
+				hasName && hasLine ? $" ↳ first declared at {firstSourceName} (line {firstSourceLine})."
+				: hasName ? $" ↳ first declared in: {firstSourceName}."
+				: hasLine ? $" ↳ first declared at line {firstSourceLine}."
+				: "";
 			context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0017", "Table Shape Mismatch",
 				$"All declarations that generate the record `{table}` must declare identical columns " +
 				$"(same names, types, nullability, and order). Found {expected} and {actual}.{firstDeclaredIn} " +

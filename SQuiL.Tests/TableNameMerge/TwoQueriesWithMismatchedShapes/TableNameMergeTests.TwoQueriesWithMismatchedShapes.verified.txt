@@ -417,12 +417,12 @@
       }
     },
     {
-      Message: All declarations that generate the record `Questions` must declare identical columns (same names, types, nullability, and order). Found (Number int, Message varchar(max)) and (Number int, Topic varchar(50)). ↳ first declared in: TwoQueriesWithMismatchedShapes1. Rename one of the variables or align the column lists.,
+      Message: All declarations that generate the record `Questions` must declare identical columns (same names, types, nullability, and order). Found (Number int, Message varchar(max)) and (Number int, Topic varchar(50)). ↳ first declared at TwoQueriesWithMismatchedShapes1 (line 1). Rename one of the variables or align the column lists.,
       Severity: Error,
       Descriptor: {
         Id: SP0017,
         Title: Table Shape Mismatch,
-        MessageFormat: All declarations that generate the record `Questions` must declare identical columns (same names, types, nullability, and order). Found (Number int, Message varchar(max)) and (Number int, Topic varchar(50)). ↳ first declared in: TwoQueriesWithMismatchedShapes1. Rename one of the variables or align the column lists.,
+        MessageFormat: All declarations that generate the record `Questions` must declare identical columns (same names, types, nullability, and order). Found (Number int, Message varchar(max)) and (Number int, Topic varchar(50)). ↳ first declared at TwoQueriesWithMismatchedShapes1 (line 1). Rename one of the variables or align the column lists.,
         Category: Design,
         DefaultSeverity: Error,
         IsEnabledByDefault: true

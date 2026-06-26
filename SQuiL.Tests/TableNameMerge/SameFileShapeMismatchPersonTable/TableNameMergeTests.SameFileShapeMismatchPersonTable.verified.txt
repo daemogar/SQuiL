@@ -352,12 +352,12 @@
       }
     },
     {
-      Message: All declarations that generate the record `Person` must declare identical columns (same names, types, nullability, and order). Found (PersonID int, FullName varchar(100)) and (PersonID int, Age int). ↳ first declared in: SameFileShapeMismatchPersonTable. Rename one of the variables or align the column lists.,
+      Message: All declarations that generate the record `Person` must declare identical columns (same names, types, nullability, and order). Found (PersonID int, FullName varchar(100)) and (PersonID int, Age int). ↳ first declared at SameFileShapeMismatchPersonTable (line 1). Rename one of the variables or align the column lists.,
       Severity: Error,
       Descriptor: {
         Id: SP0017,
         Title: Table Shape Mismatch,
-        MessageFormat: All declarations that generate the record `Person` must declare identical columns (same names, types, nullability, and order). Found (PersonID int, FullName varchar(100)) and (PersonID int, Age int). ↳ first declared in: SameFileShapeMismatchPersonTable. Rename one of the variables or align the column lists.,
+        MessageFormat: All declarations that generate the record `Person` must declare identical columns (same names, types, nullability, and order). Found (PersonID int, FullName varchar(100)) and (PersonID int, Age int). ↳ first declared at SameFileShapeMismatchPersonTable (line 1). Rename one of the variables or align the column lists.,
         Category: Design,
         DefaultSeverity: Error,
         IsEnabledByDefault: true
