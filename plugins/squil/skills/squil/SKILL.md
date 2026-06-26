@@ -1,4 +1,4 @@
----
+﻿---
 name: squil
 description: Use this skill whenever the user is working with SQuiL — the C# source generator at https://github.com/daemogar/SQuiL that turns .squil/.sql query files into strongly-typed C# data contexts. Trigger on any mention of SQuiL or any .squil file; on SQuiLBaseDataContext, SQuiLResultType, [SQuiLQuery], [SQuiLTable], SQuiLException, SQuiLAggregateException, AddSQuiL, Process…Async; on .sql files paired with a C# project that uses AdditionalFiles for queries; on the @-prefix naming conventions (@Param_, @Params_, @Return_, @Returns_, @Debug, @SuppressDebug, @AsOfDate, @EnvironmentName); or whenever the user asks to author SQuiL query files, set up a .csproj for SQuiL, register a SQuiL data context, or write wrappers around generated Process…Async methods. Trigger even when the user does not say "SQuiL" by name — if their .csproj references SQuiL.SourceGenerator or SQuiL.Library, this skill applies. Prefer this skill over generic "C# / SQL" guidance for any project that uses SQuiL.
 ---
@@ -82,14 +82,14 @@ Declare @Params_Rows table(RowID int, Amount decimal(18,2) default 1.5, Qty int,
 generates:
 
 ```csharp
-public partial record RowsTable(int RowID, int Qty)
+public partial record Rows(int RowID, int Qty)
 {
     public decimal Amount { get; init; } = 1.5m;
     public string Note { get; init; } = "hello";
 }
 ```
 
-Construct with `new RowsTable(1, 5)` or `new RowsTable(1, 5) { Amount = 2.5m, Note = "x" }`. Tables with no defaults are unchanged (plain positional record). The editor extensions parse `default` values and emit this same hybrid shape in their C# preview. Default values are mapped per-type via `Token.CSharpValue` (decimal gets an `m` suffix, strings are quoted).
+Construct with `new Rows(1, 5)` or `new Rows(1, 5) { Amount = 2.5m, Note = "x" }`. Tables with no defaults are unchanged (plain positional record). The editor extensions parse `default` values and emit this same hybrid shape in their C# preview. Default values are mapped per-type via `Token.CSharpValue` (decimal gets an `m` suffix, strings are quoted).
 
 ### Special variables (opt-in)
 
@@ -225,7 +225,7 @@ The generator emits a partial data-context class plus per-query types. For a que
 
 - a method `Process<QueryName>Async(<QueryName>Request request, CancellationToken)` on the data context;
 - a request record `<QueryName>Request` and a response record `<QueryName>Response` (note: **no `Process` prefix** on the model types — only the method has it);
-- row records for table-valued variables, named `<Name>Table` (table-valued) or `<Name>Object` (single-object) — never `<Name>Row`/`<Name>Item`;
+- row records for table-valued and single-object variables, named `<Name>` (NO `Table`/`Object` suffix — just the bare name) — never `<Name>Table`/`<Name>Object`/`<Name>Row`/`<Name>Item`; auto-generated row records are emitted into `<ContextNamespace>.Models` by default; override with `[SQuiLQuery(..., Namespace: "Dto")]` or `""` for top-level;
 - the method returns `Task<SQuiLResultType<<QueryName>Response>>` (or the non-generic `Task<SQuiLResultType>` when the query declares no `@Return*`). `SQuiLResultType<T>` is a result wrapper, **not** the response itself — unwrap it with `result.TryGetValue(out var value, out var errors)`. Errors are *returned in the result*, not thrown.
 
 `<QueryName>` is the enum member: folder name + file name, both PascalCased and joined. So `Queries/Example1.squil` → `QueriesExample1` → method `ProcessQueriesExample1Async`, types `QueriesExample1Request` / `QueriesExample1Response`.
@@ -270,6 +270,8 @@ public partial class Table { }
 
 The `QueryFiles` enum is generated from the query-file paths: `Queries/Example1.squil` becomes `QueryFiles.QueriesExample1` (folder name + file name, both PascalCased, joined). The `TableType` enum is generated from `@Returns_<Name>` and `@Params_<Name>` table declarations — one entry per distinct table name across all query files. Add a `[SQuiLTable]` for each table the project actually uses so the row record is emitted.
 
+Auto-generated row records (those NOT backed by a `[SQuiLTable]` attribute) are emitted into a `<ContextNamespace>.Models` sub-namespace. Use the `Namespace` property on `[SQuiLQuery]` to control this: the default is `"Models"`; `Namespace: "Dto"` puts records in `<Ctx>.Dto`; `Namespace: ""` puts them in `<Ctx>` (top-level). Two contexts that share a row record must agree on the namespace — mismatch is build error SP0021.
+
 Two rules govern `[SQuiLTable]` types:
 
 - **Every SQL declaration that feeds one record must declare identical columns** (same names, types, nullability, and order; sizes may differ). This applies both to table variables that share a name and to different names mapped onto one class via multiple `[SQuiLTable]` attributes. Mismatches are build error SP0017.
@@ -278,11 +280,11 @@ Two rules govern `[SQuiLTable]` types:
 ```csharp
 // ✔ add members in a body
 [SQuiLTable(TableType.Terms)]
-public partial record TermTable { }
+public partial record Terms { }
 
 // ✘ SP0018 — the generator owns the parameter list
 // [SQuiLTable(TableType.Terms)]
-// public partial record TermTable(string TermCode);
+// public partial record Terms(string TermCode);
 ```
 
 ### `<queryfilename>.cs` — per-query wrappers
@@ -335,11 +337,11 @@ public partial class MyDataContext
 }
 
 public record ParticipationResult(
-    IReadOnlyList<ParticipationTable> Participation,
-    IReadOnlyList<OverridesTable> Overrides);
+    IReadOnlyList<MyProject.Models.Participation> Participation,
+    IReadOnlyList<MyProject.Models.Overrides> Overrides);
 ```
 
-`response.Participation` / `response.Overrides` are `List<ParticipationTable>?` / `List<OverridesTable>?`. Response lists have **no** `= []` initializer: they are `null` when the result set is absent, `[]` when returned empty, and `[...]` when 1+ rows — so a `?? []` guard in the wrapper is appropriate. Throwing `SQuiLAggregateException` here is one choice; the wrapper could equally return an empty/sentinel result or surface the `errors` list directly.
+`response.Participation` / `response.Overrides` are `List<MyProject.Models.Participation>?` / `List<MyProject.Models.Overrides>?`. Response lists have **no** `= []` initializer: they are `null` when the result set is absent, `[]` when returned empty, and `[...]` when 1+ rows — so a `?? []` guard in the wrapper is appropriate. Throwing `SQuiLAggregateException` here is one choice; the wrapper could equally return an empty/sentinel result or surface the `errors` list directly.
 
 Why this layout matters:
 
