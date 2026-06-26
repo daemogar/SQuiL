@@ -25,3 +25,46 @@ test('SP0020 silent when signatures differ', () => {
   ].join('\n')));
   assert.strictEqual(hints.length, 0);
 });
+
+// ── SP0017 / SP0020 firewall ─────────────────────────────────────────────────
+// SP0017 (same-name + different-shape) and SP0020 (different-name + same-shape)
+// are complements and must never overlap.  These guard that boundary.
+
+test('SP0020 silent for a same-name pair with an identical signature (SP0017 domain)', () => {
+  // Two @Returns_Person declarations with the SAME shape are a legitimate merge,
+  // NOT a similar-signature accident — SP0020 must stay silent.
+  const hints = shapeHints(parseSQuiL([
+    'Declare @Returns_Person table(PersonID int, FullName varchar(100));',
+    'Declare @Returns_Person table(PersonID int, FullName varchar(100));',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n')));
+  assert.strictEqual(hints.length, 0);
+});
+
+test('SP0020 fires only across differently-named vars in a mixed same/different group', () => {
+  // @Returns_Person declared twice (same shape) + @Returns_Persons (same shape).
+  // SP0020 must point Person↔Persons but NEVER Person↔Person.
+  const hints = shapeHints(parseSQuiL([
+    'Declare @Returns_Person table(PersonID int, FullName varchar(100));',
+    'Declare @Returns_Person table(PersonID int, FullName varchar(100));',
+    'Declare @Returns_Persons table(PersonID int, FullName varchar(100));',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n')));
+
+  // Every hint is SP0020 and every hint names a DIFFERENT counterpart than its
+  // own subject — no Person↔Person self/same-name pairing.
+  assert.ok(hints.length > 0, 'at least one cross-name hint expected');
+  assert.ok(hints.every(h => h.code === 'SP0020'));
+  // No hint should be "Person ... same column signature as ... Person".
+  assert.ok(
+    !hints.some(h => /`Person` has the same column signature as `Person`/.test(h.message)),
+    'no Person↔Person (same-name) hint may be emitted',
+  );
+  // The cross-name pairing must be present.
+  assert.ok(
+    hints.some(h => h.message.includes('Persons')),
+    'a Person↔Persons cross-name hint must be present',
+  );
+});

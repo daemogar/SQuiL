@@ -171,7 +171,7 @@ internal static class SQuiLLinter
                                 $"If these are the same shape, give them the same name to share one generated type.",
                     Line      = a.Line,
                     StartChar = a.Character,
-                    EndChar   = a.Character + a.Name.Length,
+                    EndChar   = a.Character + a.RawName.Length,
                     Severity  = DiagnosticSeverity.Info,
                     Code      = "SP0020",
                 });

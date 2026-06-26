@@ -22,7 +22,7 @@ export interface ShapeHint {
   message: string;
   line: number;
   character: number;
-  /** Length of the token to underline (the variable name). */
+  /** Length of the token to underline (the raw `@...` variable token). */
   length: number;
 }
 
@@ -37,9 +37,9 @@ const TABLE_ROLES: ReadonlySet<VariableRole> = new Set([
 /**
  * Build a canonical signature string for a column list.
  * Format: `name:sqltype(lowercased):N|NN` per column, joined by `|`.
- * Sizes are NOT normalised — `varchar(100)` and `varchar(50)` differ —
- * because the intent is to catch accidentally-renamed copies of the exact
- * same declaration, not semantically-compatible shapes.
+ * Size precision is included verbatim — `varchar(100)` and `varchar(50)` are
+ * distinct signatures. Intent: catch accidentally-renamed copies of the exact
+ * same declaration.
  */
 function columnSignature(cols: TableColumn[]): string {
   return cols
@@ -82,8 +82,9 @@ export function shapeHints(parsed: SQuiLParseResult): ShapeHint[] {
     if (group.length < 2) continue;
 
     // Filter out same-name groups (SP0017 handles those).
-    // A group can contain at most one entry per distinct name.
-    const distinctNames = new Set(group.map(v => v.name));
+    // SQL identifiers are case-insensitive — lowercase to match the C# copies'
+    // OrdinalIgnoreCase comparison.
+    const distinctNames = new Set(group.map(v => v.name.toLowerCase()));
     if (distinctNames.size < 2) continue;
 
     // For each variable in the group, emit one hint pointing at the first
@@ -91,7 +92,9 @@ export function shapeHints(parsed: SQuiLParseResult): ShapeHint[] {
     for (let i = 0; i < group.length; i++) {
       const a = group[i];
       // Find the first differently-named partner to mention in the message.
-      const partner = group.find((b, j) => j !== i && b.name !== a.name);
+      const partner = group.find(
+        (b, j) => j !== i && b.name.toLowerCase() !== a.name.toLowerCase(),
+      );
       if (!partner) continue;
 
       hints.push({
@@ -102,7 +105,7 @@ export function shapeHints(parsed: SQuiLParseResult): ShapeHint[] {
           `If these are the same shape, give them the same name to share one generated type.`,
         line: a.line,
         character: a.character,
-        length: a.name.length,
+        length: a.rawName.length,
       });
     }
   }
