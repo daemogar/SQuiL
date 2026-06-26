@@ -9,5 +9,5 @@ public partial record DecimalPrecisionScaleTestRequest
 {
 	public decimal Price { get; set; }
 	
-	public System.Collections.Generic.List<CoursesTable>? Courses { get; set; } = [];
+	public System.Collections.Generic.List<TestCase.Models.Courses>? Courses { get; set; } = [];
 }

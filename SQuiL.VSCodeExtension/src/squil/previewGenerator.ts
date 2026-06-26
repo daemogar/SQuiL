@@ -48,13 +48,10 @@ export function sqlToCSharp(sqlType: string): string {
 }
 
 /**
- * Record-type name SQuiL generates for a table/object variable:
- *   - role 'params' / 'returns'           → `<Name>Table`  (collection element)
- *   - role 'param-table' / 'return-table' → `<Name>Object` (single object)
+ * Record-type name SQuiL generates for a table/object variable.
+ * The Table/Object suffix was dropped in TODO #3 — the bare name is used directly.
  */
 function recordTypeName(v: SQuiLVariable): string {
-  if (v.role === 'params' || v.role === 'returns') return `${v.name}Table`;
-  if (v.role === 'param-table' || v.role === 'return-table') return `${v.name}Object`;
   return v.name;
 }
 
@@ -62,12 +59,14 @@ function isCollectionRole(v: SQuiLVariable): boolean {
   return v.role === 'params' || v.role === 'returns';
 }
 
-function getPropertyType(v: SQuiLVariable): string {
+function getPropertyType(v: SQuiLVariable, modelsNs?: string): string {
   if (v.role === 'params' || v.role === 'returns') {
-    return `List<${recordTypeName(v)}>?`;
+    const typeName = modelsNs ? `${modelsNs}.${recordTypeName(v)}` : recordTypeName(v);
+    return `List<${typeName}>?`;
   }
   if (v.role === 'param-table' || v.role === 'return-table') {
-    return `${recordTypeName(v)}?`;
+    const typeName = modelsNs ? `${modelsNs}.${recordTypeName(v)}` : recordTypeName(v);
+    return `${typeName}?`;
   }
   // Scalars: non-nullable unless an explicit `null` marker was declared. Ref types are NOT auto-?.
   const cs = sqlToCSharp(v.sqlType);
@@ -91,6 +90,15 @@ export function generateCSharpPreview(
     v.role === 'return' || v.role === 'returns' || v.role === 'return-table',
   );
 
+  // Collect all table-valued variables that need row records
+  const tableVars = [
+    ...params.filter(v => v.columns && v.columns.length > 0),
+    ...returns.filter(v => v.columns && v.columns.length > 0),
+  ];
+  // The Namespace override on [SQuiLQuery] is generator-only; editors cannot read C# attributes,
+  // so the preview always uses the default "Models" sub-namespace segment.
+  const modelsNs = `${namespace}.Models`;
+
   banner(lines, queryName, db);
   lines.push('');
   lines.push(`namespace ${namespace};`);
@@ -103,28 +111,20 @@ export function generateCSharpPreview(
   lines.push(`//   public enum QueryFiles { ..., ${queryName} }`);
   lines.push('');
 
-  // ── Table-row records (input side)
-  for (const v of params) {
-    if (v.columns && v.columns.length > 0) {
-      emitTableRecord(lines, recordTypeName(v), v);
-    }
+  // ── using for the Models sub-namespace (only when row records exist)
+  if (tableVars.length > 0) {
+    lines.push(`using ${modelsNs};`);
+    lines.push('');
   }
 
   // ── Request record (always partial; specials are opt-in)
   lines.push(`// ── Request ─────────────────────────────────────────────`);
-  emitModelRecord(lines, `${queryName}Request`, params, /*isResponse*/ false, parsed.variables);
-
-  // ── Table-row records (output side)
-  for (const v of returns) {
-    if (v.columns && v.columns.length > 0) {
-      emitTableRecord(lines, recordTypeName(v), v);
-    }
-  }
+  emitModelRecord(lines, `${queryName}Request`, params, /*isResponse*/ false, parsed.variables, modelsNs);
 
   // ── Response record
   if (returns.length > 0) {
     lines.push(`// ── Response ────────────────────────────────────────────`);
-    emitModelRecord(lines, `${queryName}Response`, returns, /*isResponse*/ true);
+    emitModelRecord(lines, `${queryName}Response`, returns, /*isResponse*/ true, undefined, modelsNs);
   }
 
   // ── Data context
@@ -154,6 +154,18 @@ export function generateCSharpPreview(
   lines.push(`//   builder.AddSQuiL();`);
   lines.push(`//`);
   lines.push(`// Connection string key: "ConnectionStrings:${db}"`);
+
+  // ── Row records emitted into the .Models sub-namespace
+  if (tableVars.length > 0) {
+    lines.push('');
+    lines.push(`// ── Row records ─────────────────────────────────────────`);
+    lines.push(`// Row records live in the .Models sub-namespace, mirroring the generator.`);
+    lines.push(`namespace ${modelsNs};`);
+    lines.push('');
+    for (const v of tableVars) {
+      emitTableRecord(lines, recordTypeName(v), v);
+    }
+  }
 
   return lines.join('\n');
 }
@@ -223,6 +235,7 @@ function emitModelRecord(
   vars: SQuiLVariable[],
   isResponse: boolean,
   allVars?: SQuiLVariable[],
+  modelsNs?: string,
 ): void {
   lines.push(`public partial record ${typeName}`);
   lines.push(`{`);
@@ -253,7 +266,7 @@ function emitModelRecord(
 
   vars.forEach(v => {
     const initializer = (!isResponse && isCollectionRole(v)) ? ' = []' : '';
-    lines.push(`    public ${getPropertyType(v)} ${v.name} { get; set; }${initializer};`);
+    lines.push(`    public ${getPropertyType(v, modelsNs)} ${v.name} { get; set; }${initializer};`);
   });
 
   lines.push(`}`);

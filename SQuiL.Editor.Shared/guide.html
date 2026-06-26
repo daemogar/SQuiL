@@ -258,12 +258,12 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
   <tr>
     <td><code class="par">@Params_Name</code></td>
     <td><span class="badge badge-input">Input</span> table-valued</td>
-    <td><code>IEnumerable&lt;NameTable&gt;</code> on <code>*Request</code></td>
+    <td><code>List&lt;Ctx.Models.Name&gt;?</code> on <code>*Request</code> (initialised <code>= []</code>)</td>
   </tr>
   <tr>
     <td><code class="par">@Param_Name&nbsp;Table(...)</code></td>
     <td><span class="badge badge-input">Input</span> object</td>
-    <td><code>NameObject</code> record on <code>*Request</code></td>
+    <td><code>Ctx.Models.Name?</code> record on <code>*Request</code></td>
   </tr>
   <tr>
     <td><code class="ret">@Return_Name</code></td>
@@ -273,12 +273,12 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
   <tr>
     <td><code class="ret">@Returns_Name</code></td>
     <td><span class="badge badge-output">Output</span> table</td>
-    <td><code>IEnumerable&lt;NameTable&gt;</code> on <code>*Response</code></td>
+    <td><code>List&lt;Ctx.Models.Name&gt;?</code> on <code>*Response</code> (no <code>= []</code>)</td>
   </tr>
   <tr>
     <td><code class="ret">@Return_Name&nbsp;Table(...)</code></td>
     <td><span class="badge badge-output">Output</span> object</td>
-    <td><code>NameObject</code> record on <code>*Response</code></td>
+    <td><code>Ctx.Models.Name?</code> record on <code>*Response</code></td>
   </tr>
   <tr>
     <td><code class="spc">@Debug</code></td>
@@ -328,11 +328,12 @@ editor and at build time:</p>
   <li><strong>Table variables that share a name share one record — and must share one shape.</strong>
     Declaring <code class="par">@Param_User Table(...)</code> in one place and
     <code class="ret">@Return_User Table(...)</code> in another (in the same file or across query files)
-    generates a <em>single</em> <code>UserObject</code>/<code>UserTable</code> record, so both
-    declarations must list <em>identical columns</em> — same names, same types, same nullability,
+    generates a <em>single</em> <code>User</code> record (no <code>Table</code>/<code>Object</code> suffix),
+    so both declarations must list <em>identical columns</em> — same names, same types, same nullability,
     same order (sizes like <code>varchar(50)</code> vs <code>varchar(100)</code> may differ). A
     mismatch fails the build with diagnostic <code>SP0017</code>; either align the column lists or
-    rename one of the variables.</li>
+    rename one of the variables. The record is emitted into the <code>.Models</code> sub-namespace
+    by default (override with <code>Namespace:</code> on <code>[SQuiLQuery]</code>).</li>
 </ul>
 
 <pre><code><span class="cm">-- ✔ valid: declared first, referenced by exact name</span>
@@ -429,23 +430,22 @@ SQuiL prefix, but they still must be declared before they are referenced.</p>
 <span class="kw">Select</span> * <span class="kw">From</span> <span class="ret">@Returns_Users</span>;</code></pre>
 
 <p><strong>Generated C#:</strong></p>
-<pre><code><span class="cs-kw">public partial record</span> <span class="cs-cls">ListUsersByDepartmentRequest</span>
+<pre><code><span class="cm">// in namespace HrApplication.Data.Models:</span>
+<span class="cs-kw">public partial record</span> <span class="cs-cls">Users</span>(
+    <span class="cs-tp">int</span> <span class="cs-pn">UserID</span>,
+    <span class="cs-tp">string</span>? <span class="cs-pn">Name</span>,
+    <span class="cs-tp">string</span>? <span class="cs-pn">Email</span>,
+    <span class="cs-cls">DateOnly</span> <span class="cs-pn">HireDate</span>);
+
+<span class="cs-kw">public partial record</span> <span class="cs-cls">ListUsersByDepartmentRequest</span>
 {
     <span class="cs-kw">public</span> <span class="cs-tp">int</span> <span class="cs-pn">DepartmentID</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
     <span class="cs-kw">public</span> <span class="cs-tp">bool</span> <span class="cs-pn">IncludeInactive</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
 }
 
-<span class="cs-kw">public partial record</span> <span class="cs-cls">UsersTable</span>
-{
-    <span class="cs-kw">public</span> <span class="cs-tp">int</span> <span class="cs-pn">UserID</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
-    <span class="cs-kw">public</span> <span class="cs-tp">string</span>? <span class="cs-pn">Name</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
-    <span class="cs-kw">public</span> <span class="cs-tp">string</span>? <span class="cs-pn">Email</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
-    <span class="cs-kw">public</span> <span class="cs-cls">DateOnly</span> <span class="cs-pn">HireDate</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
-}
-
 <span class="cs-kw">public partial record</span> <span class="cs-cls">ListUsersByDepartmentResponse</span>
 {
-    <span class="cs-kw">public</span> <span class="cs-cls">List</span>&lt;<span class="cs-cls">UsersTable</span>&gt;? <span class="cs-pn">Users</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; } = [];
+    <span class="cs-kw">public</span> <span class="cs-cls">List</span>&lt;<span class="cs-cls">HrApplication.Data.Models.Users</span>&gt;? <span class="cs-pn">Users</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
 }
 
 <span class="cm">// Method emitted into your UserDataContext partial class:</span>
@@ -473,16 +473,15 @@ SQuiL prefix, but they still must be declared before they are referenced.</p>
 <span class="kw">Select</span> <span class="ret">@Return_RowsInserted</span>;</code></pre>
 
 <p><strong>Generated C#:</strong></p>
-<pre><code><span class="cs-kw">public partial record</span> <span class="cs-cls">TagsTable</span>
-{
-    <span class="cs-kw">public</span> <span class="cs-tp">string</span>? <span class="cs-pn">Label</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
-    <span class="cs-kw">public</span> <span class="cs-tp">int</span> <span class="cs-pn">Weight</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
-}
+<pre><code><span class="cm">// in namespace ContentApplication.Data.Models:</span>
+<span class="cs-kw">public partial record</span> <span class="cs-cls">Tags</span>(
+    <span class="cs-tp">string</span>? <span class="cs-pn">Label</span>,
+    <span class="cs-tp">int</span> <span class="cs-pn">Weight</span>);
 
 <span class="cs-kw">public partial record</span> <span class="cs-cls">AssignTagsToArticleRequest</span>
 {
     <span class="cs-kw">public</span> <span class="cs-tp">int</span> <span class="cs-pn">ArticleID</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
-    <span class="cs-kw">public</span> <span class="cs-cls">List</span>&lt;<span class="cs-cls">TagsTable</span>&gt;? <span class="cs-pn">Tags</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; } = [];
+    <span class="cs-kw">public</span> <span class="cs-cls">List</span>&lt;<span class="cs-cls">ContentApplication.Data.Models.Tags</span>&gt;? <span class="cs-pn">Tags</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; } = [];
 }
 
 <span class="cs-kw">public partial record</span> <span class="cs-cls">AssignTagsToArticleResponse</span>
@@ -643,8 +642,9 @@ SQuiL uses <code>SQuiLDatabase</code> as the default key.</p>
 <p>If multiple queries return the same row shape, declare it once with <code>[SQuiLTable]</code>:</p>
 <pre><code>[<span class="cs-attr">SQuiLTable</span>(<span class="cs-cls">TableType</span>.User)]
 <span class="cs-kw">public partial class</span> <span class="cs-cls">Tables</span> { }</code></pre>
-<p>SQuiL will then reuse the generated <code>UserTable</code> record across every query whose
-<code>@Returns_User Table(...)</code> declaration matches that shape.</p>
+<p>SQuiL will then reuse the generated <code>User</code> record across every query whose
+<code>@Returns_User Table(...)</code> declaration matches that shape.
+The <code>User</code> record is emitted into the top-level context namespace (NOT into <code>.Models</code> — <code>[SQuiLTable]</code>-mapped records are always top-level).</p>
 
 <p>Two rules apply to shared table types:</p>
 <ul>
@@ -659,11 +659,11 @@ SQuiL uses <code>SQuiLDatabase</code> as the default key.</p>
 </ul>
 <pre><code><span class="cm">// ✔ customize with a body — add members freely</span>
 [<span class="cs-attr">SQuiLTable</span>(<span class="cs-cls">TableType</span>.User)]
-<span class="cs-kw">public partial record</span> <span class="cs-cls">UserTable</span> { }
+<span class="cs-kw">public partial record</span> <span class="cs-cls">User</span> { }
 
 <span class="cm">// ✘ error SP0018: the generator owns the parameter list</span>
 <span class="cm">// [SQuiLTable(TableType.User)]</span>
-<span class="cm">// public partial record UserTable(string UserID);</span></code></pre>
+<span class="cm">// public partial record User(string UserID);</span></code></pre>
 
 <!-- ──────────────────── File Nesting ─────────────────────────────────── -->
 <h2 id="file-nesting">Solution Explorer File Nesting (<code>.filenesting.json</code>)</h2>

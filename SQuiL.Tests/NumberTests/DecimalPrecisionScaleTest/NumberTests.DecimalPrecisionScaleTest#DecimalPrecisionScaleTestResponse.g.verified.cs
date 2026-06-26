@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record DecimalPrecisionScaleTestResponse
 {
-	public System.Collections.Generic.List<TotalsTable>? Totals { get; set; }
+	public System.Collections.Generic.List<TestCase.Models.Totals>? Totals { get; set; }
 }

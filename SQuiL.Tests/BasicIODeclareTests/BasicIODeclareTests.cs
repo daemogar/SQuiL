@@ -424,4 +424,29 @@ public class BasicIODeclareTests
 			Select 1;
 			"""]);
 	}
+
+	[Fact]
+	public Task SameNameTableAndObjectShareOneRecord()
+	{
+		var name = nameof(SameNameTableAndObjectShareOneRecord);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Returns_Person table(PersonID int, FullName varchar(100));
+			Declare @Return_Person table(PersonID int, FullName varchar(100));
+			Use [Database];
+			Select 1;
+			"""]);
+	}
+
+	[Fact]
+	public Task RowRecordsEmitIntoModelsSubNamespace()
+	{
+		var name = nameof(RowRecordsEmitIntoModelsSubNamespace);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Returns_Person table(PersonID int, FullName varchar(100));
+			Use [Database];
+			Select 1;
+			"""]);
+	}
 }

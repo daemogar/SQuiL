@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record BinaryDataParameterResponse
 {
-	public System.Collections.Generic.List<BinaryTableTable>? BinaryTable { get; set; }
+	public System.Collections.Generic.List<TestCase.Models.BinaryTable>? BinaryTable { get; set; }
 }

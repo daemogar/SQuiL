@@ -54,7 +54,7 @@ public class FileGenerator(
 	/// <param name="text">The SQL source text to parse.</param>
 	/// <param name="records">All partial record declarations visible in the current compilation.</param>
 	/// <returns>The new <see cref="SQuiLFileGeneration"/>, or <c>null</c> if parsing failed.</returns>
-	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records)
+	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records, string recordNamespace = "")
 	{
 		try
 		{
@@ -84,7 +84,7 @@ public class FileGenerator(
 					Context.Debug(token.Expect());
 			}
 
-			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, method, blocks, TableMap, records);
+			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, recordNamespace, method, blocks, TableMap, records, sql);
 
 			foreach (var property in generation.Request.Properties.Union(generation.Response.Properties))
 				if (property is SQuiLTable table)
@@ -141,6 +141,9 @@ public class FileGenerator(
 
 			if (TableMap.TryGetShapeIssues(out var shapeIssues))
 				Context.ReportTableShapeMismatch(shapeIssues);
+
+			if (TableMap.TryGetNamespaceIssues(out var nsIssues))
+				Context.ReportRecordNamespaceConflict(nsIssues);
 
 			foreach (var exception in exceptions)
 				Context.ReportMissingStatement(exception);

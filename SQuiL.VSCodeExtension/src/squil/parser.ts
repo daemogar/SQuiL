@@ -55,6 +55,13 @@ export interface SQuiLDiagnostic {
   startChar: number;
   endChar: number;
   severity: 'error' | 'warning' | 'info';
+  /** SP-prefixed diagnostic code, e.g. "SP0017". */
+  code?: string;
+  /** Line of the first (related) declaration site for two-location diagnostics. */
+  relatedLine?: number;
+  relatedStartChar?: number;
+  relatedEndChar?: number;
+  relatedMessage?: string;
 }
 
 export interface SQuiLParseResult {
@@ -164,7 +171,58 @@ export function parseSQuiL(text: string): SQuiLParseResult {
     });
   }
 
+  // SP0017: shape-mismatch detection across same-file declarations.
+  for (const d of lintShapeMismatch(result)) {
+    result.diagnostics.push(d);
+  }
+
   return result;
+}
+
+/** SP0017 — within a single file, detect table variables that share the same base
+ *  name (after stripping @Returns_/@Return_/@Params_/@Param_ prefixes) but declare
+ *  different column shapes.  Emits the second declaration as the primary location and
+ *  points the relatedInformation at the first.
+ */
+export function lintShapeMismatch(result: SQuiLParseResult): SQuiLDiagnostic[] {
+  const diagnostics: SQuiLDiagnostic[] = [];
+
+  const tableRoles = new Set<VariableRole>(['returns', 'return-table', 'params', 'param-table']);
+  const tableVars = result.variables.filter(v => tableRoles.has(v.role) && v.columns && v.columns.length > 0);
+
+  const seen = new Map<string, SQuiLVariable>(); // name (lower) → first variable
+
+  for (const v of tableVars) {
+    const key = v.name.toLowerCase();
+    const sig = (v.columns ?? []).map(c => `${c.name}:${c.sqlType.replace(/\s*\([^)]*\)/, '').toLowerCase()}:${c.nullable}`).join('|');
+
+    const first = seen.get(key);
+    if (!first) {
+      seen.set(key, v);
+      continue;
+    }
+
+    const firstSig = (first.columns ?? []).map(c => `${c.name}:${c.sqlType.replace(/\s*\([^)]*\)/, '').toLowerCase()}:${c.nullable}`).join('|');
+    if (sig === firstSig) continue;
+
+    diagnostics.push({
+      message:
+        `All declarations that generate the record \`${v.name}\` must declare identical columns ` +
+        `(same names, types, nullability, and order). ` +
+        `Rename one of the variables or align the column lists.`,
+      line: v.line,
+      startChar: v.character,
+      endChar: v.character + v.rawName.length,
+      severity: 'error',
+      code: 'SP0017',
+      relatedLine: first.line,
+      relatedStartChar: first.character,
+      relatedEndChar: first.character + first.rawName.length,
+      relatedMessage: 'first declared here',
+    });
+  }
+
+  return diagnostics;
 }
 
 // ─── Internal helpers ──────────────────────────────────────────────────────

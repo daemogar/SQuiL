@@ -32,6 +32,10 @@ public class SQuiLProperty(
 	/// <summary>C# type suffix appended to the property name when constructing a record type name.</summary>
 	public string Type { get; } = "";
 
+	/// <summary>The C# namespace the row record is emitted into (e.g. <c>MyApp.Data.Models</c>),
+	/// or empty when the record is top-level in the context namespace.</summary>
+	public string RecordNamespace { get; init; } = "";
+
 	/// <summary>
 	/// Resolves the C# record type name for this property: uses the <see cref="SQuiLTableMap"/>
 	/// mapping if present; otherwise combines <see cref="OriginalName"/> with <see cref="Type"/>.
@@ -39,7 +43,7 @@ public class SQuiLProperty(
 	public string TableName()
 	{
 		if (!TableMap.TryGetName(OriginalName, out var tableName))
-			tableName = $"{OriginalName}{Type}";
+			tableName = OriginalName;   // was: $"{OriginalName}{Type}"
 
 		return tableName;
 	}
@@ -60,7 +64,11 @@ public class SQuiLProperty(
 		{
 			var nullable = (Block.IsTable || Block.IsObject || Block.IsNullable) ? "?" : "";
 
-			writer.Write($$"""public {{Block.CSharpType(TableName())}}{{nullable}} {{Block.Name}} { get; set; }""");
+			var reference = (Block.IsTable || Block.IsObject) && RecordNamespace.Length > 0 && !TableMap.TryGetName(OriginalName, out _)
+				? $"{RecordNamespace}.{TableName()}"
+				: TableName();
+
+			writer.Write($$"""public {{Block.CSharpType(reference)}}{{nullable}} {{Block.Name}} { get; set; }""");
 
 			if (Block.IsBinary) return;
 			if (GenerateTable()) return;

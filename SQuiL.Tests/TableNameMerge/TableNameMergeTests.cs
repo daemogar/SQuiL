@@ -69,6 +69,23 @@ public class TableNameMergeTests : BaseTest
 	}
 
 	[Fact]
+	public Task SameFileShapeMismatchPersonTable()
+	{
+		var name = nameof(SameFileShapeMismatchPersonTable);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+
+			Declare @Returns_Person table(PersonID int, FullName varchar(100));
+			Declare @Return_Person table(PersonID int, Age int);
+
+			Use [Database];
+
+			Select * From @Returns_Person;
+			Select * From @Return_Person;
+			"""]);
+	}
+
+	[Fact]
 	public Task TwoQueriesWithSameReference()
 	{
 		//Debugger.Launch();

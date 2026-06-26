@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record DoubleNumberTestResponse
 {
-	public System.Collections.Generic.List<AnswersTable>? Answers { get; set; }
+	public System.Collections.Generic.List<TestCase.Models.Answers>? Answers { get; set; }
 }

@@ -94,9 +94,12 @@ SQuiL reads the `DECLARE` statements to decide each variable's role:
 | `@Return_<name> table(…)` | output object |
 | `@Debug`, `@SuppressDebug`, `@EnvironmentName`, `@AsOfDate` | special input variables (all opt-in — emitted only when declared) |
 
-Table-valued variables generate `<Name>Table` records; single-object variables
-generate `<Name>Object` records. Note the casing rule: an identifier ending in
-**ID** is always written `ID` (e.g. `@Param_UserID` → `UserID`), never `Id`.
+Table-valued and single-object variables both generate `<Name>` records (no
+`Table`/`Object` suffix). Auto-generated row records are emitted into a `.Models`
+sub-namespace of the consuming context by default (override with
+`[SQuiLQuery(..., Namespace: "Dto")]` or `Namespace: ""` for top-level). Note the
+casing rule: an identifier ending in **ID** is always written `ID` (e.g.
+`@Param_UserID` → `UserID`), never `Id`.
 
 ## Editor support
 

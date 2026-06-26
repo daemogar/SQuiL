@@ -32,6 +32,15 @@ public class SQuiLModel(
 	/// <summary>Full model type name, e.g. <c>MyQueryRequest</c> or <c>MyQueryResponse</c>.</summary>
 	public string ModelName { get; } = $"{ModelName}{ModelType}";
 
+	/// <summary>Base query name (without Request/Response suffix), used as the source name for SP0017 messages.</summary>
+	private string QueryName { get; } = ModelName;
+
+	/// <summary>The raw SQL text of the query, used to compute 1-based declaration line numbers for SP0017.</summary>
+	private string Sql { get; init; } = "";
+
+	/// <summary>The C# namespace row records are emitted into (e.g. <c>MyApp.Data.Models</c>).</summary>
+	public string RecordNamespace { get; init; } = "";
+
 	/// <summary>All properties (scalar, table, and object) belonging to this model.</summary>
 	public List<SQuiLProperty> Properties { get; } = [];
 
@@ -55,18 +64,37 @@ public class SQuiLModel(
 	/// <returns>The request model and the response model as a tuple.</returns>
 	public static (SQuiLModel Request, SQuiLModel Response) Create(
 		string @namespace,
+		string recordNamespace,
 		string modelname,
 		List<CodeBlock> blocks,
 		SQuiLTableMap tableMap,
-		ImmutableDictionary<string, SQuiLPartialModel> records)
+		ImmutableDictionary<string, SQuiLPartialModel> records,
+		string sql = "")
 	{
-		var request = new SQuiLModel(@namespace, modelname, "Request", tableMap, records)
+		var request = new SQuiLModel(@namespace, modelname, "Request", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql }
 			.Build(blocks.Where(p => (p.CodeType & CodeType.INPUT) == CodeType.INPUT));
 
-		var response = new SQuiLModel(@namespace, modelname, "Response", tableMap, records)
+		var response = new SQuiLModel(@namespace, modelname, "Response", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql }
 			.Build(blocks.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT));
 
 		return (request, response);
+	}
+
+	/// <summary>
+	/// Computes the 1-based line number for a character <paramref name="offset"/> into <see cref="Sql"/>.
+	/// Returns <c>0</c> when the SQL text or offset is unavailable, signalling "line unknown".
+	/// </summary>
+	private int LineOf(int offset)
+	{
+		if (Sql.Length == 0 || offset < 0)
+			return 0;
+
+		var cap = offset < Sql.Length ? offset : Sql.Length;
+		var line = 1;
+		for (var i = 0; i < cap; i++)
+			if (Sql[i] == '\n')
+				line++;
+		return line;
 	}
 
 	/// <summary>
@@ -135,7 +163,15 @@ public class SQuiLModel(
 
 			var inherits = InheritsProperty(ModelName, block.Name);
 			if (block.IsTable || block.IsObject)
-				CreateTableObject(block, !inherits);
+			{
+				// After the suffix drop, two declarations sharing the same OriginalName
+				// (e.g. @Returns_Person + @Return_Person) resolve to the same record type.
+				// The first declaration wins as the property; subsequent same-name declarations
+				// still register with the TableMap (for shape/merge tracking) but do not
+				// add a duplicate property.
+				var alreadyDeclared = Properties.Any(p => p.OriginalName == block.Name);
+				CreateTableObject(block, !inherits && !alreadyDeclared);
+			}
 			else if (!inherits)
 				Properties.Add(new(block, TableMap));
 		}
@@ -160,14 +196,22 @@ public class SQuiLModel(
 
 		if (addProperty) name = $"{NameSpace}{block.Name}"; else type = "";
 
+		var sourceLine = LineOf(block.DatabaseType.Offset);
+
 		SQuiLTable table = block.IsTable
 			? new SQuiLTable(NameSpace, Modifier(name), type, block, TableMap, Records)
 			{
-				HasParameterizedConstructor = hasParameterizedConstructor
+				HasParameterizedConstructor = hasParameterizedConstructor,
+				RecordNamespace = RecordNamespace,
+				SourceName = QueryName,
+				SourceLine = sourceLine
 			}
 			: new SQuiLObject(NameSpace, Modifier(name), type, block, TableMap, Records)
 			{
-				HasParameterizedConstructor = hasParameterizedConstructor
+				HasParameterizedConstructor = hasParameterizedConstructor,
+				RecordNamespace = RecordNamespace,
+				SourceName = QueryName,
+				SourceLine = sourceLine
 			};
 
 		if (addProperty) Properties.Add(table);

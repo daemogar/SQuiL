@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace SQuiL.VisualStudioExtension.Parsing;
@@ -58,6 +59,130 @@ internal static class SQuiLLinter
 
         LintUndeclaredVariables(text, diagnostics);
         LintNullabilityHints(text, diagnostics);
+        LintShapeMismatch(text, diagnostics);
+        LintSimilarSignatures(text, diagnostics);
+    }
+
+    // ── Shape-mismatch detection (SP0017) ────────────────────────────────────
+    //
+    // Within a single file, detect table variables that share the same base name
+    // (after stripping @Returns_/@Return_/@Params_/@Param_ prefixes) but declare
+    // different column shapes.  Fires the second declaration as the primary
+    // location and carries a related-information pointer back to the first.
+    //
+    // Port of lintShapeMismatch() in parser.ts (VS Code extension) — change one, change all.
+
+    internal static void LintShapeMismatch(string sql, List<SQuiLDiagnostic> diagnostics)
+    {
+        var parsed = SQuiLParser.Parse(sql);
+        var tableVars = parsed.Variables.Where(v =>
+            (v.Role == VariableRole.Returns   || v.Role == VariableRole.ReturnTable ||
+             v.Role == VariableRole.Params    || v.Role == VariableRole.ParamTable)
+            && v.Columns != null && v.Columns.Count > 0)
+            .ToList();
+
+        // Size-independent: strip the (...) size suffix from each SQL type before
+        // comparing — mirrors the generator's SameShape (sizes may differ).
+        static string StripSize(string t) => Regex.Replace(t, @"\s*\([^)]*\)", "").ToLowerInvariant();
+
+        var seen = new Dictionary<string, SQuiLVariable>(System.StringComparer.OrdinalIgnoreCase);
+        foreach (var v in tableVars)
+        {
+            string sig = string.Join("|", v.Columns!.Select(c => $"{c.Name}:{StripSize(c.SqlType)}:{c.Nullable}"));
+            if (!seen.TryGetValue(v.Name, out var first))
+            {
+                seen[v.Name] = v;
+                continue;
+            }
+            string firstSig = string.Join("|", first.Columns!.Select(c => $"{c.Name}:{StripSize(c.SqlType)}:{c.Nullable}"));
+            if (sig == firstSig) continue;
+
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message       = $"All declarations that generate the record `{v.Name}` must declare identical columns " +
+                                $"(same names, types, nullability, and order). " +
+                                $"Rename one of the variables or align the column lists.",
+                Line          = v.Line,
+                StartChar     = v.Character,
+                EndChar       = v.Character + v.RawName.Length,
+                Severity      = DiagnosticSeverity.Error,
+                Code          = "SP0017",
+                RelatedLine   = first.Line,
+                RelatedStartChar = first.Character,
+                RelatedEndChar   = first.Character + first.RawName.Length,
+                RelatedMessage   = "first declared here",
+            });
+        }
+    }
+
+    // ── Similar-signature hints (SP0020) ────────────────────────────────────
+    //
+    // Emits an Info-level hint for every table/object variable that shares an
+    // EXACT column signature (same names, types, nullability, and order) with
+    // a DIFFERENTLY-named variable in the same file.  This is the complement
+    // of LintShapeMismatch (SP0017), which fires on same-name + different shape.
+    //
+    // Trigger:  different name + same signature.
+    // Silent:   same name (SP0017's domain), or no matching signature found.
+    //
+    // Port of shapeHints.ts (VS Code extension) — change one, change all three.
+
+    internal static void LintSimilarSignatures(string sql, List<SQuiLDiagnostic> diagnostics)
+    {
+        var parsed = SQuiLParser.Parse(sql);
+        var tableVars = parsed.Variables.Where(v =>
+            (v.Role == VariableRole.Returns   || v.Role == VariableRole.ReturnTable ||
+             v.Role == VariableRole.Params    || v.Role == VariableRole.ParamTable)
+            && v.Columns != null && v.Columns.Count > 0)
+            .ToList();
+
+        if (tableVars.Count < 2) return;
+
+        // Build signature → list of variables.
+        // Size-independent: strip the (...) size suffix — mirrors the generator's SameShape.
+        static string StripSize(string t) => Regex.Replace(t, @"\s*\([^)]*\)", "").ToLowerInvariant();
+        var bySig = new Dictionary<string, List<SQuiLVariable>>();
+        foreach (var v in tableVars)
+        {
+            string sig = string.Join("|", v.Columns!.Select(c =>
+                $"{c.Name}:{StripSize(c.SqlType)}:{(c.Nullable ? "N" : "NN")}"));
+            if (!bySig.TryGetValue(sig, out var group))
+            {
+                group = new List<SQuiLVariable>();
+                bySig[sig] = group;
+            }
+            group.Add(v);
+        }
+
+        foreach (var group in bySig.Values)
+        {
+            if (group.Count < 2) continue;
+
+            // Distinct base names — same-name groups belong to SP0017.
+            var distinctNames = new HashSet<string>(
+                group.Select(v => v.Name), System.StringComparer.OrdinalIgnoreCase);
+            if (distinctNames.Count < 2) continue;
+
+            foreach (var a in group)
+            {
+                // Find the first differently-named partner to mention.
+                var partner = group.FirstOrDefault(b =>
+                    !string.Equals(b.Name, a.Name, System.StringComparison.OrdinalIgnoreCase));
+                if (partner == null) continue;
+
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message   = $"`{a.Name}` has the same column signature as `{partner.Name}` " +
+                                $"(line {partner.Line + 1}). " +
+                                $"If these are the same shape, give them the same name to share one generated type.",
+                    Line      = a.Line,
+                    StartChar = a.Character,
+                    EndChar   = a.Character + a.RawName.Length,
+                    Severity  = DiagnosticSeverity.Info,
+                    Code      = "SP0020",
+                });
+            }
+        }
     }
 
     // ── Nullability hints (SP0010) ───────────────────────────────────────────

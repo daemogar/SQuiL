@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { parseSQuiL, SQuiLDiagnostic } from '../squil/parser';
 import { nullabilityHints } from '../squil/nullabilityHints';
+import { shapeHints } from '../squil/shapeHints';
 
 export class SQuiLDiagnosticsProvider {
   private readonly collection: vscode.DiagnosticCollection;
@@ -31,6 +32,20 @@ export class SQuiLDiagnosticsProvider {
       const range = new vscode.Range(
         new vscode.Position(line, startChar),
         new vscode.Position(line, endChar),
+      );
+      const d = new vscode.Diagnostic(range, hint.message, vscode.DiagnosticSeverity.Hint);
+      d.source = 'squil';
+      d.code = hint.code;
+      vsDiags.push(d);
+    }
+
+    // SP0020: similar-signature hints (differently-named tables with identical column shape)
+    for (const hint of shapeHints(parsed)) {
+      const line = Math.min(hint.line, document.lineCount - 1);
+      const lineLength = document.lineAt(line).text.length;
+      const range = new vscode.Range(
+        new vscode.Position(line, Math.min(hint.character, lineLength)),
+        new vscode.Position(line, Math.min(hint.character + hint.length, lineLength)),
       );
       const d = new vscode.Diagnostic(range, hint.message, vscode.DiagnosticSeverity.Hint);
       d.source = 'squil';
@@ -72,6 +87,24 @@ export class SQuiLDiagnosticsProvider {
           : vscode.DiagnosticSeverity.Information,
     );
     diag.source = 'squil';
+
+    if (d.code !== undefined) {
+      diag.code = d.code;
+    }
+
+    if (d.relatedLine !== undefined) {
+      const relLine = Math.min(d.relatedLine, document.lineCount - 1);
+      const relLineLen = document.lineAt(relLine).text.length;
+      const relStart = new vscode.Position(relLine, Math.min(d.relatedStartChar ?? 0, relLineLen));
+      const relEnd = new vscode.Position(relLine, Math.min(d.relatedEndChar ?? relLineLen, relLineLen));
+      diag.relatedInformation = [
+        new vscode.DiagnosticRelatedInformation(
+          new vscode.Location(document.uri, new vscode.Range(relStart, relEnd)),
+          d.relatedMessage ?? 'first declared here',
+        ),
+      ];
+    }
+
     return diag;
   }
 

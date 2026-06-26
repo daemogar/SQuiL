@@ -194,11 +194,15 @@ SQuiL/
       The error path is RESULT-based (errors returned), not exception-based —
       `SQuiLException`/`SQuiLAggregateException` are NOT thrown by generated
       code.
-    - row records are `<Name>Table` (table-valued) / `<Name>Object`
-      (single-object), never `<Name>Row`/`<Name>Item`; response list
-      collections are `List<<Name>Table>?` with **no** `= []` (null when
-      absent, `[]` when empty, `[...]` when populated); input request lists
-      keep `= []`; object returns are `<Name>Object?` with `= default!`.
+    - row records are `<Name>` (NO `Table`/`Object` suffix), emitted into
+      `<ContextNamespace>.Models` by default; auto-generated records are
+      referenced as e.g. `List<<Ctx>.Models.Person>?`; response list
+      collections have **no** `= []` (null when absent, `[]` when empty,
+      `[...]` when populated); input request lists keep `= []`; object
+      returns are `<Ctx>.Models.Name?` with `= default!`.
+      `[SQuiLQuery]` accepts a `Namespace` property (default `"Models"`,
+      `""` = top-level) to override: `[SQuiLQuery(QueryFiles.X, Namespace: "Dto")]`
+      → `<Ctx>.Dto.<Name>`. `[SQuiLTable]`-mapped records stay in `<Ctx>` (top-level).
     - DI: a `services.AddSQuiL()` extension (namespace
       `Microsoft.Extensions.DependencyInjection`) IS generated and registers
       the context as a singleton.
@@ -244,9 +248,13 @@ SQuiL/
 - **ID always all caps** — never `Id`. Applies to `@Param_UserID`, `UserID`,
   `NewID()`, etc. Sole exception: VS Code API identifiers like
   `document.languageId` are framework-defined and stay as-is.
-- **Generated record naming** — table-valued vars produce `<Name>Table`
-  records; single-object vars produce `<Name>Object` records. Never
-  `<Name>Item` (older legacy term, do not use).
+- **Generated record naming** — table-valued and single-object vars both produce `<Name>`
+  records (NO `Table`/`Object` suffix). Never `<Name>Table`/`<Name>Object`/`<Name>Item`
+  (all legacy; do not use). Auto-generated row records are emitted into the
+  `<ContextNamespace>.Models` sub-namespace by default; override with
+  `[SQuiLQuery(..., Namespace: "Dto")]` (sets sub-namespace to `Dto`) or
+  `[SQuiLQuery(..., Namespace: "")]` (top-level `<ContextNamespace>`).
+  `[SQuiLTable]`-mapped records stay in `<ContextNamespace>` (not moved to `.Models`).
 - **Special variables — all OPT-IN.** Nothing is emitted implicitly; a
   special affects the generated code only when the SQL declares it.
   - `@Debug` → `bool Debug` on `*Request` ONLY when declared. (The old
@@ -274,11 +282,16 @@ SQuiL/
     warning. Prefer first in the header.
   - **Diagnostic IDs:** assign the lowest FREE id, **reusing ids that were
     retired and are no longer referenced** (Paul's ruling 2026-06-19). Currently
-    taken: SP0000–SP0019. **SP0010 is now TAKEN** — it is the editor-only
+    taken: SP0000–SP0021. **SP0010 is now TAKEN** — it is the editor-only
     nullability-hint diagnostic ("no null/not null marker — generated C# is
     non-nullable; add `not null` to confirm, or `null` to make it nullable"). It
     is editor-only; it is NOT emitted by the source generator at build time.
-    Next free: SP0020. (Verify an id is truly unreferenced with a repo-wide grep
+    **SP0020 is now TAKEN** — editor-only Hint when two differently-named table
+    variables share an identical column signature ("similar shape — consider
+    naming them the same to share one record"). NOT a build/generator diagnostic.
+    **SP0021 is now TAKEN** — build error when two contexts that share a row
+    record declare conflicting `Namespace` overrides.
+    Next free: SP0022. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **Sample data detection** — the extension detects an existing sample-data
   block by the `Insert Into @Param_…` statement itself; NO comment markers.
@@ -559,15 +572,15 @@ become `public <type> <Name> { get; init; } = <value>;` properties. Example:
 generates:
 
 ```csharp
-public partial record RowsTable(int RowID, int Qty)
+public partial record Rows(int RowID, int Qty)
 {
     public decimal Amount { get; init; } = 1.5m;
     public string Note { get; init; } = "hello";
 }
 ```
 
-Construct with `new RowsTable(1, 5)` or override defaults with
-`new RowsTable(1, 5) { Amount = 2.5m, Note = "x" }`. Tables with no defaults
+Construct with `new Rows(1, 5)` or override defaults with
+`new Rows(1, 5) { Amount = 2.5m, Note = "x" }`. Tables with no defaults
 emit a plain positional record (unchanged). Default values are mapped via the
 per-type `Token.CSharpValue` mapping (decimal gets an `m` suffix, dates/guids
 are parsed, strings quoted). Numeric literals may be fractional (`NumberRegex`
@@ -575,7 +588,7 @@ accepts `\d+(\.\d+)?`).
 
 **SP0010 is TAKEN** (since the nullability-unification feature) — it is the
 editor-only Hint that fires on any unmarked column or scalar declare (no `null`
-or `not null`). It is NOT a build/generator diagnostic. Next free id: SP0020.
+or `not null`). It is NOT a build/generator diagnostic. Next free id: SP0022.
 
 ## Special Handling
 

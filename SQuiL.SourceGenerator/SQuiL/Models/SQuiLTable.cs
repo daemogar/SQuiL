@@ -35,6 +35,20 @@ public class SQuiLTable(
 	/// <summary>The shared table-name-to-C#-type mapping used to resolve cross-query type names.</summary>
 	public SQuiLTableMap TableMap { get; } = TableMap;
 
+	/// <summary>
+	/// The query method/file name that first declared this table variable, used to
+	/// embed a cross-file "first declared in" hint in SP0017 messages.
+	/// Set by the caller immediately after construction; empty string when unknown.
+	/// </summary>
+	public string SourceName { get; init; } = "";
+
+	/// <summary>
+	/// 1-based line number of this table's declaration within its source SQL file, used to
+	/// point SP0017 at the first declaration so the developer can navigate to it. <c>0</c> when
+	/// the line is unknown (e.g. the cross-query merge path in <see cref="SQuiLTableMap.GenerateCode"/>).
+	/// </summary>
+	public int SourceLine { get; init; }
+
 	/// <summary>Creates a shallow clone of this table model with a fresh database-type token copy.</summary>
 	public SQuiLTable Clone()
 		=> new(NameSpace, Modifiers, Type, Block with
@@ -68,7 +82,10 @@ public class SQuiLTable(
 		IndentedTextWriter record = new(text, "\t");
 
 		var tableName = TableName();
-		var @namespace = NameSpace;
+		// Only move auto-generated records into RecordNamespace; [SQuiLTable]-mapped records
+		// (user-provided partials) live in the context namespace and must not be relocated.
+		var isMapped = TableMap.TryGetName(OriginalName, out _);
+		var @namespace = RecordNamespace.Length > 0 && !isMapped ? RecordNamespace : NameSpace;
 
 		// SP0018 (reported in SQuiLGenerator): the user's partial owns a primary
 		// constructor, so emitting our parameter list would add CS8863 noise on top
