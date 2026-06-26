@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record UseStatementFailsWhenAddingDeclareTestResponse
 {
-	public System.Collections.Generic.List<ExtendedCoursesTable>? ExtendedCourses { get; set; }
+	public System.Collections.Generic.List<ExtendedCourses>? ExtendedCourses { get; set; }
 }

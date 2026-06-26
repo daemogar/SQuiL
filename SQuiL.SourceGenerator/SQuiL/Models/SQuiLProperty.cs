@@ -39,7 +39,7 @@ public class SQuiLProperty(
 	public string TableName()
 	{
 		if (!TableMap.TryGetName(OriginalName, out var tableName))
-			tableName = $"{OriginalName}{Type}";
+			tableName = OriginalName;   // was: $"{OriginalName}{Type}"
 
 		return tableName;
 	}

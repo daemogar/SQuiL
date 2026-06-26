@@ -174,8 +174,14 @@ public class SQuiLDataContext(
 
 						if (outputs.Count > 0)
 						{
+							// Deduplicate by name: after the suffix drop, @Returns_X and @Return_X both
+							// have block.Name == "X"; emit the error check only once per unique name.
+							var errorSeen = new HashSet<string>();
 							foreach (var block in outputs.Select(p => p.CodeBlock).OrderBy(p => p.IsObject ? 1 : p.IsTable ? 2 : 0))
+							{
+								if (!errorSeen.Add(block.Name)) continue;
 								WriteAddError(block);
+							}
 
 							writer.WriteLine();
 
@@ -239,9 +245,13 @@ public class SQuiLDataContext(
 
 			writer.WriteLine();
 
+			// Deduplicate by name: after the suffix drop, @Returns_X and @Return_X both
+			// have block.Name == "X"; emit the tracking variable only once.
+			var seen = new HashSet<string>();
 			foreach (var (block, query) in outputs
 				.OrderBy(p => p.CodeBlock.IsObject ? 1 : p.CodeBlock.IsTable ? 2 : 0))
 			{
+				if (!seen.Add(block.Name)) continue;
 				writer.WriteLine($"var is{block.Name} = false;");
 			}
 		}
@@ -250,8 +260,13 @@ public class SQuiLDataContext(
 		{
 			try
 			{
+				// Deduplicate by name: after the suffix drop, @Returns_X and @Return_X both
+				// resolve to the same Response property; only emit the first switch case per name
+				// (the table/list variant wins when declared before the object variant).
+				var switchSeen = new HashSet<string>();
 				foreach (var (block, query) in outputs)
 				{
+					if (!switchSeen.Add(block.Name)) continue;
 					var switchCase = block.Name;
 					if ((block.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT)
 						switchCase = $"{(block.IsTable ? "Returns" : "Return")}_{switchCase}";

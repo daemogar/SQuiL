@@ -135,7 +135,15 @@ public class SQuiLModel(
 
 			var inherits = InheritsProperty(ModelName, block.Name);
 			if (block.IsTable || block.IsObject)
-				CreateTableObject(block, !inherits);
+			{
+				// After the suffix drop, two declarations sharing the same OriginalName
+				// (e.g. @Returns_Person + @Return_Person) resolve to the same record type.
+				// The first declaration wins as the property; subsequent same-name declarations
+				// still register with the TableMap (for shape/merge tracking) but do not
+				// add a duplicate property.
+				var alreadyDeclared = Properties.Any(p => p.OriginalName == block.Name);
+				CreateTableObject(block, !inherits && !alreadyDeclared);
+			}
 			else if (!inherits)
 				Properties.Add(new(block, TableMap));
 		}

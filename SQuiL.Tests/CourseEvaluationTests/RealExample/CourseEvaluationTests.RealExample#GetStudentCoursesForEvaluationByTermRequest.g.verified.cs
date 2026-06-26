@@ -17,7 +17,7 @@ public partial record GetStudentCoursesForEvaluationByTermRequest
 	
 	public System.Collections.Generic.List<TermTable>? Terms { get; set; } = [];
 	
-	public System.Collections.Generic.List<ParticipationTable>? Participation { get; set; } = [];
+	public System.Collections.Generic.List<Participation>? Participation { get; set; } = [];
 	
-	public System.Collections.Generic.List<OverridesTable>? Overrides { get; set; } = [];
+	public System.Collections.Generic.List<Overrides>? Overrides { get; set; } = [];
 }

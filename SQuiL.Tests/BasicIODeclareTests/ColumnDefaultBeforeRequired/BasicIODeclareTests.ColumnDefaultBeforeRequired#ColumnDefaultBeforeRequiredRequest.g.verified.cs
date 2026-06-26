@@ -7,5 +7,5 @@ namespace TestCase;
 
 public partial record ColumnDefaultBeforeRequiredRequest
 {
-	public System.Collections.Generic.List<RowsTable>? Rows { get; set; } = [];
+	public System.Collections.Generic.List<Rows>? Rows { get; set; } = [];
 }
