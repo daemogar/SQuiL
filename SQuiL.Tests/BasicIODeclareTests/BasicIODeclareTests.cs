@@ -426,9 +426,9 @@ public class BasicIODeclareTests
 	}
 
 	[Fact]
-	public Task SameNameTableAndObjectShareOneRecord()
+	public Task SameNameTableAndObjectInOneFileCollides()
 	{
-		var name = nameof(SameNameTableAndObjectShareOneRecord);
+		var name = nameof(SameNameTableAndObjectInOneFileCollides);
 		return TestHelper.Verify([TestHeader([name])], [$$"""
 			--Name: {{name}}
 			Declare @Returns_Person table(PersonID int, FullName varchar(100));
@@ -436,6 +436,29 @@ public class BasicIODeclareTests
 			Use [Database];
 			Select 1;
 			"""]);
+	}
+
+	[Fact]
+	public Task SameNameTableAndObjectAcrossFilesShareOneRecord()
+	{
+		var list = "SameNameAcrossFilesList";
+		var obj = "SameNameAcrossFilesObject";
+		return TestHelper.Verify(
+			[TestHeader([list, obj])],
+			[
+				$$"""
+				--Name: {{list}}
+				Declare @Returns_Person table(PersonID int, FullName varchar(100));
+				Use [Database];
+				Select 1;
+				""",
+				$$"""
+				--Name: {{obj}}
+				Declare @Return_Person table(PersonID int, FullName varchar(100));
+				Use [Database];
+				Select 1;
+				"""
+			]);
 	}
 
 	[Fact]
