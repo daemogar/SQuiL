@@ -26,26 +26,6 @@
       "enabled": false
     },
     {
-      "description": "@types/node tracks the extension-host / CI Node runtime (20.x). Hold it on that major; allow minor/patch. Lift together with the bare `node` guard below when moving CI to node 24 (TODO after #14).",
-      "matchPackageNames": [
-        "@types/node"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "enabled": false
-    },
-    {
-      "description": "CI runtime (node-version 20.x in build.yml/publish.yml). Hold on major so the grouped PR can't bump CI to node 24 ahead of @types/node and engines. Lift together with the @types/node guard above when moving everything to node 24 (TODO after #14).",
-      "matchPackageNames": [
-        "node"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "enabled": false
-    },
-    {
       "description": "typescript majors (6.x) drop the node global typings under module:Node16 and break tsc (broke publish runs #154/#155). Allow minor/patch only.",
       "matchPackageNames": [
         "typescript"
