@@ -76,6 +76,9 @@ public class FileGenerator(
 			var tokens = SQuiLTokenizer.GetTokens(sql);
 			var blocks = SQuiLParser.ParseTokens(tokens);
 
+			foreach (var finding in SQuiLCardinalityValidator.Detect(blocks, sql))
+				Context.ReportCardinalityCollision(method, finding);
+
 			if (ShowDebugMessages)
 			{
 				foreach (var code in blocks)
