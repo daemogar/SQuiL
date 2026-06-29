@@ -271,7 +271,7 @@ export function lintCardinalityCollision(result: SQuiLParseResult): SQuiLDiagnos
     // Warning on the first declaration (it wins; the conflicting ones are dropped).
     diagnostics.push({
       message:
-        `\`${first.rawName}\` declares \`${first.name}\` as ${kind(first)}, but the same name is also declared with a different cardinality below. ` +
+        `\`${first.rawName}\` declares \`${first.name}\` as ${kind(first)}, but \`${conflicts[0].rawName}\` (line ${conflicts[0].line + 1}) declares it as ${kind(conflicts[0])}. ` +
         `One cardinality wins and the other is silently dropped — rename one variable, or use the same cardinality for both.`,
       line: first.line,
       startChar: first.character,

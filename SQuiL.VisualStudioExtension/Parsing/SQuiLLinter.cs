@@ -164,7 +164,7 @@ internal static class SQuiLLinter
 
             diagnostics.Add(new SQuiLDiagnostic
             {
-                Message = $"`{first.RawName}` declares `{first.Name}` as {Kind(first.Role)}, but the same name is also declared with a different cardinality below. " +
+                Message = $"`{first.RawName}` declares `{first.Name}` as {Kind(first.Role)}, but `{conflicts[0].RawName}` (line {conflicts[0].Line + 1}) declares it as {Kind(conflicts[0].Role)}. " +
                           "One cardinality wins and the other is silently dropped — rename one variable, or use the same cardinality for both.",
                 Line = first.Line,
                 StartChar = first.Character,

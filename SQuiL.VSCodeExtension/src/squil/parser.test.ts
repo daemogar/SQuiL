@@ -103,6 +103,11 @@ test('SP0022 fires on same-file output list + object with the same name', () => 
   assert.strictEqual(warning!.line, 0);
   assert.strictEqual(error!.line, 1);
   assert.strictEqual(error!.relatedLine, 0);
+  // both squiggles name both variables in their text
+  assert.ok(warning!.message.includes('@Returns_Person') && warning!.message.includes('@Return_Person'),
+    'warning text names both the winner and the conflicting variable');
+  assert.ok(error!.message.includes('@Return_Person') && error!.message.includes('@Returns_Person'),
+    'error text names both variables');
 });
 
 test('SP0022 fires on same-file input list + object with the same name', () => {
