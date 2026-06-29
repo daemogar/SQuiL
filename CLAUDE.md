@@ -255,6 +255,7 @@ SQuiL/
   `[SQuiLQuery(..., Namespace: "Dto")]` (sets sub-namespace to `Dto`) or
   `[SQuiLQuery(..., Namespace: "")]` (top-level `<ContextNamespace>`).
   `[SQuiLTable]`-mapped records stay in `<ContextNamespace>` (not moved to `.Models`).
+  Same-name table + single-object sharing is legitimate ONLY when the two declarations land on different models — i.e. cross-file, or cross-side (one `@Param_…`/`@Params_…` input, one `@Return_…`/`@Returns_…` output). Declaring both cardinalities on the SAME side within ONE file (e.g. `@Returns_X` + `@Return_X`) is a cardinality collision and a build error (SP0022).
 - **Special variables — all OPT-IN.** Nothing is emitted implicitly; a
   special affects the generated code only when the SQL declares it.
   - `@Debug` → `bool Debug` on `*Request` ONLY when declared. (The old
@@ -291,7 +292,8 @@ SQuiL/
     naming them the same to share one record"). NOT a build/generator diagnostic.
     **SP0021 is now TAKEN** — build error when two contexts that share a row
     record declare conflicting `Namespace` overrides.
-    Next free: SP0022. (Verify an id is truly unreferenced with a repo-wide grep
+    **SP0022 is now TAKEN** — build error (generator) + editor squiggles (warning on the first declaration, error on the rest) when one base name is declared as both a table (list) and a single object on the same side within one file (cardinality collision); see `SQuiLCardinalityValidator.cs` + `lintCardinalityCollision` + `LintCardinalityCollision`.
+    Next free: SP0023. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **Sample data detection** — the extension detects an existing sample-data
   block by the `Insert Into @Param_…` statement itself; NO comment markers.
@@ -588,7 +590,7 @@ accepts `\d+(\.\d+)?`).
 
 **SP0010 is TAKEN** (since the nullability-unification feature) — it is the
 editor-only Hint that fires on any unmarked column or scalar declare (no `null`
-or `not null`). It is NOT a build/generator diagnostic. Next free id: SP0022.
+or `not null`). It is NOT a build/generator diagnostic. Next free id: SP0023.
 
 ## Special Handling
 

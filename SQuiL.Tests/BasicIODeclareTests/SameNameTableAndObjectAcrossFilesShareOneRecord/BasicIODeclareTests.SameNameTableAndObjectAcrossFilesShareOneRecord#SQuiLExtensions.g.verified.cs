@@ -15,7 +15,7 @@ public static class SQuiLExtensions
         if (IsLoaded) return services;
         IsLoaded = true;
         
-        services.AddSingleton<TestCase.SameNameTableAndObjectShareOneRecordDataContext>();
+        services.AddSingleton<TestCase.SameNameTableAndObjectAcrossFilesShareOneRecordDataContext>();
         
         return services;
     }

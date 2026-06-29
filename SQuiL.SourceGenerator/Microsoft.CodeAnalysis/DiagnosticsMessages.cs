@@ -225,6 +225,28 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0022 — Within one file, a base name is declared as BOTH a table (list) and a
+	/// single object on the same side (both inputs or both outputs). The two declarations
+	/// resolve to one request/response property; the generator keeps the first and silently
+	/// drops the rest. Each dropped (second-and-later) declaration is a build error.
+	/// </summary>
+	public static void ReportCardinalityCollision(this SourceProductionContext context, string filename, SQuiL.SourceGenerator.Parser.SQuiLCardinalityValidator.Finding finding)
+	{
+		static string Raw(string name, bool isOutput, bool isTable)
+			=> (isOutput ? (isTable ? "@Returns_" : "@Return_") : (isTable ? "@Params_" : "@Param_")) + name;
+
+		var droppedRaw = Raw(finding.Name, finding.IsOutput, finding.DroppedIsTable);
+		var firstRaw = Raw(finding.Name, finding.IsOutput, finding.FirstIsTable);
+		var droppedKind = finding.DroppedIsTable ? "a table" : "a single object";
+		var firstKind = finding.FirstIsTable ? "a table" : "a single object";
+
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0022", "Cardinality Collision",
+			$"{filename}: `{droppedRaw}` (line {finding.DroppedLine}) declares `{finding.Name}` as {droppedKind}, " +
+			$"but `{firstRaw}` (line {finding.FirstLine}) already declares it as {firstKind}. " +
+			"One cardinality wins and the other is silently dropped — rename one variable, or use the same cardinality for both."));
+	}
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

@@ -61,6 +61,7 @@ internal static class SQuiLLinter
         LintNullabilityHints(text, diagnostics);
         LintShapeMismatch(text, diagnostics);
         LintSimilarSignatures(text, diagnostics);
+        LintCardinalityCollision(text, diagnostics);
     }
 
     // ── Shape-mismatch detection (SP0017) ────────────────────────────────────
@@ -112,6 +113,87 @@ internal static class SQuiLLinter
                 RelatedEndChar   = first.Character + first.RawName.Length,
                 RelatedMessage   = "first declared here",
             });
+        }
+    }
+
+    // ── Cardinality-collision detection (SP0022) ─────────────────────────────
+    //
+    // Within a single file, a base name declared as BOTH a table (list:
+    // @Params_/@Returns_) AND a single object (@Param_…table/@Return_…table) on the
+    // SAME side (both inputs → request, or both outputs → response) resolves to one
+    // request/response property; the generator keeps the first and silently drops the
+    // rest.  Warns on the first declaration and errors on each subsequent one.
+    //
+    // Port of lintCardinalityCollision() in parser.ts (VS Code) and
+    // SQuiLCardinalityValidator.cs (source generator) — change one, change all.
+
+    internal static void LintCardinalityCollision(string sql, List<SQuiLDiagnostic> diagnostics)
+    {
+        var parsed = SQuiLParser.Parse(sql);
+
+        static bool IsList(VariableRole r) => r == VariableRole.Params || r == VariableRole.Returns;
+        static bool IsObject(VariableRole r) => r == VariableRole.ParamTable || r == VariableRole.ReturnTable;
+        static string Kind(VariableRole r) => IsList(r) ? "a table" : "a single object";
+
+        var tableVars = parsed.Variables.Where(v => IsList(v.Role) || IsObject(v.Role)).ToList();
+
+        var groups = new Dictionary<string, List<SQuiLVariable>>();
+        foreach (var v in tableVars)
+        {
+            bool isOutput = v.Role == VariableRole.Returns || v.Role == VariableRole.ReturnTable;
+            string key = (isOutput ? "out:" : "in:") + v.Name.ToLowerInvariant();
+            if (!groups.TryGetValue(key, out var g))
+            {
+                g = new List<SQuiLVariable>();
+                groups[key] = g;
+            }
+            g.Add(v);
+        }
+
+        foreach (var group in groups.Values)
+        {
+            if (!group.Any(v => IsList(v.Role)) || !group.Any(v => IsObject(v.Role))) continue;
+
+            var first = group[0];
+
+            // Only declarations whose cardinality DIFFERS from the winner are conflicts.
+            // A same-cardinality duplicate (e.g. a second @Returns_X) is a plain dedup,
+            // not a collision — exclude it so 3+ same-name groups flag only the mismatches.
+            var conflicts = group.Skip(1).Where(v => IsList(v.Role) != IsList(first.Role)).ToList();
+            if (conflicts.Count == 0) continue;
+
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message = $"`{first.RawName}` declares `{first.Name}` as {Kind(first.Role)}, but `{conflicts[0].RawName}` (line {conflicts[0].Line + 1}) declares it as {Kind(conflicts[0].Role)}. " +
+                          "One cardinality wins and the other is silently dropped — rename one variable, or use the same cardinality for both.",
+                Line = first.Line,
+                StartChar = first.Character,
+                EndChar = first.Character + first.RawName.Length,
+                Severity = DiagnosticSeverity.Warning,
+                Code = "SP0022",
+                RelatedLine = conflicts[0].Line,
+                RelatedStartChar = conflicts[0].Character,
+                RelatedEndChar = conflicts[0].Character + conflicts[0].RawName.Length,
+                RelatedMessage = "conflicting cardinality declared here",
+            });
+
+            foreach (var v in conflicts)
+            {
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message = $"`{v.RawName}` declares `{v.Name}` as {Kind(v.Role)}, but `{first.RawName}` already declares it as {Kind(first.Role)} (line {first.Line + 1}). " +
+                              "One cardinality wins and the other is silently dropped — rename one variable, or use the same cardinality for both.",
+                    Line = v.Line,
+                    StartChar = v.Character,
+                    EndChar = v.Character + v.RawName.Length,
+                    Severity = DiagnosticSeverity.Error,
+                    Code = "SP0022",
+                    RelatedLine = first.Line,
+                    RelatedStartChar = first.Character,
+                    RelatedEndChar = first.Character + first.RawName.Length,
+                    RelatedMessage = "first declared here",
+                });
+            }
         }
     }
 
