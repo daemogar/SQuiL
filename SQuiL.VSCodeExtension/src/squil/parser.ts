@@ -176,6 +176,11 @@ export function parseSQuiL(text: string): SQuiLParseResult {
     result.diagnostics.push(d);
   }
 
+  // SP0022: cardinality collision (same name, list + single object, same side).
+  for (const d of lintCardinalityCollision(result)) {
+    result.diagnostics.push(d);
+  }
+
   return result;
 }
 
@@ -220,6 +225,78 @@ export function lintShapeMismatch(result: SQuiLParseResult): SQuiLDiagnostic[] {
       relatedEndChar: first.character + first.rawName.length,
       relatedMessage: 'first declared here',
     });
+  }
+
+  return diagnostics;
+}
+
+/** SP0022 — within one file, a base name declared as BOTH a table (list:
+ *  @Params_/@Returns_) AND a single object (@Param_…table/@Return_…table) on the SAME
+ *  side (both inputs → request, or both outputs → response) resolves to one
+ *  request/response property; the generator keeps the first and silently drops the rest.
+ *  Warns on the first declaration and errors on each subsequent one, linking the two.
+ *  Same rule as SQuiLCardinalityValidator.cs (generator) and LintCardinalityCollision in
+ *  SQuiLLinter.cs (SSMS + Visual Studio) — change one, change all.
+ */
+export function lintCardinalityCollision(result: SQuiLParseResult): SQuiLDiagnostic[] {
+  const diagnostics: SQuiLDiagnostic[] = [];
+
+  const listRoles = new Set<VariableRole>(['params', 'returns']);
+  const objectRoles = new Set<VariableRole>(['param-table', 'return-table']);
+  const isList = (v: SQuiLVariable) => listRoles.has(v.role);
+  const isObject = (v: SQuiLVariable) => objectRoles.has(v.role);
+  const kind = (v: SQuiLVariable) => (isList(v) ? 'a table' : 'a single object');
+
+  const tableVars = result.variables.filter(v => isList(v) || isObject(v));
+
+  // group by (side, name): outputs feed the response, inputs the request.
+  const groups = new Map<string, SQuiLVariable[]>();
+  for (const v of tableVars) {
+    const isOutput = v.role === 'returns' || v.role === 'return-table';
+    const key = `${isOutput ? 'out' : 'in'}:${v.name.toLowerCase()}`;
+    const g = groups.get(key);
+    if (g) { g.push(v); } else { groups.set(key, [v]); }
+  }
+
+  for (const group of groups.values()) {
+    if (!group.some(isList) || !group.some(isObject)) continue;
+
+    const first = group[0];
+    const rest = group.slice(1);
+
+    // Warning on the first declaration (it wins; the others are dropped).
+    diagnostics.push({
+      message:
+        `\`${first.rawName}\` declares \`${first.name}\` as ${kind(first)}, but the same name is also declared with a different cardinality below. ` +
+        `One cardinality wins and the other is silently dropped — rename one variable, or use the same cardinality for both.`,
+      line: first.line,
+      startChar: first.character,
+      endChar: first.character + first.rawName.length,
+      severity: 'warning',
+      code: 'SP0022',
+      relatedLine: rest[0].line,
+      relatedStartChar: rest[0].character,
+      relatedEndChar: rest[0].character + rest[0].rawName.length,
+      relatedMessage: 'conflicting cardinality declared here',
+    });
+
+    // Error on each subsequent declaration (these are silently dropped today).
+    for (const v of rest) {
+      diagnostics.push({
+        message:
+          `\`${v.rawName}\` declares \`${v.name}\` as ${kind(v)}, but \`${first.rawName}\` already declares it as ${kind(first)} (line ${first.line + 1}). ` +
+          `One cardinality wins and the other is silently dropped — rename one variable, or use the same cardinality for both.`,
+        line: v.line,
+        startChar: v.character,
+        endChar: v.character + v.rawName.length,
+        severity: 'error',
+        code: 'SP0022',
+        relatedLine: first.line,
+        relatedStartChar: first.character,
+        relatedEndChar: first.character + first.rawName.length,
+        relatedMessage: 'first declared here',
+      });
+    }
   }
 
   return diagnostics;

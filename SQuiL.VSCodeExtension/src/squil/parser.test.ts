@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
-import { parseSQuiL } from './parser';
+import { parseSQuiL, lintCardinalityCollision } from './parser';
 
 // Recognition parity with the generator's SQuiLParser: bare @SuppressDebug and
 // @AsOfDate are valid header specials and must NOT raise a "doesn't follow
@@ -82,6 +82,58 @@ test('SP0017 silent when same-name tables differ only in column size', () => {
   const result = parseSQuiL(sql);
   const sp0017 = result.diagnostics.filter(d => d.code === 'SP0017');
   assert.strictEqual(sp0017.length, 0, 'SP0017 must not fire when shapes differ only in column size');
+});
+
+// SP0022: cardinality collision (same name, list + single object, same side).
+test('SP0022 fires on same-file output list + object with the same name', () => {
+  const diags = lintCardinalityCollision(parseSQuiL([
+    'Declare @Returns_Person table(PersonID int, FullName varchar(100));',
+    'Declare @Return_Person table(PersonID int, FullName varchar(100));',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n')));
+
+  // one warning on the first declaration, one error on the second
+  assert.strictEqual(diags.length, 2);
+  assert.ok(diags.every(d => d.code === 'SP0022'));
+  const warning = diags.find(d => d.severity === 'warning');
+  const error = diags.find(d => d.severity === 'error');
+  assert.ok(warning, 'warning on the first declaration');
+  assert.ok(error, 'error on the second declaration');
+  assert.strictEqual(warning!.line, 0);
+  assert.strictEqual(error!.line, 1);
+  assert.strictEqual(error!.relatedLine, 0);
+});
+
+test('SP0022 fires on same-file input list + object with the same name', () => {
+  const diags = lintCardinalityCollision(parseSQuiL([
+    'Declare @Params_Rows table(RowID int);',
+    'Declare @Param_Rows table(RowID int);',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n')));
+  assert.strictEqual(diags.length, 2);
+  assert.ok(diags.every(d => d.code === 'SP0022'));
+});
+
+test('SP0022 silent for same cardinality, same name', () => {
+  const diags = lintCardinalityCollision(parseSQuiL([
+    'Declare @Returns_Person table(PersonID int);',
+    'Declare @Returns_Person table(PersonID int);',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n')));
+  assert.strictEqual(diags.length, 0);
+});
+
+test('SP0022 silent across sides (input list + output object)', () => {
+  const diags = lintCardinalityCollision(parseSQuiL([
+    'Declare @Params_Person table(PersonID int);',
+    'Declare @Return_Person table(PersonID int);',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n')));
+  assert.strictEqual(diags.length, 0);
 });
 
 // Parity with the generator: a column DEFAULT must be parsed (not dropped) and
