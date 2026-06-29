@@ -156,6 +156,12 @@ internal static class SQuiLLinter
 
             var first = group[0];
 
+            // Only declarations whose cardinality DIFFERS from the winner are conflicts.
+            // A same-cardinality duplicate (e.g. a second @Returns_X) is a plain dedup,
+            // not a collision — exclude it so 3+ same-name groups flag only the mismatches.
+            var conflicts = group.Skip(1).Where(v => IsList(v.Role) != IsList(first.Role)).ToList();
+            if (conflicts.Count == 0) continue;
+
             diagnostics.Add(new SQuiLDiagnostic
             {
                 Message = $"`{first.RawName}` declares `{first.Name}` as {Kind(first.Role)}, but the same name is also declared with a different cardinality below. " +
@@ -165,15 +171,14 @@ internal static class SQuiLLinter
                 EndChar = first.Character + first.RawName.Length,
                 Severity = DiagnosticSeverity.Warning,
                 Code = "SP0022",
-                RelatedLine = group[1].Line,
-                RelatedStartChar = group[1].Character,
-                RelatedEndChar = group[1].Character + group[1].RawName.Length,
+                RelatedLine = conflicts[0].Line,
+                RelatedStartChar = conflicts[0].Character,
+                RelatedEndChar = conflicts[0].Character + conflicts[0].RawName.Length,
                 RelatedMessage = "conflicting cardinality declared here",
             });
 
-            for (int k = 1; k < group.Count; k++)
+            foreach (var v in conflicts)
             {
-                var v = group[k];
                 diagnostics.Add(new SQuiLDiagnostic
                 {
                     Message = $"`{v.RawName}` declares `{v.Name}` as {Kind(v.Role)}, but `{first.RawName}` already declares it as {Kind(first.Role)} (line {first.Line + 1}). " +

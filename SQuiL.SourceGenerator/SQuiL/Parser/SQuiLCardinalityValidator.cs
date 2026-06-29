@@ -62,6 +62,13 @@ public static class SQuiLCardinalityValidator
             for (var i = 1; i < group.Count; i++)
             {
                 var dropped = group[i];
+
+                // Only a declaration whose cardinality DIFFERS from the winner is a
+                // cardinality conflict. A same-cardinality duplicate (e.g. a second
+                // @Returns_X alongside the winning @Returns_X) is a plain dedup, not a
+                // collision — skip it so 3+ same-name groups flag only the mismatches.
+                if (dropped.IsTable == first.IsTable) continue;
+
                 findings.Add(new Finding(
                     dropped.Name, entry.Key.IsOutput, dropped.IsTable,
                     LineOf(sql, dropped.DatabaseType.Offset), first.IsTable, firstLine));

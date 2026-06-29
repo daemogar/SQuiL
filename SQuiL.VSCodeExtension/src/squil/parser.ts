@@ -262,9 +262,13 @@ export function lintCardinalityCollision(result: SQuiLParseResult): SQuiLDiagnos
     if (!group.some(isList) || !group.some(isObject)) continue;
 
     const first = group[0];
-    const rest = group.slice(1);
+    // Only declarations whose cardinality DIFFERS from the winner are conflicts.
+    // A same-cardinality duplicate (e.g. a second @Returns_X) is a plain dedup, not
+    // a collision — exclude it so 3+ same-name groups flag only the mismatches.
+    const conflicts = group.slice(1).filter(v => isList(v) !== isList(first));
+    if (conflicts.length === 0) continue;
 
-    // Warning on the first declaration (it wins; the others are dropped).
+    // Warning on the first declaration (it wins; the conflicting ones are dropped).
     diagnostics.push({
       message:
         `\`${first.rawName}\` declares \`${first.name}\` as ${kind(first)}, but the same name is also declared with a different cardinality below. ` +
@@ -274,14 +278,14 @@ export function lintCardinalityCollision(result: SQuiLParseResult): SQuiLDiagnos
       endChar: first.character + first.rawName.length,
       severity: 'warning',
       code: 'SP0022',
-      relatedLine: rest[0].line,
-      relatedStartChar: rest[0].character,
-      relatedEndChar: rest[0].character + rest[0].rawName.length,
+      relatedLine: conflicts[0].line,
+      relatedStartChar: conflicts[0].character,
+      relatedEndChar: conflicts[0].character + conflicts[0].rawName.length,
       relatedMessage: 'conflicting cardinality declared here',
     });
 
-    // Error on each subsequent declaration (these are silently dropped today).
-    for (const v of rest) {
+    // Error on each conflicting declaration (these are silently dropped today).
+    for (const v of conflicts) {
       diagnostics.push({
         message:
           `\`${v.rawName}\` declares \`${v.name}\` as ${kind(v)}, but \`${first.rawName}\` already declares it as ${kind(first)} (line ${first.line + 1}). ` +

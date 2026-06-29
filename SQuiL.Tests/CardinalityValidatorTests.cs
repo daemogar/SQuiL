@@ -89,4 +89,25 @@ public class CardinalityValidatorTests
 
         Assert.Empty(findings);
     }
+
+    [Fact]
+    public void Three_same_name_decls_flag_only_cardinality_mismatch()
+    {
+        // @Returns_X (list) + @Return_X (object) + @Returns_X (list): only the object
+        // (cardinality mismatch vs the first-declared list) is flagged; the duplicate
+        // list is a same-cardinality dedup, NOT a cardinality collision.
+        var findings = Detect("""
+            Declare @Returns_X table(ID int);
+            Declare @Return_X table(ID int);
+            Declare @Returns_X table(ID int);
+            Use MyDatabase;
+            Select 1;
+            """);
+
+        var f = Assert.Single(findings);
+        Assert.Equal("X", f.Name);
+        Assert.False(f.DroppedIsTable);   // the @Return_X object is the one flagged
+        Assert.Equal(2, f.DroppedLine);
+        Assert.Equal(1, f.FirstLine);
+    }
 }

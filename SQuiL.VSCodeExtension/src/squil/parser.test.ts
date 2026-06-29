@@ -136,6 +136,22 @@ test('SP0022 silent across sides (input list + output object)', () => {
   assert.strictEqual(diags.length, 0);
 });
 
+test('SP0022 flags only cardinality mismatch among 3+ same-name decls', () => {
+  // @Returns_X (list) + @Return_X (object) + @Returns_X (list): the duplicate list
+  // is a same-cardinality dedup, not a collision — only the object is flagged.
+  const diags = lintCardinalityCollision(parseSQuiL([
+    'Declare @Returns_X table(ID int);',
+    'Declare @Return_X table(ID int);',
+    'Declare @Returns_X table(ID int);',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n')));
+  assert.strictEqual(diags.length, 2); // 1 warning on the winner + 1 error on the object
+  assert.ok(diags.every(d => d.code === 'SP0022'));
+  assert.strictEqual(diags.filter(d => d.severity === 'warning').length, 1);
+  assert.strictEqual(diags.filter(d => d.severity === 'error').length, 1);
+});
+
 // Parity with the generator: a column DEFAULT must be parsed (not dropped) and
 // its raw literal captured, so the preview can render it as an init-property default.
 test('table column DEFAULT is parsed and its literal captured', () => {
