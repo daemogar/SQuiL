@@ -24,6 +24,8 @@ public sealed class SQuiLBinaryJsonConverter : JsonConverter<byte[]?>
 			return null;
 
 		var hex = reader.GetString() ?? "";
+		if (hex.Length % 2 != 0)
+			throw new JsonException($"Hex string length must be even, got {hex.Length}.");
 		var bytes = new byte[hex.Length / 2];
 		for (var i = 0; i < bytes.Length; i++)
 			bytes[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);

@@ -39,4 +39,9 @@ public class SQuiLBinaryJsonConverterTests
 	{
 		Assert.Null(JsonSerializer.Deserialize<byte[]?>("null", Options));
 	}
+
+	[Fact]
+	public void ReadRejectsOddLengthHex()
+		=> Assert.Throws<JsonException>(() =>
+			JsonSerializer.Deserialize<byte[]?>("\"ABC\"", Options));
 }
