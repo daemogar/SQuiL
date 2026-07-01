@@ -368,3 +368,6 @@ FodyWeavers.xsd
 # Verify
 *.received.*
 /.claude/settings.local.json
+
+# Subagent-driven-development scratch
+.superpowers/
