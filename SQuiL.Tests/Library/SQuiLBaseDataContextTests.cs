@@ -1,12 +1,12 @@
 namespace SQuiL.Tests.Library;
 
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 
 using SQuiL;
 
 using System.Data;
 using System.Data.Common;
-using System.Text;
 
 internal class SQuiLBaseDataContextTestDouble(IConfiguration config) : SQuiLBaseDataContext(config)
 {
@@ -15,9 +15,8 @@ internal class SQuiLBaseDataContextTestDouble(IConfiguration config) : SQuiLBase
 	public DbParameter Parameter(string name, SqlDbType type, object? value)
 		=> CreateParameter(name, type, value);
 
-	public void Add(StringBuilder query, List<DbParameter> parameters, int index,
-		string table, string name, SqlDbType type, object? value, int size = 0)
-		=> AddParams(query, parameters, index, table, name, type, value, size);
+	public DbParameter AddJson(List<DbParameter> parameters, string name, object? value)
+		=> AddJsonParameter(parameters, name, value);
 }
 
 public class SQuiLBaseDataContextTests
@@ -32,52 +31,33 @@ public class SQuiLBaseDataContextTests
 		=> Assert.Equal(DBNull.Value, Context().Parameter("@P", SqlDbType.Int, null).Value);
 
 	[Fact]
-	public void AddParamsAppendsPositionalNameAndParameter()
-	{
-		StringBuilder query = new();
-		List<DbParameter> parameters = [];
-
-		Context().Add(query, parameters, 3, "Params_People", "UserID", SqlDbType.Int, 42);
-
-		Assert.Equal("@Params_People_3_UserID", query.ToString());
-		var p = Assert.Single(parameters);
-		Assert.Equal("@Params_People_3_UserID", p.ParameterName);
-		Assert.Equal(42, p.Value);
-	}
-
-	[Fact]
-	public void AddParamsStringWithinSizePasses()
-	{
-		StringBuilder query = new();
-		List<DbParameter> parameters = [];
-
-		Context().Add(query, parameters, 0, "T", "Name", SqlDbType.VarChar, "abc", size: 5);
-
-		var p = Assert.Single(parameters);
-		Assert.Equal(5, p.Size);
-		Assert.Equal("abc", p.Value);
-	}
-
-	[Fact]
-	public void AddParamsStringOverSizeThrowsWithIndexAndName()
-	{
-		var ex = Assert.Throws<Exception>(() =>
-			Context().Add(new(), [], 2, "T", "Name", SqlDbType.VarChar, "toolong", size: 3));
-
-		Assert.Contains("index [2]", ex.Message);
-		Assert.Contains("[Name]", ex.Message);
-		Assert.Contains("more than 3 characters", ex.Message);
-	}
-
-	[Fact]
-	public void AddParamsNullWithSizeBecomesDBNull()
+	public void AddJsonParameterAddsSingleNVarCharMaxParameter()
 	{
 		List<DbParameter> parameters = [];
 
-		Context().Add(new(), parameters, 0, "T", "Name", SqlDbType.VarChar, null, size: 5);
+		var p = Context().AddJson(parameters, "@__json_Params_People",
+			new[] { new { UserID = 1, Name = "Ada" } });
 
-		Assert.Equal(DBNull.Value, Assert.Single(parameters).Value);
+		Assert.Same(p, Assert.Single(parameters));
+		Assert.Equal("@__json_Params_People", p.ParameterName);
+		Assert.Equal(SqlDbType.NVarChar, ((SqlParameter)p).SqlDbType);
+		Assert.Equal(-1, p.Size);
+		Assert.Equal("""[{"UserID":1,"Name":"Ada"}]""", p.Value);
 	}
+
+	[Fact]
+	public void SerializeUsesVerbatimPropertyNames()
+		=> Assert.Equal("""{"UserID":7}""", SQuiLJson.Serialize(new { UserID = 7 }));
+
+	[Fact]
+	public void SerializeWritesBinaryAsBareHex()
+		=> Assert.Equal("""{"Blob":"0A0B"}""",
+			SQuiLJson.Serialize(new { Blob = new byte[] { 0x0A, 0x0B } }));
+
+	[Fact]
+	public void SerializeWritesNullColumnAsJsonNull()
+		=> Assert.Equal("""{"Name":null}""",
+			SQuiLJson.Serialize(new { Name = (string?)null }));
 
 	[Fact]
 	public void EnvironmentNameConfigKeyWins()
