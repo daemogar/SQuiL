@@ -34,6 +34,7 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Data.SqlClient" />
 		<PackageReference Include="Microsoft.Extensions.Configuration" />
+		<PackageReference Include="System.Text.Json" />
 	</ItemGroup>
 
 </Project>
