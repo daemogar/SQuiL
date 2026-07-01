@@ -408,7 +408,7 @@ public class SQuiLDataContext(
 					writer.Block($"""
 						System.Text.StringBuilder query = new();
 						query.Append("Insert Into @Param{(CodeBlock.IsTable ? "s" : "")}_{CodeBlock.Name}([{string.Join("], [", CodeBlock.Properties.Select(p => p.Identifier.Value))}])");
-						
+
 						""");
 
 					if (CodeBlock.IsTable)
@@ -452,7 +452,7 @@ public class SQuiLDataContext(
 							""");
 						AddParams("", "0", $"request.{CodeBlock.Name}");
 						writer.Block("""
-					
+
 							query.Append(')');
 							""");
 					}
@@ -497,6 +497,28 @@ public class SQuiLDataContext(
 
 						notFirst = true;
 					}
+				}
+			}
+
+			// Emits a throw for any sized varchar/nvarchar/char column whose value exceeds its
+			// declared length, BEFORE serialization (do not rely on silent OPENJSON truncation).
+			// `itemExpr` is the per-row item expression: for a list, called inside a foreach
+			// over `request.<Name>` with item "item"; for an object, "request.<Name>".
+			void EmitStringLengthGuards(CodeBlock block, string itemExpr)
+			{
+				foreach (var p in block.Properties)
+				{
+					if (p.Type.Type != TokenType.TYPE_STRING) continue;
+					var size = p.Type.Value;
+					if (size is null || size.Equals("max", StringComparison.OrdinalIgnoreCase)) continue;
+
+					var value = $"{itemExpr}.{p.Identifier.Value}";
+					writer.Block($"if ({value} is not null && {value}.Length > {size})", () =>
+					{
+						writer.WriteLine($$"""
+							throw new Exception($"{{generation.Request.ModelName}} table property [{{block.Name}}] has a string property [{{p.Identifier.Value}}] with more than {{size}} characters.");
+							""");
+					});
 				}
 			}
 		}
@@ -634,5 +656,66 @@ public class SQuiLDataContext(
 		string F(IEnumerable<string> lines)
 			=> string.Join($"{newline}{newline}{tabs}", lines);
 		*/
+	}
+}
+
+/// <summary>
+/// Dialect-specific helpers for the JSON/OPENJSON param-sharding feature (TODO #1).
+/// Generates the SQL-Server OPENJSON shred statement for a table or object input block.
+/// A future <c>ISqlDialect</c> seam (TODO #6) will substitute the dialect-appropriate
+/// equivalent (e.g. <c>json_to_recordset</c> for PostgreSQL).
+/// </summary>
+public static class SQuiLShred
+{
+	/// <summary>
+	/// Returns the JSON parameter name for the given input block:
+	/// <c>@__json_Params_&lt;Name&gt;</c> for a table, <c>@__json_Param_&lt;Name&gt;</c> for an object.
+	/// </summary>
+	public static string JsonParamName(CodeBlock block)
+		=> $"@__json_Param{(block.IsTable ? "s" : "")}_{block.Name}";
+
+	/// <summary>
+	/// Builds the full <c>Insert Into … Select … From OpenJson(…) With (…);</c> shred statement
+	/// for the given input block. Binary columns are captured as <c>nvarchar(max)</c> in the
+	/// WITH clause and converted with <c>CONVERT(varbinary(N), col, 2)</c> in the SELECT.
+	/// The sentinel column <c>__SQuiL__Table__Type__</c> is excluded.
+	/// </summary>
+	public static string ShredSql(CodeBlock block)
+	{
+		var varName = $"@Param{(block.IsTable ? "s" : "")}_{block.Name}";
+		var cols = block.Properties;
+
+		var insertList = string.Join(", ", cols.Select(p => $"[{p.Identifier.Value}]"));
+		var selectList = string.Join(", ", cols.Select(SelectColumn));
+		var withList = string.Join($",\n\t", cols.Select(WithColumn));
+
+		return $"""
+			Insert Into {varName}({insertList})
+			Select {selectList}
+			From OpenJson({JsonParamName(block)})
+			With (
+				{withList});
+			""";
+
+		static string SelectColumn(CodeItem p)
+			=> IsBinary(p)
+				? $"Convert(varbinary({BinarySize(p)}), [{p.Identifier.Value}], 2)"
+				: $"[{p.Identifier.Value}]";
+
+		static string WithColumn(CodeItem p)
+		{
+			var path = $"'$.{p.Identifier.Value}'";
+			return IsBinary(p)
+				? $"[{p.Identifier.Value}] nvarchar(max) {path}"
+				: $"[{p.Identifier.Value}] {p.Type.Original} {path}";
+		}
+
+		static bool IsBinary(CodeItem p)
+			=> p.Type.Type is TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY;
+
+		static string BinarySize(CodeItem p)
+			=> p.Type.Value is null || p.Type.Value.Equals("max", StringComparison.OrdinalIgnoreCase)
+				? "max"
+				: p.Type.Value;
 	}
 }
