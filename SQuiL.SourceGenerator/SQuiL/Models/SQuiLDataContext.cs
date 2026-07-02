@@ -411,10 +411,15 @@ public class SQuiLDataContext(
 						writer.WriteLine();
 
 						// Per-row string-length guards (preserves the old AddParams throw).
+						// Track a row index so an over-length value reports which element failed.
 						if (CodeBlock.Properties.Any(IsSizedString))
 						{
-							writer.Block($"foreach (var item in request.{CodeBlock.Name})",
-								() => EmitStringLengthGuards(CodeBlock, "item"));
+							writer.WriteLine("var index = 0;");
+							writer.Block($"foreach (var item in request.{CodeBlock.Name})", () =>
+							{
+								EmitStringLengthGuards(CodeBlock, "item", "index");
+								writer.WriteLine("index++;");
+							});
 							writer.WriteLine();
 						}
 
@@ -458,8 +463,15 @@ public class SQuiLDataContext(
 			// declared length, BEFORE serialization (do not rely on silent OPENJSON truncation).
 			// `itemExpr` is the per-row item expression: for a list, called inside a foreach
 			// over `request.<Name>` with item "item"; for an object, "request.<Name>".
-			void EmitStringLengthGuards(CodeBlock block, string itemExpr)
+			// `indexExpr` is the runtime loop-counter variable for a list (so the message names
+			// the failing row, e.g. `Rows[3]`); null for a single object (no index).
+			void EmitStringLengthGuards(CodeBlock block, string itemExpr, string? indexExpr = null)
 			{
+				// Row locator embedded into the runtime message: "[{index}]" for a list
+				// element, empty for a single object. The inner single braces survive as a
+				// runtime interpolation hole in the emitted $"..." string.
+				var locator = indexExpr is null ? "" : $"[{{{indexExpr}}}]";
+
 				foreach (var p in block.Properties)
 				{
 					if (p.Type.Type != TokenType.TYPE_STRING) continue;
@@ -470,7 +482,7 @@ public class SQuiLDataContext(
 					writer.Block($"if ({value} is not null && {value}.Length > {size})", () =>
 					{
 						writer.WriteLine($$"""
-							throw new Exception($"{{generation.Request.ModelName}} table property [{{block.Name}}] has a string property [{{p.Identifier.Value}}] with more than {{size}} characters.");
+							throw new Exception($"{{generation.Request.ModelName}} {{block.Name}}{{locator}}.{{p.Identifier.Value}} exceeds its maximum length of {{size}} characters.");
 							""");
 					});
 				}
@@ -643,13 +655,16 @@ public static class SQuiLShred
 		var selectList = string.Join(", ", cols.Select(SelectColumn));
 		var withList = string.Join($",\n\t", cols.Select(WithColumn));
 
+		// Normalize to \n so `writer.Block` (which splits on \n) strips the raw literal
+		// cleanly on every platform — the source-file EOL of this raw literal is CRLF on
+		// a Windows checkout, which would otherwise leave stray \r inside the emitted SQL.
 		return $"""
 			Insert Into {varName}({insertList})
 			Select {selectList}
 			From OpenJson({JsonParamName(block)})
 			With (
 				{withList});
-			""";
+			""".Replace("\r\n", "\n");
 
 		static string SelectColumn(CodeItem p)
 			=> IsBinary(p)
