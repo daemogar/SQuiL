@@ -19,6 +19,12 @@ public static class SourceGeneratorHelper
 	/// <summary>Short name of the table-type attribute class: <c>SQuiLTableAttribute</c>.</summary>
 	public static string TableTypeAttributeName { get; } = $"{NamespaceName}TableAttribute";
 
+	/// <summary>Short name of the transaction-query attribute class: <c>SQuiLQueryTransactionAttribute</c>.</summary>
+	public static string QueryTransactionAttributeName { get; } = $"{NamespaceName}QueryTransactionAttribute";
+
+	/// <summary>Fully-qualified name used when scanning the compilation for <c>[SQuiLQueryTransactionAttribute]</c>.</summary>
+	public static string NamespacedQueryTransactionAttributeValue { get; } = $"{NamespaceName}.{QueryTransactionAttributeName}";
+
 	/// <summary>Fully-qualified name used when scanning the compilation for <c>[SQuiLQueryAttribute]</c>.</summary>
 	public static string NamespacedQueryAttributeValue { get; } = $"{NamespaceName}.{QueryAttributeName}";
 

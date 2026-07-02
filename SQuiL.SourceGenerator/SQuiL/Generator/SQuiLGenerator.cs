@@ -171,15 +171,45 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			.AddSource($"{TableTypeAttributeName}", SourceText.From($$"""
 				{{FileHeader}}
 				namespace {{NamespaceName}};
-				
+
 				[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
 				public class {{TableTypeAttributeName}} : System.Attribute
 				{
 					public TableType Type { get; }
-		
+
 					public {{TableTypeAttributeName}}(TableType type)
 					{
 						Type = type;
+					}
+				}
+				""", Encoding.UTF8)));
+
+		context.RegisterPostInitializationOutput(static p => p
+			.AddSource($"{QueryTransactionAttributeName}.g.cs", SourceText.From($$"""
+				{{FileHeader}}
+				namespace {{NamespaceName}};
+
+				[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
+				public class {{QueryTransactionAttributeName}} : System.Attribute
+				{
+					public QueryFiles Type { get; }
+
+					public string Setting { get; }
+
+					public bool Enabled { get; }
+
+					public bool DebugRollback { get; }
+
+					public {{QueryTransactionAttributeName}}(
+						QueryFiles type,
+						string setting = "{{DefaultConnectionStringAppSettingName}}",
+						bool enabled = true,
+						bool debugRollback = true)
+					{
+						Type = type;
+						Setting = setting;
+						Enabled = enabled;
+						DebugRollback = debugRollback;
 					}
 				}
 				""", Encoding.UTF8)));
@@ -271,6 +301,9 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				if (name.Equals(NamespacedQueryAttributeValue))
 					definition = SQuiLDefinitionType.Query;
 
+				else if (name.Equals(NamespacedQueryTransactionAttributeValue))
+					definition = SQuiLDefinitionType.Transaction;
+
 				else if (name.Equals(NamespacedTableTypeAttributeName))
 					definition = SQuiLDefinitionType.TableType;
 
@@ -304,7 +337,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 		GenerateQueryFilesEnum(context, files);
 
-		var classes = definitions.Where(p => p.Type == SQuiLDefinitionType.Query).ToImmutableArray();
+		var classes = definitions.Where(p => p.Type == SQuiLDefinitionType.Query || p.Type == SQuiLDefinitionType.Transaction).ToImmutableArray();
 
 		if (classes.IsDefaultOrEmpty || files.IsDefaultOrEmpty)
 		{
