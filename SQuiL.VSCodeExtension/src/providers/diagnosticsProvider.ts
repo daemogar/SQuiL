@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import { parseSQuiL, SQuiLDiagnostic } from '../squil/parser';
 import { nullabilityHints } from '../squil/nullabilityHints';
 import { shapeHints } from '../squil/shapeHints';
+import { transactionHints } from '../squil/transactionHints';
 import { resolveContext } from '../squil/contextResolver';
 import { scanMutations } from '../squil/mutationScanner';
 
@@ -163,6 +164,15 @@ export class SQuiLDiagnosticsProvider {
           vsDiags.push(d);
         }
       }
+    }
+
+    // SP0026: debugRollback has no effect without @Debug (editor-only hint)
+    for (const hint of transactionHints(parsed, ctx)) {
+      const range0 = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+      const d = new vscode.Diagnostic(range0, hint.message, vscode.DiagnosticSeverity.Hint);
+      d.source = 'squil';
+      d.code = hint.code;
+      vsDiags.push(d);
     }
 
     // Additional linting passes

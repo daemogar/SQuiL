@@ -73,6 +73,7 @@ internal static class SQuiLLinter
         {
             LintOrphanContext(squilFilePath, diagnostics);
             LintMutationDiagnostics(text, squilFilePath, diagnostics);
+            LintDebugRollbackHint(text, squilFilePath, diagnostics);
         }
     }
 
@@ -212,6 +213,43 @@ internal static class SQuiLLinter
                 });
             }
         }
+    }
+
+    // ── debugRollback-without-Debug hint (SP0026) ───────────────────────────
+    //
+    // SP0026 (Info): [SQuiLQueryTransaction] has debugRollback:true (the default)
+    // but the file does NOT declare @Debug.  Without @Debug the debug-rollback
+    // branch is unreachable — the setting is inert.
+    //
+    // Trigger: context found + attribute SQuiLQueryTransaction + debugRollback=true
+    //          + no @Debug declared in the SQL text.
+    // Severity: Info (C# extensions have no Hint enum value — mirrors SP0010/SP0020).
+    //
+    // Port of transactionHints.ts (VS Code extension, Hint severity there) —
+    // change one side, change all three.
+
+    internal static void LintDebugRollbackHint(string sql, string squilFilePath, List<SQuiLDiagnostic> diagnostics)
+    {
+        var ctx = SQuiLContextResolver.Resolve(squilFilePath);
+        if (!ctx.Found) return;
+        if (ctx.Attribute != "SQuiLQueryTransaction") return;
+        if (!ctx.DebugRollback) return;
+
+        // Check whether @Debug is declared anywhere in the file.
+        var parsed = SQuiLParser.Parse(sql);
+        bool hasDebug = parsed.Variables.Any(v => v.Role == VariableRole.Debug);
+        if (hasDebug) return;
+
+        diagnostics.Add(new SQuiLDiagnostic
+        {
+            Message   = "`debugRollback: true` has no effect without a declared `@Debug`. " +
+                        "Declare `@Debug bit;` in the header, or set `debugRollback: false` on [SQuiLQueryTransaction].",
+            Line      = 0,
+            StartChar = 0,
+            EndChar   = 0,
+            Severity  = DiagnosticSeverity.Info,
+            Code      = "SP0026",
+        });
     }
 
     private static (int Line, int Char) OffsetToLineChar(string text, int offset)
