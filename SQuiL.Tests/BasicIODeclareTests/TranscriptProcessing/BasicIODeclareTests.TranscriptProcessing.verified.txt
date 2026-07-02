@@ -1143,6 +1143,19 @@
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
+    },
+    {
+      Message: TranscriptProcessing: the query body contains a persistent real-table mutation (Update). Use [SQuiLQueryTransaction] to wrap the mutation in a transaction.,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0023,
+        Title: Mutation Under Non-Transactional Query,
+        MessageFormat: TranscriptProcessing: the query body contains a persistent real-table mutation (Update). Use [SQuiLQueryTransaction] to wrap the mutation in a transaction.,
+        Category: Design,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
     }
   ]
 }

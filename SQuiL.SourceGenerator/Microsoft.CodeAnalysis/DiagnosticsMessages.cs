@@ -276,6 +276,50 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0023 — A <c>[SQuiLQuery]</c> (or a <c>[SQuiLQueryTransaction]</c> with <c>enabled:false</c>)
+	/// wraps a body that contains a persistent real-table mutation (UPDATE/INSERT/DELETE/MERGE/EXEC/…).
+	/// Consider switching to <c>[SQuiLQueryTransaction]</c> so the mutation is wrapped in a transaction.
+	/// </summary>
+	public static void ReportMutationNeedsTransaction(
+		this SourceProductionContext context, string filename, string mutationKind)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Warning, "SP0023",
+			"Mutation Under Non-Transactional Query",
+			$"{filename}: the query body contains a persistent real-table mutation ({mutationKind}). " +
+			"Use [SQuiLQueryTransaction] to wrap the mutation in a transaction."));
+	}
+
+	/// <summary>
+	/// SP0024 — A <c>[SQuiLQueryTransaction]</c> with <c>enabled:true</c> wraps a body that is
+	/// provably read-only (no UPDATE/INSERT/DELETE/MERGE/EXEC/SELECT INTO on a real table).
+	/// Consider switching to <c>[SQuiLQuery]</c> to avoid the transaction overhead.
+	/// </summary>
+	public static void ReportTransactionOnReadOnly(
+		this SourceProductionContext context, string filename)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Warning, "SP0024",
+			"Transaction On Read-Only Query",
+			$"{filename}: no persistent mutation was detected in the query body. " +
+			"Use [SQuiLQuery] instead — a transaction wrapper adds overhead with no benefit on a read-only query."));
+	}
+
+	/// <summary>
+	/// SP0025 — A <c>[SQuiLQueryTransaction]</c> with <c>enabled:true</c> wraps a body that
+	/// contains its own <c>Begin Tran</c>/<c>Begin Transaction</c>.  The generated C# wrapper
+	/// and the author-supplied SQL transaction will conflict.  Remove the SQL-level transaction,
+	/// or set <c>enabled:false</c> to let the author manage the transaction manually.
+	/// </summary>
+	public static void ReportOwnBeginTran(
+		this SourceProductionContext context, string filename)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0025",
+			"Own Transaction Inside Generated Transaction",
+			$"{filename}: the query body contains a Begin Tran/Begin Transaction statement, " +
+			"but [SQuiLQueryTransaction] already wraps the query in a C# DbTransaction. " +
+			"Remove the SQL-level transaction, or set enabled:false on [SQuiLQueryTransaction] to manage the transaction manually."));
+	}
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

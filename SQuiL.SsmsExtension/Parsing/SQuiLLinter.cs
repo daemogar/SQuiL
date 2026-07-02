@@ -70,7 +70,10 @@ internal static class SQuiLLinter
         LintSimilarSignatures(text, diagnostics);
         LintCardinalityCollision(text, diagnostics);
         if (squilFilePath is not null)
+        {
             LintOrphanContext(squilFilePath, diagnostics);
+            LintMutationDiagnostics(text, squilFilePath, diagnostics);
+        }
     }
 
     // ── Orphan / duplicate context resolver (SP0028 / SP0027) ────────────────
@@ -112,6 +115,114 @@ internal static class SQuiLLinter
                 Code      = "SP0027",
             });
         }
+    }
+
+    // ── Mutation-vs-transaction diagnostics (SP0023 / SP0024 / SP0025) ──────
+    //
+    // SP0023 (Warning): [SQuiLQuery] or disabled transaction wraps a body with a
+    //   persistent real-table mutation (UPDATE/INSERT/DELETE/MERGE/EXEC/…).
+    // SP0024 (Warning): [SQuiLQueryTransaction] enabled wraps a provably read-only body.
+    // SP0025 (Error):   [SQuiLQueryTransaction] enabled body contains its own Begin Tran.
+    //
+    // Port of the build-time emit in FileGenerator.cs and the SP0023/SP0024/SP0025
+    // block in diagnosticsProvider.ts (VS Code) — change one, change all three.
+
+    internal static void LintMutationDiagnostics(string sql, string squilFilePath, List<SQuiLDiagnostic> diagnostics)
+    {
+        var ctx = SQuiLContextResolver.Resolve(squilFilePath);
+        if (!ctx.Found) return; // orphan/duplicate already reported by LintOrphanContext
+
+        // Extract the body text: everything after the USE statement line.
+        var parsed = SQuiLParser.Parse(sql);
+        if (parsed.DatabaseLine is not { } databaseLine) return;
+
+        var lines = sql.Split('\n');
+        // Compute the character offset of the line after the USE statement.
+        int bodyStartOffset = 0;
+        for (int i = 0; i <= databaseLine && i < lines.Length; i++)
+            bodyStartOffset += lines[i].Length + 1; // +1 for the '\n'
+
+        var bodyText = bodyStartOffset < sql.Length ? sql.Substring(bodyStartOffset) : string.Empty;
+
+        var scan = SQuiLMutationScanner.Scan(bodyText);
+
+        if (!ctx.Enabled)
+        {
+            // [SQuiLQuery] or [SQuiLQueryTransaction(enabled:false)] — warn if mutation detected.
+            if (!scan.IsProvablyReadOnly && scan.Mutations.Count > 0)
+            {
+                var hit = scan.Mutations[0];
+                var hitAbsOffset = bodyStartOffset + hit.Start;
+                var (hitLine, hitChar) = OffsetToLineChar(sql, hitAbsOffset);
+                var hitEndChar = hitChar + hit.Length;
+
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message   = $"The query body contains a persistent real-table mutation ({hit.Kind}). " +
+                                "Use [SQuiLQueryTransaction] to wrap the mutation in a transaction.",
+                    Line      = hitLine,
+                    StartChar = hitChar,
+                    EndChar   = hitEndChar,
+                    Severity  = DiagnosticSeverity.Warning,
+                    Code      = "SP0023",
+                });
+            }
+        }
+        else
+        {
+            // [SQuiLQueryTransaction(enabled:true)] — warn if read-only; error if own Begin Tran.
+            if (scan.IsProvablyReadOnly)
+            {
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message   = "No persistent mutation was detected in the query body. " +
+                                "Use [SQuiLQuery] instead — a transaction wrapper adds overhead with no benefit on a read-only query.",
+                    Line      = 0,
+                    StartChar = 0,
+                    EndChar   = 0,
+                    Severity  = DiagnosticSeverity.Warning,
+                    Code      = "SP0024",
+                });
+            }
+
+            if (scan.HasOwnTransaction)
+            {
+                // Try to locate the Begin Tran in the body for a precise range.
+                var btMatch = System.Text.RegularExpressions.Regex.Match(
+                    bodyText, @"\bBegin\s+Tran(?:saction)?\b",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                int btLine = 0, btChar = 0, btEndChar = 0;
+                if (btMatch.Success)
+                {
+                    var btAbsOffset = bodyStartOffset + btMatch.Index;
+                    (btLine, btChar) = OffsetToLineChar(sql, btAbsOffset);
+                    btEndChar = btChar + btMatch.Length;
+                }
+
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message   = "The query body contains a Begin Tran/Begin Transaction statement, but " +
+                                "[SQuiLQueryTransaction] already wraps the query in a C# DbTransaction. " +
+                                "Remove the SQL-level transaction, or set enabled:false on [SQuiLQueryTransaction] to manage the transaction manually.",
+                    Line      = btLine,
+                    StartChar = btChar,
+                    EndChar   = btEndChar,
+                    Severity  = DiagnosticSeverity.Error,
+                    Code      = "SP0025",
+                });
+            }
+        }
+    }
+
+    private static (int Line, int Char) OffsetToLineChar(string text, int offset)
+    {
+        int line = 0, charPos = 0;
+        for (int i = 0; i < offset && i < text.Length; i++)
+        {
+            if (text[i] == '\n') { line++; charPos = 0; }
+            else charPos++;
+        }
+        return (line, charPos);
     }
 
     // ── Shape-mismatch detection (SP0017) ────────────────────────────────────
