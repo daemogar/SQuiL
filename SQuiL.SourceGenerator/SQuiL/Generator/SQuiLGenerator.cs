@@ -349,11 +349,13 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		// SP0027: One-to-one mapping — the same QueryFiles member may not be registered by
 		// more than one data context (regardless of whether each uses [SQuiLQuery] or
 		// [SQuiLQueryTransaction]).
+		var hasStructuralErrors = false;
 		foreach (var group in classes
 			.Select(d => (GetValueLocation(d.Attribute.ArgumentList!), d))
 			.GroupBy(x => x.Item1.Value)
 			.Where(g => g.Count() > 1))
 		{
+			hasStructuralErrors = true;
 			foreach (var (loc, _) in group)
 				context.ReportDuplicateQueryMapping(group.Key, loc.Location);
 		}
@@ -362,8 +364,23 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		foreach (var byClass in classes.GroupBy(d => d.Class))
 		{
 			if (byClass.Select(d => d.Type).Distinct().Count() > 1)
+			{
+				hasStructuralErrors = true;
 				context.ReportConflictingQueryAttributes(
 					byClass.Key.Identifier.Text, byClass.Key.GetLocation());
+			}
+		}
+
+		// Abort generation when a structural error was detected. Continuing into the
+		// code-generation loop would cause FileGenerator to crash on duplicate hint names
+		// and wrap the exception as a misleading SP0014 critical-failure diagnostic.
+		// This mirrors the global-abort pattern used for SP0004 (missing namespace) and
+		// the classes.IsDefaultOrEmpty guard above.
+		if (hasStructuralErrors)
+		{
+			GenerateDependencyInjectionCode([]);
+			GenerateTablesEnum(context, default);
+			return;
 		}
 
 		List<string> contexts = [];

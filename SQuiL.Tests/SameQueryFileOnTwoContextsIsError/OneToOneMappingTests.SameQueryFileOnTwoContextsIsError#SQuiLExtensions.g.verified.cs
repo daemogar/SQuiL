@@ -15,9 +15,6 @@ public static class SQuiLExtensions
         if (IsLoaded) return services;
         IsLoaded = true;
         
-        services.AddSingleton<TestCase.FirstDataContext>();
-        services.AddSingleton<TestCase.SecondDataContext>();
-        
         return services;
     }
 }

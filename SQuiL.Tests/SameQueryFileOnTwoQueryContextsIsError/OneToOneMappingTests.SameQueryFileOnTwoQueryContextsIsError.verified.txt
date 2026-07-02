@@ -3,17 +3,17 @@
     {
       Location: /*
 namespace TestCase;
-[SQuiLQuery(QueryFiles.SameQueryFileOnTwoContextsIsError)]
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[SQuiLQuery(QueryFiles.SameQueryFileOnTwoQueryContextsIsError)]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 public partial class FirstDataContext { }
 */
- : (2,12)-(2,56),
-      Message: The query file `SameQueryFileOnTwoContextsIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
+ : (2,12)-(2,61),
+      Message: The query file `SameQueryFileOnTwoQueryContextsIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
       Severity: Error,
       Descriptor: {
         Id: SP0027,
         Title: Duplicate Query Mapping,
-        MessageFormat: The query file `SameQueryFileOnTwoContextsIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
+        MessageFormat: The query file `SameQueryFileOnTwoQueryContextsIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
         Category: Design,
         DefaultSeverity: Error,
         IsEnabledByDefault: true
@@ -22,17 +22,17 @@ public partial class FirstDataContext { }
     {
       Location: /*
 public partial class FirstDataContext { }
-[SQuiLQueryTransaction(QueryFiles.SameQueryFileOnTwoContextsIsError)]
-                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[SQuiLQuery(QueryFiles.SameQueryFileOnTwoQueryContextsIsError)]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 public partial class SecondDataContext { }
 */
- : (4,23)-(4,67),
-      Message: The query file `SameQueryFileOnTwoContextsIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
+ : (4,12)-(4,61),
+      Message: The query file `SameQueryFileOnTwoQueryContextsIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
       Severity: Error,
       Descriptor: {
         Id: SP0027,
         Title: Duplicate Query Mapping,
-        MessageFormat: The query file `SameQueryFileOnTwoContextsIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
+        MessageFormat: The query file `SameQueryFileOnTwoQueryContextsIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
         Category: Design,
         DefaultSeverity: Error,
         IsEnabledByDefault: true
