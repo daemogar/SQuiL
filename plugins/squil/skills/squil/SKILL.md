@@ -157,6 +157,7 @@ The trailing `Select * From @Returns_…` statements are how rows actually leave
 - **Declaring one name as both a list and a single object on the same side, in one file.** `@Returns_X table(...)` (a list) and `@Return_X table(...)` (a single object) in the same query file both resolve to one response property `X`; the generator keeps the first and silently drops the other. This is build error **SP0022** — rename one variable, or use the same cardinality for both. (Sharing a row record across *different* queries, or between an input and an output, is fine — only same-side same-file differing cardinality collides.)
 - **Referencing an `@variable` that was never declared.** A SQuiL file must be valid T-SQL *as written* — every `@variable` reference (including the specials like `@Debug` and `@EnvironmentName`) needs a textually-preceding `Declare` for that exact name. An undeclared reference is build error SP0013; the generator never invents or remaps names.
 - **Forgetting to PascalCase the suffix.** `@Param_personid` works but generates `personid` as a C# field, which fights every other naming convention in the project.
+- **Leaving a mutation query on `[SQuiLQuery]`.** A `[SQuiLQuery]` (or `[SQuiLQueryTransaction(enabled:false)]`) body that performs a persistent real-table mutation (`INSERT`/`UPDATE`/`DELETE`/`MERGE`) triggers build warning **SP0023** — wrap it with `[SQuiLQueryTransaction]` instead so the mutation is protected by a transaction.
 - **Adding your own `Begin Transaction` inside a `[SQuiLQueryTransaction]` body.** When `enabled:true`, the generator injects a C# `DbTransaction` around the query. Writing `BEGIN TRAN` in the SQL body doubles the transaction and is build error **SP0025**.
 - **Marking a read-only query with `[SQuiLQueryTransaction]`.** If the body has no persistent mutation (no `INSERT`/`UPDATE`/`DELETE`/`MERGE` on real tables), the generator warns SP0024 — use `[SQuiLQuery]` instead.
 - **Registering one query file on two data contexts.** Each query file maps to exactly one data context. A duplicate registration is build error **SP0027**.
@@ -314,7 +315,7 @@ Use MyDatabase;
 
 Update [Documents] set Status = 'Done' where ID = @Param_ID;
 Set @Return_RowsAffected = @@ROWCOUNT;
-Select 'Return_RowsAffected' As [__SQuiL__Table__Type__Return_RowsAffected__], @Return_RowsAffected;
+Select @Return_RowsAffected;
 ```
 
 ```csharp

@@ -18,9 +18,10 @@ from 1.0.0 onward.
   `SQuiLResultType` generated surface as `[SQuiLQuery]`, but wraps the SQL
   execution in a C# `DbTransaction`. Parameters:
   - `setting` (default `"SQuiLDatabase"`) — connection-string key.
-  - `enabled` (default `true`) — inject `BeginTransaction()`; commit when no
-    errors, roll back on any `SqlException`. `enabled:false` to opt out of
-    injection when the caller owns the transaction externally.
+  - `enabled` (default `true`) — inject `BeginTransaction()`; commits when
+    `errors.Count == 0`, rolls back on any SQL exception or missing-return-set
+    error. `enabled:false` to opt out of injection when the caller owns the
+    transaction externally.
   - `debugRollback` (default `true`) — when the query declares `@Debug` and
     the debug expression is true, roll back instead of commit while still
     returning the response that was read (dry-run semantics). Set `false` to
