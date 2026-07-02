@@ -37,4 +37,11 @@
 		<PackageReference Include="System.Text.Json" />
 	</ItemGroup>
 
+	<!-- The param-sharding JSON helpers (SQuiLJson, SQuiLBinaryJsonConverter) are
+	     internal implementation details behind the AddJsonParameter seam; the test
+	     project exercises them directly. -->
+	<ItemGroup>
+		<InternalsVisibleTo Include="SQuiL.Tests" />
+	</ItemGroup>
+
 </Project>

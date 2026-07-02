@@ -16,7 +16,7 @@ using System.Text.Json.Serialization;
 /// Hand-rolled hex (no <c>Convert.ToHexString</c>) because this assembly targets
 /// netstandard2.0.
 /// </summary>
-public sealed class SQuiLBinaryJsonConverter : JsonConverter<byte[]?>
+internal sealed class SQuiLBinaryJsonConverter : JsonConverter<byte[]?>
 {
 	public override byte[]? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 	{

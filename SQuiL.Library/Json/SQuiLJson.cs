@@ -15,7 +15,7 @@ using System.Text.Json;
 ///   <see cref="SQuiLBinaryJsonConverter"/> (decoded SQL-side with <c>CONVERT(…, 2)</c>).</item>
 /// </list>
 /// </summary>
-public static class SQuiLJson
+internal static class SQuiLJson
 {
 	private static readonly JsonSerializerOptions Options = new()
 	{
