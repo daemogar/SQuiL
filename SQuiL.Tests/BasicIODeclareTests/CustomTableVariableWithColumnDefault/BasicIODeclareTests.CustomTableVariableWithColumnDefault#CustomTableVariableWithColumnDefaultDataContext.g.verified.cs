@@ -100,36 +100,29 @@ partial class CustomTableVariableWithColumnDefaultDataContext : SQuiLBaseDataCon
 		
 		string inputTable(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Params_Table([TableID], [IsActive], [LastName])");
+			if (request.Table is null || request.Table.Count == 0) return "";
 			
-			if (request.Table.Count() == 0) return "";
-			
-			query.AppendLine(" Values");
-			
-			var comma = "";
 			var index = 0;
-			
-			foreach(var item in request.Table)
+			foreach (var item in request.Table)
 			{
+				if (item.LastName is not null && item.LastName.Length > 100)
+				{
+					throw new Exception($"CustomTableVariableWithColumnDefaultRequest Table[{index}].LastName exceeds its maximum length of 100 characters.");
+				}
 				index++;
-				
-				query.AppendLine(comma);
-				query.Append('(');
-				AddParams(query, parameters, index, "ParamsTable", "TableID", System.Data.SqlDbType.BigInt, item.TableID);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsTable", "IsActive", System.Data.SqlDbType.Bit, item.IsActive);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsTable", "LastName", System.Data.SqlDbType.VarChar, item.LastName, 100);
-				query.Append(')');
-				
-				comma = ",";
 			}
 			
-			query.AppendLine(";");
-			query.AppendLine();
+			AddJsonParameter(parameters, "@__json_Params_Table", request.Table);
 			
-			return query.ToString();
+			return """
+			Insert Into @Params_Table([TableID], [IsActive], [LastName])
+			Select [TableID], [IsActive], [LastName]
+			From OpenJson(@__json_Params_Table)
+			With (
+				[TableID] int '$.TableID',
+				[IsActive] bit '$.IsActive',
+				[LastName] varchar(100) '$.LastName');
+			""";
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

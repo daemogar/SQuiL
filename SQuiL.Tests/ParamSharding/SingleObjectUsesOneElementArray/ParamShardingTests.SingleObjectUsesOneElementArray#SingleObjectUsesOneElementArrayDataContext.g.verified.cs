@@ -53,7 +53,7 @@ partial class SingleObjectUsesOneElementArrayDataContext : SQuiLBaseDataContext
 			
 			if (request.Row.Name is not null && request.Row.Name.Length > 50)
 			{
-				throw new Exception($"SingleObjectUsesOneElementArrayRequest table property [Row] has a string property [Name] with more than 50 characters.");
+				throw new Exception($"SingleObjectUsesOneElementArrayRequest Row.Name exceeds its maximum length of 50 characters.");
 			}
 			
 			AddJsonParameter(parameters, "@__json_Param_Row", new[] { request.Row });

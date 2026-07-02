@@ -49,12 +49,14 @@ partial class NullableColumnLengthGuardSkipsNullDataContext : SQuiLBaseDataConte
 		{
 			if (request.People is null || request.People.Count == 0) return "";
 			
+			var index = 0;
 			foreach (var item in request.People)
 			{
 				if (item.NickName is not null && item.NickName.Length > 50)
 				{
-					throw new Exception($"NullableColumnLengthGuardSkipsNullRequest table property [People] has a string property [NickName] with more than 50 characters.");
+					throw new Exception($"NullableColumnLengthGuardSkipsNullRequest People[{index}].NickName exceeds its maximum length of 50 characters.");
 				}
+				index++;
 			}
 			
 			AddJsonParameter(parameters, "@__json_Params_People", request.People);

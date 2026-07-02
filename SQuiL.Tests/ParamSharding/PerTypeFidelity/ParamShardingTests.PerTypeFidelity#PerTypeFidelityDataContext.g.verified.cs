@@ -49,12 +49,14 @@ partial class PerTypeFidelityDataContext : SQuiLBaseDataContext
 		{
 			if (request.All is null || request.All.Count == 0) return "";
 			
+			var index = 0;
 			foreach (var item in request.All)
 			{
 				if (item.Name is not null && item.Name.Length > 100)
 				{
-					throw new Exception($"PerTypeFidelityRequest table property [All] has a string property [Name] with more than 100 characters.");
+					throw new Exception($"PerTypeFidelityRequest All[{index}].Name exceeds its maximum length of 100 characters.");
 				}
+				index++;
 			}
 			
 			AddJsonParameter(parameters, "@__json_Params_All", request.All);

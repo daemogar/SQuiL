@@ -148,32 +148,27 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		string inputTerms(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Params_Terms([TermCode])");
+			if (request.Terms is null || request.Terms.Count == 0) return "";
 			
-			if (request.Terms.Count() == 0) return "";
-			
-			query.AppendLine(" Values");
-			
-			var comma = "";
 			var index = 0;
-			
-			foreach(var item in request.Terms)
+			foreach (var item in request.Terms)
 			{
+				if (item.TermCode is not null && item.TermCode.Length > 10)
+				{
+					throw new Exception($"GetStudentParticipationAndSectionOverridesRequest Terms[{index}].TermCode exceeds its maximum length of 10 characters.");
+				}
 				index++;
-				
-				query.AppendLine(comma);
-				query.Append('(');
-				AddParams(query, parameters, index, "ParamsTerms", "TermCode", System.Data.SqlDbType.VarChar, item.TermCode, 10);
-				query.Append(')');
-				
-				comma = ",";
 			}
 			
-			query.AppendLine(";");
-			query.AppendLine();
+			AddJsonParameter(parameters, "@__json_Params_Terms", request.Terms);
 			
-			return query.ToString();
+			return """
+			Insert Into @Params_Terms([TermCode])
+			Select [TermCode]
+			From OpenJson(@__json_Params_Terms)
+			With (
+				[TermCode] varchar(10) '$.TermCode');
+			""";
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

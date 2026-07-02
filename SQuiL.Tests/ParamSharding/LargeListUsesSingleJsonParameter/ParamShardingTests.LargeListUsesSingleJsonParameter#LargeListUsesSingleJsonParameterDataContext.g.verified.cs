@@ -49,12 +49,14 @@ partial class LargeListUsesSingleJsonParameterDataContext : SQuiLBaseDataContext
 		{
 			if (request.Rows is null || request.Rows.Count == 0) return "";
 			
+			var index = 0;
 			foreach (var item in request.Rows)
 			{
 				if (item.Note is not null && item.Note.Length > 50)
 				{
-					throw new Exception($"LargeListUsesSingleJsonParameterRequest table property [Rows] has a string property [Note] with more than 50 characters.");
+					throw new Exception($"LargeListUsesSingleJsonParameterRequest Rows[{index}].Note exceeds its maximum length of 50 characters.");
 				}
+				index++;
 			}
 			
 			AddJsonParameter(parameters, "@__json_Params_Rows", request.Rows);

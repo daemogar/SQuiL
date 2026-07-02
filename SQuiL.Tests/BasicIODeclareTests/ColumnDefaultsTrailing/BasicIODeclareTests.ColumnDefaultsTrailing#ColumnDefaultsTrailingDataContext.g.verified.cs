@@ -47,36 +47,29 @@ partial class ColumnDefaultsTrailingDataContext : SQuiLBaseDataContext
 		
 		string inputRows(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Params_Rows([RowID], [Amount], [Note])");
+			if (request.Rows is null || request.Rows.Count == 0) return "";
 			
-			if (request.Rows.Count() == 0) return "";
-			
-			query.AppendLine(" Values");
-			
-			var comma = "";
 			var index = 0;
-			
-			foreach(var item in request.Rows)
+			foreach (var item in request.Rows)
 			{
+				if (item.Note is not null && item.Note.Length > 50)
+				{
+					throw new Exception($"ColumnDefaultsTrailingRequest Rows[{index}].Note exceeds its maximum length of 50 characters.");
+				}
 				index++;
-				
-				query.AppendLine(comma);
-				query.Append('(');
-				AddParams(query, parameters, index, "ParamsRows", "RowID", System.Data.SqlDbType.BigInt, item.RowID);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsRows", "Amount", System.Data.SqlDbType.Decimal, item.Amount);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsRows", "Note", System.Data.SqlDbType.VarChar, item.Note, 50);
-				query.Append(')');
-				
-				comma = ",";
 			}
 			
-			query.AppendLine(";");
-			query.AppendLine();
+			AddJsonParameter(parameters, "@__json_Params_Rows", request.Rows);
 			
-			return query.ToString();
+			return """
+			Insert Into @Params_Rows([RowID], [Amount], [Note])
+			Select [RowID], [Amount], [Note]
+			From OpenJson(@__json_Params_Rows)
+			With (
+				[RowID] int '$.RowID',
+				[Amount] decimal(18,2) '$.Amount',
+				[Note] varchar(50) '$.Note');
+			""";
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

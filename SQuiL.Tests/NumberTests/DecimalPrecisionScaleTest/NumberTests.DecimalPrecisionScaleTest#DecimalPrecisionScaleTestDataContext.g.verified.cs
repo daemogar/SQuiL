@@ -99,36 +99,29 @@ partial class DecimalPrecisionScaleTestDataContext : SQuiLBaseDataContext
 		
 		string inputCourses(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Params_Courses([CourseID], [Credits], [Title])");
+			if (request.Courses is null || request.Courses.Count == 0) return "";
 			
-			if (request.Courses.Count() == 0) return "";
-			
-			query.AppendLine(" Values");
-			
-			var comma = "";
 			var index = 0;
-			
-			foreach(var item in request.Courses)
+			foreach (var item in request.Courses)
 			{
+				if (item.Title is not null && item.Title.Length > 100)
+				{
+					throw new Exception($"DecimalPrecisionScaleTestRequest Courses[{index}].Title exceeds its maximum length of 100 characters.");
+				}
 				index++;
-				
-				query.AppendLine(comma);
-				query.Append('(');
-				AddParams(query, parameters, index, "ParamsCourses", "CourseID", System.Data.SqlDbType.BigInt, item.CourseID);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsCourses", "Credits", System.Data.SqlDbType.Decimal, item.Credits);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsCourses", "Title", System.Data.SqlDbType.VarChar, item.Title, 100);
-				query.Append(')');
-				
-				comma = ",";
 			}
 			
-			query.AppendLine(";");
-			query.AppendLine();
+			AddJsonParameter(parameters, "@__json_Params_Courses", request.Courses);
 			
-			return query.ToString();
+			return """
+			Insert Into @Params_Courses([CourseID], [Credits], [Title])
+			Select [CourseID], [Credits], [Title]
+			From OpenJson(@__json_Params_Courses)
+			With (
+				[CourseID] int '$.CourseID',
+				[Credits] decimal(10,4) '$.Credits',
+				[Title] varchar(100) '$.Title');
+			""";
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

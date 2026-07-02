@@ -51,96 +51,118 @@ partial class TranscriptProcessingDataContext : SQuiLBaseDataContext
 		
 		string inputStudent(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Param_Student([ColleagueID], [FirstName], [LastName], [MiddleName], [DateOfBirth])");
-			
 			if (request.Student is null)
 				throw new NullReferenceException(
 					"TranscriptProcessingRequest is missing the required property Student.");
 			
-			query.AppendLine();
-			query.Append("Values (");
+			if (request.Student.ColleagueID is not null && request.Student.ColleagueID.Length > 50)
+			{
+				throw new Exception($"TranscriptProcessingRequest Student.ColleagueID exceeds its maximum length of 50 characters.");
+			}
+			if (request.Student.FirstName is not null && request.Student.FirstName.Length > 100)
+			{
+				throw new Exception($"TranscriptProcessingRequest Student.FirstName exceeds its maximum length of 100 characters.");
+			}
+			if (request.Student.LastName is not null && request.Student.LastName.Length > 100)
+			{
+				throw new Exception($"TranscriptProcessingRequest Student.LastName exceeds its maximum length of 100 characters.");
+			}
+			if (request.Student.MiddleName is not null && request.Student.MiddleName.Length > 100)
+			{
+				throw new Exception($"TranscriptProcessingRequest Student.MiddleName exceeds its maximum length of 100 characters.");
+			}
 			
-			AddParams(query, parameters, 0, "ParamStudent", "ColleagueID", System.Data.SqlDbType.VarChar, request.Student.ColleagueID, 50);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamStudent", "FirstName", System.Data.SqlDbType.VarChar, request.Student.FirstName, 100);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamStudent", "LastName", System.Data.SqlDbType.VarChar, request.Student.LastName, 100);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamStudent", "MiddleName", System.Data.SqlDbType.VarChar, request.Student.MiddleName, 100);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamStudent", "DateOfBirth", System.Data.SqlDbType.Date, request.Student.DateOfBirth);
+			AddJsonParameter(parameters, "@__json_Param_Student", new[] { request.Student });
 			
-			query.Append(')');
-			query.AppendLine(";");
-			query.AppendLine();
-			
-			return query.ToString();
+			return """
+			Insert Into @Param_Student([ColleagueID], [FirstName], [LastName], [MiddleName], [DateOfBirth])
+			Select [ColleagueID], [FirstName], [LastName], [MiddleName], [DateOfBirth]
+			From OpenJson(@__json_Param_Student)
+			With (
+				[ColleagueID] varchar(50) '$.ColleagueID',
+				[FirstName] varchar(100) '$.FirstName',
+				[LastName] varchar(100) '$.LastName',
+				[MiddleName] varchar(100) '$.MiddleName',
+				[DateOfBirth] date '$.DateOfBirth');
+			""";
 		}
 		
 		string inputInstitution(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Param_Institution([InstitutionID], [SchoolName], [CEEB])");
-			
 			if (request.Institution is null)
 				throw new NullReferenceException(
 					"TranscriptProcessingRequest is missing the required property Institution.");
 			
-			query.AppendLine();
-			query.Append("Values (");
+			if (request.Institution.InstitutionID is not null && request.Institution.InstitutionID.Length > 50)
+			{
+				throw new Exception($"TranscriptProcessingRequest Institution.InstitutionID exceeds its maximum length of 50 characters.");
+			}
+			if (request.Institution.SchoolName is not null && request.Institution.SchoolName.Length > 200)
+			{
+				throw new Exception($"TranscriptProcessingRequest Institution.SchoolName exceeds its maximum length of 200 characters.");
+			}
+			if (request.Institution.CEEB is not null && request.Institution.CEEB.Length > 20)
+			{
+				throw new Exception($"TranscriptProcessingRequest Institution.CEEB exceeds its maximum length of 20 characters.");
+			}
 			
-			AddParams(query, parameters, 0, "ParamInstitution", "InstitutionID", System.Data.SqlDbType.VarChar, request.Institution.InstitutionID, 50);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamInstitution", "SchoolName", System.Data.SqlDbType.VarChar, request.Institution.SchoolName, 200);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamInstitution", "CEEB", System.Data.SqlDbType.VarChar, request.Institution.CEEB, 20);
+			AddJsonParameter(parameters, "@__json_Param_Institution", new[] { request.Institution });
 			
-			query.Append(')');
-			query.AppendLine(";");
-			query.AppendLine();
-			
-			return query.ToString();
+			return """
+			Insert Into @Param_Institution([InstitutionID], [SchoolName], [CEEB])
+			Select [InstitutionID], [SchoolName], [CEEB]
+			From OpenJson(@__json_Param_Institution)
+			With (
+				[InstitutionID] varchar(50) '$.InstitutionID',
+				[SchoolName] varchar(200) '$.SchoolName',
+				[CEEB] varchar(20) '$.CEEB');
+			""";
 		}
 		
 		string inputCourses(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Params_Courses([Term], [Code], [Number], [Title], [Score], [Credits])");
+			if (request.Courses is null || request.Courses.Count == 0) return "";
 			
-			if (request.Courses.Count() == 0) return "";
-			
-			query.AppendLine(" Values");
-			
-			var comma = "";
 			var index = 0;
-			
-			foreach(var item in request.Courses)
+			foreach (var item in request.Courses)
 			{
+				if (item.Term is not null && item.Term.Length > 10)
+				{
+					throw new Exception($"TranscriptProcessingRequest Courses[{index}].Term exceeds its maximum length of 10 characters.");
+				}
+				if (item.Code is not null && item.Code.Length > 20)
+				{
+					throw new Exception($"TranscriptProcessingRequest Courses[{index}].Code exceeds its maximum length of 20 characters.");
+				}
+				if (item.Number is not null && item.Number.Length > 20)
+				{
+					throw new Exception($"TranscriptProcessingRequest Courses[{index}].Number exceeds its maximum length of 20 characters.");
+				}
+				if (item.Title is not null && item.Title.Length > 200)
+				{
+					throw new Exception($"TranscriptProcessingRequest Courses[{index}].Title exceeds its maximum length of 200 characters.");
+				}
+				if (item.Score is not null && item.Score.Length > 5)
+				{
+					throw new Exception($"TranscriptProcessingRequest Courses[{index}].Score exceeds its maximum length of 5 characters.");
+				}
 				index++;
-				
-				query.AppendLine(comma);
-				query.Append('(');
-				AddParams(query, parameters, index, "ParamsCourses", "Term", System.Data.SqlDbType.VarChar, item.Term, 10);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsCourses", "Code", System.Data.SqlDbType.VarChar, item.Code, 20);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsCourses", "Number", System.Data.SqlDbType.VarChar, item.Number, 20);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsCourses", "Title", System.Data.SqlDbType.VarChar, item.Title, 200);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsCourses", "Score", System.Data.SqlDbType.VarChar, item.Score, 5);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsCourses", "Credits", System.Data.SqlDbType.Decimal, item.Credits);
-				query.Append(')');
-				
-				comma = ",";
 			}
 			
-			query.AppendLine(";");
-			query.AppendLine();
+			AddJsonParameter(parameters, "@__json_Params_Courses", request.Courses);
 			
-			return query.ToString();
+			return """
+			Insert Into @Params_Courses([Term], [Code], [Number], [Title], [Score], [Credits])
+			Select [Term], [Code], [Number], [Title], [Score], [Credits]
+			From OpenJson(@__json_Params_Courses)
+			With (
+				[Term] varchar(10) '$.Term',
+				[Code] varchar(20) '$.Code',
+				[Number] varchar(20) '$.Number',
+				[Title] varchar(200) '$.Title',
+				[Score] varchar(5) '$.Score',
+				[Credits] decimal '$.Credits');
+			""";
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

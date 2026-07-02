@@ -47,25 +47,20 @@ partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 		
 		string inputQuestion(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Param_Question([Number], [Message])");
-			
 			if (request.Question is null)
 				throw new NullReferenceException(
 					"TwoQueriesWithSameReference2Request is missing the required property Question.");
 			
-			query.AppendLine();
-			query.Append("Values (");
+			AddJsonParameter(parameters, "@__json_Param_Question", new[] { request.Question });
 			
-			AddParams(query, parameters, 0, "ParamQuestion", "Number", System.Data.SqlDbType.BigInt, request.Question.Number);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamQuestion", "Message", System.Data.SqlDbType.VarChar, request.Question.Message, request.Question.Message?.Length ?? 4096);
-			
-			query.Append(')');
-			query.AppendLine(";");
-			query.AppendLine();
-			
-			return query.ToString();
+			return """
+			Insert Into @Param_Question([Number], [Message])
+			Select [Number], [Message]
+			From OpenJson(@__json_Param_Question)
+			With (
+				[Number] int '$.Number',
+				[Message] varchar(max) '$.Message');
+			""";
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

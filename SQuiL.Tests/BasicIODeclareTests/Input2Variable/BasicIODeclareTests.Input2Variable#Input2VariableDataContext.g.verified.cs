@@ -53,7 +53,7 @@ partial class Input2VariableDataContext : SQuiLBaseDataContext
 			
 			if (request.Object.FirstName is not null && request.Object.FirstName.Length > 100)
 			{
-				throw new Exception($"Input2VariableRequest table property [Object] has a string property [FirstName] with more than 100 characters.");
+				throw new Exception($"Input2VariableRequest Object.FirstName exceeds its maximum length of 100 characters.");
 			}
 			
 			AddJsonParameter(parameters, "@__json_Param_Object", new[] { request.Object });
