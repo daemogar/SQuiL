@@ -129,108 +129,105 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		string inputTerms(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Params_Terms([TermCode])");
+			if (request.Terms is null || request.Terms.Count == 0) return "";
 			
-			if (request.Terms.Count() == 0) return "";
-			
-			query.AppendLine(" Values");
-			
-			var comma = "";
 			var index = 0;
-			
-			foreach(var item in request.Terms)
+			foreach (var item in request.Terms)
 			{
+				if (item.TermCode is not null && item.TermCode.Length > 10)
+				{
+					throw new Exception($"GetStudentCoursesForEvaluationByTermRequest Terms[{index}].TermCode exceeds its maximum length of 10 characters.");
+				}
 				index++;
-				
-				query.AppendLine(comma);
-				query.Append('(');
-				AddParams(query, parameters, index, "ParamsTerms", "TermCode", System.Data.SqlDbType.VarChar, item.TermCode, 10);
-				query.Append(')');
-				
-				comma = ",";
 			}
 			
-			query.AppendLine(";");
-			query.AppendLine();
+			AddJsonParameter(parameters, "@__json_Params_Terms", request.Terms);
 			
-			return query.ToString();
+			return """
+			Insert Into @Params_Terms([TermCode])
+			Select [TermCode]
+			From OpenJson(@__json_Params_Terms)
+			With (
+				[TermCode] varchar(10) '$.TermCode');
+			""";
 		}
 		
 		string inputParticipation(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Params_Participation([SectionID], [PersonID], [ProfessorID], [TermCode], [CompletedDate])");
+			if (request.Participation is null || request.Participation.Count == 0) return "";
 			
-			if (request.Participation.Count() == 0) return "";
-			
-			query.AppendLine(" Values");
-			
-			var comma = "";
 			var index = 0;
-			
-			foreach(var item in request.Participation)
+			foreach (var item in request.Participation)
 			{
+				if (item.SectionID is not null && item.SectionID.Length > 20)
+				{
+					throw new Exception($"GetStudentCoursesForEvaluationByTermRequest Participation[{index}].SectionID exceeds its maximum length of 20 characters.");
+				}
+				if (item.PersonID is not null && item.PersonID.Length > 10)
+				{
+					throw new Exception($"GetStudentCoursesForEvaluationByTermRequest Participation[{index}].PersonID exceeds its maximum length of 10 characters.");
+				}
+				if (item.ProfessorID is not null && item.ProfessorID.Length > 10)
+				{
+					throw new Exception($"GetStudentCoursesForEvaluationByTermRequest Participation[{index}].ProfessorID exceeds its maximum length of 10 characters.");
+				}
+				if (item.TermCode is not null && item.TermCode.Length > 10)
+				{
+					throw new Exception($"GetStudentCoursesForEvaluationByTermRequest Participation[{index}].TermCode exceeds its maximum length of 10 characters.");
+				}
 				index++;
-				
-				query.AppendLine(comma);
-				query.Append('(');
-				AddParams(query, parameters, index, "ParamsParticipation", "SectionID", System.Data.SqlDbType.VarChar, item.SectionID, 20);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsParticipation", "PersonID", System.Data.SqlDbType.VarChar, item.PersonID, 10);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsParticipation", "ProfessorID", System.Data.SqlDbType.VarChar, item.ProfessorID, 10);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsParticipation", "TermCode", System.Data.SqlDbType.VarChar, item.TermCode, 10);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsParticipation", "CompletedDate", System.Data.SqlDbType.DateTime, item.CompletedDate);
-				query.Append(')');
-				
-				comma = ",";
 			}
 			
-			query.AppendLine(";");
-			query.AppendLine();
+			AddJsonParameter(parameters, "@__json_Params_Participation", request.Participation);
 			
-			return query.ToString();
+			return """
+			Insert Into @Params_Participation([SectionID], [PersonID], [ProfessorID], [TermCode], [CompletedDate])
+			Select [SectionID], [PersonID], [ProfessorID], [TermCode], [CompletedDate]
+			From OpenJson(@__json_Params_Participation)
+			With (
+				[SectionID] varchar(20) '$.SectionID',
+				[PersonID] varchar(10) '$.PersonID',
+				[ProfessorID] varchar(10) '$.ProfessorID',
+				[TermCode] varchar(10) '$.TermCode',
+				[CompletedDate] datetime '$.CompletedDate');
+			""";
 		}
 		
 		string inputOverrides(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Params_Overrides([SectionID], [TermCode], [CourseCode], [BeginDate], [EndDate])");
+			if (request.Overrides is null || request.Overrides.Count == 0) return "";
 			
-			if (request.Overrides.Count() == 0) return "";
-			
-			query.AppendLine(" Values");
-			
-			var comma = "";
 			var index = 0;
-			
-			foreach(var item in request.Overrides)
+			foreach (var item in request.Overrides)
 			{
+				if (item.SectionID is not null && item.SectionID.Length > 20)
+				{
+					throw new Exception($"GetStudentCoursesForEvaluationByTermRequest Overrides[{index}].SectionID exceeds its maximum length of 20 characters.");
+				}
+				if (item.TermCode is not null && item.TermCode.Length > 10)
+				{
+					throw new Exception($"GetStudentCoursesForEvaluationByTermRequest Overrides[{index}].TermCode exceeds its maximum length of 10 characters.");
+				}
+				if (item.CourseCode is not null && item.CourseCode.Length > 20)
+				{
+					throw new Exception($"GetStudentCoursesForEvaluationByTermRequest Overrides[{index}].CourseCode exceeds its maximum length of 20 characters.");
+				}
 				index++;
-				
-				query.AppendLine(comma);
-				query.Append('(');
-				AddParams(query, parameters, index, "ParamsOverrides", "SectionID", System.Data.SqlDbType.VarChar, item.SectionID, 20);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsOverrides", "TermCode", System.Data.SqlDbType.VarChar, item.TermCode, 10);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsOverrides", "CourseCode", System.Data.SqlDbType.VarChar, item.CourseCode, 20);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsOverrides", "BeginDate", System.Data.SqlDbType.DateTime, item.BeginDate);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsOverrides", "EndDate", System.Data.SqlDbType.DateTime, item.EndDate);
-				query.Append(')');
-				
-				comma = ",";
 			}
 			
-			query.AppendLine(";");
-			query.AppendLine();
+			AddJsonParameter(parameters, "@__json_Params_Overrides", request.Overrides);
 			
-			return query.ToString();
+			return """
+			Insert Into @Params_Overrides([SectionID], [TermCode], [CourseCode], [BeginDate], [EndDate])
+			Select [SectionID], [TermCode], [CourseCode], [BeginDate], [EndDate]
+			From OpenJson(@__json_Params_Overrides)
+			With (
+				[SectionID] varchar(20) '$.SectionID',
+				[TermCode] varchar(10) '$.TermCode',
+				[CourseCode] varchar(20) '$.CourseCode',
+				[BeginDate] datetime '$.BeginDate',
+				[EndDate] datetime '$.EndDate');
+			""";
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

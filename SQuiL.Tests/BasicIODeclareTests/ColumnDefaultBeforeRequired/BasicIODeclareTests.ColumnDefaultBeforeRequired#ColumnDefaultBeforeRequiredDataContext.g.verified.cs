@@ -47,38 +47,30 @@ partial class ColumnDefaultBeforeRequiredDataContext : SQuiLBaseDataContext
 		
 		string inputRows(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Params_Rows([RowID], [Amount], [Qty], [Note])");
+			if (request.Rows is null || request.Rows.Count == 0) return "";
 			
-			if (request.Rows.Count() == 0) return "";
-			
-			query.AppendLine(" Values");
-			
-			var comma = "";
 			var index = 0;
-			
-			foreach(var item in request.Rows)
+			foreach (var item in request.Rows)
 			{
+				if (item.Note is not null && item.Note.Length > 50)
+				{
+					throw new Exception($"ColumnDefaultBeforeRequiredRequest Rows[{index}].Note exceeds its maximum length of 50 characters.");
+				}
 				index++;
-				
-				query.AppendLine(comma);
-				query.Append('(');
-				AddParams(query, parameters, index, "ParamsRows", "RowID", System.Data.SqlDbType.BigInt, item.RowID);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsRows", "Amount", System.Data.SqlDbType.Decimal, item.Amount);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsRows", "Qty", System.Data.SqlDbType.BigInt, item.Qty);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsRows", "Note", System.Data.SqlDbType.VarChar, item.Note, 50);
-				query.Append(')');
-				
-				comma = ",";
 			}
 			
-			query.AppendLine(";");
-			query.AppendLine();
+			AddJsonParameter(parameters, "@__json_Params_Rows", request.Rows);
 			
-			return query.ToString();
+			return """
+			Insert Into @Params_Rows([RowID], [Amount], [Qty], [Note])
+			Select [RowID], [Amount], [Qty], [Note]
+			From OpenJson(@__json_Params_Rows)
+			With (
+				[RowID] int '$.RowID',
+				[Amount] decimal(18,2) '$.Amount',
+				[Qty] int '$.Qty',
+				[Note] varchar(50) '$.Note');
+			""";
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

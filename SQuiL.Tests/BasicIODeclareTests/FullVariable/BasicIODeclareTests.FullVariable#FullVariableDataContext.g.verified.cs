@@ -146,61 +146,53 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 		
 		string inputObject(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Param_Object([ObjectID], [IsMale], [FirstName])");
-			
 			if (request.Object is null)
 				throw new NullReferenceException(
 					"FullVariableRequest is missing the required property Object.");
 			
-			query.AppendLine();
-			query.Append("Values (");
+			if (request.Object.FirstName is not null && request.Object.FirstName.Length > 100)
+			{
+				throw new Exception($"FullVariableRequest Object.FirstName exceeds its maximum length of 100 characters.");
+			}
 			
-			AddParams(query, parameters, 0, "ParamObject", "ObjectID", System.Data.SqlDbType.BigInt, request.Object.ObjectID);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamObject", "IsMale", System.Data.SqlDbType.Bit, request.Object.IsMale);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamObject", "FirstName", System.Data.SqlDbType.VarChar, request.Object.FirstName, 100);
+			AddJsonParameter(parameters, "@__json_Param_Object", new[] { request.Object });
 			
-			query.Append(')');
-			query.AppendLine(";");
-			query.AppendLine();
-			
-			return query.ToString();
+			return """
+			Insert Into @Param_Object([ObjectID], [IsMale], [FirstName])
+			Select [ObjectID], [IsMale], [FirstName]
+			From OpenJson(@__json_Param_Object)
+			With (
+				[ObjectID] int '$.ObjectID',
+				[IsMale] bit '$.IsMale',
+				[FirstName] varchar(100) '$.FirstName');
+			""";
 		}
 		
 		string inputTable(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Params_Table([TableID], [IsFemale], [LastName])");
+			if (request.Table is null || request.Table.Count == 0) return "";
 			
-			if (request.Table.Count() == 0) return "";
-			
-			query.AppendLine(" Values");
-			
-			var comma = "";
 			var index = 0;
-			
-			foreach(var item in request.Table)
+			foreach (var item in request.Table)
 			{
+				if (item.LastName is not null && item.LastName.Length > 100)
+				{
+					throw new Exception($"FullVariableRequest Table[{index}].LastName exceeds its maximum length of 100 characters.");
+				}
 				index++;
-				
-				query.AppendLine(comma);
-				query.Append('(');
-				AddParams(query, parameters, index, "ParamsTable", "TableID", System.Data.SqlDbType.BigInt, item.TableID);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsTable", "IsFemale", System.Data.SqlDbType.Bit, item.IsFemale);
-				query.Append(", ");
-				AddParams(query, parameters, index, "ParamsTable", "LastName", System.Data.SqlDbType.VarChar, item.LastName, 100);
-				query.Append(')');
-				
-				comma = ",";
 			}
 			
-			query.AppendLine(";");
-			query.AppendLine();
+			AddJsonParameter(parameters, "@__json_Params_Table", request.Table);
 			
-			return query.ToString();
+			return """
+			Insert Into @Params_Table([TableID], [IsFemale], [LastName])
+			Select [TableID], [IsFemale], [LastName]
+			From OpenJson(@__json_Params_Table)
+			With (
+				[TableID] int '$.TableID',
+				[IsFemale] bit '$.IsFemale',
+				[LastName] varchar(100) '$.LastName');
+			""";
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

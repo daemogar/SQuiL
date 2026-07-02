@@ -102,43 +102,46 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		string inputSection(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Param_Section([SectionID], [Department], [CourseCode], [CourseTitle], [IsOnline], [IsGraduateCourse], [IsAdultDegreeCourse], [IsNursingCourse], [IsConnectionsCourse], [IsPrivateMusicLessons], [IsServiceLearning])");
-			
 			if (request.Section is null)
 				throw new NullReferenceException(
 					"GetQuestionsForEvaluationRequest is missing the required property Section.");
 			
-			query.AppendLine();
-			query.Append("Values (");
+			if (request.Section.SectionID is not null && request.Section.SectionID.Length > 20)
+			{
+				throw new Exception($"GetQuestionsForEvaluationRequest Section.SectionID exceeds its maximum length of 20 characters.");
+			}
+			if (request.Section.Department is not null && request.Section.Department.Length > 100)
+			{
+				throw new Exception($"GetQuestionsForEvaluationRequest Section.Department exceeds its maximum length of 100 characters.");
+			}
+			if (request.Section.CourseCode is not null && request.Section.CourseCode.Length > 20)
+			{
+				throw new Exception($"GetQuestionsForEvaluationRequest Section.CourseCode exceeds its maximum length of 20 characters.");
+			}
+			if (request.Section.CourseTitle is not null && request.Section.CourseTitle.Length > 150)
+			{
+				throw new Exception($"GetQuestionsForEvaluationRequest Section.CourseTitle exceeds its maximum length of 150 characters.");
+			}
 			
-			AddParams(query, parameters, 0, "ParamSection", "SectionID", System.Data.SqlDbType.VarChar, request.Section.SectionID, 20);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamSection", "Department", System.Data.SqlDbType.VarChar, request.Section.Department, 100);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamSection", "CourseCode", System.Data.SqlDbType.VarChar, request.Section.CourseCode, 20);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamSection", "CourseTitle", System.Data.SqlDbType.VarChar, request.Section.CourseTitle, 150);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamSection", "IsOnline", System.Data.SqlDbType.Bit, request.Section.IsOnline);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamSection", "IsGraduateCourse", System.Data.SqlDbType.Bit, request.Section.IsGraduateCourse);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamSection", "IsAdultDegreeCourse", System.Data.SqlDbType.Bit, request.Section.IsAdultDegreeCourse);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamSection", "IsNursingCourse", System.Data.SqlDbType.Bit, request.Section.IsNursingCourse);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamSection", "IsConnectionsCourse", System.Data.SqlDbType.Bit, request.Section.IsConnectionsCourse);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamSection", "IsPrivateMusicLessons", System.Data.SqlDbType.Bit, request.Section.IsPrivateMusicLessons);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamSection", "IsServiceLearning", System.Data.SqlDbType.Bit, request.Section.IsServiceLearning);
+			AddJsonParameter(parameters, "@__json_Param_Section", new[] { request.Section });
 			
-			query.Append(')');
-			query.AppendLine(";");
-			query.AppendLine();
-			
-			return query.ToString();
+			return """
+			Insert Into @Param_Section([SectionID], [Department], [CourseCode], [CourseTitle], [IsOnline], [IsGraduateCourse], [IsAdultDegreeCourse], [IsNursingCourse], [IsConnectionsCourse], [IsPrivateMusicLessons], [IsServiceLearning])
+			Select [SectionID], [Department], [CourseCode], [CourseTitle], [IsOnline], [IsGraduateCourse], [IsAdultDegreeCourse], [IsNursingCourse], [IsConnectionsCourse], [IsPrivateMusicLessons], [IsServiceLearning]
+			From OpenJson(@__json_Param_Section)
+			With (
+				[SectionID] varchar(20) '$.SectionID',
+				[Department] varchar(100) '$.Department',
+				[CourseCode] varchar(20) '$.CourseCode',
+				[CourseTitle] varchar(150) '$.CourseTitle',
+				[IsOnline] bit '$.IsOnline',
+				[IsGraduateCourse] bit '$.IsGraduateCourse',
+				[IsAdultDegreeCourse] bit '$.IsAdultDegreeCourse',
+				[IsNursingCourse] bit '$.IsNursingCourse',
+				[IsConnectionsCourse] bit '$.IsConnectionsCourse',
+				[IsPrivateMusicLessons] bit '$.IsPrivateMusicLessons',
+				[IsServiceLearning] bit '$.IsServiceLearning');
+			""";
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

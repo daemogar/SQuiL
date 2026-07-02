@@ -93,46 +93,18 @@ public abstract partial class SQuiLBaseDataContext(IConfiguration Configuration)
 	}
 
 	/// <summary>
-	/// Appends a positional table-valued parameter placeholder to <paramref name="query"/> and
-	/// adds the corresponding <see cref="DbParameter"/> to <paramref name="parameters"/>.
-	/// Used by generated code when expanding <c>@Params_*</c> table variables into individual row parameters.
+	/// Serializes <paramref name="value"/> to a JSON payload and adds it as a single
+	/// <c>nvarchar(max)</c> parameter. Generated code uses this to ship a whole
+	/// <c>@Param(s)_*</c> table-valued input as one parameter (shredded server-side by
+	/// <c>OPENJSON</c>), avoiding SQL Server's 2100-parameter / 1000-row ceilings.
 	/// </summary>
-	/// <param name="query">The SQL query being built.</param>
 	/// <param name="parameters">The parameter list the new parameter is added to.</param>
-	/// <param name="index">The zero-based row index within the table variable.</param>
-	/// <param name="table">The table variable name (without the <c>@</c> prefix).</param>
-	/// <param name="name">The column/property name within the row.</param>
-	/// <param name="type">The SQL Server data type of the column.</param>
-	/// <param name="value">The column value for this row, or <c>null</c> for SQL NULL.</param>
-	/// <param name="size">Maximum string length; 0 means no size constraint is applied.</param>
-	/// <exception cref="Exception">Thrown when a non-null string value exceeds <paramref name="size"/>.</exception>
-	protected void AddParams(System.Text.StringBuilder query, List<DbParameter> parameters, int index, string table, string name, SqlDbType type, object? value, int size = 0)
+	/// <param name="name">The parameter name (e.g. <c>@__json_Params_People</c>).</param>
+	/// <param name="value">The list (or one-element array) to serialize.</param>
+	protected DbParameter AddJsonParameter(List<DbParameter> parameters, string name, object? value)
 	{
-		var parameter = $"@{table}_{index}_{name}";
-		query.Append(parameter);
-
-		var variable = CreateParameter(parameter, type, value);
-
-		if (size > 0)
-		{
-			variable.Size = size;
-
-			if (value is null)
-				variable.Value = DBNull.Value;
-
-			else if (value is not string stringValue)
-				variable.Value = value;
-
-			else if (stringValue.Length <= size)
-				variable.Value = value;
-
-			else
-				throw new Exception($"""
-					ParamsTable model table property at index [{index}] has a string property [{name}]
-					with more than {size} characters.
-					""");
-		}
-
-		parameters.Add(variable);
+		var parameter = CreateParameter(name, SqlDbType.NVarChar, -1, SQuiLJson.Serialize(value));
+		parameters.Add(parameter);
+		return parameter;
 	}
 }
