@@ -80,6 +80,7 @@ export function generateCSharpPreview(
   queryName: string,
   namespace = 'YourNamespace',
   enabled = false,
+  debugRollback = true,
 ): string {
   const db = parsed.database ?? '/* database */';
   const lines: string[] = [];
@@ -145,6 +146,12 @@ export function generateCSharpPreview(
   lines.push(`    CancellationToken cancellationToken = default!)`);
   lines.push(`{`);
   if (enabled) {
+    // Detect @Debug declaration to determine the correct commit gate.
+    const hasDebug = parsed.variables.some(v => v.role === 'debug');
+    const commitGate = (hasDebug && debugRollback)
+      ? 'errors.Count == 0 && !__debug'
+      : 'errors.Count == 0';
+
     lines.push(`    await connection.OpenAsync(cancellationToken);`);
     lines.push(``);
     lines.push(`    using var transaction = connection.BeginTransaction();`);
@@ -152,7 +159,7 @@ export function generateCSharpPreview(
     lines.push(``);
     lines.push(`    /* …read / execute… */`);
     lines.push(``);
-    lines.push(`    if (errors.Count == 0)`);
+    lines.push(`    if (${commitGate})`);
     lines.push(`        transaction.Commit();`);
     lines.push(`    else`);
     lines.push(`        transaction.Rollback();`);
