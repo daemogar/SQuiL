@@ -12,6 +12,30 @@ from 1.0.0 onward.
 ## [Unreleased]
 
 ### Added
+- **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for
+  INSERT/UPDATE/DELETE/MERGE queries that need automatic transaction management.
+  Produces the same `Process…Async` / `*Request` / `*Response` /
+  `SQuiLResultType` generated surface as `[SQuiLQuery]`, but wraps the SQL
+  execution in a C# `DbTransaction`. Parameters:
+  - `setting` (default `"SQuiLDatabase"`) — connection-string key.
+  - `enabled` (default `true`) — inject `BeginTransaction()`; commit when no
+    errors, roll back on any `SqlException`. `enabled:false` to opt out of
+    injection when the caller owns the transaction externally.
+  - `debugRollback` (default `true`) — when the query declares `@Debug` and
+    the debug expression is true, roll back instead of commit while still
+    returning the response that was read (dry-run semantics). Set `false` to
+    always commit even in debug mode.
+- **One-to-one mapping enforcement** — each query file maps to exactly one data
+  context; duplicate registrations are build error SP0027. A class may carry
+  `[SQuiLQuery]` or `[SQuiLQueryTransaction]` attributes but not both (SP0029).
+- **New diagnostics SP0023–SP0029:**
+  - SP0023 (Warning) — `[SQuiLQuery]` / `enabled:false` body has a persistent mutation; suggests `[SQuiLQueryTransaction]`.
+  - SP0024 (Warning) — `[SQuiLQueryTransaction]` (enabled) wraps a provably read-only body; suggests `[SQuiLQuery]`.
+  - SP0025 (Error) — `[SQuiLQueryTransaction(enabled:true)]` body has its own `Begin Tran` (double-transaction).
+  - SP0026 (editor-only Hint) — `debugRollback` is set but no `@Debug` is declared (no effect).
+  - SP0027 (Error) — a query file is registered by more than one data context.
+  - SP0028 (editor-only Warning) — a `.squil` file no data context registers (orphan).
+  - SP0029 (Error) — both `[SQuiLQuery]` and `[SQuiLQueryTransaction]` on one class.
 - Editor extensions for `.squil` files: Visual Studio Code, SQL Server
   Management Studio 22.6, and Visual Studio 2026 (syntax highlighting,
   IntelliSense, hover info, linting, generated-C# preview).
