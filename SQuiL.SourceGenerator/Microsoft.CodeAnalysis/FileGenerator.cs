@@ -54,7 +54,7 @@ public class FileGenerator(
 	/// <param name="text">The SQL source text to parse.</param>
 	/// <param name="records">All partial record declarations visible in the current compilation.</param>
 	/// <returns>The new <see cref="SQuiLFileGeneration"/>, or <c>null</c> if parsing failed.</returns>
-	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records, string recordNamespace = "")
+	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records, string recordNamespace = "", bool enabled = false, bool debugRollback = true)
 	{
 		try
 		{
@@ -93,7 +93,7 @@ public class FileGenerator(
 				if (property is SQuiLTable table)
 					generation.Tables.Add(table);
 
-			generation.Context = new(@namespace, classname, method, setting, blocks);
+			generation.Context = new(@namespace, classname, method, setting, blocks, enabled, debugRollback);
 
 			Generations.Add(generation);
 

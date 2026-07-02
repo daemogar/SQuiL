@@ -25,7 +25,9 @@ public class SQuiLDataContext(
 		string ClassName,
 		string Method,
 		string Setting,
-		List<CodeBlock> Blocks)
+		List<CodeBlock> Blocks,
+		bool Enabled = false,
+		bool DebugRollback = true)
 {
 	/// <summary>
 	/// Sentinel column name prefix injected into every result-set SELECT so the reader can
@@ -121,11 +123,18 @@ public class SQuiLDataContext(
 									await connection.OpenAsync(cancellationToken);
 
 									""");
+					if (Enabled)
+						writer.Block("""
+							using var transaction = connection.BeginTransaction();
+							command.Transaction = transaction;
+
+							""");
 					if (!errorReturnType)
 					{
 						writer.Block("try", () =>
 						{
 							writer.WriteLine("await command.ExecuteNonQueryAsync(cancellationToken);");
+							if (Enabled) writer.WriteLine("transaction.Commit();");
 							if (noResponse)
 								writer.WriteLine($"return {returnType}.Success;");
 							else
@@ -133,6 +142,7 @@ public class SQuiLDataContext(
 						});
 						writer.Block("catch(Microsoft.Data.SqlClient.SqlException e)", () =>
 						{
+							if (Enabled) writer.WriteLine("transaction.Rollback();");
 							WriteReturn("SQuiLError", "e");
 						});
 
@@ -194,6 +204,15 @@ public class SQuiLDataContext(
 								writer.Write($"""if (!is{block.Name}) """);
 								writer.WriteLine($"""errors.Add(new(51001, 12, 1, {line}, "{block.Name}", "{message}"));""");
 							}
+						}
+
+						if (Enabled)
+						{
+							writer.WriteLine("if (errors.Count == 0)");
+							writer.Indent++; writer.WriteLine("transaction.Commit();"); writer.Indent--;
+							writer.WriteLine("else");
+							writer.Indent++; writer.WriteLine("transaction.Rollback();"); writer.Indent--;
+							writer.WriteLine();
 						}
 
 						writer.WriteLine("if(errors.Count == 0)");

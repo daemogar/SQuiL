@@ -79,6 +79,7 @@ export function generateCSharpPreview(
   parsed: SQuiLParseResult,
   queryName: string,
   namespace = 'YourNamespace',
+  enabled = false,
 ): string {
   const db = parsed.database ?? '/* database */';
   const lines: string[] = [];
@@ -143,7 +144,21 @@ export function generateCSharpPreview(
   lines.push(`    ${queryName}Request request,`);
   lines.push(`    CancellationToken cancellationToken = default!)`);
   lines.push(`{`);
-  lines.push(`    /* generated body */`);
+  if (enabled) {
+    lines.push(`    await connection.OpenAsync(cancellationToken);`);
+    lines.push(``);
+    lines.push(`    using var transaction = connection.BeginTransaction();`);
+    lines.push(`    command.Transaction = transaction;`);
+    lines.push(``);
+    lines.push(`    /* …read / execute… */`);
+    lines.push(``);
+    lines.push(`    if (errors.Count == 0)`);
+    lines.push(`        transaction.Commit();`);
+    lines.push(`    else`);
+    lines.push(`        transaction.Rollback();`);
+  } else {
+    lines.push(`    /* generated body */`);
+  }
   lines.push(`}`);
   lines.push('');
 

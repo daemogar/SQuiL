@@ -45,7 +45,7 @@ internal static class SQuiLPreviewGenerator
     private static bool IsCollection(SQuiLVariable v) =>
         v.Role is VariableRole.Params or VariableRole.Returns;
 
-    public static string Generate(SQuiLParseResult parsed, string queryName, string ns = "YourNamespace")
+    public static string Generate(SQuiLParseResult parsed, string queryName, string ns = "YourNamespace", bool enabled = false)
     {
         string db = parsed.Database ?? "/* database */";
         var lines = new List<string>();
@@ -109,7 +109,24 @@ internal static class SQuiLPreviewGenerator
         lines.Add($"    {queryName}Request request,");
         lines.Add("    CancellationToken cancellationToken = default!)");
         lines.Add("{");
-        lines.Add("    /* generated body */");
+        if (enabled)
+        {
+            lines.Add("    await connection.OpenAsync(cancellationToken);");
+            lines.Add("");
+            lines.Add("    using var transaction = connection.BeginTransaction();");
+            lines.Add("    command.Transaction = transaction;");
+            lines.Add("");
+            lines.Add("    /* …read / execute… */");
+            lines.Add("");
+            lines.Add("    if (errors.Count == 0)");
+            lines.Add("        transaction.Commit();");
+            lines.Add("    else");
+            lines.Add("        transaction.Rollback();");
+        }
+        else
+        {
+            lines.Add("    /* generated body */");
+        }
         lines.Add("}");
         lines.Add("");
 

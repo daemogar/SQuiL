@@ -476,6 +476,17 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				?? "Models";
 			var recordNamespace = string.IsNullOrEmpty(nsArg) ? @namespace : $"{@namespace}.{nsArg}";
 
+			bool ReadBoolArg(AttributeArgumentListSyntax args, string name, bool dflt) =>
+				args.Arguments
+					.Where(a => a.NameColon?.Name.Identifier.Text == name)
+					.Select(a => a.Expression is LiteralExpressionSyntax l && l.Token.Value is bool b ? b : dflt)
+					.DefaultIfEmpty(dflt)
+					.First();
+
+			var enabled = definition.Type == SQuiLDefinitionType.Transaction
+				&& ReadBoolArg(list, "enabled", true);
+			var debugRollback = ReadBoolArg(list, "debugRollback", true);
+
 			if (missingDataClient)
 				continue;
 
@@ -493,7 +504,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			}
 
 			var generation = generator
-				.Create(@namespace, classname, method, setting, text, records, recordNamespace);
+				.Create(@namespace, classname, method, setting, text, records, recordNamespace, enabled, debugRollback);
 
 			if (generation is not null)
 				generation.FilePath = file.Path;
