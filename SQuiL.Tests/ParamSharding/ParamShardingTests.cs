@@ -83,12 +83,12 @@ public class ParamShardingTests
 			"""]);
 	}
 
-	// Nullable string column with explicit null marker → JSON null flows to SQL NULL,
-	// no length guard, no throw.
+	// Nullable sized string column: the length guard is null-gated — a null value
+	// bypasses the throw, an over-length non-null value still throws.
 	[Fact]
-	public Task NullableColumnNoGuard()
+	public Task NullableColumnLengthGuardSkipsNull()
 	{
-		var name = nameof(NullableColumnNoGuard);
+		var name = nameof(NullableColumnLengthGuardSkipsNull);
 		return TestHelper.Verify([Header()], [$$"""
 			--Name: {{name}}
 			Declare @Params_People table(PersonID int, NickName varchar(50) null);
