@@ -152,6 +152,14 @@ internal static class SQuiLContextResolver
 
     // ── .csproj locator ────────────────────────────────────────────────────
 
+    // KNOWN LIMITATION — root-directory divergence:
+    // The source generator computes the flatten-root as the longest common prefix
+    // of the directories of ALL compiled .cs source files (sorted by length desc).
+    // This resolver approximates that by using the .csproj directory instead.
+    // For the standard layout (context .cs files at the project root) the two are
+    // equivalent. If ALL context .cs files live in a subdirectory the computed
+    // member name will diverge from the generator's value and resolution silently
+    // fails (returns not-found / orphan).
     private static string? FindCsprojDir(string squilPath, Func<string, string[]> listDir)
     {
         string? dir = Path.GetDirectoryName(squilPath)?.Replace('\\', '/');
@@ -201,6 +209,9 @@ internal static class SQuiLContextResolver
             else if (!name.Contains("."))
             {
                 // Likely a subdirectory — recurse.
+                // NOTE: this heuristic silently skips directories whose names contain a
+                // dot (e.g. "SQuiL.Queries/"). Standard project query folders are
+                // unaffected; only dotted directory names would be missed.
                 ScanDir(fullPath, member, readFile, listDir, results);
             }
         }

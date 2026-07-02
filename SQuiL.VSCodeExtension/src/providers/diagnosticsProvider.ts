@@ -63,7 +63,7 @@ export class SQuiLDiagnosticsProvider {
       try { return fs.readFileSync(p, 'utf-8'); } catch { return undefined; }
     };
     const fsListDir = (d: string): string[] => {
-      try { return fs.readdirSync(d, { withFileTypes: false }) as string[]; } catch { return []; }
+      try { return fs.readdirSync(d).map(String); } catch { return []; }
     };
     const ctx = resolveContext(squilPath, fsReadFile, fsListDir);
     if (!ctx.found) {

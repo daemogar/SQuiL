@@ -150,6 +150,15 @@ function computeMember(squilPath: string, csprojDir: string): string {
  *
  * Uses `listDir` to enumerate each candidate directory — works in the
  * in-memory fake-fs without touching the real disk.
+ *
+ * KNOWN LIMITATION — root-directory divergence:
+ * The source generator computes the flatten-root as the longest common prefix
+ * of the directories of ALL compiled .cs source files (sorted by length desc).
+ * This resolver approximates that by using the .csproj directory instead.
+ * For the standard layout (context .cs files at the project root) the two are
+ * equivalent. If ALL context .cs files live in a subdirectory the computed
+ * member name will diverge from the generator's value and resolution silently
+ * fails (returns not-found / orphan).
  */
 function findCsprojDir(
   squilPath: string,
@@ -214,6 +223,9 @@ function scanDir(
       }
     } else if (!entry.includes('.')) {
       // Likely a directory — recurse. Skip entries with dots (files).
+      // NOTE: this heuristic silently skips directories whose names contain a
+      // dot (e.g. "SQuiL.Queries/"). Standard project query folders are
+      // unaffected; only dotted directory names would be missed.
       scanDir(fullPath, member, readFile, listDir, results);
     }
   }
