@@ -225,6 +225,35 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0027 — A <c>QueryFiles</c> member is registered by more than one data context.
+	/// SQuiL requires a one-to-one query-file → data-context mapping so the file resolves
+	/// to exactly one attribute.
+	/// </summary>
+	public static void ReportDuplicateQueryMapping(
+		this SourceProductionContext context, string member, Location? location = default)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0027",
+			"Duplicate Query Mapping",
+			$"The query file `{member}` is registered by more than one data context. " +
+			$"A query file maps to exactly one data context — remove one of the registrations.",
+			location));
+	}
+
+	/// <summary>
+	/// SP0029 — A class declares both <c>[SQuiLQuery]</c> and <c>[SQuiLQueryTransaction]</c>.
+	/// Use exactly one — <c>[SQuiLQueryTransaction]</c> already implies a query.
+	/// </summary>
+	public static void ReportConflictingQueryAttributes(
+		this SourceProductionContext context, string className, Location? location = default)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0029",
+			"Conflicting Query Attributes",
+			$"`{className}` declares both [SQuiLQuery] and [SQuiLQueryTransaction]. " +
+			$"Use exactly one — [SQuiLQueryTransaction] already implies a query.",
+			location));
+	}
+
+	/// <summary>
 	/// SP0022 — Within one file, a base name is declared as BOTH a table (list) and a
 	/// single object on the same side (both inputs or both outputs). The two declarations
 	/// resolve to one request/response property; the generator keeps the first and silently

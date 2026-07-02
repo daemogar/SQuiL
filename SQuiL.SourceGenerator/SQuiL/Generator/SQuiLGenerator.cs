@@ -346,6 +346,26 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			return;
 		}
 
+		// SP0027: One-to-one mapping — the same QueryFiles member may not be registered by
+		// more than one data context (regardless of whether each uses [SQuiLQuery] or
+		// [SQuiLQueryTransaction]).
+		foreach (var group in classes
+			.Select(d => (GetValueLocation(d.Attribute.ArgumentList!), d))
+			.GroupBy(x => x.Item1.Value)
+			.Where(g => g.Count() > 1))
+		{
+			foreach (var (loc, _) in group)
+				context.ReportDuplicateQueryMapping(group.Key, loc.Location);
+		}
+
+		// SP0029: A class may not carry both [SQuiLQuery] and [SQuiLQueryTransaction].
+		foreach (var byClass in classes.GroupBy(d => d.Class))
+		{
+			if (byClass.Select(d => d.Type).Distinct().Count() > 1)
+				context.ReportConflictingQueryAttributes(
+					byClass.Key.Identifier.Text, byClass.Key.GetLocation());
+		}
+
 		List<string> contexts = [];
 		HashSet<string> emittedConstructors = [];
 		SQuiLTableMap tableMap = new();
