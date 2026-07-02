@@ -47,27 +47,26 @@ partial class Input2VariableDataContext : SQuiLBaseDataContext
 		
 		string inputObject(List<DbParameter> parameters)
 		{
-			System.Text.StringBuilder query = new();
-			query.Append("Insert Into @Param_Object([ObjectID], [IsMale], [FirstName])");
-			
 			if (request.Object is null)
 				throw new NullReferenceException(
 					"Input2VariableRequest is missing the required property Object.");
 			
-			query.AppendLine();
-			query.Append("Values (");
+			if (request.Object.FirstName is not null && request.Object.FirstName.Length > 100)
+			{
+				throw new Exception($"Input2VariableRequest table property [Object] has a string property [FirstName] with more than 100 characters.");
+			}
 			
-			AddParams(query, parameters, 0, "ParamObject", "ObjectID", System.Data.SqlDbType.BigInt, request.Object.ObjectID);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamObject", "IsMale", System.Data.SqlDbType.Bit, request.Object.IsMale);
-			query.Append(", ");
-			AddParams(query, parameters, 0, "ParamObject", "FirstName", System.Data.SqlDbType.VarChar, request.Object.FirstName, 100);
+			AddJsonParameter(parameters, "@__json_Param_Object", new[] { request.Object });
 			
-			query.Append(')');
-			query.AppendLine(";");
-			query.AppendLine();
-			
-			return query.ToString();
+			return """
+			Insert Into @Param_Object([ObjectID], [IsMale], [FirstName])
+			Select [ObjectID], [IsMale], [FirstName]
+			From OpenJson(@__json_Param_Object)
+			With (
+				[ObjectID] int '$.ObjectID',
+				[IsMale] bit '$.IsMale',
+				[FirstName] varchar(100) '$.FirstName');
+			""";
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

@@ -405,39 +405,20 @@ public class SQuiLDataContext(
 				writer.WriteLine();
 				writer.Block($"string input{CodeBlock.Name}(List<DbParameter> parameters)", () =>
 				{
-					writer.Block($"""
-						System.Text.StringBuilder query = new();
-						query.Append("Insert Into @Param{(CodeBlock.IsTable ? "s" : "")}_{CodeBlock.Name}([{string.Join("], [", CodeBlock.Properties.Select(p => p.Identifier.Value))}])");
-
-						""");
-
 					if (CodeBlock.IsTable)
 					{
-						writer.Block($"""
-							if (request.{CodeBlock.Name}.Count() == 0) return "";
-
-							query.AppendLine(" Values");
-
-							var comma = "";
-							var index = 0;
-
-							""");
-						writer.Block($"foreach(var item in request.{CodeBlock.Name})", () =>
-						{
-							writer.Block("""
-								index++;
-
-								query.AppendLine(comma);
-								query.Append('(');
-								""");
-							AddParams("s", "index", "item");
-							writer.Block("""
-								query.Append(')');
-
-								comma = ",";
-								""");
-						});
+						writer.WriteLine($"""if (request.{CodeBlock.Name} is null || request.{CodeBlock.Name}.Count == 0) return "";""");
 						writer.WriteLine();
+
+						// Per-row string-length guards (preserves the old AddParams throw).
+						if (CodeBlock.Properties.Any(IsSizedString))
+						{
+							writer.Block($"foreach (var item in request.{CodeBlock.Name})",
+								() => EmitStringLengthGuards(CodeBlock, "item"));
+							writer.WriteLine();
+						}
+
+						writer.WriteLine($"""AddJsonParameter(parameters, "{SQuiLShred.JsonParamName(CodeBlock)}", request.{CodeBlock.Name});""");
 					}
 					else if (CodeBlock.IsObject)
 					{
@@ -446,59 +427,32 @@ public class SQuiLDataContext(
 								throw new NullReferenceException(
 									"{generation.Request.ModelName} is missing the required property {CodeBlock.Name}.");
 
-							query.AppendLine();
-							query.Append("Values (");
-
 							""");
-						AddParams("", "0", $"request.{CodeBlock.Name}");
-						writer.Block("""
 
-							query.Append(')');
-							""");
+						EmitStringLengthGuards(CodeBlock, $"request.{CodeBlock.Name}");
+						if (CodeBlock.Properties.Any(IsSizedString)) writer.WriteLine();
+
+						writer.WriteLine($$"""AddJsonParameter(parameters, "{{SQuiLShred.JsonParamName(CodeBlock)}}", new[] { request.{{CodeBlock.Name}} });""");
 					}
 
-					writer.Block("""
-						query.AppendLine(";");
-						query.AppendLine();
-
-						return query.ToString();
-						""");
+					// Emit `return """ <shred sql> """;` through Block — exactly how the
+					// outer Query(...) literal is already emitted. Block applies ONE uniform
+					// base indent to every line it writes, so the content lines and the
+					// closing """ always land in the same column and the raw literal strips
+					// cleanly. A PLAIN """ (not $"""): the shred SQL is fully static now
+					// (all row data lives in the JSON parameter), nothing to interpolate.
+					writer.WriteLine();
+					writer.Block("return \"\"\"");
+					writer.Block(SQuiLShred.ShredSql(CodeBlock));
+					writer.Block("\"\"\";");
 				});
-
-				void AddParams(string param, string index, string item)
-				{
-					param = $"Param{param}{CodeBlock.Name}";
-
-					var notFirst = false;
-					foreach (var property in CodeBlock.Properties)
-					{
-						if (notFirst)
-							writer.WriteLine($"""query.Append(", ");""");
-
-						writer.Write($"AddParams(query, ");
-						writer.Write($"parameters, ");
-						writer.Write($"{index}, ");
-						writer.Write($"\"{param}\", ");
-						writer.Write($"\"{property.Identifier.Value}\", ");
-						writer.Write($"{property.Type.SqlDbType(allowNullSize: true)}, ");
-
-						var propertyName = $"{item}.{property.Identifier.Value}";
-						writer.Write(propertyName);
-
-						if (property.Type.Type == TokenType.TYPE_STRING)
-						{
-							if (property.Type.Value?.Equals("max", StringComparison.InvariantCultureIgnoreCase) == true)
-								writer.Write($", {propertyName}?.Length ?? 4096");
-							else
-								writer.Write($", {property.Type.Value}");
-						}
-
-						writer.WriteLine(");");
-
-						notFirst = true;
-					}
-				}
 			}
+
+			// Whether a property is a sized (non-max) string column that needs a length guard.
+			static bool IsSizedString(CodeItem p)
+				=> p.Type.Type == TokenType.TYPE_STRING
+					&& p.Type.Value is { } s
+					&& !s.Equals("max", StringComparison.OrdinalIgnoreCase);
 
 			// Emits a throw for any sized varchar/nvarchar/char column whose value exceeds its
 			// declared length, BEFORE serialization (do not rely on silent OPENJSON truncation).
