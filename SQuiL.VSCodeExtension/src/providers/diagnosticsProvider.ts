@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { parseSQuiL, SQuiLDiagnostic } from '../squil/parser';
 import { nullabilityHints } from '../squil/nullabilityHints';
 import { shapeHints } from '../squil/shapeHints';
+import { resolveContext } from '../squil/contextResolver';
 
 export class SQuiLDiagnosticsProvider {
   private readonly collection: vscode.DiagnosticCollection;
@@ -51,6 +53,44 @@ export class SQuiLDiagnosticsProvider {
       d.source = 'squil';
       d.code = hint.code;
       vsDiags.push(d);
+    }
+
+    // SP0028 / SP0027: orphan / duplicate context resolver diagnostics.
+    // We use real fs here (diagnosticsProvider runs in the extension host with
+    // real disk access). The resolver is injected with real-fs callbacks.
+    const squilPath = document.uri.fsPath;
+    const fsReadFile = (p: string): string | undefined => {
+      try { return fs.readFileSync(p, 'utf-8'); } catch { return undefined; }
+    };
+    const fsListDir = (d: string): string[] => {
+      try { return fs.readdirSync(d, { withFileTypes: false }) as string[]; } catch { return []; }
+    };
+    const ctx = resolveContext(squilPath, fsReadFile, fsListDir);
+    if (!ctx.found) {
+      const range0 = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+      if (ctx.matchCount === 0) {
+        // SP0028 — orphan: no data context registers this query file.
+        const d = new vscode.Diagnostic(
+          range0,
+          "This query file isn't registered by any data context. " +
+          "Add a [SQuiLQuery] or [SQuiLQueryTransaction] attribute referencing it.",
+          vscode.DiagnosticSeverity.Warning,
+        );
+        d.source = 'squil';
+        d.code = 'SP0028';
+        vsDiags.push(d);
+      } else {
+        // SP0027 — duplicate: multiple contexts register this query file.
+        const d = new vscode.Diagnostic(
+          range0,
+          `This query file is registered by ${ctx.matchCount} data contexts. ` +
+          "Only one [SQuiLQuery] or [SQuiLQueryTransaction] may reference each QueryFiles member.",
+          vscode.DiagnosticSeverity.Error,
+        );
+        d.source = 'squil';
+        d.code = 'SP0027';
+        vsDiags.push(d);
+      }
     }
 
     // Additional linting passes

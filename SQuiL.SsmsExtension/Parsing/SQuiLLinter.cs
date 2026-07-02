@@ -42,7 +42,14 @@ internal static class SQuiLLinter
     /// are style hints, not errors.  Also runs the undeclared-variable /
     /// special-placement validation (errors/warnings).
     /// </summary>
-    public static void Lint(string text, List<SQuiLDiagnostic> diagnostics)
+    /// <param name="text">Full text of the .squil file.</param>
+    /// <param name="diagnostics">Diagnostic list to append to.</param>
+    /// <param name="squilFilePath">
+    /// Absolute path to the .squil file on disk.  When supplied the linter also
+    /// runs the context-resolver pass (SP0028 orphan / SP0027 duplicate mirror).
+    /// Pass <c>null</c> when path is unavailable (e.g. untitled buffers).
+    /// </param>
+    public static void Lint(string text, List<SQuiLDiagnostic> diagnostics, string? squilFilePath = null)
     {
         string[] lines = text.Split('\n');
 
@@ -62,6 +69,49 @@ internal static class SQuiLLinter
         LintShapeMismatch(text, diagnostics);
         LintSimilarSignatures(text, diagnostics);
         LintCardinalityCollision(text, diagnostics);
+        if (squilFilePath is not null)
+            LintOrphanContext(squilFilePath, diagnostics);
+    }
+
+    // ── Orphan / duplicate context resolver (SP0028 / SP0027) ────────────────
+    //
+    // SP0028 (Warning): this .squil file isn't registered by any data context.
+    // SP0027 (Error):   multiple data contexts register the same .squil file.
+    //
+    // Port of the SP0028/SP0027 block in diagnosticsProvider.ts (VS Code) —
+    // change one side, change all three.
+
+    internal static void LintOrphanContext(string squilFilePath, List<SQuiLDiagnostic> diagnostics)
+    {
+        var ctx = SQuiLContextResolver.Resolve(squilFilePath);
+        if (ctx.Found) return;
+
+        if (ctx.MatchCount == 0)
+        {
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message   = "This query file isn't registered by any data context. " +
+                            "Add a [SQuiLQuery] or [SQuiLQueryTransaction] attribute referencing it.",
+                Line      = 0,
+                StartChar = 0,
+                EndChar   = 0,
+                Severity  = DiagnosticSeverity.Warning,
+                Code      = "SP0028",
+            });
+        }
+        else
+        {
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message   = $"This query file is registered by {ctx.MatchCount} data contexts. " +
+                            "Only one [SQuiLQuery] or [SQuiLQueryTransaction] may reference each QueryFiles member.",
+                Line      = 0,
+                StartChar = 0,
+                EndChar   = 0,
+                Severity  = DiagnosticSeverity.Error,
+                Code      = "SP0027",
+            });
+        }
     }
 
     // ── Shape-mismatch detection (SP0017) ────────────────────────────────────
