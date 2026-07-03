@@ -232,7 +232,7 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
 
 <span class="cm">-- ③ Body: your SQL logic</span>
 <span class="kw">Set</span> <span class="ret">@Return_Username</span> = (<span class="kw">Select</span> Name <span class="kw">From</span> Users <span class="kw">Where</span> ID = <span class="par">@Param_UserID</span>);
-<span class="kw">Select</span> <span class="ret">@Return_Username</span>;</code></pre>
+<span class="kw">Select</span> <span class="ret">@Return_Username</span> <span class="kw">As</span> Username;  <span class="cm">-- alias must match declared base name</span></code></pre>
 
 <div class="tip">
   <strong>IntelliSense tips:</strong>
@@ -424,9 +424,9 @@ shape matches no declared output is skipped and reported as a missing return.</p
 
 <span class="kw">Select</span> Count(*) <span class="kw">As</span> Count  <span class="cm">-- alias "Count" matches declared name @Return_Count</span>
 <span class="kw">From</span>   Orders;</code></pre>
-<p>Or set and select via the variable itself — the column name is already correct:</p>
-<pre><code><span class="kw">Set</span> <span class="ret">@Return_Count</span> = (Select Count(*) From Orders);
-<span class="kw">Select</span> <span class="ret">@Return_Count</span>;</code></pre>
+<p>Or set the variable and select it — but always alias the column so the shape key matches:</p>
+<pre><code><span class="kw">Set</span> <span class="ret">@Return_Count</span> = (<span class="kw">Select</span> Count(*) <span class="kw">From</span> Orders);
+<span class="kw">Select</span> <span class="ret">@Return_Count</span> <span class="kw">As</span> Count;  <span class="cm">-- alias required: bare @Return_Count has no column name at runtime</span></code></pre>
 
 <h3>Collision diagnostic — SP0030</h3>
 <p>If two declared outputs share an identical shape (same ordered column names and C# types), SQuiL
@@ -451,7 +451,7 @@ name.</p>
     <span class="kw">Where</span>  u.UserID = <span class="par">@Param_UserID</span>
 );
 
-<span class="kw">Select</span> <span class="ret">@Return_Name</span>;</code></pre>
+<span class="kw">Select</span> <span class="ret">@Return_Name</span> <span class="kw">As</span> Name;  <span class="cm">-- alias "Name" matches declared base name @Return_Name</span></code></pre>
 
 <p><strong>Generated C#:</strong></p>
 <pre><code><span class="cs-kw">public partial record</span> <span class="cs-cls">GetUserNameRequest</span>
@@ -532,7 +532,7 @@ name.</p>
 <span class="kw">From</span>        <span class="par">@Params_Tags</span> t;
 
 <span class="kw">Set</span> <span class="ret">@Return_RowsInserted</span> = @@RowCount;
-<span class="kw">Select</span> <span class="ret">@Return_RowsInserted</span>;</code></pre>
+<span class="kw">Select</span> <span class="ret">@Return_RowsInserted</span> <span class="kw">As</span> RowsInserted;  <span class="cm">-- alias "RowsInserted" matches declared base name</span></code></pre>
 
 <p><strong>Generated C#:</strong></p>
 <pre><code><span class="cm">// in namespace ContentApplication.Data.Models:</span>

@@ -45,7 +45,6 @@ public static class SQuiLShapeCollisionValidator
             if (distinct.Count < 2) continue;
 
             var winner = distinct[0];
-            var winnerLine = LineOf(sql, winner.DatabaseType.Offset);
             for (var i = 0; i < distinct.Count; i++)
             {
                 var self = distinct[i];

@@ -109,7 +109,7 @@ Use UnitTesting;
 
 Set @Return_Scaler = 42;
 
-Select @Return_Scaler;
+Select @Return_Scaler As Scaler;  -- alias must match declared base name
 ```
 
 ### Result-set authoring — two styles
@@ -158,11 +158,11 @@ Select Count(*) As Count  -- alias "Count" matches declared name @Return_Count
 From   Orders;
 ```
 
-Or set and select via the variable itself — the column name is already correct:
+Or set the variable and select it — but always alias the column so the shape key matches:
 
 ```sql
 Set @Return_Count = (Select Count(*) From Orders);
-Select @Return_Count;
+Select @Return_Count As Count;  -- alias required: bare @Return_Count has no column name at runtime
 ```
 
 **SP0030 collision** — If two declared outputs share an identical shape (same ordered column names and C# types), SQuiL cannot tell them apart at runtime. Differentiate them by changing a column name, adjusting the column order, using a different C# type, or combining them into one shared output with a single name.
@@ -335,7 +335,7 @@ Use MyDatabase;
 
 Update [Documents] set Status = 'Done' where ID = @Param_ID;
 Set @Return_RowsAffected = @@ROWCOUNT;
-Select @Return_RowsAffected;
+Select @Return_RowsAffected As RowsAffected;  -- alias must match declared base name
 ```
 
 ```csharp

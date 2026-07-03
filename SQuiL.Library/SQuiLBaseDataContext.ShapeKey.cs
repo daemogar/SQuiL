@@ -1,7 +1,6 @@
 namespace SQuiL;
 
 using System.Data.Common;
-using System.Linq;
 using System.Text;
 
 public abstract partial class SQuiLBaseDataContext

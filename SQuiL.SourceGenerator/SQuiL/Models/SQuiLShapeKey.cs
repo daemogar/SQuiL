@@ -2,7 +2,6 @@ namespace SQuiL.Models;
 
 using SQuiL.SourceGenerator.Parser;
 
-using System.Collections.Generic;
 using System.Linq;
 
 /// <summary>
