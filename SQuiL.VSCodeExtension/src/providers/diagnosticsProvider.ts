@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import { parseSQuiL, SQuiLDiagnostic } from '../squil/parser';
+import { parseSQuiL, SQuiLDiagnostic, lintShapeCollision, lintUnmatchedSelect } from '../squil/parser';
 import { nullabilityHints } from '../squil/nullabilityHints';
 import { shapeHints } from '../squil/shapeHints';
 import { transactionHints } from '../squil/transactionHints';
@@ -55,6 +55,12 @@ export class SQuiLDiagnosticsProvider {
       d.source = 'squil';
       d.code = hint.code;
       vsDiags.push(d);
+    }
+
+    // SP0030: result-shape collision — same-file same-side output pairs with identical
+    // canonical shape key.  These can't be routed to different records at runtime.
+    for (const d of lintShapeCollision(parsed)) {
+      vsDiags.push(this.toDiagnostic(document, d));
     }
 
     // SP0028 / SP0027: orphan / duplicate context resolver diagnostics.
@@ -173,6 +179,21 @@ export class SQuiLDiagnosticsProvider {
       d.source = 'squil';
       d.code = hint.code;
       vsDiags.push(d);
+    }
+
+    // SP0031: standalone SELECT whose column-name list matches no declared @Returns_/@Return_ output.
+    // Editor-only — best-effort, name-focused. Reuse the body text (everything after the USE line).
+    {
+      const databaseLine = parsed.databaseLine ?? -1;
+      let bodyText = '';
+      const bodyLineOffset = databaseLine >= 0 ? databaseLine + 1 : 0;
+      if (databaseLine >= 0 && bodyLineOffset < document.lineCount) {
+        bodyText = text.slice(document.offsetAt(new vscode.Position(bodyLineOffset, 0)));
+      }
+      for (const d of lintUnmatchedSelect(parsed, bodyText)) {
+        // d.line is 0-based within bodyText — adjust to document-absolute line.
+        vsDiags.push(this.toDiagnostic(document, { ...d, line: d.line + bodyLineOffset }));
+      }
     }
 
     // Additional linting passes

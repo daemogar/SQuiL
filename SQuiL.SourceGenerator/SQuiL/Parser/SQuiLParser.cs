@@ -4,8 +4,6 @@ using SQuiL.Generator;
 using SQuiL.Models;
 using SQuiL.Tokenizer;
 
-using System.Text;
-
 namespace SQuiL.SourceGenerator.Parser;
 
 /// <summary>
@@ -106,9 +104,6 @@ public class SQuiLParser(List<Token> Tokens)
 			};
 		}
 
-		List<(Variable Variable, CodeBlock CodeBlock)> parameters = [];
-		List<(TokenType Type, CodeBlock CodeBlock, Token InsertIntoTable)> injectables = [];
-
 		while (Current != Token.END)
 		{
 			switch (Current.Type)
@@ -152,73 +147,15 @@ public class SQuiLParser(List<Token> Tokens)
 			return diff > 0;
 		}
 
-		void ProcessInsertIntoTablesAndSelectVariables()
-		{
-			foreach (var (variable, table) in parameters)
-			{
-				// Exact name match only — a SQuiL file must be valid T-SQL, so
-				// `Insert Into @Errors` does NOT match a declared `@Error` (or
-				// vice versa). SP0013 flags the mismatch as an undeclared variable.
-				if (variable.Token.Value != Current.Value)
-					continue;
-
-				injectables.Add((Current.Type, table, Current));
-			}
-
-			Consume();
-		}
+		// `Insert Into @Var` / `Select @Var` statements are now emitted verbatim as part of
+		// the body — no output-side injection. Result sets are routed at runtime by their
+		// column signature (shape key), so there is nothing to rewrite here; just advance.
+		void ProcessInsertIntoTablesAndSelectVariables() => Consume();
 
 		void ProcessBodyStatement()
 		{
-			var body = Current.Value;
-			List<string> injected = [];
-
-			foreach (var (type, name, table, offset) in injectables
-				.Select(p => (p.Type, p.InsertIntoTable.Value, p.CodeBlock, Offset: p.InsertIntoTable.Offset - 1))
-				.OrderByDescending(p => p.Offset))
-			{
-				if (injected.Contains(name))
-					continue;
-
-				injected.Add(name);
-
-				body = body[0..offset] + type switch
-				{
-					TokenType.INSERT_INTO_TABLE => $"([{string.Join("], [", table.Properties
-						.Where(q => q.Identifier is not null).Select(q => q.Identifier.Value))}])",
-					TokenType.SELECT_VARIABLE => T(name),
-					_ => throw new DiagnosticException(
-						$"Invalid code block `{type}`")
-				} + body[offset..];
-			}
-
-			StringBuilder sb = new();
-			sb.AppendLine(body);
-
-			foreach (var (table, code) in parameters
-				.Where(p => !p.Variable.IsTable
-					&& p.CodeBlock.CodeType == CodeType.OUTPUT_VARIABLE))
-			{
-				var name = table.Token.Original![1..];
-
-				if (injected.Contains(name))
-					continue;
-
-				injected.Add(name);
-
-				sb.AppendLine()
-					.AppendLine($"Select{T(name)} {table.Token.Original};");
-			}
-
-			CodeBlocks.Add(new(CodeType.BODY, Current with
-			{
-				Value = sb.ToString()
-			}));
-
+			CodeBlocks.Add(new(CodeType.BODY, Current with { Value = Current.Value }));
 			Consume();
-
-			string T(string name)
-				=> $" '{name}' As [{SQuiLDataContext.SQuiLTableTypeDatabaseTagName}{name}__],";
 		}
 
 		void ProcessUseStatement()
@@ -244,67 +181,56 @@ public class SQuiLParser(List<Token> Tokens)
 
 				void ProcessScaler()
 				{
-					CodeBlock codeBlock = default!;
+					var type = Expect(TokenType.TYPE);
 
-					try
+					bool? nullableMarker = null;
+					if (Current.Type == TokenType.LITERAL_NULL) { nullableMarker = true; Consume(); }
+					else if (Current.Type == TokenType.LITERAL_NOT_NULL) { nullableMarker = false; Consume(); }
+
+					if (Current.Type != TokenType.SYMBOL_EQUAL)
 					{
-						var type = Expect(TokenType.TYPE);
-
-						bool? nullableMarker = null;
-						if (Current.Type == TokenType.LITERAL_NULL) { nullableMarker = true; Consume(); }
-						else if (Current.Type == TokenType.LITERAL_NOT_NULL) { nullableMarker = false; Consume(); }
-
-						if (Current.Type != TokenType.SYMBOL_EQUAL)
-						{
-							codeBlock = new(variable.Type,
-								type with
-								{
-									Value = variable.Name,
-									Original = $"{variable.Token.Original} {type.Original}"
-								})
+						CodeBlocks.Add(new(variable.Type,
+							type with
 							{
-								Size = type.Value,
-								IsSpecialDeclaration = variable.IsSpecialDeclaration,
-								IsNullableMarker = nullableMarker
-							};
-							CodeBlocks.Add(codeBlock);
-
-							return;
-						}
-
-						Consume();
-
-						string? defaultValue = Current.Type switch
-						{
-							TokenType.LITERAL_NULL => default,
-							TokenType.LITERAL_NOT_NULL => default,
-							TokenType.LITERAL_STRING => Current.Value,
-							TokenType.LITERAL_NUMBER => Current.Value,
-							TokenType.TYPE_FUNCTIONS => Current.Value switch
-							{
-								"GETDATE()" => "System.DateOnly.FromDateTime(System.DateTime.Now)",
-								_ => throw DE($"Unsupported SQL Function `{Current.Value}` for variable {variable.Name}.")
-							},
-							_ => throw DE($"Unsupported Token type `{Current.Type}` for variable {variable.Name}.")
-						};
-
-						Consume();
-
-						CodeBlocks.Add(codeBlock = new(variable.Type, type with
-						{
-							Original = $"{variable.Token.Original} {type.Original}"
-						}, variable.Name, defaultValue)
+								Value = variable.Name,
+								Original = $"{variable.Token.Original} {type.Original}"
+							})
 						{
 							Size = type.Value,
 							IsSpecialDeclaration = variable.IsSpecialDeclaration,
 							IsNullableMarker = nullableMarker
 						});
+
+						return;
 					}
-					finally
+
+					Consume();
+
+					string? defaultValue = Current.Type switch
 					{
-						if (codeBlock is not null)
-							parameters.Add((variable, codeBlock));
-					}
+						TokenType.LITERAL_NULL => default,
+						TokenType.LITERAL_NOT_NULL => default,
+						TokenType.LITERAL_STRING => Current.Value,
+						TokenType.LITERAL_NUMBER => Current.Value,
+						TokenType.TYPE_FUNCTIONS => Current.Value switch
+						{
+							"GETDATE()" => "System.DateOnly.FromDateTime(System.DateTime.Now)",
+							_ => throw DE($"Unsupported SQL Function `{Current.Value}` for variable {variable.Name}.")
+						},
+						_ => throw DE($"Unsupported Token type `{Current.Type}` for variable {variable.Name}.")
+					};
+
+					Consume();
+
+					CodeBlocks.Add(new(variable.Type, type with
+					{
+						Original = $"{variable.Token.Original} {type.Original}"
+					}, variable.Name, defaultValue)
+					{
+						Size = type.Value,
+						IsSpecialDeclaration = variable.IsSpecialDeclaration,
+						IsNullableMarker = nullableMarker
+					});
 				}
 
 				void Process(TokenType type)
@@ -350,8 +276,6 @@ public class SQuiLParser(List<Token> Tokens)
 					Expect(TokenType.SYMBOL_RPREN);
 
 					CodeBlocks.Add(block);
-
-					parameters.Add((variable, block));
 				}
 			}
 			while (Current.Type == TokenType.SYMBOL_COMMA);

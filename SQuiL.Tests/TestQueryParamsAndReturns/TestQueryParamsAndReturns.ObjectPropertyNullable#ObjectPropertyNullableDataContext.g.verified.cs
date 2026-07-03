@@ -47,73 +47,60 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "studentid:int|firstname:string|lastname:string|age:int":
 					{
-						case "__SQuiL__Table__Type__Return_Student__":
+						if (isStudent) throw new Exception(
+							"Already returned value for `Student`");
+						
+						isStudent = true;
+						
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						if (response.Student is not null)
+							throw new Exception("Student was already set.");
+						
+						response.Student = new(
+							reader.GetInt32(reader.GetOrdinal("StudentID")),
+							reader.IsDBNull(reader.GetOrdinal("FirstName")) ? default! : reader.GetString(reader.GetOrdinal("FirstName")),
+							reader.GetString(reader.GetOrdinal("LastName")),
+							reader.IsDBNull(reader.GetOrdinal("Age")) ? default! : reader.GetInt32(reader.GetOrdinal("Age")));
+						
+						if (await reader.ReadAsync(cancellationToken))
+							throw new Exception(
+								"Return object results in more than one object. Consider using a return table instead.");
+						
+						break;
+					}
+					case "parentid:int|middlename:string|surname:string|yearsold:int":
+					{
+						isParents = true;
+						
+						response.Parents ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexParentID = reader.GetOrdinal("ParentID");
+						var indexMiddleName = reader.GetOrdinal("MiddleName");
+						var indexSurname = reader.GetOrdinal("Surname");
+						var indexYearsOld = reader.GetOrdinal("YearsOld");
+						
+						do
 						{
-							if (isStudent) throw new Exception(
-								"Already returned value for `Student`");
+							var valueParentID = reader.GetInt32(indexParentID);
+							var valueMiddleName = reader.IsDBNull(indexMiddleName) ? default! : reader.GetString(indexMiddleName);
+							var valueSurname = reader.GetString(indexSurname);
+							var valueYearsOld = reader.IsDBNull(indexYearsOld) ? default! : reader.GetInt32(indexYearsOld);
 							
-							isStudent = true;
-							
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							if (response.Student is not null)
-								throw new Exception("Student was already set.");
-							
-							if (reader.GetString(0) == "Return_Student")
-							{
-								response.Student = new(
-									reader.GetInt32(reader.GetOrdinal("ID")),
-									reader.IsDBNull(reader.GetOrdinal("FirstName")) ? default! : reader.GetString(reader.GetOrdinal("FirstName")),
-									reader.GetString(reader.GetOrdinal("LastName")),
-									reader.IsDBNull(reader.GetOrdinal("Age")) ? default! : reader.GetInt32(reader.GetOrdinal("Age")));
-							}
-							else
-							{
-								continue;
-							}
-							
-							if (await reader.ReadAsync(cancellationToken))
-								throw new Exception(
-									"Return object results in more than one object. Consider using a return table instead.");
-							
-							break;
+							response.Parents.Add(new(
+								valueParentID,
+								valueMiddleName,
+								valueSurname,
+								valueYearsOld));
 						}
-						case "__SQuiL__Table__Type__Returns_Parents__":
-						{
-							isParents = true;
-							
-							response.Parents ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexID = reader.GetOrdinal("ID");
-							var indexFirstName = reader.GetOrdinal("FirstName");
-							var indexLastName = reader.GetOrdinal("LastName");
-							var indexAge = reader.GetOrdinal("Age");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Parents")
-								{
-									var valueID = reader.GetInt32(indexID);
-									var valueFirstName = reader.IsDBNull(indexFirstName) ? default! : reader.GetString(indexFirstName);
-									var valueLastName = reader.GetString(indexLastName);
-									var valueAge = reader.IsDBNull(indexAge) ? default! : reader.GetInt32(indexAge);
-									
-									response.Parents.Add(new(
-										valueID,
-										valueFirstName,
-										valueLastName,
-										valueAge));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
-						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -124,8 +111,8 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isStudent) errors.Add(new(51001, 12, 1, 126, "Student", "Expected return object `Student`"));
-		if (!isParents) errors.Add(new(51001, 12, 1, 127, "Parents", "Expected return table `Parents`"));
+		if (!isStudent) errors.Add(new(51001, 12, 1, 113, "Student", "Expected return object `Student`"));
+		if (!isParents) errors.Add(new(51001, 12, 1, 114, "Parents", "Expected return table `Parents`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -134,21 +121,18 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Return_Student table(
-			[__SQuiL__Table__Type__Return_Student__] varchar(max) default('Return_Student'),
-			[ID] int,
+			[StudentID] int,
 			[FirstName] varchar(100) Null,
 			[LastName] varchar(100),
 			[Age] int Null);
 		
 		Declare @Returns_Parents table(
-			[__SQuiL__Table__Type__Returns_Parents__] varchar(max) default('Returns_Parents'),
-			[ID] int,
-			[FirstName] varchar(100) Null,
-			[LastName] varchar(100),
-			[Age] int Null);
+			[ParentID] int,
+			[MiddleName] varchar(100) Null,
+			[Surname] varchar(100),
+			[YearsOld] int Null);
 		
 		Use [{builder.InitialCatalog}];
-		
 		
 		
 		""";

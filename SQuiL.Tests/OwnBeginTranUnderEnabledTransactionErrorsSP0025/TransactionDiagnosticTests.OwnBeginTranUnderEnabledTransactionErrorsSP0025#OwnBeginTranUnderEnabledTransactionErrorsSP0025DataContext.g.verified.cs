@@ -57,7 +57,6 @@ partial class OwnBeginTranUnderEnabledTransactionErrorsSP0025DataContext : SQuiL
 		Begin Tran;
 		Update [Documents] Set Status = 'Done' Where Id = @Param_Id;
 		Commit;
-		
 		""";
 	}
 }

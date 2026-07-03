@@ -52,7 +52,6 @@ partial class C : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

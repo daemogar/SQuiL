@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
-import { parseSQuiL, lintCardinalityCollision } from './parser';
+import { parseSQuiL, lintCardinalityCollision, lintShapeCollision, lintUnmatchedSelect } from './parser';
+import { shapeHints } from './shapeHints';
 
 // Recognition parity with the generator's SQuiLParser: bare @SuppressDebug and
 // @AsOfDate are valid header specials and must NOT raise a "doesn't follow
@@ -157,6 +158,40 @@ test('SP0022 flags only cardinality mismatch among 3+ same-name decls', () => {
   assert.strictEqual(diags.filter(d => d.severity === 'error').length, 1);
 });
 
+// SP0030: result-shape collision (same-file same-side output pairs with identical signature)
+test('SP0030 fires on two same-file outputs with identical signature', () => {
+  const diags = lintShapeCollision(parseSQuiL([
+    'Declare @Returns_Active table(PersonID int, Name varchar(100));',
+    'Declare @Returns_Inactive table(PersonID int, Name varchar(100));',
+    'Use Db;',
+    'Select * From @Returns_Active;',
+  ].join('\n')));
+  assert.ok(diags.length >= 2, 'both declarations flagged');
+  assert.ok(diags.every(d => d.code === 'SP0030'));
+  assert.ok(diags[0].message.includes('@Returns_Active') && diags[0].message.includes('@Returns_Inactive'));
+});
+
+test('SP0030 fires on length-only difference (both string)', () => {
+  const diags = lintShapeCollision(parseSQuiL([
+    'Declare @Returns_A table(Note varchar(50));',
+    'Declare @Returns_B table(Note varchar(100));',
+    'Use Db;',
+    'Select * From @Returns_A;',
+  ].join('\n')));
+  assert.ok(diags.length >= 2 && diags.every(d => d.code === 'SP0030'));
+});
+
+test('SP0020 does NOT also fire where SP0030 applies (no double squiggle)', () => {
+  const parsed = parseSQuiL([
+    'Declare @Returns_Active table(PersonID int, Name varchar(100));',
+    'Declare @Returns_Inactive table(PersonID int, Name varchar(100));',
+    'Use Db;',
+    'Select * From @Returns_Active;',
+  ].join('\n'));
+  const s20 = shapeHints(parsed);
+  assert.strictEqual(s20.length, 0, 'SP0020 suppressed for same-file same-side output collisions');
+});
+
 // Parity with the generator: a column DEFAULT must be parsed (not dropped) and
 // its raw literal captured, so the preview can render it as an init-property default.
 test('table column DEFAULT is parsed and its literal captured', () => {
@@ -174,4 +209,35 @@ test('table column DEFAULT is parsed and its literal captured', () => {
   assert.strictEqual(rows!.columns![0].defaultValue, undefined);
   assert.strictEqual(rows!.columns![1].defaultValue, '1.5');
   assert.strictEqual(rows!.columns![2].defaultValue, "'hello'");
+});
+
+// SP0031: unmatched standalone SELECT — editor-only warning
+test('SP0031 warns when a standalone SELECT column list matches no declared output', () => {
+  const text = [
+    'Declare @Returns_People table(PersonID int, Name varchar(100));',
+    'Use Db;',
+    'Select PersonID, WrongName From People;',   // "wrongname" != declared "name"
+  ].join('\n');
+  const parsed = parseSQuiL(text);
+  const diags = lintUnmatchedSelect(parsed, text);
+  assert.ok(diags.some(d => d.code === 'SP0031'), 'unmatched select flagged');
+});
+
+test('SP0031 stays silent when a standalone SELECT matches a declared output', () => {
+  const text = [
+    'Declare @Returns_People table(PersonID int, Name varchar(100));',
+    'Use Db;',
+    'Select PersonID, Name From People;',
+  ].join('\n');
+  assert.strictEqual(lintUnmatchedSelect(parseSQuiL(text), text).filter(d => d.code === 'SP0031').length, 0);
+});
+
+test('SP0031 ignores Select * and Insert Into', () => {
+  const text = [
+    'Declare @Returns_People table(PersonID int, Name varchar(100));',
+    'Use Db;',
+    'Insert Into @Returns_People Select PersonID, Name From People;',
+    'Select * From @Returns_People;',
+  ].join('\n');
+  assert.strictEqual(lintUnmatchedSelect(parseSQuiL(text), text).filter(d => d.code === 'SP0031').length, 0);
 });

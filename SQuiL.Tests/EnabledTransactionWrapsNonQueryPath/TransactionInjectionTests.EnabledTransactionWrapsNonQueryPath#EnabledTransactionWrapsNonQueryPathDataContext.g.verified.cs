@@ -55,7 +55,6 @@ partial class EnabledTransactionWrapsNonQueryPathDataContext : SQuiLBaseDataCont
 		Use [{builder.InitialCatalog}];
 		
 		Update [Documents] set Status = 'Done' where Id = @Param_Id;
-		
 		""";
 	}
 }

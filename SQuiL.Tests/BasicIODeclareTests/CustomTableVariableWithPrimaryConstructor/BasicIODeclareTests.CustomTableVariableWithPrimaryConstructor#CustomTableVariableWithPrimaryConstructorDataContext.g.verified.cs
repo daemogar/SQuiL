@@ -46,39 +46,33 @@ partial class CustomTableVariableWithPrimaryConstructorDataContext : SQuiLBaseDa
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "tableid:int|isboth:bool|nickname:string":
 					{
-						case "__SQuiL__Table__Type__Returns_Table__":
+						isTable = true;
+						
+						response.Table ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexTableID = reader.GetOrdinal("TableID");
+						var indexIsBoth = reader.GetOrdinal("IsBoth");
+						var indexNickName = reader.GetOrdinal("NickName");
+						
+						do
 						{
-							isTable = true;
+							var valueTableID = reader.GetInt32(indexTableID);
+							var valueIsBoth = reader.GetBoolean(indexIsBoth);
+							var valueNickName = reader.GetString(indexNickName);
 							
-							response.Table ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexTableID = reader.GetOrdinal("TableID");
-							var indexIsBoth = reader.GetOrdinal("IsBoth");
-							var indexNickName = reader.GetOrdinal("NickName");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Table")
-								{
-									var valueTableID = reader.GetInt32(indexTableID);
-									var valueIsBoth = reader.GetBoolean(indexIsBoth);
-									var valueNickName = reader.GetString(indexNickName);
-									
-									response.Table.Add(new(
-										valueTableID,
-										valueIsBoth,
-										valueNickName));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Table.Add(new(
+								valueTableID,
+								valueIsBoth,
+								valueNickName));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -89,7 +83,7 @@ partial class CustomTableVariableWithPrimaryConstructorDataContext : SQuiLBaseDa
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTable) errors.Add(new(51001, 12, 1, 91, "Table", "Expected return table `Table`"));
+		if (!isTable) errors.Add(new(51001, 12, 1, 85, "Table", "Expected return table `Table`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -98,7 +92,6 @@ partial class CustomTableVariableWithPrimaryConstructorDataContext : SQuiLBaseDa
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Table table(
-			[__SQuiL__Table__Type__Returns_Table__] varchar(max) default('Returns_Table'),
 			[TableID] int,
 			[IsBoth] bit,
 			[NickName] varchar(100));
@@ -106,7 +99,6 @@ partial class CustomTableVariableWithPrimaryConstructorDataContext : SQuiLBaseDa
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

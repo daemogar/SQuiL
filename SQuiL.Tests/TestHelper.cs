@@ -12,8 +12,39 @@ using System.Runtime.CompilerServices;
 
 namespace SQuiL.Tests;
 
+using static Microsoft.CodeAnalysis.SourceGeneratorHelper;
+
 public static class TestHelper
 {
+	/// <summary>
+	/// Public test-header builder mirroring the per-class private <c>TestHeader</c> helpers:
+	/// emits a <c>[SQuiLQuery(QueryFiles.&lt;name&gt;)]</c>-decorated partial data-context class
+	/// for the given query name(s). Shared here so fixtures in any test class (e.g. ShapeDetection)
+	/// can build the standard header without duplicating it.
+	/// </summary>
+	public static string TestHeaderPublic(
+		IEnumerable<string> attributes = default!,
+		Func<string, string> callback = default!,
+		[CallerMemberName] string name = default!)
+	{
+		attributes ??= [name];
+		callback ??= p => $$"""
+			[{{QueryAttributeName}}(QueryFiles.{{p}})]
+			""";
+
+		return $$"""
+			using Microsoft.Extensions.Configuration;
+			using {{NamespaceName}};
+
+			namespace TestCase;
+
+			{{string.Join("", attributes.Select(callback))}}
+			public partial class {{name}}DataContext(IConfiguration Configuration) : {{BaseDataContextClassName}}(Configuration)
+			{
+			}
+			""";
+	}
+
 	/// <param name="compileCheck">Pass false ONLY for tests whose user sources
 	/// are deliberately invalid C#, or that pin a known not-yet-fixed
 	/// generator codegen bug (say which in a comment at the call site).</param>

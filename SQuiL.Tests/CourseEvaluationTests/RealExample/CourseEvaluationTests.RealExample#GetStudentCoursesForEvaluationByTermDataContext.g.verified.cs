@@ -62,54 +62,48 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "evalationid:string|termcode:string|coursecode:string|coursetitle:string|professorpicture:string|professorname:string|evaluationstate:string|evaluationstatus:string":
 					{
-						case "__SQuiL__Table__Type__Returns_Courses__":
+						isCourses = true;
+						
+						response.Courses ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexEvalationID = reader.GetOrdinal("EvalationID");
+						var indexTermCode = reader.GetOrdinal("TermCode");
+						var indexCourseCode = reader.GetOrdinal("CourseCode");
+						var indexCourseTitle = reader.GetOrdinal("CourseTitle");
+						var indexProfessorPicture = reader.GetOrdinal("ProfessorPicture");
+						var indexProfessorName = reader.GetOrdinal("ProfessorName");
+						var indexEvaluationState = reader.GetOrdinal("EvaluationState");
+						var indexEvaluationStatus = reader.GetOrdinal("EvaluationStatus");
+						
+						do
 						{
-							isCourses = true;
+							var valueEvalationID = reader.GetString(indexEvalationID);
+							var valueTermCode = reader.GetString(indexTermCode);
+							var valueCourseCode = reader.GetString(indexCourseCode);
+							var valueCourseTitle = reader.GetString(indexCourseTitle);
+							var valueProfessorPicture = reader.GetString(indexProfessorPicture);
+							var valueProfessorName = reader.GetString(indexProfessorName);
+							var valueEvaluationState = reader.GetString(indexEvaluationState);
+							var valueEvaluationStatus = reader.GetString(indexEvaluationStatus);
 							
-							response.Courses ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexEvalationID = reader.GetOrdinal("EvalationID");
-							var indexTermCode = reader.GetOrdinal("TermCode");
-							var indexCourseCode = reader.GetOrdinal("CourseCode");
-							var indexCourseTitle = reader.GetOrdinal("CourseTitle");
-							var indexProfessorPicture = reader.GetOrdinal("ProfessorPicture");
-							var indexProfessorName = reader.GetOrdinal("ProfessorName");
-							var indexEvaluationState = reader.GetOrdinal("EvaluationState");
-							var indexEvaluationStatus = reader.GetOrdinal("EvaluationStatus");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Courses")
-								{
-									var valueEvalationID = reader.GetString(indexEvalationID);
-									var valueTermCode = reader.GetString(indexTermCode);
-									var valueCourseCode = reader.GetString(indexCourseCode);
-									var valueCourseTitle = reader.GetString(indexCourseTitle);
-									var valueProfessorPicture = reader.GetString(indexProfessorPicture);
-									var valueProfessorName = reader.GetString(indexProfessorName);
-									var valueEvaluationState = reader.GetString(indexEvaluationState);
-									var valueEvaluationStatus = reader.GetString(indexEvaluationStatus);
-									
-									response.Courses.Add(new(
-										valueEvalationID,
-										valueTermCode,
-										valueCourseCode,
-										valueCourseTitle,
-										valueProfessorPicture,
-										valueProfessorName,
-										valueEvaluationState,
-										valueEvaluationStatus));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Courses.Add(new(
+								valueEvalationID,
+								valueTermCode,
+								valueCourseCode,
+								valueCourseTitle,
+								valueProfessorPicture,
+								valueProfessorName,
+								valueEvaluationState,
+								valueEvaluationStatus));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -120,7 +114,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isCourses) errors.Add(new(51001, 12, 1, 122, "Courses", "Expected return table `Courses`"));
+		if (!isCourses) errors.Add(new(51001, 12, 1, 116, "Courses", "Expected return table `Courses`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -232,12 +226,10 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Params_Terms table(
-			[__SQuiL__Table__Type__Params_Terms__] varchar(max) default('Params_Terms'),
 			[TermCode] varchar(10));
 		{inputTerms(parameters)}
 		
 		Declare @Params_Participation table(
-			[__SQuiL__Table__Type__Params_Participation__] varchar(max) default('Params_Participation'),
 			[SectionID] varchar(20),
 			[PersonID] varchar(10),
 			[ProfessorID] varchar(10),
@@ -246,7 +238,6 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		{inputParticipation(parameters)}
 		
 		Declare @Params_Overrides table(
-			[__SQuiL__Table__Type__Params_Overrides__] varchar(max) default('Params_Overrides'),
 			[SectionID] varchar(20),
 			[TermCode] varchar(10),
 			[CourseCode] varchar(20),
@@ -255,7 +246,6 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		{inputOverrides(parameters)}
 		
 		Declare @Returns_Courses table(
-			[__SQuiL__Table__Type__Returns_Courses__] varchar(max) default('Returns_Courses'),
 			[EvalationID] varchar(20),
 			[TermCode] varchar(10),
 			[CourseCode] varchar(20),
@@ -332,7 +322,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		End;
 		
-		Insert Into @Returns_Courses([EvalationID], [TermCode], [CourseCode], [CourseTitle], [ProfessorPicture], [ProfessorName], [EvaluationState], [EvaluationStatus])
+		Insert Into @Returns_Courses
 		Select EvaluationID, TermCode, CourseCode, CourseTitle, PictureLink, PreferredName, Trim(SubString(EvaluationStatus, 1, 6)), SubString(EvaluationStatus, 8, 1000) From (
 		Select		Char(64 + sf.FacultyOrder) + Cast(sf.SectionFacultyID As varchar(10)) As EvaluationID,
 					c.TermCode, /*c.SectionID,*/ c.CourseCode, c.CourseTitle, p.PictureLink, p.PreferredName, Case
@@ -361,7 +351,6 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			Select '@Participation' As [TableName], * From @Params_Participation;
 			Select '@Overrides' As [TableName], * From @Params_Overrides;
 		End;
-		
 		""";
 	}
 }

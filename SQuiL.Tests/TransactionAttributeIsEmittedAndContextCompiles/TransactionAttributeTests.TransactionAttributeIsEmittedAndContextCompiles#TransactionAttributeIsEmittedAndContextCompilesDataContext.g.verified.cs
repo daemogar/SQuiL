@@ -55,7 +55,6 @@ partial class TransactionAttributeIsEmittedAndContextCompilesDataContext : SQuiL
 		Use [{builder.InitialCatalog}];
 		
 		Update [Documents] set Status = 'Done' where Id = @Param_Id;
-		
 		""";
 	}
 }

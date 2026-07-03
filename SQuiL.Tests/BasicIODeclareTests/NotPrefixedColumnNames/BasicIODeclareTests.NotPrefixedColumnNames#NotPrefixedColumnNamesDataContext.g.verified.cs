@@ -46,45 +46,39 @@ partial class NotPrefixedColumnNamesDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "recordid:int|notes:string|notenrolled:bool|notification:string|nullableflag:bool":
 					{
-						case "__SQuiL__Table__Type__Returns_Records__":
+						isRecords = true;
+						
+						response.Records ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexRecordID = reader.GetOrdinal("RecordID");
+						var indexNotes = reader.GetOrdinal("Notes");
+						var indexNotEnrolled = reader.GetOrdinal("NotEnrolled");
+						var indexNotification = reader.GetOrdinal("Notification");
+						var indexNullableFlag = reader.GetOrdinal("NullableFlag");
+						
+						do
 						{
-							isRecords = true;
+							var valueRecordID = reader.GetInt32(indexRecordID);
+							var valueNotes = reader.GetString(indexNotes);
+							var valueNotEnrolled = reader.GetBoolean(indexNotEnrolled);
+							var valueNotification = reader.IsDBNull(indexNotification) ? default! : reader.GetString(indexNotification);
+							var valueNullableFlag = reader.IsDBNull(indexNullableFlag) ? default! : reader.GetBoolean(indexNullableFlag);
 							
-							response.Records ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexRecordID = reader.GetOrdinal("RecordID");
-							var indexNotes = reader.GetOrdinal("Notes");
-							var indexNotEnrolled = reader.GetOrdinal("NotEnrolled");
-							var indexNotification = reader.GetOrdinal("Notification");
-							var indexNullableFlag = reader.GetOrdinal("NullableFlag");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Records")
-								{
-									var valueRecordID = reader.GetInt32(indexRecordID);
-									var valueNotes = reader.GetString(indexNotes);
-									var valueNotEnrolled = reader.GetBoolean(indexNotEnrolled);
-									var valueNotification = reader.IsDBNull(indexNotification) ? default! : reader.GetString(indexNotification);
-									var valueNullableFlag = reader.IsDBNull(indexNullableFlag) ? default! : reader.GetBoolean(indexNullableFlag);
-									
-									response.Records.Add(new(
-										valueRecordID,
-										valueNotes,
-										valueNotEnrolled,
-										valueNotification,
-										valueNullableFlag));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Records.Add(new(
+								valueRecordID,
+								valueNotes,
+								valueNotEnrolled,
+								valueNotification,
+								valueNullableFlag));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -95,7 +89,7 @@ partial class NotPrefixedColumnNamesDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isRecords) errors.Add(new(51001, 12, 1, 97, "Records", "Expected return table `Records`"));
+		if (!isRecords) errors.Add(new(51001, 12, 1, 91, "Records", "Expected return table `Records`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -104,7 +98,6 @@ partial class NotPrefixedColumnNamesDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Records table(
-			[__SQuiL__Table__Type__Returns_Records__] varchar(max) default('Returns_Records'),
 			[RecordID] int,
 			[Notes] varchar(100),
 			[NotEnrolled] bit,
@@ -114,7 +107,6 @@ partial class NotPrefixedColumnNamesDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

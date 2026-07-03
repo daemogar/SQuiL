@@ -46,38 +46,32 @@ partial class AllColumnsDefaultedDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "amount:decimal|note:string":
 					{
-						case "__SQuiL__Table__Type__Returns_Rows__":
+						isRows = true;
+						
+						response.Rows ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexAmount = reader.GetOrdinal("Amount");
+						var indexNote = reader.GetOrdinal("Note");
+						
+						do
 						{
-							isRows = true;
+							var valueAmount = reader.GetDecimal(indexAmount);
+							var valueNote = reader.GetString(indexNote);
 							
-							response.Rows ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexAmount = reader.GetOrdinal("Amount");
-							var indexNote = reader.GetOrdinal("Note");
-							
-							do
+							response.Rows.Add(new()
 							{
-								if (reader.GetString(0) == "Returns_Rows")
-								{
-									var valueAmount = reader.GetDecimal(indexAmount);
-									var valueNote = reader.GetString(indexNote);
-									
-									response.Rows.Add(new()
-									{
-										Amount = valueAmount,
-										Note = valueNote,
-									});
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+								Amount = valueAmount,
+								Note = valueNote,
+							});
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -88,7 +82,7 @@ partial class AllColumnsDefaultedDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isRows) errors.Add(new(51001, 12, 1, 90, "Rows", "Expected return table `Rows`"));
+		if (!isRows) errors.Add(new(51001, 12, 1, 84, "Rows", "Expected return table `Rows`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -97,14 +91,12 @@ partial class AllColumnsDefaultedDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Rows table(
-			[__SQuiL__Table__Type__Returns_Rows__] varchar(max) default('Returns_Rows'),
 			[Amount] decimal(18,2),
 			[Note] varchar(50));
 		
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

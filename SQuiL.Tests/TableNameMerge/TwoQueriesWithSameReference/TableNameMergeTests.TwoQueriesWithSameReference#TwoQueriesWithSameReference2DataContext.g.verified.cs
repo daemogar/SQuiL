@@ -65,7 +65,6 @@ partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Param_Question table(
-			[__SQuiL__Table__Type__Param_Question__] varchar(max) default('Param_Question'),
 			[Number] int,
 			[Message] varchar(max));
 		{inputQuestion(parameters)}
@@ -73,7 +72,6 @@ partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select * From @Param_Question;
-		
 		""";
 	}
 }

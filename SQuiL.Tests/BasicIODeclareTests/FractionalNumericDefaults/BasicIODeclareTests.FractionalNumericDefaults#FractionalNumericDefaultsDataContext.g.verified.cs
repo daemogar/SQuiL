@@ -51,7 +51,6 @@ partial class FractionalNumericDefaultsDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

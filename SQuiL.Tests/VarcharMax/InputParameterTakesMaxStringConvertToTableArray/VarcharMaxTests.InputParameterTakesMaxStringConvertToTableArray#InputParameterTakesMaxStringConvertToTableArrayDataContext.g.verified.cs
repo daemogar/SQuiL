@@ -50,7 +50,6 @@ partial class InputParameterTakesMaxStringConvertToTableArrayDataContext : SQuiL
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

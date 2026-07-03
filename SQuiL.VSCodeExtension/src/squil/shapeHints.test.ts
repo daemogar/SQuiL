@@ -3,17 +3,19 @@ import * as assert from 'node:assert';
 import { parseSQuiL } from './parser';
 import { shapeHints } from './shapeHints';
 
-test('SP0020 fires when two differently-named tables share an exact signature', () => {
+test('SP0020 fires when two differently-named tables share an exact signature (cross-side)', () => {
+  // Same canonical shape but on opposite sides (input vs output) — SP0030 only
+  // fires on same-side output pairs, so this cross-side pair is SP0020's domain.
   const hints = shapeHints(parseSQuiL([
+    'Declare @Params_Employee table(PersonID int, FullName varchar(100));',
     'Declare @Returns_Person table(PersonID int, FullName varchar(100));',
-    'Declare @Returns_Persons table(PersonID int, FullName varchar(100));',
     'Use Db;',
     'Select 1;',
   ].join('\n')));
 
   assert.strictEqual(hints.length, 2, 'one hint per participating declaration');
   assert.strictEqual(hints[0].code, 'SP0020');
-  assert.ok(hints[0].message.includes('Persons') || hints[0].message.includes('Person'));
+  assert.ok(hints[0].message.includes('Employee') || hints[0].message.includes('Person'));
 });
 
 test('SP0020 silent when signatures differ', () => {
@@ -29,9 +31,10 @@ test('SP0020 silent when signatures differ', () => {
 // SP0020: different-name pair that is identical EXCEPT for a column size SHOULD
 // fire — sizes may differ per spec, so they are "same shape" from the generator's
 // perspective.  This is a RED→GREEN regression guard added by the size-strip fix.
-test('SP0020 fires when differently-named tables share shape except column size', () => {
+// Uses cross-side (input vs output) so SP0030 does not suppress the SP0020 hint.
+test('SP0020 fires when differently-named tables share shape except column size (cross-side)', () => {
   const hints = shapeHints(parseSQuiL([
-    'Declare @Returns_Person table(PersonID int, Name varchar(100));',
+    'Declare @Params_Employee table(PersonID int, Name varchar(100));',
     'Declare @Returns_People table(PersonID int, Name varchar(50));',
     'Use Db;',
     'Select 1;',
@@ -39,7 +42,7 @@ test('SP0020 fires when differently-named tables share shape except column size'
   assert.ok(hints.length >= 2, 'SP0020 must fire for each participating declaration');
   assert.ok(hints.every(h => h.code === 'SP0020'));
   assert.ok(
-    hints.some(h => h.message.includes('People') || h.message.includes('Person')),
+    hints.some(h => h.message.includes('People') || h.message.includes('Employee')),
     'hint must name a counterpart',
   );
 });
@@ -60,12 +63,13 @@ test('SP0020 silent for a same-name pair with an identical signature (SP0017 dom
   assert.strictEqual(hints.length, 0);
 });
 
-test('SP0020 fires only across differently-named vars in a mixed same/different group', () => {
-  // @Returns_Person declared twice (same shape) + @Returns_Persons (same shape).
+test('SP0020 fires only across differently-named vars in a mixed same/different group (cross-side)', () => {
+  // @Params_Person declared twice (same shape) + @Returns_Persons (same shape).
   // SP0020 must point Person↔Persons but NEVER Person↔Person.
+  // Using input @Params_ for Person so SP0030 (output-only) does not suppress Person hints.
   const hints = shapeHints(parseSQuiL([
-    'Declare @Returns_Person table(PersonID int, FullName varchar(100));',
-    'Declare @Returns_Person table(PersonID int, FullName varchar(100));',
+    'Declare @Params_Person table(PersonID int, FullName varchar(100));',
+    'Declare @Params_Person table(PersonID int, FullName varchar(100));',
     'Declare @Returns_Persons table(PersonID int, FullName varchar(100));',
     'Use Db;',
     'Select 1;',

@@ -6,7 +6,7 @@
 namespace TestCase.Models;
 
 public partial record Parents(
-	int ID,
-	string? FirstName,
-	string LastName,
-	int? Age);
+	int ParentID,
+	string? MiddleName,
+	string Surname,
+	int? YearsOld);

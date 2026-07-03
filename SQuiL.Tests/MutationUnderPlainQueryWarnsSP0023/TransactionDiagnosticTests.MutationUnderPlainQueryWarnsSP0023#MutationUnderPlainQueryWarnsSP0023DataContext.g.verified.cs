@@ -50,7 +50,6 @@ partial class MutationUnderPlainQueryWarnsSP0023DataContext : SQuiLBaseDataConte
 		Use [{builder.InitialCatalog}];
 		
 		Update [Documents] Set Status = 'Done' Where Id = @Param_Id;
-		
 		""";
 	}
 }

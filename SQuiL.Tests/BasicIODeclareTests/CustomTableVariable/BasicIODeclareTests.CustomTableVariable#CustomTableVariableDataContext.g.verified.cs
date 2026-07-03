@@ -46,39 +46,33 @@ partial class CustomTableVariableDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "tableid:int|isfemale:bool|lastname:string":
 					{
-						case "__SQuiL__Table__Type__Returns_Table__":
+						isTable = true;
+						
+						response.Table ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexTableID = reader.GetOrdinal("TableID");
+						var indexIsFemale = reader.GetOrdinal("IsFemale");
+						var indexLastName = reader.GetOrdinal("LastName");
+						
+						do
 						{
-							isTable = true;
+							var valueTableID = reader.GetInt32(indexTableID);
+							var valueIsFemale = reader.GetBoolean(indexIsFemale);
+							var valueLastName = reader.GetString(indexLastName);
 							
-							response.Table ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexTableID = reader.GetOrdinal("TableID");
-							var indexIsFemale = reader.GetOrdinal("IsFemale");
-							var indexLastName = reader.GetOrdinal("LastName");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Table")
-								{
-									var valueTableID = reader.GetInt32(indexTableID);
-									var valueIsFemale = reader.GetBoolean(indexIsFemale);
-									var valueLastName = reader.GetString(indexLastName);
-									
-									response.Table.Add(new(
-										valueTableID,
-										valueIsFemale,
-										valueLastName));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Table.Add(new(
+								valueTableID,
+								valueIsFemale,
+								valueLastName));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -89,7 +83,7 @@ partial class CustomTableVariableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTable) errors.Add(new(51001, 12, 1, 91, "Table", "Expected return table `Table`"));
+		if (!isTable) errors.Add(new(51001, 12, 1, 85, "Table", "Expected return table `Table`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -125,14 +119,12 @@ partial class CustomTableVariableDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Params_Table table(
-			[__SQuiL__Table__Type__Params_Table__] varchar(max) default('Params_Table'),
 			[TableID] int,
 			[IsFemale] bit,
 			[LastName] varchar(100));
 		{inputTable(parameters)}
 		
 		Declare @Returns_Table table(
-			[__SQuiL__Table__Type__Returns_Table__] varchar(max) default('Returns_Table'),
 			[TableID] int,
 			[IsFemale] bit,
 			[LastName] varchar(100));
@@ -140,7 +132,6 @@ partial class CustomTableVariableDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

@@ -46,41 +46,35 @@ partial class CustomTableVariableWithColumnDefaultDataContext : SQuiLBaseDataCon
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "tableid:int|isactive:bool|lastname:string":
 					{
-						case "__SQuiL__Table__Type__Returns_Table__":
+						isTable = true;
+						
+						response.Table ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexTableID = reader.GetOrdinal("TableID");
+						var indexIsActive = reader.GetOrdinal("IsActive");
+						var indexLastName = reader.GetOrdinal("LastName");
+						
+						do
 						{
-							isTable = true;
+							var valueTableID = reader.GetInt32(indexTableID);
+							var valueIsActive = reader.GetBoolean(indexIsActive);
+							var valueLastName = reader.GetString(indexLastName);
 							
-							response.Table ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexTableID = reader.GetOrdinal("TableID");
-							var indexIsActive = reader.GetOrdinal("IsActive");
-							var indexLastName = reader.GetOrdinal("LastName");
-							
-							do
+							response.Table.Add(new(
+								valueTableID,
+								valueLastName)
 							{
-								if (reader.GetString(0) == "Returns_Table")
-								{
-									var valueTableID = reader.GetInt32(indexTableID);
-									var valueIsActive = reader.GetBoolean(indexIsActive);
-									var valueLastName = reader.GetString(indexLastName);
-									
-									response.Table.Add(new(
-										valueTableID,
-										valueLastName)
-									{
-										IsActive = valueIsActive,
-									});
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+								IsActive = valueIsActive,
+							});
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -91,7 +85,7 @@ partial class CustomTableVariableWithColumnDefaultDataContext : SQuiLBaseDataCon
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTable) errors.Add(new(51001, 12, 1, 93, "Table", "Expected return table `Table`"));
+		if (!isTable) errors.Add(new(51001, 12, 1, 87, "Table", "Expected return table `Table`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -127,14 +121,12 @@ partial class CustomTableVariableWithColumnDefaultDataContext : SQuiLBaseDataCon
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Params_Table table(
-			[__SQuiL__Table__Type__Params_Table__] varchar(max) default('Params_Table'),
 			[TableID] int,
 			[IsActive] bit,
 			[LastName] varchar(100));
 		{inputTable(parameters)}
 		
 		Declare @Returns_Table table(
-			[__SQuiL__Table__Type__Returns_Table__] varchar(max) default('Returns_Table'),
 			[TableID] int,
 			[IsActive] bit,
 			[LastName] varchar(100));
@@ -142,7 +134,6 @@ partial class CustomTableVariableWithColumnDefaultDataContext : SQuiLBaseDataCon
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

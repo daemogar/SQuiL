@@ -50,81 +50,68 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "scaler:int":
 					{
-						case "__SQuiL__Table__Type__Return_Scaler__":
+						if (isScaler) throw new Exception(
+							"Already returned value for `Scaler`");
+						
+						isScaler = true;
+						
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						response.Scaler = !reader.IsDBNull(0) ? reader.GetInt32(0) : throw new NullReferenceException("Return value for Scaler cannot be null.");
+						break;
+					}
+					case "objectid:int|ismale:bool|firstname:string":
+					{
+						if (isObject) throw new Exception(
+							"Already returned value for `Object`");
+						
+						isObject = true;
+						
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						if (response.Object is not null)
+							throw new Exception("Object was already set.");
+						
+						response.Object = new(
+							reader.GetInt32(reader.GetOrdinal("ObjectID")),
+							reader.GetBoolean(reader.GetOrdinal("IsMale")),
+							reader.GetString(reader.GetOrdinal("FirstName")));
+						
+						if (await reader.ReadAsync(cancellationToken))
+							throw new Exception(
+								"Return object results in more than one object. Consider using a return table instead.");
+						
+						break;
+					}
+					case "tableid:int|isfemale:bool|lastname:string":
+					{
+						isTable = true;
+						
+						response.Table ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexTableID = reader.GetOrdinal("TableID");
+						var indexIsFemale = reader.GetOrdinal("IsFemale");
+						var indexLastName = reader.GetOrdinal("LastName");
+						
+						do
 						{
-							if (isScaler) throw new Exception(
-								"Already returned value for `Scaler`");
+							var valueTableID = reader.GetInt32(indexTableID);
+							var valueIsFemale = reader.GetBoolean(indexIsFemale);
+							var valueLastName = reader.GetString(indexLastName);
 							
-							isScaler = true;
-							
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							response.Scaler = !reader.IsDBNull(1) ? reader.GetInt32(1) : throw new NullReferenceException("Return value for Return_Scaler cannot be null.");
-							break;
+							response.Table.Add(new(
+								valueTableID,
+								valueIsFemale,
+								valueLastName));
 						}
-						case "__SQuiL__Table__Type__Return_Object__":
-						{
-							if (isObject) throw new Exception(
-								"Already returned value for `Object`");
-							
-							isObject = true;
-							
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							if (response.Object is not null)
-								throw new Exception("Object was already set.");
-							
-							if (reader.GetString(0) == "Return_Object")
-							{
-								response.Object = new(
-									reader.GetInt32(reader.GetOrdinal("ObjectID")),
-									reader.GetBoolean(reader.GetOrdinal("IsMale")),
-									reader.GetString(reader.GetOrdinal("FirstName")));
-							}
-							else
-							{
-								continue;
-							}
-							
-							if (await reader.ReadAsync(cancellationToken))
-								throw new Exception(
-									"Return object results in more than one object. Consider using a return table instead.");
-							
-							break;
-						}
-						case "__SQuiL__Table__Type__Returns_Table__":
-						{
-							isTable = true;
-							
-							response.Table ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexTableID = reader.GetOrdinal("TableID");
-							var indexIsFemale = reader.GetOrdinal("IsFemale");
-							var indexLastName = reader.GetOrdinal("LastName");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Table")
-								{
-									var valueTableID = reader.GetInt32(indexTableID);
-									var valueIsFemale = reader.GetBoolean(indexIsFemale);
-									var valueLastName = reader.GetString(indexLastName);
-									
-									response.Table.Add(new(
-										valueTableID,
-										valueIsFemale,
-										valueLastName));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
-						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -135,9 +122,9 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isScaler) errors.Add(new(51001, 12, 1, 137, "Scaler", "Expected return scaler `Scaler`"));
-		if (!isObject) errors.Add(new(51001, 12, 1, 138, "Object", "Expected return object `Object`"));
-		if (!isTable) errors.Add(new(51001, 12, 1, 139, "Table", "Expected return table `Table`"));
+		if (!isScaler) errors.Add(new(51001, 12, 1, 124, "Scaler", "Expected return scaler `Scaler`"));
+		if (!isObject) errors.Add(new(51001, 12, 1, 125, "Object", "Expected return object `Object`"));
+		if (!isTable) errors.Add(new(51001, 12, 1, 126, "Table", "Expected return table `Table`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -197,14 +184,12 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Param_Object table(
-			[__SQuiL__Table__Type__Param_Object__] varchar(max) default('Param_Object'),
 			[ObjectID] int,
 			[IsMale] bit,
 			[FirstName] varchar(100));
 		{inputObject(parameters)}
 		
 		Declare @Params_Table table(
-			[__SQuiL__Table__Type__Params_Table__] varchar(max) default('Params_Table'),
 			[TableID] int,
 			[IsFemale] bit,
 			[LastName] varchar(100));
@@ -213,13 +198,11 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 		Declare @Return_Scaler int;
 		
 		Declare @Return_Object table(
-			[__SQuiL__Table__Type__Return_Object__] varchar(max) default('Return_Object'),
 			[ObjectID] int,
 			[IsMale] bit,
 			[FirstName] varchar(100));
 		
 		Declare @Returns_Table table(
-			[__SQuiL__Table__Type__Returns_Table__] varchar(max) default('Returns_Table'),
 			[TableID] int,
 			[IsFemale] bit,
 			[LastName] varchar(100));
@@ -227,9 +210,6 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
-		Select 'Return_Scaler' As [__SQuiL__Table__Type__Return_Scaler__], @Return_Scaler;
-		
 		""";
 	}
 }

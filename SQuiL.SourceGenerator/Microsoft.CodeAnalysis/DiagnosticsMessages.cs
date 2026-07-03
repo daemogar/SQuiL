@@ -276,6 +276,26 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0030 — Within one query file, two <c>@Return</c>/<c>@Returns</c> outputs have an
+	/// identical ordered canonical signature (same column names, order, and C# types — length
+	/// and precision do not differentiate). The result sets cannot be routed apart at runtime.
+	/// All colliding declarations are flagged, each cross-referencing the other.
+	/// </summary>
+	public static void ReportShapeCollision(
+		this SourceProductionContext context,
+		string filename,
+		SQuiL.SourceGenerator.Parser.SQuiLShapeCollisionValidator.Finding finding)
+	{
+		var self = (finding.IsTable ? "@Returns_" : "@Return_") + finding.Name;
+		var other = "@Return" + (finding.IsTable ? "s_" : "_") + finding.OtherName;
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0030", "Duplicate Result Shape",
+			$"{filename}: `{self}` (line {finding.Line}) has the same result signature as `{other}` (line {finding.OtherLine}) — " +
+			"identical column names, order, and C# types (length/precision does not differentiate). " +
+			"Result sets can't be routed apart at runtime. Differentiate a column name, order, or C# type; " +
+			"or if they are the same shape and meaning, give them the same name to share one record."));
+	}
+
+	/// <summary>
 	/// SP0023 — A <c>[SQuiLQuery]</c> (or a <c>[SQuiLQueryTransaction]</c> with <c>enabled:false</c>)
 	/// wraps a body that contains a persistent real-table mutation (UPDATE/INSERT/DELETE/MERGE/EXEC/…).
 	/// Consider switching to <c>[SQuiLQueryTransaction]</c> so the mutation is wrapped in a transaction.

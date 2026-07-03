@@ -186,6 +186,7 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
     <li><a href="#naming-conventions">Variable Naming Conventions</a></li>
     <li><a href="#variable-rules">Variable Rules</a></li>
     <li><a href="#type-reference">SQL Type → C# Type Reference</a></li>
+    <li><a href="#result-sets">Result Sets — Authoring Styles</a></li>
     <li><a href="#examples">Examples</a></li>
     <li><a href="#sample-data">Sample Data Insertion</a></li>
     <li><a href="#connection-strings">Connection String Configuration</a></li>
@@ -211,7 +212,7 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
 
 <span class="cm">-- ③ Body: your SQL logic</span>
 <span class="kw">Set</span> <span class="ret">@Return_Username</span> = (<span class="kw">Select</span> Name <span class="kw">From</span> Users <span class="kw">Where</span> ID = <span class="par">@Param_UserID</span>);
-<span class="kw">Select</span> <span class="ret">@Return_Username</span>;</code></pre>
+<span class="kw">Select</span> <span class="ret">@Return_Username</span> <span class="kw">As</span> Username;  <span class="cm">-- alias must match declared base name</span></code></pre>
 
 <div class="tip">
   <strong>IntelliSense tips:</strong>
@@ -352,6 +353,67 @@ SQuiL prefix, but they still must be declared before they are referenced.</p>
   <tr><td><code>Xml</code></td><td><code>string</code></td><td></td></tr>
 </table>
 
+<!-- ─────────────────────── Result Sets ──────────────────────────────── -->
+<h2 id="result-sets">Result Sets — Authoring Styles</h2>
+
+<p>SQuiL routes each result set returned by a <code>Select</code> to the matching declared output by
+<strong>shape</strong>: the ordered list of (column name, C# type) pairs. Two authoring styles
+produce that shape.</p>
+
+<h3>Table-variable style (recommended default)</h3>
+<p>Declare a table variable, populate it with <code>Insert Into … Select …</code>, then emit it with
+<code>Select * From</code>. The table-variable declaration is the <em>authoritative schema</em> — column
+names, C# types, and column order are locked at build time, so the result set always matches the
+declared output by construction.</p>
+<pre><code><span class="kw">Declare</span> <span class="ret">@Returns_Orders</span> <span class="tp">table</span> (
+    OrderID <span class="tp">int</span>,
+    Total   <span class="tp">decimal(18, 2)</span>
+);
+
+<span class="cm">-- populate …</span>
+<span class="kw">Insert Into</span> <span class="ret">@Returns_Orders</span>
+<span class="kw">Select</span>      o.OrderID, o.Total
+<span class="kw">From</span>        Orders o;
+
+<span class="kw">Select</span> * <span class="kw">From</span> <span class="ret">@Returns_Orders</span>;  <span class="cm">-- emits the result set</span></code></pre>
+
+<h3>Direct-select style (lean)</h3>
+<p>You can just <code>Select</code> directly — no table variable needed. SQuiL routes the result set by
+matching its runtime shape against every declared output. Supply <code>AS</code> aliases and
+<code>CAST</code> only where the <strong>base C# type</strong> differs from the source column;
+<strong>length casts are never required</strong> (e.g. casting <code>varchar(50)</code> to
+<code>varchar(100)</code> adds nothing — both map to <code>string</code>). A <code>Select</code> whose
+shape matches no declared output is skipped and reported as a missing return.</p>
+<pre><code><span class="kw">Declare</span> <span class="ret">@Returns_Orders</span> <span class="tp">table</span> (
+    OrderID <span class="tp">int</span>,
+    Total   <span class="tp">decimal(18, 2)</span>
+);
+
+<span class="kw">Use</span> OrdersDatabase;
+
+<span class="cm">-- Direct select — shape (OrderID:int, Total:decimal) matches @Returns_Orders</span>
+<span class="kw">Select</span> o.OrderID,
+       <span class="kw">Cast</span>(o.RawTotal <span class="kw">As</span> <span class="tp">decimal(18, 2)</span>) <span class="kw">As</span> Total  <span class="cm">-- CAST needed: float → decimal</span>
+<span class="kw">From</span>   Orders o;</code></pre>
+
+<h3>Scalar convention</h3>
+<p>For scalar outputs, alias the column to its declared base name so the single-column shape matches:</p>
+<pre><code><span class="kw">Declare</span> <span class="ret">@Return_Count</span> <span class="tp">int</span>;
+
+<span class="kw">Use</span> MyDatabase;
+
+<span class="kw">Select</span> Count(*) <span class="kw">As</span> Count  <span class="cm">-- alias "Count" matches declared name @Return_Count</span>
+<span class="kw">From</span>   Orders;</code></pre>
+<p>Or set the variable and select it — but always alias the column so the shape key matches:</p>
+<pre><code><span class="kw">Set</span> <span class="ret">@Return_Count</span> = (<span class="kw">Select</span> Count(*) <span class="kw">From</span> Orders);
+<span class="kw">Select</span> <span class="ret">@Return_Count</span> <span class="kw">As</span> Count;  <span class="cm">-- alias required: bare @Return_Count has no column name at runtime</span></code></pre>
+
+<h3>Collision diagnostic — SP0030</h3>
+<p>If two declared outputs share an identical shape (same ordered column names and C# types), SQuiL
+cannot tell them apart at runtime. Differentiate them by changing a column name, adjusting the
+column order, using a different C# type, or combining them into one shared output with a single
+name.</p>
+
 <!-- ─────────────────────── Examples ──────────────────────────────────── -->
 <h2 id="examples">Examples</h2>
 
@@ -369,7 +431,7 @@ SQuiL prefix, but they still must be declared before they are referenced.</p>
     <span class="kw">Where</span>  u.UserID = <span class="par">@Param_UserID</span>
 );
 
-<span class="kw">Select</span> <span class="ret">@Return_Name</span>;</code></pre>
+<span class="kw">Select</span> <span class="ret">@Return_Name</span> <span class="kw">As</span> Name;  <span class="cm">-- alias "Name" matches declared base name @Return_Name</span></code></pre>
 
 <p><strong>Generated C#:</strong></p>
 <pre><code><span class="cs-kw">public partial record</span> <span class="cs-cls">GetUserNameRequest</span>
@@ -450,7 +512,7 @@ SQuiL prefix, but they still must be declared before they are referenced.</p>
 <span class="kw">From</span>        <span class="par">@Params_Tags</span> t;
 
 <span class="kw">Set</span> <span class="ret">@Return_RowsInserted</span> = @@RowCount;
-<span class="kw">Select</span> <span class="ret">@Return_RowsInserted</span>;</code></pre>
+<span class="kw">Select</span> <span class="ret">@Return_RowsInserted</span> <span class="kw">As</span> RowsInserted;  <span class="cm">-- alias "RowsInserted" matches declared base name</span></code></pre>
 
 <p><strong>Generated C#:</strong></p>
 <pre><code><span class="cm">// in namespace ContentApplication.Data.Models:</span>

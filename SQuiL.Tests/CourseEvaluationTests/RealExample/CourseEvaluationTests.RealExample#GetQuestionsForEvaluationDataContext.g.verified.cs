@@ -47,42 +47,36 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "sectionid:string|category:string|type:string|question:string":
 					{
-						case "__SQuiL__Table__Type__Returns_Questions__":
+						isQuestions = true;
+						
+						response.Questions ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexSectionID = reader.GetOrdinal("SectionID");
+						var indexCategory = reader.GetOrdinal("Category");
+						var indexType = reader.GetOrdinal("Type");
+						var indexQuestion = reader.GetOrdinal("Question");
+						
+						do
 						{
-							isQuestions = true;
+							var valueSectionID = reader.GetString(indexSectionID);
+							var valueCategory = reader.GetString(indexCategory);
+							var valueType = reader.GetString(indexType);
+							var valueQuestion = reader.GetString(indexQuestion);
 							
-							response.Questions ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexSectionID = reader.GetOrdinal("SectionID");
-							var indexCategory = reader.GetOrdinal("Category");
-							var indexType = reader.GetOrdinal("Type");
-							var indexQuestion = reader.GetOrdinal("Question");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Questions")
-								{
-									var valueSectionID = reader.GetString(indexSectionID);
-									var valueCategory = reader.GetString(indexCategory);
-									var valueType = reader.GetString(indexType);
-									var valueQuestion = reader.GetString(indexQuestion);
-									
-									response.Questions.Add(new(
-										valueSectionID,
-										valueCategory,
-										valueType,
-										valueQuestion));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Questions.Add(new(
+								valueSectionID,
+								valueCategory,
+								valueType,
+								valueQuestion));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -93,7 +87,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isQuestions) errors.Add(new(51001, 12, 1, 95, "Questions", "Expected return table `Questions`"));
+		if (!isQuestions) errors.Add(new(51001, 12, 1, 89, "Questions", "Expected return table `Questions`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -146,7 +140,6 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Param_Section table(
-			[__SQuiL__Table__Type__Param_Section__] varchar(max) default('Param_Section'),
 			[SectionID] varchar(20),
 			[Department] varchar(100),
 			[CourseCode] varchar(20),
@@ -161,7 +154,6 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		{inputSection(parameters)}
 		
 		Declare @Returns_Questions table(
-			[__SQuiL__Table__Type__Returns_Questions__] varchar(max) default('Returns_Questions'),
 			[SectionID] varchar(20),
 			[Category] varchar(200),
 			[Type] varchar(20),
@@ -169,7 +161,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		Use [{builder.InitialCatalog}];
 		
-		Insert Into @Returns_Questions([SectionID], [Category], [Type], [Question])
+		Insert Into @Returns_Questions
 		Select		s.SectionID,
 					Case ShowWhen
 						When 'global' Then 'Global Questions'
@@ -261,7 +253,6 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		TermCode
 		
 		*/
-		
 		""";
 	}
 }

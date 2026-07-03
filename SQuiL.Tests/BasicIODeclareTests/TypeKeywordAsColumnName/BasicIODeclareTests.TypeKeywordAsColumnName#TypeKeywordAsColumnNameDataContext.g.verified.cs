@@ -46,42 +46,36 @@ partial class TypeKeywordAsColumnNameDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "recordid:int|date:System.DateOnly|time:System.TimeOnly|datetime:System.DateTime":
 					{
-						case "__SQuiL__Table__Type__Returns_Records__":
+						isRecords = true;
+						
+						response.Records ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexRecordID = reader.GetOrdinal("RecordID");
+						var indexDate = reader.GetOrdinal("Date");
+						var indexTime = reader.GetOrdinal("Time");
+						var indexDateTime = reader.GetOrdinal("DateTime");
+						
+						do
 						{
-							isRecords = true;
+							var valueRecordID = reader.GetInt32(indexRecordID);
+							var valueDate = reader.GetFieldValue<System.DateOnly>(indexDate);
+							var valueTime = reader.GetFieldValue<System.TimeOnly>(indexTime);
+							var valueDateTime = reader.GetDateTime(indexDateTime);
 							
-							response.Records ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexRecordID = reader.GetOrdinal("RecordID");
-							var indexDate = reader.GetOrdinal("Date");
-							var indexTime = reader.GetOrdinal("Time");
-							var indexDateTime = reader.GetOrdinal("DateTime");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Records")
-								{
-									var valueRecordID = reader.GetInt32(indexRecordID);
-									var valueDate = reader.GetFieldValue<System.DateOnly>(indexDate);
-									var valueTime = reader.GetFieldValue<System.TimeOnly>(indexTime);
-									var valueDateTime = reader.GetDateTime(indexDateTime);
-									
-									response.Records.Add(new(
-										valueRecordID,
-										valueDate,
-										valueTime,
-										valueDateTime));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Records.Add(new(
+								valueRecordID,
+								valueDate,
+								valueTime,
+								valueDateTime));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -92,7 +86,7 @@ partial class TypeKeywordAsColumnNameDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isRecords) errors.Add(new(51001, 12, 1, 94, "Records", "Expected return table `Records`"));
+		if (!isRecords) errors.Add(new(51001, 12, 1, 88, "Records", "Expected return table `Records`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -101,7 +95,6 @@ partial class TypeKeywordAsColumnNameDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Records table(
-			[__SQuiL__Table__Type__Returns_Records__] varchar(max) default('Returns_Records'),
 			[RecordID] int,
 			[Date] date,
 			[Time] time,
@@ -110,7 +103,6 @@ partial class TypeKeywordAsColumnNameDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

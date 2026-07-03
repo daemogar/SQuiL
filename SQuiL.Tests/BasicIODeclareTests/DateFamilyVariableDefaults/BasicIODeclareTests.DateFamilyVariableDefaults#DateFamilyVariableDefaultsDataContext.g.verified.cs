@@ -53,7 +53,6 @@ partial class DateFamilyVariableDefaultsDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

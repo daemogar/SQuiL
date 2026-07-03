@@ -47,39 +47,33 @@ partial class DecimalPrecisionScaleTestDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "totalid:int|amount:decimal|label:string":
 					{
-						case "__SQuiL__Table__Type__Returns_Totals__":
+						isTotals = true;
+						
+						response.Totals ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexTotalID = reader.GetOrdinal("TotalID");
+						var indexAmount = reader.GetOrdinal("Amount");
+						var indexLabel = reader.GetOrdinal("Label");
+						
+						do
 						{
-							isTotals = true;
+							var valueTotalID = reader.GetInt32(indexTotalID);
+							var valueAmount = reader.IsDBNull(indexAmount) ? default! : reader.GetDecimal(indexAmount);
+							var valueLabel = reader.GetString(indexLabel);
 							
-							response.Totals ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexTotalID = reader.GetOrdinal("TotalID");
-							var indexAmount = reader.GetOrdinal("Amount");
-							var indexLabel = reader.GetOrdinal("Label");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Totals")
-								{
-									var valueTotalID = reader.GetInt32(indexTotalID);
-									var valueAmount = reader.IsDBNull(indexAmount) ? default! : reader.GetDecimal(indexAmount);
-									var valueLabel = reader.GetString(indexLabel);
-									
-									response.Totals.Add(new(
-										valueTotalID,
-										valueAmount,
-										valueLabel));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Totals.Add(new(
+								valueTotalID,
+								valueAmount,
+								valueLabel));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -90,7 +84,7 @@ partial class DecimalPrecisionScaleTestDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTotals) errors.Add(new(51001, 12, 1, 92, "Totals", "Expected return table `Totals`"));
+		if (!isTotals) errors.Add(new(51001, 12, 1, 86, "Totals", "Expected return table `Totals`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -126,14 +120,12 @@ partial class DecimalPrecisionScaleTestDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Params_Courses table(
-			[__SQuiL__Table__Type__Params_Courses__] varchar(max) default('Params_Courses'),
 			[CourseID] int,
 			[Credits] decimal(10,4),
 			[Title] varchar(100));
 		{inputCourses(parameters)}
 		
 		Declare @Returns_Totals table(
-			[__SQuiL__Table__Type__Returns_Totals__] varchar(max) default('Returns_Totals'),
 			[TotalID] int,
 			[Amount] numeric(10, 4) Null,
 			[Label] varchar(50));
@@ -141,7 +133,6 @@ partial class DecimalPrecisionScaleTestDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

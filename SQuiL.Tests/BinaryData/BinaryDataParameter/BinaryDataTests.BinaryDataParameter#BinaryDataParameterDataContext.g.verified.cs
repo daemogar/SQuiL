@@ -48,36 +48,30 @@ partial class BinaryDataParameterDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "databinary:byte[]|datavarbinary:byte[]":
 					{
-						case "__SQuiL__Table__Type__Returns_BinaryTable__":
+						isBinaryTable = true;
+						
+						response.BinaryTable ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexDataBinary = reader.GetOrdinal("DataBinary");
+						var indexDataVarBinary = reader.GetOrdinal("DataVarBinary");
+						
+						do
 						{
-							isBinaryTable = true;
+							var valueDataBinary = reader.GetFieldValue<byte[]>(indexDataBinary);
+							var valueDataVarBinary = reader.GetFieldValue<byte[]>(indexDataVarBinary);
 							
-							response.BinaryTable ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexDataBinary = reader.GetOrdinal("DataBinary");
-							var indexDataVarBinary = reader.GetOrdinal("DataVarBinary");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_BinaryTable")
-								{
-									var valueDataBinary = reader.GetFieldValue<byte[]>(indexDataBinary);
-									var valueDataVarBinary = reader.GetFieldValue<byte[]>(indexDataVarBinary);
-									
-									response.BinaryTable.Add(new(
-										valueDataBinary,
-										valueDataVarBinary));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.BinaryTable.Add(new(
+								valueDataBinary,
+								valueDataVarBinary));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -88,7 +82,7 @@ partial class BinaryDataParameterDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isBinaryTable) errors.Add(new(51001, 12, 1, 90, "BinaryTable", "Expected return table `BinaryTable`"));
+		if (!isBinaryTable) errors.Add(new(51001, 12, 1, 84, "BinaryTable", "Expected return table `BinaryTable`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -97,14 +91,12 @@ partial class BinaryDataParameterDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_BinaryTable table(
-			[__SQuiL__Table__Type__Returns_BinaryTable__] varchar(max) default('Returns_BinaryTable'),
 			[DataBinary] binary(10),
 			[DataVarBinary] varbinary(max));
 		
 		Use [{builder.InitialCatalog}];
 		
 		Select * From @Returns_BinaryTable
-		
 		""";
 	}
 }

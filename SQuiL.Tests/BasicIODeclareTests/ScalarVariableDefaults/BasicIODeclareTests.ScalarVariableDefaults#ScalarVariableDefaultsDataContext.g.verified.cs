@@ -61,7 +61,6 @@ partial class ScalarVariableDefaultsDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

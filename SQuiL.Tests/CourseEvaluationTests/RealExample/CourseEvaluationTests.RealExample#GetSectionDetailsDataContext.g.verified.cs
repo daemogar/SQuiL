@@ -54,63 +54,57 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "sectionid:string|department:string|coursecode:string|coursetitle:string|isonline:bool|isgraduatecourse:bool|isadultdegreecourse:bool|isnursingcourse:bool|isconnectionscourse:bool|isprivatemusiclessons:bool|isservicelearning:bool":
 					{
-						case "__SQuiL__Table__Type__Returns_Sections__":
+						isSections = true;
+						
+						response.Sections ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexSectionID = reader.GetOrdinal("SectionID");
+						var indexDepartment = reader.GetOrdinal("Department");
+						var indexCourseCode = reader.GetOrdinal("CourseCode");
+						var indexCourseTitle = reader.GetOrdinal("CourseTitle");
+						var indexIsOnline = reader.GetOrdinal("IsOnline");
+						var indexIsGraduateCourse = reader.GetOrdinal("IsGraduateCourse");
+						var indexIsAdultDegreeCourse = reader.GetOrdinal("IsAdultDegreeCourse");
+						var indexIsNursingCourse = reader.GetOrdinal("IsNursingCourse");
+						var indexIsConnectionsCourse = reader.GetOrdinal("IsConnectionsCourse");
+						var indexIsPrivateMusicLessons = reader.GetOrdinal("IsPrivateMusicLessons");
+						var indexIsServiceLearning = reader.GetOrdinal("IsServiceLearning");
+						
+						do
 						{
-							isSections = true;
+							var valueSectionID = reader.GetString(indexSectionID);
+							var valueDepartment = reader.GetString(indexDepartment);
+							var valueCourseCode = reader.GetString(indexCourseCode);
+							var valueCourseTitle = reader.GetString(indexCourseTitle);
+							var valueIsOnline = reader.GetBoolean(indexIsOnline);
+							var valueIsGraduateCourse = reader.GetBoolean(indexIsGraduateCourse);
+							var valueIsAdultDegreeCourse = reader.GetBoolean(indexIsAdultDegreeCourse);
+							var valueIsNursingCourse = reader.GetBoolean(indexIsNursingCourse);
+							var valueIsConnectionsCourse = reader.GetBoolean(indexIsConnectionsCourse);
+							var valueIsPrivateMusicLessons = reader.GetBoolean(indexIsPrivateMusicLessons);
+							var valueIsServiceLearning = reader.GetBoolean(indexIsServiceLearning);
 							
-							response.Sections ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexSectionID = reader.GetOrdinal("SectionID");
-							var indexDepartment = reader.GetOrdinal("Department");
-							var indexCourseCode = reader.GetOrdinal("CourseCode");
-							var indexCourseTitle = reader.GetOrdinal("CourseTitle");
-							var indexIsOnline = reader.GetOrdinal("IsOnline");
-							var indexIsGraduateCourse = reader.GetOrdinal("IsGraduateCourse");
-							var indexIsAdultDegreeCourse = reader.GetOrdinal("IsAdultDegreeCourse");
-							var indexIsNursingCourse = reader.GetOrdinal("IsNursingCourse");
-							var indexIsConnectionsCourse = reader.GetOrdinal("IsConnectionsCourse");
-							var indexIsPrivateMusicLessons = reader.GetOrdinal("IsPrivateMusicLessons");
-							var indexIsServiceLearning = reader.GetOrdinal("IsServiceLearning");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Sections")
-								{
-									var valueSectionID = reader.GetString(indexSectionID);
-									var valueDepartment = reader.GetString(indexDepartment);
-									var valueCourseCode = reader.GetString(indexCourseCode);
-									var valueCourseTitle = reader.GetString(indexCourseTitle);
-									var valueIsOnline = reader.GetBoolean(indexIsOnline);
-									var valueIsGraduateCourse = reader.GetBoolean(indexIsGraduateCourse);
-									var valueIsAdultDegreeCourse = reader.GetBoolean(indexIsAdultDegreeCourse);
-									var valueIsNursingCourse = reader.GetBoolean(indexIsNursingCourse);
-									var valueIsConnectionsCourse = reader.GetBoolean(indexIsConnectionsCourse);
-									var valueIsPrivateMusicLessons = reader.GetBoolean(indexIsPrivateMusicLessons);
-									var valueIsServiceLearning = reader.GetBoolean(indexIsServiceLearning);
-									
-									response.Sections.Add(new(
-										valueSectionID,
-										valueDepartment,
-										valueCourseCode,
-										valueCourseTitle,
-										valueIsOnline,
-										valueIsGraduateCourse,
-										valueIsAdultDegreeCourse,
-										valueIsNursingCourse,
-										valueIsConnectionsCourse,
-										valueIsPrivateMusicLessons,
-										valueIsServiceLearning));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Sections.Add(new(
+								valueSectionID,
+								valueDepartment,
+								valueCourseCode,
+								valueCourseTitle,
+								valueIsOnline,
+								valueIsGraduateCourse,
+								valueIsAdultDegreeCourse,
+								valueIsNursingCourse,
+								valueIsConnectionsCourse,
+								valueIsPrivateMusicLessons,
+								valueIsServiceLearning));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -121,7 +115,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isSections) errors.Add(new(51001, 12, 1, 123, "Sections", "Expected return table `Sections`"));
+		if (!isSections) errors.Add(new(51001, 12, 1, 117, "Sections", "Expected return table `Sections`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -130,7 +124,6 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Sections table(
-			[__SQuiL__Table__Type__Returns_Sections__] varchar(max) default('Returns_Sections'),
 			[SectionID] varchar(20),
 			[Department] varchar(100),
 			[CourseCode] varchar(20),
@@ -145,7 +138,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		Use [{builder.InitialCatalog}];
 		
-		Insert Into @Returns_Sections([SectionID], [Department], [CourseCode], [CourseTitle], [IsOnline], [IsGraduateCourse], [IsAdultDegreeCourse], [IsNursingCourse], [IsConnectionsCourse], [IsPrivateMusicLessons], [IsServiceLearning])
+		Insert Into @Returns_Sections
 		Select		SectionID, DeptName, CourseName, CourseTitle, Iif(Upper(MeetingRm) = 'ONLINE', 1, 0), Iif(CourseLevel = 'GR', 1, 0), IsADC,
 					Iif(CourseName Like 'NURG-%' Or CourseName Like 'NRNT-125-%', 1, 0),
 					Iif(CourseName Like 'NOND-101-%' Or CourseName Like 'ENGR-121-%', 1, 0),
@@ -161,7 +154,6 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		Where		s.SectionID = @Param_SectionID;
 		
 		Select * From @Returns_Sections;
-		
 		""";
 	}
 }

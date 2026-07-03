@@ -28,7 +28,6 @@ public class ShredSqlTests
 		Assert.Contains("[IsFemale] bit '$.IsFemale'", sql);
 		Assert.Contains("[LastName] varchar(100) '$.LastName'", sql);
 		Assert.DoesNotContain("Values", sql);          // no VALUES list
-		Assert.DoesNotContain("__SQuiL__Table__Type__", sql);  // sentinel excluded
 	}
 
 	[Fact]

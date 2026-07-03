@@ -6,7 +6,7 @@
 namespace TestCase.Models;
 
 public partial record Student(
-	int ID,
+	int StudentID,
 	string? FirstName,
 	string LastName,
 	int? Age);

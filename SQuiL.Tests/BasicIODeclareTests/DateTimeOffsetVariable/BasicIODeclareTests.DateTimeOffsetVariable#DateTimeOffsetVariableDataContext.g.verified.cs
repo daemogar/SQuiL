@@ -48,23 +48,20 @@ partial class DateTimeOffsetVariableDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "modifiedat:System.DateTimeOffset":
 					{
-						case "__SQuiL__Table__Type__Return_ModifiedAt__":
-						{
-							if (isModifiedAt) throw new Exception(
-								"Already returned value for `ModifiedAt`");
-							
-							isModifiedAt = true;
-							
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							response.ModifiedAt = !reader.IsDBNull(1) ? reader.GetFieldValue<System.DateTimeOffset>(1) : throw new NullReferenceException("Return value for Return_ModifiedAt cannot be null.");
-							break;
-						}
+						if (isModifiedAt) throw new Exception(
+							"Already returned value for `ModifiedAt`");
+						
+						isModifiedAt = true;
+						
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						response.ModifiedAt = !reader.IsDBNull(0) ? reader.GetFieldValue<System.DateTimeOffset>(0) : throw new NullReferenceException("Return value for ModifiedAt cannot be null.");
+						break;
 					}
 				}
 			}
@@ -75,7 +72,7 @@ partial class DateTimeOffsetVariableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isModifiedAt) errors.Add(new(51001, 12, 1, 77, "ModifiedAt", "Expected return scaler `ModifiedAt`"));
+		if (!isModifiedAt) errors.Add(new(51001, 12, 1, 74, "ModifiedAt", "Expected return scaler `ModifiedAt`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -88,9 +85,6 @@ partial class DateTimeOffsetVariableDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
-		Select 'Return_ModifiedAt' As [__SQuiL__Table__Type__Return_ModifiedAt__], @Return_ModifiedAt;
-		
 		""";
 	}
 }

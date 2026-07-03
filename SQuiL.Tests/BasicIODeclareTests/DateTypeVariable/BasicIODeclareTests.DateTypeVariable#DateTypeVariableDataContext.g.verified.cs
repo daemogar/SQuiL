@@ -47,39 +47,33 @@ partial class DateTypeVariableDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "rowid:int|dateofbirth:System.DateOnly|birthdate:System.DateOnly":
 					{
-						case "__SQuiL__Table__Type__Returns_Rows__":
+						isRows = true;
+						
+						response.Rows ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexRowID = reader.GetOrdinal("RowID");
+						var indexDateOfBirth = reader.GetOrdinal("DateOfBirth");
+						var indexBirthDate = reader.GetOrdinal("BirthDate");
+						
+						do
 						{
-							isRows = true;
+							var valueRowID = reader.GetInt32(indexRowID);
+							var valueDateOfBirth = reader.GetFieldValue<System.DateOnly>(indexDateOfBirth);
+							var valueBirthDate = reader.GetFieldValue<System.DateOnly>(indexBirthDate);
 							
-							response.Rows ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexRowID = reader.GetOrdinal("RowID");
-							var indexDateOfBirth = reader.GetOrdinal("DateOfBirth");
-							var indexBirthDate = reader.GetOrdinal("BirthDate");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Rows")
-								{
-									var valueRowID = reader.GetInt32(indexRowID);
-									var valueDateOfBirth = reader.GetFieldValue<System.DateOnly>(indexDateOfBirth);
-									var valueBirthDate = reader.GetFieldValue<System.DateOnly>(indexBirthDate);
-									
-									response.Rows.Add(new(
-										valueRowID,
-										valueDateOfBirth,
-										valueBirthDate));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Rows.Add(new(
+								valueRowID,
+								valueDateOfBirth,
+								valueBirthDate));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -90,7 +84,7 @@ partial class DateTypeVariableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isRows) errors.Add(new(51001, 12, 1, 92, "Rows", "Expected return table `Rows`"));
+		if (!isRows) errors.Add(new(51001, 12, 1, 86, "Rows", "Expected return table `Rows`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -99,7 +93,6 @@ partial class DateTypeVariableDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Rows table(
-			[__SQuiL__Table__Type__Returns_Rows__] varchar(max) default('Returns_Rows'),
 			[RowID] int,
 			[DateOfBirth] date,
 			[BirthDate] date);
@@ -107,7 +100,6 @@ partial class DateTypeVariableDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

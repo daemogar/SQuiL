@@ -167,7 +167,6 @@ partial class TranscriptProcessingDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Param_Student table(
-			[__SQuiL__Table__Type__Param_Student__] varchar(max) default('Param_Student'),
 			[ColleagueID] varchar(50) Null,
 			[FirstName] varchar(100),
 			[LastName] varchar(100),
@@ -176,14 +175,12 @@ partial class TranscriptProcessingDataContext : SQuiLBaseDataContext
 		{inputStudent(parameters)}
 		
 		Declare @Param_Institution table(
-			[__SQuiL__Table__Type__Param_Institution__] varchar(max) default('Param_Institution'),
 			[InstitutionID] varchar(50) Null,
 			[SchoolName] varchar(200),
 			[CEEB] varchar(20));
 		{inputInstitution(parameters)}
 		
 		Declare @Params_Courses table(
-			[__SQuiL__Table__Type__Params_Courses__] varchar(max) default('Params_Courses'),
 			[Term] varchar(10),
 			[Code] varchar(20),
 			[Number] varchar(20),
@@ -254,7 +251,6 @@ partial class TranscriptProcessingDataContext : SQuiLBaseDataContext
 		
 			Throw;
 		End Catch
-		
 		""";
 	}
 }

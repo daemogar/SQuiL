@@ -46,41 +46,35 @@ partial class ReturnTableColumnDefaultDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "rowid:int|amount:decimal|qty:int":
 					{
-						case "__SQuiL__Table__Type__Returns_Rows__":
+						isRows = true;
+						
+						response.Rows ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexRowID = reader.GetOrdinal("RowID");
+						var indexAmount = reader.GetOrdinal("Amount");
+						var indexQty = reader.GetOrdinal("Qty");
+						
+						do
 						{
-							isRows = true;
+							var valueRowID = reader.GetInt32(indexRowID);
+							var valueAmount = reader.GetDecimal(indexAmount);
+							var valueQty = reader.GetInt32(indexQty);
 							
-							response.Rows ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexRowID = reader.GetOrdinal("RowID");
-							var indexAmount = reader.GetOrdinal("Amount");
-							var indexQty = reader.GetOrdinal("Qty");
-							
-							do
+							response.Rows.Add(new(
+								valueRowID,
+								valueQty)
 							{
-								if (reader.GetString(0) == "Returns_Rows")
-								{
-									var valueRowID = reader.GetInt32(indexRowID);
-									var valueAmount = reader.GetDecimal(indexAmount);
-									var valueQty = reader.GetInt32(indexQty);
-									
-									response.Rows.Add(new(
-										valueRowID,
-										valueQty)
-									{
-										Amount = valueAmount,
-									});
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+								Amount = valueAmount,
+							});
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -91,7 +85,7 @@ partial class ReturnTableColumnDefaultDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isRows) errors.Add(new(51001, 12, 1, 93, "Rows", "Expected return table `Rows`"));
+		if (!isRows) errors.Add(new(51001, 12, 1, 87, "Rows", "Expected return table `Rows`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -100,7 +94,6 @@ partial class ReturnTableColumnDefaultDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Rows table(
-			[__SQuiL__Table__Type__Returns_Rows__] varchar(max) default('Returns_Rows'),
 			[RowID] int,
 			[Amount] decimal(18,2),
 			[Qty] int);
@@ -108,7 +101,6 @@ partial class ReturnTableColumnDefaultDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

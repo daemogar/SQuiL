@@ -52,7 +52,6 @@ partial class DoubleNumberTestDataContext : SQuiLBaseDataContext
 		
 		Select Param_Number1;
 		Select Param_Number4;
-		
 		""";
 	}
 }

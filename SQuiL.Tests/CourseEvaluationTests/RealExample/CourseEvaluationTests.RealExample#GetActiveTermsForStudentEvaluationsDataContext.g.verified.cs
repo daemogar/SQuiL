@@ -47,33 +47,27 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "termcode:string":
 					{
-						case "__SQuiL__Table__Type__Returns_Terms__":
+						isTerms = true;
+						
+						response.Terms ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexTermCode = reader.GetOrdinal("TermCode");
+						
+						do
 						{
-							isTerms = true;
+							var valueTermCode = reader.GetString(indexTermCode);
 							
-							response.Terms ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexTermCode = reader.GetOrdinal("TermCode");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Terms")
-								{
-									var valueTermCode = reader.GetString(indexTermCode);
-									
-									response.Terms.Add(new(
-										valueTermCode));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Terms.Add(new(
+								valueTermCode));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -84,7 +78,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTerms) errors.Add(new(51001, 12, 1, 86, "Terms", "Expected return table `Terms`"));
+		if (!isTerms) errors.Add(new(51001, 12, 1, 80, "Terms", "Expected return table `Terms`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -93,20 +87,18 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Terms table(
-			[__SQuiL__Table__Type__Returns_Terms__] varchar(max) default('Returns_Terms'),
 			[TermCode] varchar(10));
 		
 		Use [{builder.InitialCatalog}];
 		
 		If @Param_AsOfDate Is Null Set @Param_AsOfDate = GetDate();
 		
-		Insert Into @Returns_Terms([TermCode])
+		Insert Into @Returns_Terms
 		Select		t.Term
 		From		pub.Terms t
 		Where		@Param_AsOfDate Between t.RegStartDate And IsNull(t.GradesDueDate, DateAdd(week, 1, t.EndDate))
 		
 		Select * From @Returns_Terms;
-		
 		""";
 	}
 }

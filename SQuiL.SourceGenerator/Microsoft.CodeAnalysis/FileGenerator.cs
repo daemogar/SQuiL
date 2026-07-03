@@ -79,6 +79,10 @@ public class FileGenerator(
 			foreach (var finding in SQuiLCardinalityValidator.Detect(blocks, sql))
 				Context.ReportCardinalityCollision(method, finding);
 
+			// Shape collision validation (SP0030)
+			foreach (var finding in SQuiLShapeCollisionValidator.Detect(blocks, sql))
+				Context.ReportShapeCollision(method, finding);
+
 			if (ShowDebugMessages)
 			{
 				foreach (var code in blocks)
