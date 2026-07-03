@@ -70,12 +70,137 @@ internal static class SQuiLLinter
         LintShapeCollision(text, diagnostics);
         LintSimilarSignatures(text, diagnostics);
         LintCardinalityCollision(text, diagnostics);
+        LintUnmatchedSelect(text, diagnostics);
         if (squilFilePath is not null)
         {
             LintOrphanContext(squilFilePath, diagnostics);
             LintMutationDiagnostics(text, squilFilePath, diagnostics);
             LintDebugRollbackHint(text, squilFilePath, diagnostics);
         }
+    }
+
+    // ── SP0031: unmatched standalone SELECT (editor-only warning) ────────────
+    //
+    // Best-effort, name-focused. Fires when a standalone `Select <col-list> From …`
+    // in the query body produces a column-name sequence that matches no declared
+    // @Return_/@Returns_ output signature. Ignores `Select *`, `Insert Into … Select …`,
+    // and any SELECT whose columns can't be statically resolved to names (bail on
+    // un-aliased expressions — best-effort).
+    //
+    // EDITOR-ONLY — must NOT appear in the source generator.
+    //
+    // Port of lintUnmatchedSelect() in parser.ts (VS Code extension) —
+    // change one side, change all three.
+
+    private static readonly Regex SelectFromRegex = new(
+        @"^\s*select\s+(?!\*)(.+?)\s+from\s",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex InsertIntoPrefix = new(
+        @"^\s*insert\s+into",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    internal static void LintUnmatchedSelect(string sql, List<SQuiLDiagnostic> diagnostics)
+    {
+        var parsed = SQuiLParser.Parse(sql);
+
+        var outputs = parsed.Variables
+            .Where(v => (v.Role == VariableRole.Returns || v.Role == VariableRole.ReturnTable)
+                        && v.Columns != null && v.Columns.Count > 0)
+            .ToList();
+
+        if (outputs.Count == 0) return;
+
+        // Build the set of declared output column-name sequences (lower-cased).
+        var declaredNameKeys = new HashSet<string>(
+            outputs.Select(v => string.Join("|", v.Columns!.Select(c => c.Name.ToLowerInvariant()))));
+
+        // Determine body start: everything after the USE statement line.
+        if (parsed.DatabaseLine is not { } databaseLine) return;
+
+        var allLines = sql.Split('\n');
+        int bodyLineOffset = databaseLine + 1;
+
+        for (int i = 0; i < allLines.Length - bodyLineOffset; i++)
+        {
+            string raw = allLines[bodyLineOffset + i];
+
+            var selectMatch = SelectFromRegex.Match(raw);
+            if (!selectMatch.Success) continue;             // only Select <list> From ...
+            if (InsertIntoPrefix.IsMatch(raw)) continue;    // not an INSERT ... SELECT line
+
+            var cols = ExtractSelectColumnNames(selectMatch.Groups[1].Value);
+            if (cols == null) continue;                     // not statically inferable -> skip
+
+            string key = string.Join("|", cols.Select(c => c.ToLowerInvariant()));
+            if (declaredNameKeys.Contains(key)) continue;
+
+            string expected = string.Join(" | ", outputs.Select(v =>
+                string.Join(", ", v.Columns!.Select(c => c.Name))));
+
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message   = $"This SELECT's columns ({string.Join(", ", cols)}) match no declared @Returns_/@Return_ output signature. " +
+                            $"Expected one of: {expected}. " +
+                            "Add AS aliases (and CAST base types) to match, or use Insert Into @Returns_X … ; Select * From @Returns_X;.",
+                Line      = bodyLineOffset + i,
+                StartChar = 0,
+                EndChar   = raw.Length,
+                Severity  = DiagnosticSeverity.Warning,
+                Code      = "SP0031",
+            });
+        }
+    }
+
+    /// <summary>
+    /// Best-effort: returns output column names for a simple comma list, or
+    /// <c>null</c> if not statically inferable (un-aliased expression).
+    /// Port of <c>extractSelectColumnNames</c> in parser.ts.
+    /// </summary>
+    private static List<string>? ExtractSelectColumnNames(string list)
+    {
+        var parts = SplitTopLevelCommas(list);
+        var names = new List<string>();
+        foreach (var p in parts)
+        {
+            // AS alias takes precedence.
+            var asMatch = Regex.Match(p, @"\s+as\s+\[?([A-Za-z_][A-Za-z0-9_]*)\]?\s*$",
+                RegexOptions.IgnoreCase);
+            if (asMatch.Success) { names.Add(asMatch.Groups[1].Value); continue; }
+
+            // table.column or bare column identifier.
+            var dottedMatch = Regex.Match(p, @"\.\s*\[?([A-Za-z_][A-Za-z0-9_]*)\]?\s*$");
+            if (dottedMatch.Success) { names.Add(dottedMatch.Groups[1].Value); continue; }
+
+            var bareMatch = Regex.Match(p, @"^\s*\[?([A-Za-z_][A-Za-z0-9_]*)\]?\s*$");
+            if (bareMatch.Success) { names.Add(bareMatch.Groups[1].Value); continue; }
+
+            return null;   // un-aliased expression -> can't infer a column name -> bail
+        }
+        return names;
+    }
+
+    /// <summary>
+    /// Splits <paramref name="str"/> on top-level commas (not inside parentheses).
+    /// Port of <c>splitTopLevelCommas</c> in parser.ts.
+    /// </summary>
+    private static List<string> SplitTopLevelCommas(string str)
+    {
+        var parts = new List<string>();
+        int depth = 0;
+        int start = 0;
+        for (int i = 0; i < str.Length; i++)
+        {
+            if (str[i] == '(') depth++;
+            else if (str[i] == ')') depth--;
+            else if (str[i] == ',' && depth == 0)
+            {
+                parts.Add(str.Substring(start, i - start));
+                start = i + 1;
+            }
+        }
+        parts.Add(str.Substring(start));
+        return parts;
     }
 
     // ── Orphan / duplicate context resolver (SP0028 / SP0027) ────────────────

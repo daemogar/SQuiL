@@ -470,7 +470,7 @@ function parseTableColumns(columnsStr: string): TableColumn[] {
   return cols;
 }
 
-function splitTopLevelCommas(str: string): string[] {
+export function splitTopLevelCommas(str: string): string[] {
   const parts: string[] = [];
   let depth = 0;
   let start = 0;
@@ -484,6 +484,59 @@ function splitTopLevelCommas(str: string): string[] {
   }
   parts.push(str.slice(start));
   return parts;
+}
+
+// ── SP0031: unmatched standalone SELECT (editor-only warning) ──────────────
+//
+// Best-effort, name-focused. Fires when a standalone `Select <col-list> From …`
+// in the query body produces a column-name sequence that matches no declared
+// @Return_/@Returns_ output signature.  Deliberately ignores `Select *`,
+// `Insert Into … Select …`, and any SELECT whose columns can't be statically
+// resolved to names (un-aliased expressions → bail, best-effort).
+//
+// EDITOR-ONLY — must NOT appear in the source generator.
+
+/** SP0031: compare standalone SELECT column names against declared output signatures. */
+export function lintUnmatchedSelect(parsed: SQuiLParseResult, bodyText: string): SQuiLDiagnostic[] {
+  const outputs = parsed.variables.filter(v => (v.role === 'returns' || v.role === 'return-table') && v.columns);
+  if (outputs.length === 0) return [];
+  // Set of declared output column-name sequences (lower-cased), for name-based matching.
+  const declaredNameKeys = new Set(outputs.map(v => v.columns!.map(c => c.name.toLowerCase()).join('|')));
+
+  const diags: SQuiLDiagnostic[] = [];
+  const lines = bodyText.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const m = /^\s*select\s+(?!\*)(.+?)\s+from\s/i.exec(raw);
+    if (!m) continue;                                   // only Select <list> From ...
+    if (/^\s*insert\s+into/i.test(raw)) continue;       // not an INSERT ... SELECT line
+    const cols = extractSelectColumnNames(m[1]);
+    if (!cols) continue;                                // not statically inferable -> skip (best-effort)
+    const key = cols.map(c => c.toLowerCase()).join('|');
+    if (declaredNameKeys.has(key)) continue;
+    diags.push({
+      message: `This SELECT's columns (${cols.join(', ')}) match no declared @Returns_/@Return_ output signature. Expected one of: ${outputs.map(v => v.columns!.map(c => c.name).join(', ')).join(' | ')}. Add AS aliases (and CAST base types) to match, or use Insert Into @Returns_X … ; Select * From @Returns_X;.`,
+      line: i, startChar: 0, endChar: raw.length,
+      severity: 'warning', code: 'SP0031',
+    });
+  }
+  return diags;
+}
+
+/** Best-effort: returns output column names for a simple comma list, or null if not inferable. */
+function extractSelectColumnNames(list: string): string[] | null {
+  const parts = splitTopLevelCommas(list);
+  const names: string[] = [];
+  for (const p of parts) {
+    const asMatch = /\s+as\s+\[?([A-Za-z_][A-Za-z0-9_]*)\]?\s*$/i.exec(p);
+    if (asMatch) { names.push(asMatch[1]); continue; }
+    const bare = /^\s*\[?([A-Za-z_][A-Za-z0-9_]*)\]?\s*$/.exec(p);           // bare column
+    const dotted = /\.\s*\[?([A-Za-z_][A-Za-z0-9_]*)\]?\s*$/.exec(p);        // table.column
+    if (dotted) { names.push(dotted[1]); continue; }
+    if (bare) { names.push(bare[1]); continue; }
+    return null;   // an un-aliased expression -> can't infer a column name -> bail (best-effort)
+  }
+  return names;
 }
 
 /** Returns a human-readable description of a variable role. */

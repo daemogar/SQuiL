@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
-import { parseSQuiL, lintCardinalityCollision, lintShapeCollision } from './parser';
+import { parseSQuiL, lintCardinalityCollision, lintShapeCollision, lintUnmatchedSelect } from './parser';
 import { shapeHints } from './shapeHints';
 
 // Recognition parity with the generator's SQuiLParser: bare @SuppressDebug and
@@ -209,4 +209,35 @@ test('table column DEFAULT is parsed and its literal captured', () => {
   assert.strictEqual(rows!.columns![0].defaultValue, undefined);
   assert.strictEqual(rows!.columns![1].defaultValue, '1.5');
   assert.strictEqual(rows!.columns![2].defaultValue, "'hello'");
+});
+
+// SP0031: unmatched standalone SELECT — editor-only warning
+test('SP0031 warns when a standalone SELECT column list matches no declared output', () => {
+  const text = [
+    'Declare @Returns_People table(PersonID int, Name varchar(100));',
+    'Use Db;',
+    'Select PersonID, WrongName From People;',   // "wrongname" != declared "name"
+  ].join('\n');
+  const parsed = parseSQuiL(text);
+  const diags = lintUnmatchedSelect(parsed, text);
+  assert.ok(diags.some(d => d.code === 'SP0031'), 'unmatched select flagged');
+});
+
+test('SP0031 stays silent when a standalone SELECT matches a declared output', () => {
+  const text = [
+    'Declare @Returns_People table(PersonID int, Name varchar(100));',
+    'Use Db;',
+    'Select PersonID, Name From People;',
+  ].join('\n');
+  assert.strictEqual(lintUnmatchedSelect(parseSQuiL(text), text).filter(d => d.code === 'SP0031').length, 0);
+});
+
+test('SP0031 ignores Select * and Insert Into', () => {
+  const text = [
+    'Declare @Returns_People table(PersonID int, Name varchar(100));',
+    'Use Db;',
+    'Insert Into @Returns_People Select PersonID, Name From People;',
+    'Select * From @Returns_People;',
+  ].join('\n');
+  assert.strictEqual(lintUnmatchedSelect(parseSQuiL(text), text).filter(d => d.code === 'SP0031').length, 0);
 });
