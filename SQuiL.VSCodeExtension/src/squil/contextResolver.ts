@@ -232,27 +232,53 @@ function scanDir(
 }
 
 /**
+ * Strip C# line comments (`// ...`) and block comments (`/* ... *\/`) from
+ * source text, replacing them with whitespace so that character offsets are
+ * preserved and attribute regex matches never land inside commented-out code.
+ */
+function maskComments(src: string): string {
+  // Replace block comments first, then line comments.
+  // Use a regex that handles multi-line block comments.
+  let result = src.replace(/\/\*[\s\S]*?\*\//g, (m) => ' '.repeat(m.length));
+  result = result.replace(/\/\/[^\r\n]*/g, (m) => ' '.repeat(m.length));
+  return result;
+}
+
+/**
  * Scan `text` for attribute usages referencing `QueryFiles.<member>`.
- * Extracts `enabled` and `debugRollback` named args.
+ * Extracts `enabled` and `debugRollback` from named or positional args.
+ *
+ * Positional arg layout: (QueryFiles.X [slot 0], setting [slot 1], enabled [slot 2], debugRollback [slot 3])
  */
 function collectMatches(text: string, member: string, results: CsMatch[]): void {
+  // Strip comments before scanning so commented-out attributes are ignored.
+  const src = maskComments(text);
+
   // Build a pattern that locates the attribute + member reference.
   // We look for: [SQuiLQuery(Transaction)? ... QueryFiles.<member> ... ]
-  // Regex: matches [SQuiLQueryTransaction( or [SQuiLQuery( followed anywhere
-  // (within the attribute arg list) by QueryFiles.<member>
   const memberPattern = new RegExp(
     `\\[SQuiLQuery(Transaction)?\\s*\\([^\\]]*QueryFiles\\.${escapeRegex(member)}[^\\]]*\\]`,
     'g',
   );
 
   let m: RegExpExecArray | null;
-  while ((m = memberPattern.exec(text)) !== null) {
+  while ((m = memberPattern.exec(src)) !== null) {
     const isTxn = m[1] === 'Transaction';
     const attrText = m[0];
 
-    // Extract named args from the attribute text.
-    const enabled = parseNamedBool(attrText, 'enabled', isTxn ? true : false);
-    const debugRollback = parseNamedBool(attrText, 'debugRollback', true);
+    // Extract the args list text (between the outer parens).
+    const argsStart = attrText.indexOf('(');
+    const argsEnd = attrText.lastIndexOf(')');
+    const argsText = argsStart >= 0 && argsEnd > argsStart
+      ? attrText.slice(argsStart + 1, argsEnd)
+      : '';
+
+    // Split into individual args at top-level commas (respecting nested parens).
+    const args = splitTopLevelArgs(argsText);
+
+    // Parse positional slots: 0 = type, 1 = setting, 2 = enabled, 3 = debugRollback.
+    const enabled = parseBoolArg(args, 'enabled', 2, isTxn ? true : false);
+    const debugRollback = parseBoolArg(args, 'debugRollback', 3, true);
 
     results.push({
       attribute: isTxn ? 'SQuiLQueryTransaction' : 'SQuiLQuery',
@@ -262,12 +288,58 @@ function collectMatches(text: string, member: string, results: CsMatch[]): void 
   }
 }
 
-/** Parse a named bool arg from an attribute text snippet, returning `defaultValue` if absent. */
-function parseNamedBool(attrText: string, argName: string, defaultValue: boolean): boolean {
-  const pattern = new RegExp(`\\b${argName}\\s*:\\s*(true|false)\\b`, 'i');
-  const m = pattern.exec(attrText);
-  if (!m) return defaultValue;
-  return m[1].toLowerCase() === 'true';
+/**
+ * Split an attribute arg list on top-level commas (ignoring commas inside nested parens).
+ * Returns trimmed arg strings.
+ */
+function splitTopLevelArgs(argsText: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < argsText.length; i++) {
+    if (argsText[i] === '(') depth++;
+    else if (argsText[i] === ')') depth--;
+    else if (argsText[i] === ',' && depth === 0) {
+      parts.push(argsText.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  parts.push(argsText.slice(start).trim());
+  return parts;
+}
+
+/**
+ * Parse a bool attribute argument by name first, then by positional slot.
+ * A named arg looks like `name: true` or `name: false`.
+ * A positional arg is `true` or `false` without a colon prefix.
+ */
+function parseBoolArg(
+  args: string[],
+  argName: string,
+  positionalSlot: number,
+  defaultValue: boolean,
+): boolean {
+  // Try named arg (any position).
+  for (const arg of args) {
+    const namedMatch = arg.match(new RegExp(`^\\s*${argName}\\s*:\\s*(true|false)\\s*$`, 'i'));
+    if (namedMatch) return namedMatch[1].toLowerCase() === 'true';
+  }
+
+  // Collect leading positional args (no colon = not named).
+  // Stop at the first named arg to respect C# positional-before-named rule.
+  const positionals: string[] = [];
+  for (const arg of args) {
+    if (/^\s*\w+\s*:/.test(arg)) break; // named arg — stop collecting positionals
+    positionals.push(arg.trim());
+  }
+
+  if (positionalSlot < positionals.length) {
+    const val = positionals[positionalSlot].toLowerCase();
+    if (val === 'true') return true;
+    if (val === 'false') return false;
+  }
+
+  return defaultValue;
 }
 
 function escapeRegex(s: string): string {

@@ -30,10 +30,11 @@ internal static class SQuiLContextResolver
 {
     private static readonly string[] SqlExtensions = { ".squil", ".sql" };
 
-    private static readonly Regex EnabledArg =
-        new Regex(@"\benabled\s*:\s*(true|false)\b",      RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex DebugRollbackArg =
-        new Regex(@"\bdebugRollback\s*:\s*(true|false)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    // ── Comment-stripping patterns ─────────────────────────────────────────
+    private static readonly Regex BlockComment =
+        new Regex(@"/\*[\s\S]*?\*/",                       RegexOptions.Compiled);
+    private static readonly Regex LineComment =
+        new Regex(@"//[^\r\n]*",                           RegexOptions.Compiled);
 
     // ── Public API ────────────────────────────────────────────────────────
 
@@ -217,19 +218,46 @@ internal static class SQuiLContextResolver
         }
     }
 
+    // ── Comment masking ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Replace C# block and line comments with spaces so that attribute regexes
+    /// never match inside commented-out code. Character offsets are preserved.
+    /// </summary>
+    private static string MaskComments(string src)
+    {
+        // Block comments first (may span lines), then line comments.
+        string masked = BlockComment.Replace(src, m => new string(' ', m.Length));
+        masked = LineComment.Replace(masked, m => new string(' ', m.Length));
+        return masked;
+    }
+
     private static void CollectMatches(string text, string member, List<CsMatch> results)
     {
+        // Strip comments before scanning so commented-out attributes are ignored.
+        string src = MaskComments(text);
+
         // Build a per-call pattern targeting the exact member name.
         var pattern = new Regex(
             @"\[SQuiLQuery(Transaction)?\s*\([^\]]*QueryFiles\." + Regex.Escape(member) + @"[^\]]*\]",
             RegexOptions.None);
 
-        foreach (Match m in pattern.Matches(text))
+        foreach (Match m in pattern.Matches(src))
         {
-            bool isTxn        = m.Groups[1].Success;
-            string attrText   = m.Value;
-            bool enabled      = ParseNamedBool(EnabledArg,      attrText, isTxn);
-            bool debugRollback = ParseNamedBool(DebugRollbackArg, attrText, true);
+            bool isTxn     = m.Groups[1].Success;
+            string attrText = m.Value;
+
+            // Extract the args list between the outer parens.
+            int argsStart = attrText.IndexOf('(');
+            int argsEnd   = attrText.LastIndexOf(')');
+            string argsText = (argsStart >= 0 && argsEnd > argsStart)
+                ? attrText.Substring(argsStart + 1, argsEnd - argsStart - 1)
+                : string.Empty;
+
+            // Split at top-level commas; positional slots: 0=type, 1=setting, 2=enabled, 3=debugRollback.
+            var args = SplitTopLevelArgs(argsText);
+            bool enabled      = ParseBoolArg(args, "enabled",      2, isTxn ? true : false);
+            bool debugRollback = ParseBoolArg(args, "debugRollback", 3, true);
 
             results.Add(new CsMatch(
                 isTxn ? "SQuiLQueryTransaction" : "SQuiLQuery",
@@ -238,10 +266,61 @@ internal static class SQuiLContextResolver
         }
     }
 
-    private static bool ParseNamedBool(Regex argPattern, string attrText, bool defaultValue)
+    /// <summary>
+    /// Split an attribute arg list on top-level commas (ignoring commas inside nested parens).
+    /// </summary>
+    private static List<string> SplitTopLevelArgs(string argsText)
     {
-        Match m = argPattern.Match(attrText);
-        if (!m.Success) return defaultValue;
-        return string.Equals(m.Groups[1].Value, "true", StringComparison.OrdinalIgnoreCase);
+        var parts = new List<string>();
+        int depth = 0, start = 0;
+        for (int i = 0; i < argsText.Length; i++)
+        {
+            char c = argsText[i];
+            if      (c == '(') depth++;
+            else if (c == ')') depth--;
+            else if (c == ',' && depth == 0)
+            {
+                parts.Add(argsText.Substring(start, i - start).Trim());
+                start = i + 1;
+            }
+        }
+        parts.Add(argsText.Substring(start).Trim());
+        return parts;
+    }
+
+    /// <summary>
+    /// Parse a bool attribute argument by named arg first, then positional slot.
+    /// Named form: <c>argName: true</c> or <c>argName: false</c>.
+    /// Positional: slot index among leading args that have no colon.
+    /// </summary>
+    private static bool ParseBoolArg(List<string> args, string argName, int positionalSlot, bool defaultValue)
+    {
+        // Try named arg (any position).
+        var namedPattern = new Regex(@"^\s*" + Regex.Escape(argName) + @"\s*:\s*(true|false)\s*$",
+            RegexOptions.IgnoreCase);
+        foreach (string arg in args)
+        {
+            var m = namedPattern.Match(arg);
+            if (m.Success)
+                return string.Equals(m.Groups[1].Value, "true", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Collect leading positional args (stop at first named arg — C# requires positionals first).
+        var positionals = new List<string>();
+        var isNamed = new Regex(@"^\s*\w+\s*:");
+        foreach (string arg in args)
+        {
+            if (isNamed.IsMatch(arg)) break;
+            positionals.Add(arg.Trim());
+        }
+
+        if (positionalSlot < positionals.Count)
+        {
+            string val = positionals[positionalSlot];
+            if (string.Equals(val, "true",  StringComparison.OrdinalIgnoreCase)) return true;
+            if (string.Equals(val, "false", StringComparison.OrdinalIgnoreCase)) return false;
+        }
+
+        return defaultValue;
     }
 }

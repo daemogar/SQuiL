@@ -126,3 +126,28 @@ test('SP0026 message format is exact', () => {
     'Declare `@Debug bit;` in the header, or set `debugRollback: false` on [SQuiLQueryTransaction].',
   );
 });
+
+// ─── Fix 3: SP0026 gated on enabled ──────────────────────────────────────────
+
+test('SP0026 silent: enabled:false + debugRollback:true + no @Debug', () => {
+  // Transaction is disabled → debugRollback is irrelevant → no SP0026
+  const hints = collectHints([
+    'Declare @Param_Id int not null;',
+    'Use [Database];',
+    'Update [Docs] Set Flag = 1 Where Id = @Param_Id;',
+  ].join('\n'), txnContext({ enabled: false }));
+
+  assert.strictEqual(hints.length, 0, 'no SP0026 when enabled:false (transaction is inert)');
+});
+
+test('SP0026 fires: enabled:true + debugRollback:true + no @Debug', () => {
+  // Default case — enabled is true, so SP0026 should fire.
+  const hints = collectHints([
+    'Declare @Param_Id int not null;',
+    'Use [Database];',
+    'Update [Docs] Set Flag = 1 Where Id = @Param_Id;',
+  ].join('\n'), txnContext({ enabled: true }));
+
+  assert.strictEqual(hints.length, 1, 'SP0026 fires when enabled:true + debugRollback:true + no @Debug');
+  assert.strictEqual(hints[0].code, 'SP0026');
+});

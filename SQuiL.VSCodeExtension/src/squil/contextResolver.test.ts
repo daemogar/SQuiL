@@ -285,3 +285,101 @@ test('scans CS files recursively in project subdirectories', () => {
   assert.strictEqual(r.found, true, 'should scan subdirectories for .cs files');
   assert.strictEqual(r.matchCount, 1);
 });
+
+// ─── Fix 1: Positional enabled / debugRollback parsing ───────────────────────
+
+test('positional enabled=false (slot 2) → enabled is false', () => {
+  // [SQuiLQueryTransaction(QueryFiles.X, "Db", false)] — 3rd arg is enabled
+  const files: Record<string, string> = {
+    '/proj/Queries/Work.squil': '/* sql */',
+    '/proj/MyDataContext.cs':
+      '[SQuiLQueryTransaction(QueryFiles.QueriesWork, "Db", false)]',
+    '/proj/proj.csproj': '',
+  };
+
+  const r = resolveContext(
+    '/proj/Queries/Work.squil',
+    makeReadFile(files),
+    makeListDir(files),
+  );
+
+  assert.strictEqual(r.found, true, 'should resolve');
+  assert.strictEqual(r.enabled, false, 'positional slot 2 = false → enabled is false');
+  assert.strictEqual(r.debugRollback, true, 'debugRollback defaults to true');
+});
+
+test('positional debugRollback=false (slot 3) → debugRollback is false', () => {
+  // [SQuiLQueryTransaction(QueryFiles.X, "Db", true, false)] — 4th arg is debugRollback
+  const files: Record<string, string> = {
+    '/proj/Queries/Work2.squil': '/* sql */',
+    '/proj/MyDataContext.cs':
+      '[SQuiLQueryTransaction(QueryFiles.QueriesWork2, "Db", true, false)]',
+    '/proj/proj.csproj': '',
+  };
+
+  const r = resolveContext(
+    '/proj/Queries/Work2.squil',
+    makeReadFile(files),
+    makeListDir(files),
+  );
+
+  assert.strictEqual(r.found, true, 'should resolve');
+  assert.strictEqual(r.enabled, true, 'enabled is true (positional slot 2)');
+  assert.strictEqual(r.debugRollback, false, 'positional slot 3 = false → debugRollback is false');
+});
+
+// ─── Fix 2: Commented-out attributes must be ignored ─────────────────────────
+
+test('line-commented attribute is not counted (orphan stays orphan)', () => {
+  const files: Record<string, string> = {
+    '/proj/Queries/Hidden.squil': '/* sql */',
+    '/proj/MyDataContext.cs':
+      '// [SQuiLQueryTransaction(QueryFiles.QueriesHidden)]\n// This is just a comment',
+    '/proj/proj.csproj': '',
+  };
+
+  const r = resolveContext(
+    '/proj/Queries/Hidden.squil',
+    makeReadFile(files),
+    makeListDir(files),
+  );
+
+  assert.strictEqual(r.found, false, 'commented-out attribute must not be counted');
+  assert.strictEqual(r.matchCount, 0, 'matchCount should be 0');
+});
+
+test('one live + one line-commented = matchCount 1, not 2 (no SP0027)', () => {
+  const files: Record<string, string> = {
+    '/proj/Queries/Real.squil': '/* sql */',
+    '/proj/MyDataContext.cs':
+      '[SQuiLQueryTransaction(QueryFiles.QueriesReal)]\n// [SQuiLQueryTransaction(QueryFiles.QueriesReal)]',
+    '/proj/proj.csproj': '',
+  };
+
+  const r = resolveContext(
+    '/proj/Queries/Real.squil',
+    makeReadFile(files),
+    makeListDir(files),
+  );
+
+  assert.strictEqual(r.found, true, 'live attribute should be found');
+  assert.strictEqual(r.matchCount, 1, 'commented copy must not bump matchCount to 2');
+});
+
+test('block-commented attribute is not counted', () => {
+  const files: Record<string, string> = {
+    '/proj/Queries/Blocked.squil': '/* sql */',
+    '/proj/MyDataContext.cs':
+      '/* [SQuiLQueryTransaction(QueryFiles.QueriesBlocked)] */',
+    '/proj/proj.csproj': '',
+  };
+
+  const r = resolveContext(
+    '/proj/Queries/Blocked.squil',
+    makeReadFile(files),
+    makeListDir(files),
+  );
+
+  assert.strictEqual(r.found, false, 'block-commented attribute must not be counted');
+  assert.strictEqual(r.matchCount, 0);
+});

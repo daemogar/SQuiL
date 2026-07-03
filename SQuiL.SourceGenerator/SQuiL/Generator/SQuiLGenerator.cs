@@ -476,16 +476,32 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				?? "Models";
 			var recordNamespace = string.IsNullOrEmpty(nsArg) ? @namespace : $"{@namespace}.{nsArg}";
 
-			bool ReadBoolArg(AttributeArgumentListSyntax args, string name, bool dflt) =>
-				args.Arguments
+			// Read a bool attribute argument by named arg first, then positional slot.
+			// Positional slots: 0 = type, 1 = setting, 2 = enabled, 3 = debugRollback.
+			// A positional arg has NameColon == null; we count only leading positionals.
+			bool ReadBoolArg(AttributeArgumentListSyntax args, string name, int positionalSlot, bool dflt)
+			{
+				// Try named arg first.
+				var named = args.Arguments
 					.Where(a => a.NameColon?.Name.Identifier.Text == name)
-					.Select(a => a.Expression is LiteralExpressionSyntax l && l.Token.Value is bool b ? b : dflt)
-					.DefaultIfEmpty(dflt)
-					.First();
+					.Select(a => a.Expression is LiteralExpressionSyntax l && l.Token.Value is bool b ? (bool?)b : null)
+					.FirstOrDefault();
+				if (named.HasValue) return named.Value;
+
+				// Fall back to the positional slot (args with no NameColon, in order).
+				var positionals = args.Arguments
+					.Where(a => a.NameColon is null)
+					.ToList();
+				if (positionalSlot < positionals.Count)
+					return positionals[positionalSlot].Expression is LiteralExpressionSyntax l2
+						&& l2.Token.Value is bool b2 ? b2 : dflt;
+
+				return dflt;
+			}
 
 			var enabled = definition.Type == SQuiLDefinitionType.Transaction
-				&& ReadBoolArg(list, "enabled", true);
-			var debugRollback = ReadBoolArg(list, "debugRollback", true);
+				&& ReadBoolArg(list, "enabled", 2, true);
+			var debugRollback = ReadBoolArg(list, "debugRollback", 3, true);
 
 			if (missingDataClient)
 				continue;

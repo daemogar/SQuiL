@@ -233,6 +233,7 @@ internal static class SQuiLLinter
         var ctx = SQuiLContextResolver.Resolve(squilFilePath);
         if (!ctx.Found) return;
         if (ctx.Attribute != "SQuiLQueryTransaction") return;
+        if (!ctx.Enabled) return;
         if (!ctx.DebugRollback) return;
 
         // Check whether @Debug is declared anywhere in the file.

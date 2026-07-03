@@ -47,6 +47,7 @@ export function transactionHints(
   // 4. @Debug is NOT declared — without it the debug-rollback branch is unreachable.
   if (!resolved.found) return [];
   if (resolved.attribute !== 'SQuiLQueryTransaction') return [];
+  if (!resolved.enabled) return [];
   if (!resolved.debugRollback) return [];
 
   const hasDebug = parsed.variables.some(v => v.role === 'debug');
