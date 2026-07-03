@@ -112,47 +112,67 @@ Set @Return_Scaler = 42;
 Select @Return_Scaler;
 ```
 
-### Example with input param and two return tables
+### Result-set authoring — two styles
+
+SQuiL routes each result set returned by a `Select` to the matching declared output by **shape**: the ordered list of (column name, C# type) pairs. Two authoring styles produce that shape.
+
+**Table-variable style (recommended)** — Declare a table variable, populate it with `Insert Into … Select …`, then emit it with `Select * From`. The table-variable declaration is the *authoritative schema* — column names, C# types, and column order are locked at build time, so the result set always matches the declared output by construction.
 
 ```sql
-Declare  @Param_PersonID varchar(10),
-         @Debug bit = 1;
-
-Declare  @Returns_Participation table(
-    SectionID    varchar(20),
-    PersonID     varchar(10),
-    ProfessorID  varchar(10),
-    TermCode     varchar(10),
-    CompletedDate datetime
+Declare  @Returns_Orders table(
+    OrderID int,
+    Total   decimal(18, 2)
 );
 
-Declare  @Returns_Overrides table(
-    SectionID  varchar(20),
-    TermCode   varchar(10),
-    CourseCode varchar(20),
-    BeginDate  datetime,
-    EndDate    datetime
-);
+Insert Into @Returns_Orders
+Select o.OrderID, o.Total
+From   Orders o;
 
-Use DataRepositoryTest;
-
-Insert Into @Returns_Participation
-Select ... From ... Where PersonID = @Param_PersonID;
-
-Insert Into @Returns_Overrides
-Select ... From ...;
-
-Select * From @Returns_Participation;
-Select * From @Returns_Overrides;
+Select * From @Returns_Orders;  -- emits the result set
 ```
 
-The trailing `Select * From @Returns_…` statements are how rows actually leave the query — the generator wires the result-set ordering to the response object, so emit one terminal `Select` per declared `@Returns_…` table, in the order they appear on the response.
+**Direct-select style (lean)** — You can just `Select` directly — no table variable needed. SQuiL routes the result set by matching its runtime shape against every declared output. Supply `AS` aliases and `CAST` only where the **base C# type** differs from the source column; **length casts are never required** (e.g., casting `varchar(50)` to `varchar(100)` adds nothing — both map to `string`). A `Select` whose shape matches no declared output is skipped and reported as a missing return.
+
+```sql
+Declare @Returns_Orders table(
+    OrderID int,
+    Total   decimal(18, 2)
+);
+
+Use OrdersDatabase;
+
+-- Direct select — shape (OrderID:int, Total:decimal) matches @Returns_Orders
+Select o.OrderID,
+       Cast(o.RawTotal As decimal(18, 2)) As Total  -- CAST needed: float → decimal
+From   Orders o;
+```
+
+**Scalar convention** — For scalar outputs, alias the column to its declared base name so the single-column shape matches:
+
+```sql
+Declare @Return_Count int;
+
+Use MyDatabase;
+
+Select Count(*) As Count  -- alias "Count" matches declared name @Return_Count
+From   Orders;
+```
+
+Or set and select via the variable itself — the column name is already correct:
+
+```sql
+Set @Return_Count = (Select Count(*) From Orders);
+Select @Return_Count;
+```
+
+**SP0030 collision** — If two declared outputs share an identical shape (same ordered column names and C# types), SQuiL cannot tell them apart at runtime. Differentiate them by changing a column name, adjusting the column order, using a different C# type, or combining them into one shared output with a single name.
 
 ### Common authoring mistakes
 
 - **Skipping `Use <DB>`.** Required, and it must come after the declares but before any data-modifying SQL.
 - **Adding new `Declare` statements after the `Use`.** Belongs in the leading block.
-- **Mixing return tables and ad-hoc scalar `Select` results.** Every result-set the SQL emits should correspond to a declared `@Return_/@Returns_` variable, in matching order.
+- **Mismatched result-set shapes.** Every `Select` the SQL emits must match the shape (column name + C# type, in order) of exactly one declared `@Return_/@Returns_` variable. Use the table-variable style (populate a declared `@Returns_…` table and emit with `Select * From`) for guaranteed matches, or direct-select style with explicit `AS` aliases when the base C# types differ. Unmatched selects are silently skipped and reported as missing returns. Use SP0030 collision detection — two declared outputs cannot share identical shapes (name each column distinctly, reorder columns, or use different C# types).
+- **Length casts in direct-select style.** Casting `varchar(50)` to `varchar(100)` (or any varchar-to-varchar cast) is unnecessary — both map to `string` in C#. Only `CAST` when the **base C# type** differs (e.g., `float` to `decimal`).
 - **Reusing a name across input and output with different columns.** Table variables that share a base name (`@Param_Foo table(...)` + `@Return_Foo table(...)`, in one file or across query files) share a single generated record, so their column lists must be identical — same names, types, nullability, and order (sizes may differ). A mismatch is build error SP0017; either align the columns or rename one variable. When in doubt, just use distinct names.
 - **Declaring one name as both a list and a single object on the same side, in one file.** `@Returns_X table(...)` (a list) and `@Return_X table(...)` (a single object) in the same query file both resolve to one response property `X`; the generator keeps the first and silently drops the other. This is build error **SP0022** — rename one variable, or use the same cardinality for both. (Sharing a row record across *different* queries, or between an input and an output, is fine — only same-side same-file differing cardinality collides.)
 - **Referencing an `@variable` that was never declared.** A SQuiL file must be valid T-SQL *as written* — every `@variable` reference (including the specials like `@Debug` and `@EnvironmentName`) needs a textually-preceding `Declare` for that exact name. An undeclared reference is build error SP0013; the generator never invents or remaps names.
