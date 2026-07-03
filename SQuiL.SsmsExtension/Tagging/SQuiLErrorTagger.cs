@@ -90,8 +90,15 @@ internal sealed class SQuiLErrorTagger : ITagger<IErrorTag>
         var newTags = new List<TagSpan<IErrorTag>>();
         string text = snapshot.GetText();
 
+        // Extract the on-disk file path so the linter can run the
+        // context-resolver pass (SP0028/SP0027). Uses the same
+        // ITextDocument lookup as SQuiLContentTypeDefinition.IsSquilBuffer.
+        string? filePath = null;
+        if (_buffer.Properties.TryGetProperty(typeof(Microsoft.VisualStudio.Text.ITextDocument), out Microsoft.VisualStudio.Text.ITextDocument doc))
+            filePath = doc.FilePath;
+
         var parsed = SQuiLParser.Parse(text);
-        SQuiLLinter.Lint(text, parsed.Diagnostics);
+        SQuiLLinter.Lint(text, parsed.Diagnostics, filePath);
 
         foreach (var d in parsed.Diagnostics)
         {

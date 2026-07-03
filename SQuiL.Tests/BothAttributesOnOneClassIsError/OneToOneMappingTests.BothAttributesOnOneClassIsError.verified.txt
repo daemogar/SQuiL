@@ -1,0 +1,77 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+namespace TestCase;
+[SQuiLQuery(QueryFiles.BothAttributesOnOneClassIsError)]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[SQuiLQueryTransaction(QueryFiles.BothAttributesOnOneClassIsError)]
+*/
+ : (2,12)-(2,54),
+      Message: The query file `BothAttributesOnOneClassIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
+      Severity: Error,
+      Descriptor: {
+        Id: SP0027,
+        Title: Duplicate Query Mapping,
+        MessageFormat: The query file `BothAttributesOnOneClassIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
+        Category: Design,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+[SQuiLQuery(QueryFiles.BothAttributesOnOneClassIsError)]
+[SQuiLQueryTransaction(QueryFiles.BothAttributesOnOneClassIsError)]
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+public partial class BothAttributesDataContext { }
+*/
+ : (3,23)-(3,65),
+      Message: The query file `BothAttributesOnOneClassIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
+      Severity: Error,
+      Descriptor: {
+        Id: SP0027,
+        Title: Duplicate Query Mapping,
+        MessageFormat: The query file `BothAttributesOnOneClassIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
+        Category: Design,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+namespace TestCase;
+[SQuiLQuery(QueryFiles.BothAttributesOnOneClassIsError)]
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[SQuiLQueryTransaction(QueryFiles.BothAttributesOnOneClassIsError)]
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+public partial class BothAttributesDataContext { }
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+*/
+ : (2,0)-(4,50),
+      Message: `BothAttributesDataContext` declares both [SQuiLQuery] and [SQuiLQueryTransaction]. Use exactly one — [SQuiLQueryTransaction] already implies a query.,
+      Severity: Error,
+      Descriptor: {
+        Id: SP0029,
+        Title: Conflicting Query Attributes,
+        MessageFormat: `BothAttributesDataContext` declares both [SQuiLQuery] and [SQuiLQueryTransaction]. Use exactly one — [SQuiLQueryTransaction] already implies a query.,
+        Category: Design,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: There are no SQuiL contexts created. Make sure to create a partial class and add the [SQuiLQueryAttribute].,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0005,
+        Title: No SQuiL Contexts Are Created,
+        MessageFormat: There are no SQuiL contexts created. Make sure to create a partial class and add the [SQuiLQueryAttribute].,
+        Category: Design,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

@@ -1,7 +1,11 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { parseSQuiL, SQuiLDiagnostic } from '../squil/parser';
 import { nullabilityHints } from '../squil/nullabilityHints';
 import { shapeHints } from '../squil/shapeHints';
+import { transactionHints } from '../squil/transactionHints';
+import { resolveContext } from '../squil/contextResolver';
+import { scanMutations } from '../squil/mutationScanner';
 
 export class SQuiLDiagnosticsProvider {
   private readonly collection: vscode.DiagnosticCollection;
@@ -48,6 +52,124 @@ export class SQuiLDiagnosticsProvider {
         new vscode.Position(line, Math.min(hint.character + hint.length, lineLength)),
       );
       const d = new vscode.Diagnostic(range, hint.message, vscode.DiagnosticSeverity.Hint);
+      d.source = 'squil';
+      d.code = hint.code;
+      vsDiags.push(d);
+    }
+
+    // SP0028 / SP0027: orphan / duplicate context resolver diagnostics.
+    // We use real fs here (diagnosticsProvider runs in the extension host with
+    // real disk access). The resolver is injected with real-fs callbacks.
+    const squilPath = document.uri.fsPath;
+    const fsReadFile = (p: string): string | undefined => {
+      try { return fs.readFileSync(p, 'utf-8'); } catch { return undefined; }
+    };
+    const fsListDir = (d: string): string[] => {
+      try { return fs.readdirSync(d).map(String); } catch { return []; }
+    };
+    const ctx = resolveContext(squilPath, fsReadFile, fsListDir);
+    if (!ctx.found) {
+      const range0 = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+      if (ctx.matchCount === 0) {
+        // SP0028 — orphan: no data context registers this query file.
+        const d = new vscode.Diagnostic(
+          range0,
+          "This query file isn't registered by any data context. " +
+          "Add a [SQuiLQuery] or [SQuiLQueryTransaction] attribute referencing it.",
+          vscode.DiagnosticSeverity.Warning,
+        );
+        d.source = 'squil';
+        d.code = 'SP0028';
+        vsDiags.push(d);
+      } else {
+        // SP0027 — duplicate: multiple contexts register this query file.
+        const d = new vscode.Diagnostic(
+          range0,
+          `This query file is registered by ${ctx.matchCount} data contexts. ` +
+          "Only one [SQuiLQuery] or [SQuiLQueryTransaction] may reference each QueryFiles member.",
+          vscode.DiagnosticSeverity.Error,
+        );
+        d.source = 'squil';
+        d.code = 'SP0027';
+        vsDiags.push(d);
+      }
+    }
+
+    // SP0023 / SP0024 / SP0025 — mutation-vs-transaction diagnostics.
+    // These combine the resolved context (attribute kind + enabled) with the
+    // mutation scanner (which body is read-only / has own Begin Tran).
+    // Port of the build-time emit in FileGenerator.cs — change one, change all.
+    if (ctx.found) {
+      // Extract the body text: everything after the USE statement line.
+      // parsed.databaseLine is 0-based; body starts on the NEXT line.
+      const databaseLine = parsed.databaseLine ?? -1;
+      let bodyText = '';
+      let bodyStartOffset = 0;
+      if (databaseLine >= 0 && databaseLine + 1 < document.lineCount) {
+        bodyStartOffset = document.offsetAt(new vscode.Position(databaseLine + 1, 0));
+        bodyText = text.slice(bodyStartOffset);
+      }
+
+      const scan = scanMutations(bodyText);
+
+      if (!ctx.enabled) {
+        // [SQuiLQuery] or [SQuiLQueryTransaction(enabled:false)] — warn if mutation detected.
+        if (!scan.isProvablyReadOnly && scan.mutations.length > 0) {
+          const hit = scan.mutations[0];
+          const hitPos = document.positionAt(bodyStartOffset + hit.start);
+          const hitEndPos = document.positionAt(bodyStartOffset + hit.start + hit.length);
+          const hitRange = new vscode.Range(hitPos, hitEndPos);
+          const d = new vscode.Diagnostic(
+            hitRange,
+            `The query body contains a persistent real-table mutation (${hit.kind}). ` +
+            'Use [SQuiLQueryTransaction] to wrap the mutation in a transaction.',
+            vscode.DiagnosticSeverity.Warning,
+          );
+          d.source = 'squil';
+          d.code = 'SP0023';
+          vsDiags.push(d);
+        }
+      } else {
+        // [SQuiLQueryTransaction(enabled:true)] — warn if read-only; error if own Begin Tran.
+        if (scan.isProvablyReadOnly) {
+          const range0 = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+          const d = new vscode.Diagnostic(
+            range0,
+            'No persistent mutation was detected in the query body. ' +
+            'Use [SQuiLQuery] instead — a transaction wrapper adds overhead with no benefit on a read-only query.',
+            vscode.DiagnosticSeverity.Warning,
+          );
+          d.source = 'squil';
+          d.code = 'SP0024';
+          vsDiags.push(d);
+        }
+        if (scan.hasOwnTransaction) {
+          // Range on the Begin Tran itself, if we can find it in the body.
+          const btMatch = bodyText.match(/\bBegin\s+Tran(?:saction)?\b/i);
+          const btRange = btMatch && btMatch.index !== undefined
+            ? new vscode.Range(
+                document.positionAt(bodyStartOffset + btMatch.index),
+                document.positionAt(bodyStartOffset + btMatch.index + btMatch[0].length),
+              )
+            : new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+          const d = new vscode.Diagnostic(
+            btRange,
+            'The query body contains a Begin Tran/Begin Transaction statement, but ' +
+            '[SQuiLQueryTransaction] already wraps the query in a C# DbTransaction. ' +
+            'Remove the SQL-level transaction, or set enabled:false on [SQuiLQueryTransaction] to manage the transaction manually.',
+            vscode.DiagnosticSeverity.Error,
+          );
+          d.source = 'squil';
+          d.code = 'SP0025';
+          vsDiags.push(d);
+        }
+      }
+    }
+
+    // SP0026: debugRollback has no effect without @Debug (editor-only hint)
+    for (const hint of transactionHints(parsed, ctx)) {
+      const range0 = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+      const d = new vscode.Diagnostic(range0, hint.message, vscode.DiagnosticSeverity.Hint);
       d.source = 'squil';
       d.code = hint.code;
       vsDiags.push(d);

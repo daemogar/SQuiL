@@ -1,7 +1,19 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { parseSQuiL } from '../squil/parser';
 import { generateCSharpPreview } from '../squil/previewGenerator';
+import { resolveContext } from '../squil/contextResolver';
+
+// ─── Real-filesystem resolver callbacks ───────────────────────────────────
+
+function fsReadFile(p: string): string | undefined {
+  try { return fs.readFileSync(p, 'utf-8'); } catch { return undefined; }
+}
+
+function fsListDir(d: string): string[] {
+  try { return fs.readdirSync(d, { withFileTypes: false }) as string[]; } catch { return []; }
+}
 
 // ─── Virtual text document scheme ─────────────────────────────────────────
 
@@ -59,7 +71,11 @@ export async function openPreview(
     parsed.queryName ??
     path.basename(document.fileName, path.extname(document.fileName));
 
-  const content = generateCSharpPreview(parsed, queryName);
+  // Resolve [SQuiLQuery]/[SQuiLQueryTransaction] context from disk to pick up
+  // enabled/debugRollback. Falls back to enabled=false (no transaction) when
+  // the file is orphaned or has duplicate registrations.
+  const ctx = resolveContext(document.uri.fsPath, fsReadFile, fsListDir);
+  const content = generateCSharpPreview(parsed, queryName, undefined, ctx.enabled, ctx.debugRollback);
   provider.setContent(document.uri, content);
 
   const previewUri = provider.previewUri(document.uri);
@@ -87,6 +103,9 @@ export function refreshPreview(
     parsed.queryName ??
     path.basename(document.fileName, path.extname(document.fileName));
 
-  const content = generateCSharpPreview(parsed, queryName);
+  // Re-resolve context on each refresh so the preview stays in sync with
+  // any changes to the C# attribute.
+  const ctx = resolveContext(document.uri.fsPath, fsReadFile, fsListDir);
+  const content = generateCSharpPreview(parsed, queryName, undefined, ctx.enabled, ctx.debugRollback);
   provider.setContent(document.uri, content);
 }

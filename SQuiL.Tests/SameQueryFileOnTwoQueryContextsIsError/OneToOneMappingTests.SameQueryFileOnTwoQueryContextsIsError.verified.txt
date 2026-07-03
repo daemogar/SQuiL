@@ -1,0 +1,55 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+namespace TestCase;
+[SQuiLQuery(QueryFiles.SameQueryFileOnTwoQueryContextsIsError)]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+public partial class FirstDataContext { }
+*/
+ : (2,12)-(2,61),
+      Message: The query file `SameQueryFileOnTwoQueryContextsIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
+      Severity: Error,
+      Descriptor: {
+        Id: SP0027,
+        Title: Duplicate Query Mapping,
+        MessageFormat: The query file `SameQueryFileOnTwoQueryContextsIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
+        Category: Design,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+public partial class FirstDataContext { }
+[SQuiLQuery(QueryFiles.SameQueryFileOnTwoQueryContextsIsError)]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+public partial class SecondDataContext { }
+*/
+ : (4,12)-(4,61),
+      Message: The query file `SameQueryFileOnTwoQueryContextsIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
+      Severity: Error,
+      Descriptor: {
+        Id: SP0027,
+        Title: Duplicate Query Mapping,
+        MessageFormat: The query file `SameQueryFileOnTwoQueryContextsIsError` is registered by more than one data context. A query file maps to exactly one data context — remove one of the registrations.,
+        Category: Design,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: There are no SQuiL contexts created. Make sure to create a partial class and add the [SQuiLQueryAttribute].,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0005,
+        Title: No SQuiL Contexts Are Created,
+        MessageFormat: There are no SQuiL contexts created. Make sure to create a partial class and add the [SQuiLQueryAttribute].,
+        Category: Design,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

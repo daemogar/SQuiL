@@ -25,7 +25,9 @@ public class SQuiLDataContext(
 		string ClassName,
 		string Method,
 		string Setting,
-		List<CodeBlock> Blocks)
+		List<CodeBlock> Blocks,
+		bool Enabled = false,
+		bool DebugRollback = true)
 {
 	/// <summary>
 	/// Sentinel column name prefix injected into every result-set SELECT so the reader can
@@ -108,11 +110,52 @@ public class SQuiLDataContext(
 					writer.Block($$"""
 									var builder = ConnectionStringBuilder("{{Setting}}");
 									using var connection = CreateConnection(builder.ConnectionString);
-									
+
 									var command = connection.CreateCommand();
 
 									""");
-					CommandParameters();
+
+					// ── Compute debug-hoist state before emitting parameters ──────
+					// `inputArgs` is also used inside CommandParameters(); capture it here
+					// so both sites agree on the same list.
+					var inputArgs = Blocks
+						.Where(p => p.CodeType == CodeType.INPUT_ARGUMENT)
+						.ToList();
+					bool HasSpecialPre(string name) => inputArgs.Any(p => p.IsSpecialDeclaration && p.Name == name);
+					var hasDebug = HasSpecialPre(SQuiLGenerator.Debug);
+					var hasSuppressDebug = HasSpecialPre(SQuiLGenerator.SuppressDebug);
+
+					// hoistDebug is true only for transaction contexts that also declare @Debug.
+					// Non-transaction queries MUST NOT hoist — their snapshots must stay unchanged.
+					var hoistDebug = Enabled && hasDebug;
+
+					// The debug expression reused from CommandParameters (must stay in sync with
+					// @SuppressDebug variant so the two sites are always identical).
+					var debugExpr = hasSuppressDebug
+						? $$"""!request.SuppressDebug && (request.Debug || {{SQuiLGenerator.EnvironmentName}} != "Production")"""
+						: $"request.Debug || {SQuiLGenerator.EnvironmentName} != \"Production\"";
+
+					// Commit gate (reader path): uses the `errors` list that the reader path declares.
+					// Gated on !__debug when debugRollback is on AND @Debug was declared.
+					var readerCommitGate = (Enabled && hasDebug && DebugRollback)
+						? "errors.Count == 0 && !__debug"
+						: "errors.Count == 0";
+
+					// Commit gate (non-query path): no `errors` list exists on this path — "success"
+					// is implicitly errors.Count == 0 (we're inside the try block after ExecuteNonQuery).
+					// Gate only on !__debug when debugRollback applies.
+					var nonQueryCommitGate = (Enabled && hasDebug && DebugRollback)
+						? "!__debug"
+						: null; // null = unconditional commit (original behaviour)
+
+					// Emit hoist local BEFORE the parameters list (transaction + @Debug only).
+					if (hoistDebug)
+					{
+						writer.WriteLine($"var __debug = {debugExpr};");
+						writer.WriteLine();
+					}
+
+					CommandParameters(inputArgs, hasDebug, hasSuppressDebug, hoistDebug);
 					writer.Block($"""
 
 									command.CommandText = Query(parameters);
@@ -121,11 +164,31 @@ public class SQuiLDataContext(
 									await connection.OpenAsync(cancellationToken);
 
 									""");
+					if (Enabled)
+						writer.Block("""
+							using var transaction = connection.BeginTransaction();
+							command.Transaction = transaction;
+
+							""");
 					if (!errorReturnType)
 					{
 						writer.Block("try", () =>
 						{
 							writer.WriteLine("await command.ExecuteNonQueryAsync(cancellationToken);");
+							if (Enabled)
+							{
+								if (nonQueryCommitGate is not null)
+								{
+									writer.WriteLine($"if ({nonQueryCommitGate})");
+									writer.Indent++; writer.WriteLine("transaction.Commit();"); writer.Indent--;
+									writer.WriteLine("else");
+									writer.Indent++; writer.WriteLine("transaction.Rollback();"); writer.Indent--;
+								}
+								else
+								{
+									writer.WriteLine("transaction.Commit();");
+								}
+							}
 							if (noResponse)
 								writer.WriteLine($"return {returnType}.Success;");
 							else
@@ -133,6 +196,7 @@ public class SQuiLDataContext(
 						});
 						writer.Block("catch(Microsoft.Data.SqlClient.SqlException e)", () =>
 						{
+							if (Enabled) writer.WriteLine("transaction.Rollback();");
 							WriteReturn("SQuiLError", "e");
 						});
 
@@ -194,6 +258,15 @@ public class SQuiLDataContext(
 								writer.Write($"""if (!is{block.Name}) """);
 								writer.WriteLine($"""errors.Add(new(51001, 12, 1, {line}, "{block.Name}", "{message}"));""");
 							}
+						}
+
+						if (Enabled)
+						{
+							writer.WriteLine($"if ({readerCommitGate})");
+							writer.Indent++; writer.WriteLine("transaction.Commit();"); writer.Indent--;
+							writer.WriteLine("else");
+							writer.Indent++; writer.WriteLine("transaction.Rollback();"); writer.Indent--;
+							writer.WriteLine();
 						}
 
 						writer.WriteLine("if(errors.Count == 0)");
@@ -501,19 +574,27 @@ public class SQuiLDataContext(
 				""";
 		}
 
-		void CommandParameters()
+		void CommandParameters(
+			List<CodeBlock>? precomputedInputArgs = null,
+			bool preHasDebug = false,
+			bool preHasSuppressDebug = false,
+			bool hoistDebug = false)
 		{
 			writer.WriteLine("List<DbParameter> parameters = new()");
 			writer.WriteLine("{");
 			writer.Indent++;
 
-			var inputArgs = Blocks
+			// Use the pre-computed inputArgs list when provided (avoids double-enumeration
+			// and ensures the hoist site and parameter site agree on the same blocks).
+			var inputArgs = precomputedInputArgs ?? Blocks
 				.Where(p => p.CodeType == CodeType.INPUT_ARGUMENT)
 				.ToList();
 
 			bool HasSpecial(string name) => inputArgs.Any(p => p.IsSpecialDeclaration && p.Name == name);
-			var hasDebug = HasSpecial(SQuiLGenerator.Debug);
-			var hasSuppressDebug = HasSpecial(SQuiLGenerator.SuppressDebug);
+			// When pre-computed values are supplied (transaction path), use them directly
+			// so the hoist and the parameter share the same computed state.
+			var hasDebug = precomputedInputArgs is not null ? preHasDebug : HasSpecial(SQuiLGenerator.Debug);
+			var hasSuppressDebug = precomputedInputArgs is not null ? preHasSuppressDebug : HasSpecial(SQuiLGenerator.SuppressDebug);
 			var hasEnvironmentName = HasSpecial(SQuiLGenerator.EnvironmentName);
 			var asOfDate = inputArgs.FirstOrDefault(p => p.IsSpecialDeclaration && p.Name == SQuiLGenerator.AsOfDate);
 
@@ -536,11 +617,16 @@ public class SQuiLDataContext(
 
 			if (hasDebug)
 			{
-				var debug = hasSuppressDebug
-					? $$"""!request.SuppressDebug && (request.Debug || {{SQuiLGenerator.EnvironmentName}} != "Production")"""
-					: $"request.Debug || {SQuiLGenerator.EnvironmentName} != \"Production\"";
+				// When the debug expression is hoisted to a local (transaction + @Debug),
+				// the parameter references the hoisted local `__debug` instead of the inline
+				// expression. Non-transaction @Debug queries keep the inline form unchanged.
+				var debugValue = hoistDebug
+					? "__debug"
+					: (hasSuppressDebug
+						? $$"""!request.SuppressDebug && (request.Debug || {{SQuiLGenerator.EnvironmentName}} != "Production")"""
+						: $"request.Debug || {SQuiLGenerator.EnvironmentName} != \"Production\"");
 				Comma();
-				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit, {{debug}})""");
+				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit, {{debugValue}})""");
 			}
 
 			if (hasSuppressDebug)

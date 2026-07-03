@@ -8,5 +8,7 @@ internal enum SQuiLDefinitionType
 	/// <summary>The class carries <c>[SQuiLQueryAttribute]</c> and represents a data-context entry point.</summary>
 	Query = 'Q',
 	/// <summary>The class carries <c>[SQuiLTableAttribute]</c> and represents a shared table-type mapping.</summary>
-	TableType = 'T'
+	TableType = 'T',
+	/// <summary>The class carries <c>[SQuiLQueryTransactionAttribute]</c> and represents a data-context entry point wrapped in a <c>DbTransaction</c>.</summary>
+	Transaction = 'X'
 }

@@ -54,7 +54,7 @@ public class FileGenerator(
 	/// <param name="text">The SQL source text to parse.</param>
 	/// <param name="records">All partial record declarations visible in the current compilation.</param>
 	/// <returns>The new <see cref="SQuiLFileGeneration"/>, or <c>null</c> if parsing failed.</returns>
-	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records, string recordNamespace = "")
+	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records, string recordNamespace = "", bool enabled = false, bool debugRollback = true)
 	{
 		try
 		{
@@ -93,7 +93,43 @@ public class FileGenerator(
 				if (property is SQuiLTable table)
 					generation.Tables.Add(table);
 
-			generation.Context = new(@namespace, classname, method, setting, blocks);
+			// SP0023 / SP0024 / SP0025 — mutation-vs-transaction diagnostics.
+			// Scan ONLY the author-supplied BODY block, not the generator-injected
+			// Insert Into @Params_… population or the appended Select @Return_… clauses.
+			// The raw author body is the portion of `sql` after the USE statement;
+			// the BODY block's Name holds the generator-augmented text, so we
+			// reconstruct the author body by stripping everything from the last
+			// generator-appended "Select '<tag>'" line. Since we only need to
+			// scan for mutations (not execute), scanning the full BODY block Name
+			// is equivalent: the appended lines target @-variables (skipped by
+			// the mutation scanner as @-table-var DML) or are plain SELECTs (read-only).
+			// Using blocks[].Name directly avoids re-splitting the raw SQL string.
+			var bodyBlock = blocks.FirstOrDefault(b => b.CodeType == CodeType.BODY);
+			if (bodyBlock is not null)
+			{
+				var scan = SQuiLMutationScanner.Scan(bodyBlock.Name);
+
+				if (!enabled)
+				{
+					// [SQuiLQuery] or [SQuiLQueryTransaction(enabled:false)] — warn if mutation detected.
+					if (!scan.IsProvablyReadOnly)
+					{
+						var firstKind = scan.Mutations[0].Kind;
+						Context.ReportMutationNeedsTransaction(method, firstKind);
+					}
+				}
+				else
+				{
+					// [SQuiLQueryTransaction(enabled:true)] — warn if read-only; error if own Begin Tran.
+					if (scan.IsProvablyReadOnly)
+						Context.ReportTransactionOnReadOnly(method);
+
+					if (scan.HasOwnTransaction)
+						Context.ReportOwnBeginTran(method);
+				}
+			}
+
+			generation.Context = new(@namespace, classname, method, setting, blocks, enabled, debugRollback);
 
 			Generations.Add(generation);
 

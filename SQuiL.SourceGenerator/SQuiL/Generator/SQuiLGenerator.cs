@@ -171,15 +171,45 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			.AddSource($"{TableTypeAttributeName}", SourceText.From($$"""
 				{{FileHeader}}
 				namespace {{NamespaceName}};
-				
+
 				[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
 				public class {{TableTypeAttributeName}} : System.Attribute
 				{
 					public TableType Type { get; }
-		
+
 					public {{TableTypeAttributeName}}(TableType type)
 					{
 						Type = type;
+					}
+				}
+				""", Encoding.UTF8)));
+
+		context.RegisterPostInitializationOutput(static p => p
+			.AddSource($"{QueryTransactionAttributeName}.g.cs", SourceText.From($$"""
+				{{FileHeader}}
+				namespace {{NamespaceName}};
+
+				[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
+				public class {{QueryTransactionAttributeName}} : System.Attribute
+				{
+					public QueryFiles Type { get; }
+
+					public string Setting { get; }
+
+					public bool Enabled { get; }
+
+					public bool DebugRollback { get; }
+
+					public {{QueryTransactionAttributeName}}(
+						QueryFiles type,
+						string setting = "{{DefaultConnectionStringAppSettingName}}",
+						bool enabled = true,
+						bool debugRollback = true)
+					{
+						Type = type;
+						Setting = setting;
+						Enabled = enabled;
+						DebugRollback = debugRollback;
 					}
 				}
 				""", Encoding.UTF8)));
@@ -271,6 +301,9 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				if (name.Equals(NamespacedQueryAttributeValue))
 					definition = SQuiLDefinitionType.Query;
 
+				else if (name.Equals(NamespacedQueryTransactionAttributeValue))
+					definition = SQuiLDefinitionType.Transaction;
+
 				else if (name.Equals(NamespacedTableTypeAttributeName))
 					definition = SQuiLDefinitionType.TableType;
 
@@ -304,9 +337,46 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 		GenerateQueryFilesEnum(context, files);
 
-		var classes = definitions.Where(p => p.Type == SQuiLDefinitionType.Query).ToImmutableArray();
+		var classes = definitions.Where(p => p.Type == SQuiLDefinitionType.Query || p.Type == SQuiLDefinitionType.Transaction).ToImmutableArray();
 
 		if (classes.IsDefaultOrEmpty || files.IsDefaultOrEmpty)
+		{
+			GenerateDependencyInjectionCode([]);
+			GenerateTablesEnum(context, default);
+			return;
+		}
+
+		// SP0027: One-to-one mapping — the same QueryFiles member may not be registered by
+		// more than one data context (regardless of whether each uses [SQuiLQuery] or
+		// [SQuiLQueryTransaction]).
+		var hasStructuralErrors = false;
+		foreach (var group in classes
+			.Select(d => (GetValueLocation(d.Attribute.ArgumentList!), d))
+			.GroupBy(x => x.Item1.Value)
+			.Where(g => g.Count() > 1))
+		{
+			hasStructuralErrors = true;
+			foreach (var (loc, _) in group)
+				context.ReportDuplicateQueryMapping(group.Key, loc.Location);
+		}
+
+		// SP0029: A class may not carry both [SQuiLQuery] and [SQuiLQueryTransaction].
+		foreach (var byClass in classes.GroupBy(d => d.Class))
+		{
+			if (byClass.Select(d => d.Type).Distinct().Count() > 1)
+			{
+				hasStructuralErrors = true;
+				context.ReportConflictingQueryAttributes(
+					byClass.Key.Identifier.Text, byClass.Key.GetLocation());
+			}
+		}
+
+		// Abort generation when a structural error was detected. Continuing into the
+		// code-generation loop would cause FileGenerator to crash on duplicate hint names
+		// and wrap the exception as a misleading SP0014 critical-failure diagnostic.
+		// This mirrors the global-abort pattern used for SP0004 (missing namespace) and
+		// the classes.IsDefaultOrEmpty guard above.
+		if (hasStructuralErrors)
 		{
 			GenerateDependencyInjectionCode([]);
 			GenerateTablesEnum(context, default);
@@ -406,6 +476,33 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				?? "Models";
 			var recordNamespace = string.IsNullOrEmpty(nsArg) ? @namespace : $"{@namespace}.{nsArg}";
 
+			// Read a bool attribute argument by named arg first, then positional slot.
+			// Positional slots: 0 = type, 1 = setting, 2 = enabled, 3 = debugRollback.
+			// A positional arg has NameColon == null; we count only leading positionals.
+			bool ReadBoolArg(AttributeArgumentListSyntax args, string name, int positionalSlot, bool dflt)
+			{
+				// Try named arg first.
+				var named = args.Arguments
+					.Where(a => a.NameColon?.Name.Identifier.Text == name)
+					.Select(a => a.Expression is LiteralExpressionSyntax l && l.Token.Value is bool b ? (bool?)b : null)
+					.FirstOrDefault();
+				if (named.HasValue) return named.Value;
+
+				// Fall back to the positional slot (args with no NameColon, in order).
+				var positionals = args.Arguments
+					.Where(a => a.NameColon is null)
+					.ToList();
+				if (positionalSlot < positionals.Count)
+					return positionals[positionalSlot].Expression is LiteralExpressionSyntax l2
+						&& l2.Token.Value is bool b2 ? b2 : dflt;
+
+				return dflt;
+			}
+
+			var enabled = definition.Type == SQuiLDefinitionType.Transaction
+				&& ReadBoolArg(list, "enabled", 2, true);
+			var debugRollback = ReadBoolArg(list, "debugRollback", 3, true);
+
 			if (missingDataClient)
 				continue;
 
@@ -423,7 +520,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			}
 
 			var generation = generator
-				.Create(@namespace, classname, method, setting, text, records, recordNamespace);
+				.Create(@namespace, classname, method, setting, text, records, recordNamespace, enabled, debugRollback);
 
 			if (generation is not null)
 				generation.FilePath = file.Path;

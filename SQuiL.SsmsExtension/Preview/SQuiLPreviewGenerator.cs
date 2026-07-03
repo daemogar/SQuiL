@@ -45,7 +45,7 @@ internal static class SQuiLPreviewGenerator
     private static bool IsCollection(SQuiLVariable v) =>
         v.Role is VariableRole.Params or VariableRole.Returns;
 
-    public static string Generate(SQuiLParseResult parsed, string queryName, string ns = "YourNamespace")
+    public static string Generate(SQuiLParseResult parsed, string queryName, string ns = "YourNamespace", bool enabled = false, bool debugRollback = true)
     {
         string db = parsed.Database ?? "/* database */";
         var lines = new List<string>();
@@ -109,7 +109,30 @@ internal static class SQuiLPreviewGenerator
         lines.Add($"    {queryName}Request request,");
         lines.Add("    CancellationToken cancellationToken = default!)");
         lines.Add("{");
-        lines.Add("    /* generated body */");
+        if (enabled)
+        {
+            // Detect @Debug declaration to determine the correct commit gate.
+            bool hasDebug = parsed.Variables.Any(v => v.Role == VariableRole.Debug);
+            string commitGate = (hasDebug && debugRollback)
+                ? "errors.Count == 0 && !__debug"
+                : "errors.Count == 0";
+
+            lines.Add("    await connection.OpenAsync(cancellationToken);");
+            lines.Add("");
+            lines.Add("    using var transaction = connection.BeginTransaction();");
+            lines.Add("    command.Transaction = transaction;");
+            lines.Add("");
+            lines.Add("    /* …read / execute… */");
+            lines.Add("");
+            lines.Add($"    if ({commitGate})");
+            lines.Add("        transaction.Commit();");
+            lines.Add("    else");
+            lines.Add("        transaction.Rollback();");
+        }
+        else
+        {
+            lines.Add("    /* generated body */");
+        }
         lines.Add("}");
         lines.Add("");
 

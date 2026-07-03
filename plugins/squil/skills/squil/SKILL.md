@@ -157,6 +157,11 @@ The trailing `Select * From @Returns_…` statements are how rows actually leave
 - **Declaring one name as both a list and a single object on the same side, in one file.** `@Returns_X table(...)` (a list) and `@Return_X table(...)` (a single object) in the same query file both resolve to one response property `X`; the generator keeps the first and silently drops the other. This is build error **SP0022** — rename one variable, or use the same cardinality for both. (Sharing a row record across *different* queries, or between an input and an output, is fine — only same-side same-file differing cardinality collides.)
 - **Referencing an `@variable` that was never declared.** A SQuiL file must be valid T-SQL *as written* — every `@variable` reference (including the specials like `@Debug` and `@EnvironmentName`) needs a textually-preceding `Declare` for that exact name. An undeclared reference is build error SP0013; the generator never invents or remaps names.
 - **Forgetting to PascalCase the suffix.** `@Param_personid` works but generates `personid` as a C# field, which fights every other naming convention in the project.
+- **Leaving a mutation query on `[SQuiLQuery]`.** A `[SQuiLQuery]` (or `[SQuiLQueryTransaction(enabled:false)]`) body that performs a persistent real-table mutation (`INSERT`/`UPDATE`/`DELETE`/`MERGE`) triggers build warning **SP0023** — wrap it with `[SQuiLQueryTransaction]` instead so the mutation is protected by a transaction.
+- **Adding your own `Begin Transaction` inside a `[SQuiLQueryTransaction]` body.** When `enabled:true`, the generator injects a C# `DbTransaction` around the query. Writing `BEGIN TRAN` in the SQL body doubles the transaction and is build error **SP0025**.
+- **Marking a read-only query with `[SQuiLQueryTransaction]`.** If the body has no persistent mutation (no `INSERT`/`UPDATE`/`DELETE`/`MERGE` on real tables), the generator warns SP0024 — use `[SQuiLQuery]` instead.
+- **Registering one query file on two data contexts.** Each query file maps to exactly one data context. A duplicate registration is build error **SP0027**.
+- **Applying both `[SQuiLQuery]` and `[SQuiLQueryTransaction]` to one class.** Build error **SP0029** — use one or the other, not both.
 
 ---
 
@@ -258,6 +263,7 @@ namespace MyProject;
 
 [SQuiLQuery(QueryFiles.QueriesExample1, setting: "ExampleOne")]
 [SQuiLQuery(QueryFiles.QueriesExample2, setting: "ExampleTwo")]
+[SQuiLQueryTransaction(QueryFiles.QueriesUpsertDocument, setting: "ExampleOne")]
 public partial class MyDataContext { }
 
 // SQuiL auto-supplies : SQuiLBaseDataContext and an IConfiguration constructor
@@ -270,6 +276,73 @@ public partial class Table { }
 ```
 
 The `QueryFiles` enum is generated from the query-file paths: `Queries/Example1.squil` becomes `QueryFiles.QueriesExample1` (folder name + file name, both PascalCased, joined). The `TableType` enum is generated from `@Returns_<Name>` and `@Params_<Name>` table declarations — one entry per distinct table name across all query files. Add a `[SQuiLTable]` for each table the project actually uses so the row record is emitted.
+
+### `[SQuiLQueryTransaction]` — mutation queries with automatic transaction management
+
+`[SQuiLQueryTransaction]` is a sibling to `[SQuiLQuery]`. It produces the **same** `Process…Async` method, `*Request` / `*Response` models, and `SQuiLResultType` return type as `[SQuiLQuery]`, but wraps the query body in a C# `DbTransaction`. Use it for INSERT/UPDATE/DELETE/MERGE queries that should commit or roll back as a unit.
+
+```csharp
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
+public class SQuiLQueryTransactionAttribute : Attribute
+{
+    public SQuiLQueryTransactionAttribute(
+        QueryFiles type,
+        string setting = "SQuiLDatabase",
+        bool enabled = true,
+        bool debugRollback = true)
+    { … }
+}
+```
+
+**Parameters:**
+
+- **`type`** — the `QueryFiles` enum member that names the query file.
+- **`setting`** (default `"SQuiLDatabase"`) — which connection-string key to use.
+- **`enabled`** (default `true`) — when `true`, the generator injects `connection.BeginTransaction()`, commits when `errors.Count == 0`, and rolls back on any SQL exception. Set `enabled: false` only when the calling code owns the transaction externally; the generated code will not inject one.
+- **`debugRollback`** (default `true`) — when `true` and the query declares `@Debug`, the generated code evaluates the debug expression (`request.Debug || EnvironmentName != "Production"`) before committing: if the debug expression is true the transaction **rolls back instead of commits**, but the response that was read is **still returned** to the caller (dry-run semantics). Set `debugRollback: false` to always commit even in debug mode. Has no effect when `@Debug` is not declared.
+
+**One-to-one mapping rule:** each query file maps to exactly one data context. Registering the same `QueryFiles` member on two different contexts is build error SP0027. A class may carry `[SQuiLQuery]` or `[SQuiLQueryTransaction]` attributes, but not both — mixing them is build error SP0029.
+
+**Example — mutation query with transaction + debug dry-run:**
+
+```sql
+-- Queries/UpsertDocument.squil
+Declare @Debug bit = 0;
+Declare @Param_ID bigint;
+Declare @Return_RowsAffected int;
+
+Use MyDatabase;
+
+Update [Documents] set Status = 'Done' where ID = @Param_ID;
+Set @Return_RowsAffected = @@ROWCOUNT;
+Select @Return_RowsAffected;
+```
+
+```csharp
+// MyDataContext.cs
+[SQuiLQueryTransaction(QueryFiles.QueriesUpsertDocument, setting: "MyDB")]
+public partial class MyDataContext { }
+```
+
+```csharp
+// Queries/UpsertDocument.cs
+public partial class MyDataContext
+{
+    public async Task<int> UpsertDocumentAsync(
+        long id, bool debug = false, CancellationToken ct = default)
+    {
+        var result = await ProcessQueriesUpsertDocumentAsync(
+            new QueriesUpsertDocumentRequest { ID = id, Debug = debug }, ct);
+
+        if (!result.TryGetValue(out var response, out var errors))
+            throw new SQuiLAggregateException(errors);
+
+        return response.RowsAffected;
+    }
+}
+```
+
+When `debug: true`, the query executes and the row count is read, but the transaction is rolled back — the caller sees the would-be `RowsAffected` without any persistent change.
 
 Auto-generated row records (those NOT backed by a `[SQuiLTable]` attribute) are emitted into a `<ContextNamespace>.Models` sub-namespace. Use the `Namespace` property on `[SQuiLQuery]` to control this: the default is `"Models"`; `Namespace: "Dto"` puts records in `<Ctx>.Dto`; `Namespace: ""` puts them in `<Ctx>` (top-level). Two contexts that share a row record must agree on the namespace — mismatch is build error SP0021.
 

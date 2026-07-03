@@ -42,7 +42,14 @@ internal static class SQuiLLinter
     /// are style hints, not errors.  Also runs the undeclared-variable /
     /// special-placement validation (errors/warnings).
     /// </summary>
-    public static void Lint(string text, List<SQuiLDiagnostic> diagnostics)
+    /// <param name="text">Full text of the .squil file.</param>
+    /// <param name="diagnostics">Diagnostic list to append to.</param>
+    /// <param name="squilFilePath">
+    /// Absolute path to the .squil file on disk.  When supplied the linter also
+    /// runs the context-resolver pass (SP0028 orphan / SP0027 duplicate mirror).
+    /// Pass <c>null</c> when path is unavailable (e.g. untitled buffers).
+    /// </param>
+    public static void Lint(string text, List<SQuiLDiagnostic> diagnostics, string? squilFilePath = null)
     {
         string[] lines = text.Split('\n');
 
@@ -62,6 +69,199 @@ internal static class SQuiLLinter
         LintShapeMismatch(text, diagnostics);
         LintSimilarSignatures(text, diagnostics);
         LintCardinalityCollision(text, diagnostics);
+        if (squilFilePath is not null)
+        {
+            LintOrphanContext(squilFilePath, diagnostics);
+            LintMutationDiagnostics(text, squilFilePath, diagnostics);
+            LintDebugRollbackHint(text, squilFilePath, diagnostics);
+        }
+    }
+
+    // ── Orphan / duplicate context resolver (SP0028 / SP0027) ────────────────
+    //
+    // SP0028 (Warning): this .squil file isn't registered by any data context.
+    // SP0027 (Error):   multiple data contexts register the same .squil file.
+    //
+    // Port of the SP0028/SP0027 block in diagnosticsProvider.ts (VS Code) —
+    // change one side, change all three.
+
+    internal static void LintOrphanContext(string squilFilePath, List<SQuiLDiagnostic> diagnostics)
+    {
+        var ctx = SQuiLContextResolver.Resolve(squilFilePath);
+        if (ctx.Found) return;
+
+        if (ctx.MatchCount == 0)
+        {
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message   = "This query file isn't registered by any data context. " +
+                            "Add a [SQuiLQuery] or [SQuiLQueryTransaction] attribute referencing it.",
+                Line      = 0,
+                StartChar = 0,
+                EndChar   = 0,
+                Severity  = DiagnosticSeverity.Warning,
+                Code      = "SP0028",
+            });
+        }
+        else
+        {
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message   = $"This query file is registered by {ctx.MatchCount} data contexts. " +
+                            "Only one [SQuiLQuery] or [SQuiLQueryTransaction] may reference each QueryFiles member.",
+                Line      = 0,
+                StartChar = 0,
+                EndChar   = 0,
+                Severity  = DiagnosticSeverity.Error,
+                Code      = "SP0027",
+            });
+        }
+    }
+
+    // ── Mutation-vs-transaction diagnostics (SP0023 / SP0024 / SP0025) ──────
+    //
+    // SP0023 (Warning): [SQuiLQuery] or disabled transaction wraps a body with a
+    //   persistent real-table mutation (UPDATE/INSERT/DELETE/MERGE/EXEC/…).
+    // SP0024 (Warning): [SQuiLQueryTransaction] enabled wraps a provably read-only body.
+    // SP0025 (Error):   [SQuiLQueryTransaction] enabled body contains its own Begin Tran.
+    //
+    // Port of the build-time emit in FileGenerator.cs and the SP0023/SP0024/SP0025
+    // block in diagnosticsProvider.ts (VS Code) — change one, change all three.
+
+    internal static void LintMutationDiagnostics(string sql, string squilFilePath, List<SQuiLDiagnostic> diagnostics)
+    {
+        var ctx = SQuiLContextResolver.Resolve(squilFilePath);
+        if (!ctx.Found) return; // orphan/duplicate already reported by LintOrphanContext
+
+        // Extract the body text: everything after the USE statement line.
+        var parsed = SQuiLParser.Parse(sql);
+        if (parsed.DatabaseLine is not { } databaseLine) return;
+
+        var lines = sql.Split('\n');
+        // Compute the character offset of the line after the USE statement.
+        int bodyStartOffset = 0;
+        for (int i = 0; i <= databaseLine && i < lines.Length; i++)
+            bodyStartOffset += lines[i].Length + 1; // +1 for the '\n'
+
+        var bodyText = bodyStartOffset < sql.Length ? sql.Substring(bodyStartOffset) : string.Empty;
+
+        var scan = SQuiLMutationScanner.Scan(bodyText);
+
+        if (!ctx.Enabled)
+        {
+            // [SQuiLQuery] or [SQuiLQueryTransaction(enabled:false)] — warn if mutation detected.
+            if (!scan.IsProvablyReadOnly && scan.Mutations.Count > 0)
+            {
+                var hit = scan.Mutations[0];
+                var hitAbsOffset = bodyStartOffset + hit.Start;
+                var (hitLine, hitChar) = OffsetToLineChar(sql, hitAbsOffset);
+                var hitEndChar = hitChar + hit.Length;
+
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message   = $"The query body contains a persistent real-table mutation ({hit.Kind}). " +
+                                "Use [SQuiLQueryTransaction] to wrap the mutation in a transaction.",
+                    Line      = hitLine,
+                    StartChar = hitChar,
+                    EndChar   = hitEndChar,
+                    Severity  = DiagnosticSeverity.Warning,
+                    Code      = "SP0023",
+                });
+            }
+        }
+        else
+        {
+            // [SQuiLQueryTransaction(enabled:true)] — warn if read-only; error if own Begin Tran.
+            if (scan.IsProvablyReadOnly)
+            {
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message   = "No persistent mutation was detected in the query body. " +
+                                "Use [SQuiLQuery] instead — a transaction wrapper adds overhead with no benefit on a read-only query.",
+                    Line      = 0,
+                    StartChar = 0,
+                    EndChar   = 0,
+                    Severity  = DiagnosticSeverity.Warning,
+                    Code      = "SP0024",
+                });
+            }
+
+            if (scan.HasOwnTransaction)
+            {
+                // Try to locate the Begin Tran in the body for a precise range.
+                var btMatch = System.Text.RegularExpressions.Regex.Match(
+                    bodyText, @"\bBegin\s+Tran(?:saction)?\b",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                int btLine = 0, btChar = 0, btEndChar = 0;
+                if (btMatch.Success)
+                {
+                    var btAbsOffset = bodyStartOffset + btMatch.Index;
+                    (btLine, btChar) = OffsetToLineChar(sql, btAbsOffset);
+                    btEndChar = btChar + btMatch.Length;
+                }
+
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message   = "The query body contains a Begin Tran/Begin Transaction statement, but " +
+                                "[SQuiLQueryTransaction] already wraps the query in a C# DbTransaction. " +
+                                "Remove the SQL-level transaction, or set enabled:false on [SQuiLQueryTransaction] to manage the transaction manually.",
+                    Line      = btLine,
+                    StartChar = btChar,
+                    EndChar   = btEndChar,
+                    Severity  = DiagnosticSeverity.Error,
+                    Code      = "SP0025",
+                });
+            }
+        }
+    }
+
+    // ── debugRollback-without-Debug hint (SP0026) ───────────────────────────
+    //
+    // SP0026 (Info): [SQuiLQueryTransaction] has debugRollback:true (the default)
+    // but the file does NOT declare @Debug.  Without @Debug the debug-rollback
+    // branch is unreachable — the setting is inert.
+    //
+    // Trigger: context found + attribute SQuiLQueryTransaction + debugRollback=true
+    //          + no @Debug declared in the SQL text.
+    // Severity: Info (C# extensions have no Hint enum value — mirrors SP0010/SP0020).
+    //
+    // Port of transactionHints.ts (VS Code extension, Hint severity there) —
+    // change one side, change all three.
+
+    internal static void LintDebugRollbackHint(string sql, string squilFilePath, List<SQuiLDiagnostic> diagnostics)
+    {
+        var ctx = SQuiLContextResolver.Resolve(squilFilePath);
+        if (!ctx.Found) return;
+        if (ctx.Attribute != "SQuiLQueryTransaction") return;
+        if (!ctx.Enabled) return;
+        if (!ctx.DebugRollback) return;
+
+        // Check whether @Debug is declared anywhere in the file.
+        var parsed = SQuiLParser.Parse(sql);
+        bool hasDebug = parsed.Variables.Any(v => v.Role == VariableRole.Debug);
+        if (hasDebug) return;
+
+        diagnostics.Add(new SQuiLDiagnostic
+        {
+            Message   = "`debugRollback: true` has no effect without a declared `@Debug`. " +
+                        "Declare `@Debug bit;` in the header, or set `debugRollback: false` on [SQuiLQueryTransaction].",
+            Line      = 0,
+            StartChar = 0,
+            EndChar   = 0,
+            Severity  = DiagnosticSeverity.Info,
+            Code      = "SP0026",
+        });
+    }
+
+    private static (int Line, int Char) OffsetToLineChar(string text, int offset)
+    {
+        int line = 0, charPos = 0;
+        for (int i = 0; i < offset && i < text.Length; i++)
+        {
+            if (text[i] == '\n') { line++; charPos = 0; }
+            else charPos++;
+        }
+        return (line, charPos);
     }
 
     // ── Shape-mismatch detection (SP0017) ────────────────────────────────────

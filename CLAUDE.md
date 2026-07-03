@@ -211,6 +211,11 @@ SQuiL/
       table-column defaults (any-position hybrid record),
       `datetimeoffset`→`DateTimeOffset` + the SQL→C# type map,
       undeclared-variable validation (SP0013) and special-placement (SP0016).
+    - `[SQuiLQueryTransaction]` attribute: same generated surface as `[SQuiLQuery]`
+      (same `Process…Async` method, same request/response models, same
+      `SQuiLResultType` return); adds `enabled` + `debugRollback` parameters;
+      one-to-one mapping rule (SP0027/SP0029); dry-run-still-returns-response
+      semantics when `@Debug` is declared and `debugRollback:true`.
 - **Provider logic ported to both surfaces.** `parser.ts` ↔ `SQuiLParser.cs`,
   `previewGenerator.ts` ↔ `SQuiLPreviewGenerator.cs`,
   `sampleDataGenerator.ts` ↔ `SampleDataGenerator.cs`,
@@ -293,8 +298,21 @@ SQuiL/
     **SP0021 is now TAKEN** — build error when two contexts that share a row
     record declare conflicting `Namespace` overrides.
     **SP0022 is now TAKEN** — build error (generator) + editor squiggles (warning on the first declaration, error on the rest) when one base name is declared as both a table (list) and a single object on the same side within one file (cardinality collision); see `SQuiLCardinalityValidator.cs` + `lintCardinalityCollision` + `LintCardinalityCollision`.
-    Next free: SP0023. (Verify an id is truly unreferenced with a repo-wide grep
+    **SP0023 is now TAKEN** — Warning: `[SQuiLQuery]` or `enabled:false` body has a persistent (real-table) mutation; suggests `[SQuiLQueryTransaction]`.
+    **SP0024 is now TAKEN** — Warning: `[SQuiLQueryTransaction]` (enabled) wraps a provably read-only body; suggests `[SQuiLQuery]`.
+    **SP0025 is now TAKEN** — Error: `[SQuiLQueryTransaction(enabled:true)]` body has its own `Begin Tran` (double-transaction).
+    **SP0026 is now TAKEN** — editor-only Hint/Info: `debugRollback` is set but no `@Debug` is declared (the option has no effect).
+    **SP0027 is now TAKEN** — Error: a query file is registered by more than one data context (duplicate mapping, one-to-one violation).
+    **SP0028 is now TAKEN** — editor-only Warning: a `.squil` file no data context registers (orphan file).
+    **SP0029 is now TAKEN** — Error: both `[SQuiLQuery]` and `[SQuiLQueryTransaction]` appear on one class.
+    Next free: **SP0030**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
+- **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
+  - Signature: `[SQuiLQueryTransaction(QueryFiles type, string setting = "SQuiLDatabase", bool enabled = true, bool debugRollback = true)]`
+  - `enabled` (default `true`): inject `connection.BeginTransaction()`; commit when `errors.Count == 0`, else roll back. `enabled:false` = caller owns the transaction externally; no injection.
+  - `debugRollback` (default `true`): when the query declares `@Debug` and the debug expression is true (`request.Debug || EnvironmentName != "Production"`), roll back instead of commit — but **still return the response** that was read (dry-run semantics). `debugRollback:false` → always commit even in debug.
+  - **One-to-one mapping rule**: each query file maps to exactly one data context. Registering the same `QueryFiles` member on two contexts is build error SP0027. A class may carry `[SQuiLQuery]` or `[SQuiLQueryTransaction]` attributes, but not both — mixing them is build error SP0029.
+  - `[SQuiLQuery]` NEVER wraps in a transaction (unchanged behavior).
 - **Sample data detection** — the extension detects an existing sample-data
   block by the `Insert Into @Param_…` statement itself; NO comment markers.
   `@Params_` (list) prompts for row count; `@Param_…Table(...)` (single
@@ -590,7 +608,8 @@ accepts `\d+(\.\d+)?`).
 
 **SP0010 is TAKEN** (since the nullability-unification feature) — it is the
 editor-only Hint that fires on any unmarked column or scalar declare (no `null`
-or `not null`). It is NOT a build/generator diagnostic. Next free id: SP0023.
+or `not null`). It is NOT a build/generator diagnostic. Next free id: **SP0030**
+(SP0023–SP0029 taken by the DML-transactions feature).
 
 ## Special Handling
 

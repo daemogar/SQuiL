@@ -83,7 +83,11 @@ internal sealed class PreviewGeneratedCSharpCommand
 
         var parsed = SQuiLParser.Parse(bufferText);
         string queryName = parsed.QueryName ?? Path.GetFileNameWithoutExtension(fullPath);
-        string preview   = SQuiLPreviewGenerator.Generate(parsed, queryName);
+
+        // Resolve [SQuiLQuery]/[SQuiLQueryTransaction] context from disk so the
+        // preview shows the correct transaction scaffold.
+        var ctx = SQuiL.SsmsExtension.Parsing.SQuiLContextResolver.Resolve(fullPath);
+        string preview = SQuiLPreviewGenerator.Generate(parsed, queryName, enabled: ctx.Enabled, debugRollback: ctx.DebugRollback);
 
         string tempPath = Path.Combine(
             Path.GetTempPath(),
