@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
-import { parseSQuiL, lintCardinalityCollision } from './parser';
+import { parseSQuiL, lintCardinalityCollision, lintShapeCollision } from './parser';
+import { shapeHints } from './shapeHints';
 
 // Recognition parity with the generator's SQuiLParser: bare @SuppressDebug and
 // @AsOfDate are valid header specials and must NOT raise a "doesn't follow
@@ -155,6 +156,40 @@ test('SP0022 flags only cardinality mismatch among 3+ same-name decls', () => {
   assert.ok(diags.every(d => d.code === 'SP0022'));
   assert.strictEqual(diags.filter(d => d.severity === 'warning').length, 1);
   assert.strictEqual(diags.filter(d => d.severity === 'error').length, 1);
+});
+
+// SP0030: result-shape collision (same-file same-side output pairs with identical signature)
+test('SP0030 fires on two same-file outputs with identical signature', () => {
+  const diags = lintShapeCollision(parseSQuiL([
+    'Declare @Returns_Active table(PersonID int, Name varchar(100));',
+    'Declare @Returns_Inactive table(PersonID int, Name varchar(100));',
+    'Use Db;',
+    'Select * From @Returns_Active;',
+  ].join('\n')));
+  assert.ok(diags.length >= 2, 'both declarations flagged');
+  assert.ok(diags.every(d => d.code === 'SP0030'));
+  assert.ok(diags[0].message.includes('@Returns_Active') && diags[0].message.includes('@Returns_Inactive'));
+});
+
+test('SP0030 fires on length-only difference (both string)', () => {
+  const diags = lintShapeCollision(parseSQuiL([
+    'Declare @Returns_A table(Note varchar(50));',
+    'Declare @Returns_B table(Note varchar(100));',
+    'Use Db;',
+    'Select * From @Returns_A;',
+  ].join('\n')));
+  assert.ok(diags.length >= 2 && diags.every(d => d.code === 'SP0030'));
+});
+
+test('SP0020 does NOT also fire where SP0030 applies (no double squiggle)', () => {
+  const parsed = parseSQuiL([
+    'Declare @Returns_Active table(PersonID int, Name varchar(100));',
+    'Declare @Returns_Inactive table(PersonID int, Name varchar(100));',
+    'Use Db;',
+    'Select * From @Returns_Active;',
+  ].join('\n'));
+  const s20 = shapeHints(parsed);
+  assert.strictEqual(s20.length, 0, 'SP0020 suppressed for same-file same-side output collisions');
 });
 
 // Parity with the generator: a column DEFAULT must be parsed (not dropped) and

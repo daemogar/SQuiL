@@ -75,6 +75,7 @@ export interface SQuiLParseResult {
 }
 
 import { validateVariables, findingMessage, findingSeverity } from './variableValidator';
+import { shapeKeyOf } from './shapeKey';
 
 /** Parse a full SQuiL SQL file text into a structured result. */
 export function parseSQuiL(text: string): SQuiLParseResult {
@@ -304,6 +305,62 @@ export function lintCardinalityCollision(result: SQuiLParseResult): SQuiLDiagnos
   }
 
   return diagnostics;
+}
+
+/** SP0030 — within a single file, detect OUTPUT table variables (returns / return-table)
+ *  that have DISTINCT names but IDENTICAL canonical shape keys (same column names, order,
+ *  and C# types — length/precision does NOT differentiate).  When two or more outputs
+ *  share a key, the runtime cannot route result sets to different records; all are flagged
+ *  as errors with cross-referencing related-information.
+ *
+ *  Same-name is NOT a collision (same-name + different shape = SP0017's domain).
+ *
+ *  Port of SQuiLLinter.LintShapeCollision in SQuiLLinter.cs (SSMS + VS extensions) —
+ *  change one, change all three.
+ */
+export function lintShapeCollision(parsed: SQuiLParseResult): SQuiLDiagnostic[] {
+  const outputs = parsed.variables.filter(v => v.role === 'returns' || v.role === 'return-table');
+  const groups = new Map<string, SQuiLVariable[]>();
+  for (const v of outputs) {
+    if (!v.columns) continue;
+    const key = shapeKeyOf(v.columns);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.push(v);
+    } else {
+      groups.set(key, [v]);
+    }
+  }
+  const diags: SQuiLDiagnostic[] = [];
+  for (const group of groups.values()) {
+    // Deduplicate by name (case-insensitive) — only distinct names are a collision.
+    const distinct = group.filter(
+      (v, i) => group.findIndex(g => g.name.toLowerCase() === v.name.toLowerCase()) === i,
+    );
+    if (distinct.length < 2) continue;
+    const winner = distinct[0];
+    for (let i = 0; i < distinct.length; i++) {
+      const self = distinct[i];
+      const other = i === 0 ? distinct[1] : winner;
+      diags.push({
+        message:
+          `\`${self.rawName}\` has the same result signature as \`${other.rawName}\` ` +
+          `(line ${other.line + 1}) — identical column names, order, and C# types ` +
+          `(length/precision does not differentiate). Result sets can't be routed apart. ` +
+          `Differentiate a column, or share one name.`,
+        line: self.line,
+        startChar: self.character,
+        endChar: self.character + self.rawName.length,
+        severity: 'error',
+        code: 'SP0030',
+        relatedLine: other.line,
+        relatedStartChar: other.character,
+        relatedEndChar: other.character + other.rawName.length,
+        relatedMessage: 'conflicting result signature declared here',
+      });
+    }
+  }
+  return diags;
 }
 
 // ─── Internal helpers ──────────────────────────────────────────────────────

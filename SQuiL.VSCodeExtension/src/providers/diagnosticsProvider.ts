@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import { parseSQuiL, SQuiLDiagnostic } from '../squil/parser';
+import { parseSQuiL, SQuiLDiagnostic, lintShapeCollision } from '../squil/parser';
 import { nullabilityHints } from '../squil/nullabilityHints';
 import { shapeHints } from '../squil/shapeHints';
 import { transactionHints } from '../squil/transactionHints';
@@ -55,6 +55,12 @@ export class SQuiLDiagnosticsProvider {
       d.source = 'squil';
       d.code = hint.code;
       vsDiags.push(d);
+    }
+
+    // SP0030: result-shape collision — same-file same-side output pairs with identical
+    // canonical shape key.  These can't be routed to different records at runtime.
+    for (const d of lintShapeCollision(parsed)) {
+      vsDiags.push(this.toDiagnostic(document, d));
     }
 
     // SP0028 / SP0027: orphan / duplicate context resolver diagnostics.

@@ -16,6 +16,7 @@
  */
 
 import { SQuiLParseResult, SQuiLVariable, TableColumn, VariableRole } from './parser';
+import { shapeKeyOf } from './shapeKey';
 
 export interface ShapeHint {
   code: 'SP0020';
@@ -63,6 +64,29 @@ export function shapeHints(parsed: SQuiLParseResult): ShapeHint[] {
 
   if (tables.length < 2) return [];
 
+  // SP0030 reconciliation: compute the set of output variable rawNames that are
+  // already flagged by SP0030 (same-file same-side output pairs with identical
+  // canonical shape key).  Those pairs must NOT also fire SP0020.
+  const outputRoles: ReadonlySet<VariableRole> = new Set(['returns', 'return-table']);
+  const sp0030CollisionNames = new Set<string>();
+  {
+    const outputTables = tables.filter(v => outputRoles.has(v.role));
+    const outputBySig = new Map<string, typeof outputTables>();
+    for (const v of outputTables) {
+      const key = shapeKeyOf(v.columns);
+      const existing = outputBySig.get(key);
+      if (existing) { existing.push(v); } else { outputBySig.set(key, [v]); }
+    }
+    for (const group of outputBySig.values()) {
+      const distinct = group.filter(
+        (v, i) => group.findIndex(g => g.name.toLowerCase() === v.name.toLowerCase()) === i,
+      );
+      if (distinct.length >= 2) {
+        for (const v of distinct) sp0030CollisionNames.add(v.rawName);
+      }
+    }
+  }
+
   // Build a signature → [variables] map.  Variables with the same base name
   // are NOT compared here — that's SP0017's domain (same-name different-shape).
   const bySig = new Map<string, typeof tables>();
@@ -91,6 +115,11 @@ export function shapeHints(parsed: SQuiLParseResult): ShapeHint[] {
     // other variable whose name differs.
     for (let i = 0; i < group.length; i++) {
       const a = group[i];
+
+      // SP0030 reconciliation: skip variables that are already flagged by SP0030
+      // (same-file same-side output pair with identical canonical shape).
+      if (sp0030CollisionNames.has(a.rawName)) continue;
+
       // Find the first differently-named partner to mention in the message.
       const partner = group.find(
         (b, j) => j !== i && b.name.toLowerCase() !== a.name.toLowerCase(),

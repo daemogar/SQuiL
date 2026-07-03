@@ -67,6 +67,7 @@ internal static class SQuiLLinter
         LintUndeclaredVariables(text, diagnostics);
         LintNullabilityHints(text, diagnostics);
         LintShapeMismatch(text, diagnostics);
+        LintShapeCollision(text, diagnostics);
         LintSimilarSignatures(text, diagnostics);
         LintCardinalityCollision(text, diagnostics);
         if (squilFilePath is not null)
@@ -397,6 +398,85 @@ internal static class SQuiLLinter
         }
     }
 
+    // ── Result-shape collision detection (SP0030) ────────────────────────────
+    //
+    // Within a single file, detect OUTPUT table variables (Returns / ReturnTable)
+    // that have DISTINCT names but IDENTICAL canonical shape keys (same column
+    // names, order, and C# types — length/precision does NOT differentiate).
+    // When two or more outputs share a key the runtime cannot route result sets
+    // to different records; all are flagged as errors with cross-referencing
+    // related information.
+    //
+    // Same-name is NOT a collision (same-name + different shape = SP0017's domain).
+    //
+    // Port of lintShapeCollision() in parser.ts (VS Code extension) —
+    // change one, change all three.
+
+    internal static void LintShapeCollision(string sql, List<SQuiLDiagnostic> diagnostics)
+    {
+        var parsed = SQuiLParser.Parse(sql);
+
+        static string CanonicalType(string sqlType)
+        {
+            string cs = SqlTypeMap.SqlToCSharp(sqlType);
+            return cs; // SqlToCSharp already strips size/precision; no '?' suffix to strip
+        }
+
+        static string ShapeKeyOf(List<TableColumn> columns) =>
+            string.Join("|", columns.Select(c => $"{c.Name.ToLowerInvariant()}:{CanonicalType(c.SqlType)}"));
+
+        var outputs = parsed.Variables.Where(v =>
+            (v.Role == VariableRole.Returns || v.Role == VariableRole.ReturnTable)
+            && v.Columns != null && v.Columns.Count > 0)
+            .ToList();
+
+        // Group by canonical shape key.
+        var byKey = new Dictionary<string, List<SQuiLVariable>>();
+        foreach (var v in outputs)
+        {
+            string key = ShapeKeyOf(v.Columns!);
+            if (!byKey.TryGetValue(key, out var group))
+            {
+                group = new List<SQuiLVariable>();
+                byKey[key] = group;
+            }
+            group.Add(v);
+        }
+
+        foreach (var group in byKey.Values)
+        {
+            // Deduplicate by name (OrdinalIgnoreCase) — only distinct names are a collision.
+            var distinct = group
+                .Where((v, i) => group.FindIndex(g =>
+                    string.Equals(g.Name, v.Name, System.StringComparison.OrdinalIgnoreCase)) == i)
+                .ToList();
+            if (distinct.Count < 2) continue;
+
+            var winner = distinct[0];
+            for (int i = 0; i < distinct.Count; i++)
+            {
+                var self = distinct[i];
+                var other = i == 0 ? distinct[1] : winner;
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message        = $"`{self.RawName}` has the same result signature as `{other.RawName}` " +
+                                     $"(line {other.Line + 1}) — identical column names, order, and C# types " +
+                                     $"(length/precision does not differentiate). Result sets can't be routed apart. " +
+                                     $"Differentiate a column, or share one name.",
+                    Line           = self.Line,
+                    StartChar      = self.Character,
+                    EndChar        = self.Character + self.RawName.Length,
+                    Severity       = DiagnosticSeverity.Error,
+                    Code           = "SP0030",
+                    RelatedLine    = other.Line,
+                    RelatedStartChar  = other.Character,
+                    RelatedEndChar    = other.Character + other.RawName.Length,
+                    RelatedMessage    = "conflicting result signature declared here",
+                });
+            }
+        }
+    }
+
     // ── Similar-signature hints (SP0020) ────────────────────────────────────
     //
     // Emits an Info-level hint for every table/object variable that shares an
@@ -406,6 +486,8 @@ internal static class SQuiLLinter
     //
     // Trigger:  different name + same signature.
     // Silent:   same name (SP0017's domain), or no matching signature found.
+    // SP0030 reconciliation: same-file same-side OUTPUT pairs with identical
+    // canonical shape are now SP0030's domain — exclude them from SP0020.
     //
     // Port of shapeHints.ts (VS Code extension) — change one, change all three.
 
@@ -419,6 +501,33 @@ internal static class SQuiLLinter
             .ToList();
 
         if (tableVars.Count < 2) return;
+
+        // SP0030 reconciliation: compute the set of output RawNames already flagged
+        // by LintShapeCollision (same-side output pairs with identical canonical key).
+        // Those must NOT also get an SP0020 hint.
+        static string CanonicalKey(List<TableColumn> cols) =>
+            string.Join("|", cols.Select(c => $"{c.Name.ToLowerInvariant()}:{SqlTypeMap.SqlToCSharp(c.SqlType)}"));
+
+        var sp0030Names = new HashSet<string>(System.StringComparer.Ordinal);
+        {
+            var outputVars = tableVars.Where(v =>
+                v.Role == VariableRole.Returns || v.Role == VariableRole.ReturnTable).ToList();
+            var outputByKey = new Dictionary<string, List<SQuiLVariable>>();
+            foreach (var v in outputVars)
+            {
+                string key = CanonicalKey(v.Columns!);
+                if (!outputByKey.TryGetValue(key, out var g)) { g = new(); outputByKey[key] = g; }
+                g.Add(v);
+            }
+            foreach (var g in outputByKey.Values)
+            {
+                var distinct = g.Where((v, i) =>
+                    g.FindIndex(x => string.Equals(x.Name, v.Name, System.StringComparison.OrdinalIgnoreCase)) == i)
+                    .ToList();
+                if (distinct.Count >= 2)
+                    foreach (var v in distinct) sp0030Names.Add(v.RawName);
+            }
+        }
 
         // Build signature → list of variables.
         // Size-independent: strip the (...) size suffix — mirrors the generator's SameShape.
@@ -447,6 +556,9 @@ internal static class SQuiLLinter
 
             foreach (var a in group)
             {
+                // SP0030 reconciliation: skip variables already covered by SP0030.
+                if (sp0030Names.Contains(a.RawName)) continue;
+
                 // Find the first differently-named partner to mention.
                 var partner = group.FirstOrDefault(b =>
                     !string.Equals(b.Name, a.Name, System.StringComparison.OrdinalIgnoreCase));
