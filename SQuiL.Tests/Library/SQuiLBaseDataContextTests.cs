@@ -84,4 +84,25 @@ public class SQuiLBaseDataContextTests
 			Environment.SetEnvironmentVariable(variable, null);
 		}
 	}
+
+	[Theory]
+	[InlineData("int", "int")]
+	[InlineData("bit", "bool")]
+	[InlineData("varchar", "string")]
+	[InlineData("nvarchar", "string")]
+	[InlineData("decimal", "decimal")]
+	[InlineData("date", "System.DateOnly")]
+	[InlineData("datetime", "System.DateTime")]
+	[InlineData("datetime2", "System.DateTime")]
+	[InlineData("datetimeoffset", "System.DateTimeOffset")]
+	[InlineData("uniqueidentifier", "System.Guid")]
+	[InlineData("varbinary", "byte[]")]
+	[InlineData("time", "System.TimeOnly")]
+	[InlineData("float", "double")]
+	public void NormalizeType_MapsProviderNameToCanonicalToken(string provider, string expected)
+		=> Assert.Equal(expected, SQuiLBaseDataContext.NormalizeTypeForTest(provider));
+
+	[Fact]
+	public void NormalizeType_UnknownTypePassesThroughLowercased()
+		=> Assert.Equal("hierarchyid", SQuiLBaseDataContext.NormalizeTypeForTest("HierarchyID"));
 }
