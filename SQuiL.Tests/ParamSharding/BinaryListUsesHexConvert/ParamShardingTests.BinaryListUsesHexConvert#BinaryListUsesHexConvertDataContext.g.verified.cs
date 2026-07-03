@@ -64,7 +64,6 @@ partial class BinaryListUsesHexConvertDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Params_Blobs table(
-			[__SQuiL__Table__Type__Params_Blobs__] varchar(max) default('Params_Blobs'),
 			[BlobID] int,
 			[Fixed] binary(10),
 			[Var] varbinary(max));
@@ -73,7 +72,6 @@ partial class BinaryListUsesHexConvertDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

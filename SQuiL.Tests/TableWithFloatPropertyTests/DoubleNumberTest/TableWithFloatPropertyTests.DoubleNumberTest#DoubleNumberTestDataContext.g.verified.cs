@@ -46,33 +46,27 @@ partial class DoubleNumberTestDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "response:double":
 					{
-						case "__SQuiL__Table__Type__Returns_Answers__":
+						isAnswers = true;
+						
+						response.Answers ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexResponse = reader.GetOrdinal("Response");
+						
+						do
 						{
-							isAnswers = true;
+							var valueResponse = reader.GetDouble(indexResponse);
 							
-							response.Answers ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexResponse = reader.GetOrdinal("Response");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Answers")
-								{
-									var valueResponse = reader.GetDouble(indexResponse);
-									
-									response.Answers.Add(new(
-										valueResponse));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Answers.Add(new(
+								valueResponse));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -83,7 +77,7 @@ partial class DoubleNumberTestDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isAnswers) errors.Add(new(51001, 12, 1, 85, "Answers", "Expected return table `Answers`"));
+		if (!isAnswers) errors.Add(new(51001, 12, 1, 79, "Answers", "Expected return table `Answers`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -92,11 +86,9 @@ partial class DoubleNumberTestDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Answers table(
-			[__SQuiL__Table__Type__Returns_Answers__] varchar(max) default('Returns_Answers'),
 			[Response] float);
 		
 		Use [{builder.InitialCatalog}];
-		
 		
 		
 		""";

@@ -55,47 +55,44 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "sectionid:string":
 					{
-						case "__SQuiL__Table__Type__Return_SectionID__":
-						{
-							if (isSectionID) throw new Exception(
-								"Already returned value for `SectionID`");
-							
-							isSectionID = true;
-							
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							response.SectionID = !reader.IsDBNull(1) ? reader.GetString(1) : throw new NullReferenceException("Return value for Return_SectionID cannot be null.");
-							break;
-						}
-						case "__SQuiL__Table__Type__Return_PersonID__":
-						{
-							if (isPersonID) throw new Exception(
-								"Already returned value for `PersonID`");
-							
-							isPersonID = true;
-							
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							response.PersonID = !reader.IsDBNull(1) ? reader.GetString(1) : throw new NullReferenceException("Return value for Return_PersonID cannot be null.");
-							break;
-						}
-						case "__SQuiL__Table__Type__Return_TermCode__":
-						{
-							if (isTermCode) throw new Exception(
-								"Already returned value for `TermCode`");
-							
-							isTermCode = true;
-							
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							response.TermCode = !reader.IsDBNull(1) ? reader.GetString(1) : throw new NullReferenceException("Return value for Return_TermCode cannot be null.");
-							break;
-						}
+						if (isSectionID) throw new Exception(
+							"Already returned value for `SectionID`");
+						
+						isSectionID = true;
+						
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						response.SectionID = !reader.IsDBNull(0) ? reader.GetString(0) : throw new NullReferenceException("Return value for SectionID cannot be null.");
+						break;
+					}
+					case "personid:string":
+					{
+						if (isPersonID) throw new Exception(
+							"Already returned value for `PersonID`");
+						
+						isPersonID = true;
+						
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						response.PersonID = !reader.IsDBNull(0) ? reader.GetString(0) : throw new NullReferenceException("Return value for PersonID cannot be null.");
+						break;
+					}
+					case "termcode:string":
+					{
+						if (isTermCode) throw new Exception(
+							"Already returned value for `TermCode`");
+						
+						isTermCode = true;
+						
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						response.TermCode = !reader.IsDBNull(0) ? reader.GetString(0) : throw new NullReferenceException("Return value for TermCode cannot be null.");
+						break;
 					}
 				}
 			}
@@ -106,9 +103,9 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isSectionID) errors.Add(new(51001, 12, 1, 108, "SectionID", "Expected return scaler `SectionID`"));
-		if (!isPersonID) errors.Add(new(51001, 12, 1, 109, "PersonID", "Expected return scaler `PersonID`"));
-		if (!isTermCode) errors.Add(new(51001, 12, 1, 110, "TermCode", "Expected return scaler `TermCode`"));
+		if (!isSectionID) errors.Add(new(51001, 12, 1, 105, "SectionID", "Expected return scaler `SectionID`"));
+		if (!isPersonID) errors.Add(new(51001, 12, 1, 106, "PersonID", "Expected return scaler `PersonID`"));
+		if (!isTermCode) errors.Add(new(51001, 12, 1, 107, "TermCode", "Expected return scaler `TermCode`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -134,10 +131,9 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 						On p.PersonID = sf.PersonID
 		Where		Char(64 + sf.FacultyOrder) + Cast(sf.SectionFacultyID As varchar(10)) = @Param_EvaluationID;
 		
-		Select 'Return_SectionID' As [__SQuiL__Table__Type__Return_SectionID__], @Return_SectionID;
-		Select 'Return_PersonID' As [__SQuiL__Table__Type__Return_PersonID__], @Return_PersonID;
-		Select 'Return_TermCode' As [__SQuiL__Table__Type__Return_TermCode__], @Return_TermCode;
-		
+		Select @Return_SectionID;
+		Select @Return_PersonID;
+		Select @Return_TermCode;
 		""";
 	}
 }

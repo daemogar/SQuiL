@@ -80,7 +80,6 @@ partial class PerTypeFidelityDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Params_All table(
-			[__SQuiL__Table__Type__Params_All__] varchar(max) default('Params_All'),
 			[Id] int,
 			[Flag] bit,
 			[Amount] decimal(18,2),
@@ -95,7 +94,6 @@ partial class PerTypeFidelityDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

@@ -46,44 +46,34 @@ partial class ReturnErrorTableEmitsNormallyDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "number:int|severity:int|state:int|line:int|procedure:string|message:string":
 					{
-						case "__SQuiL__Table__Type__Return_Error__":
-						{
-							if (isError) throw new Exception(
-								"Already returned value for `Error`");
-							
-							isError = true;
-							
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							if (response.Error is not null)
-								throw new Exception("Error was already set.");
-							
-							if (reader.GetString(0) == "Return_Error")
-							{
-								response.Error = new(
-									reader.GetInt32(reader.GetOrdinal("Number")),
-									reader.GetInt32(reader.GetOrdinal("Severity")),
-									reader.GetInt32(reader.GetOrdinal("State")),
-									reader.GetInt32(reader.GetOrdinal("Line")),
-									reader.GetString(reader.GetOrdinal("Procedure")),
-									reader.GetString(reader.GetOrdinal("Message")));
-							}
-							else
-							{
-								continue;
-							}
-							
-							if (await reader.ReadAsync(cancellationToken))
-								throw new Exception(
-									"Return object results in more than one object. Consider using a return table instead.");
-							
-							break;
-						}
+						if (isError) throw new Exception(
+							"Already returned value for `Error`");
+						
+						isError = true;
+						
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						if (response.Error is not null)
+							throw new Exception("Error was already set.");
+						
+						response.Error = new(
+							reader.GetInt32(reader.GetOrdinal("Number")),
+							reader.GetInt32(reader.GetOrdinal("Severity")),
+							reader.GetInt32(reader.GetOrdinal("State")),
+							reader.GetInt32(reader.GetOrdinal("Line")),
+							reader.GetString(reader.GetOrdinal("Procedure")),
+							reader.GetString(reader.GetOrdinal("Message")));
+						
+						if (await reader.ReadAsync(cancellationToken))
+							throw new Exception(
+								"Return object results in more than one object. Consider using a return table instead.");
+						
+						break;
 					}
 				}
 			}
@@ -94,7 +84,7 @@ partial class ReturnErrorTableEmitsNormallyDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isError) errors.Add(new(51001, 12, 1, 96, "Error", "Expected return object `Error`"));
+		if (!isError) errors.Add(new(51001, 12, 1, 86, "Error", "Expected return object `Error`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -103,7 +93,6 @@ partial class ReturnErrorTableEmitsNormallyDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Return_Error table(
-			[__SQuiL__Table__Type__Return_Error__] varchar(max) default('Return_Error'),
 			[Number] int,
 			[Severity] int,
 			[State] int,
@@ -114,7 +103,6 @@ partial class ReturnErrorTableEmitsNormallyDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select * From Return_Error;
-		
 		""";
 	}
 }

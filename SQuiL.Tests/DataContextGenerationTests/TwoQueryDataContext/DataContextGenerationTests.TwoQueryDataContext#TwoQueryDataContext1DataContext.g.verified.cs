@@ -49,7 +49,6 @@ partial class TwoQueryDataContextDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1
-		
 		""";
 	}
 }

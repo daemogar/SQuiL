@@ -55,79 +55,70 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "sectionid:string|personid:string|professorid:string|termcode:string|completeddate:System.DateTime":
 					{
-						case "__SQuiL__Table__Type__Returns_Participation__":
+						isParticipation = true;
+						
+						response.Participation ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexSectionID = reader.GetOrdinal("SectionID");
+						var indexPersonID = reader.GetOrdinal("PersonID");
+						var indexProfessorID = reader.GetOrdinal("ProfessorID");
+						var indexTermCode = reader.GetOrdinal("TermCode");
+						var indexCompletedDate = reader.GetOrdinal("CompletedDate");
+						
+						do
 						{
-							isParticipation = true;
+							var valueSectionID = reader.GetString(indexSectionID);
+							var valuePersonID = reader.GetString(indexPersonID);
+							var valueProfessorID = reader.GetString(indexProfessorID);
+							var valueTermCode = reader.GetString(indexTermCode);
+							var valueCompletedDate = reader.GetDateTime(indexCompletedDate);
 							
-							response.Participation ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexSectionID = reader.GetOrdinal("SectionID");
-							var indexPersonID = reader.GetOrdinal("PersonID");
-							var indexProfessorID = reader.GetOrdinal("ProfessorID");
-							var indexTermCode = reader.GetOrdinal("TermCode");
-							var indexCompletedDate = reader.GetOrdinal("CompletedDate");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Participation")
-								{
-									var valueSectionID = reader.GetString(indexSectionID);
-									var valuePersonID = reader.GetString(indexPersonID);
-									var valueProfessorID = reader.GetString(indexProfessorID);
-									var valueTermCode = reader.GetString(indexTermCode);
-									var valueCompletedDate = reader.GetDateTime(indexCompletedDate);
-									
-									response.Participation.Add(new(
-										valueSectionID,
-										valuePersonID,
-										valueProfessorID,
-										valueTermCode,
-										valueCompletedDate));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Participation.Add(new(
+								valueSectionID,
+								valuePersonID,
+								valueProfessorID,
+								valueTermCode,
+								valueCompletedDate));
 						}
-						case "__SQuiL__Table__Type__Returns_Overrides__":
+						while (await reader.ReadAsync(cancellationToken));
+						break;
+					}
+					case "sectionid:string|termcode:string|coursecode:string|begindate:System.DateTime|enddate:System.DateTime":
+					{
+						isOverrides = true;
+						
+						response.Overrides ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexSectionID = reader.GetOrdinal("SectionID");
+						var indexTermCode = reader.GetOrdinal("TermCode");
+						var indexCourseCode = reader.GetOrdinal("CourseCode");
+						var indexBeginDate = reader.GetOrdinal("BeginDate");
+						var indexEndDate = reader.GetOrdinal("EndDate");
+						
+						do
 						{
-							isOverrides = true;
+							var valueSectionID = reader.GetString(indexSectionID);
+							var valueTermCode = reader.GetString(indexTermCode);
+							var valueCourseCode = reader.GetString(indexCourseCode);
+							var valueBeginDate = reader.GetDateTime(indexBeginDate);
+							var valueEndDate = reader.GetDateTime(indexEndDate);
 							
-							response.Overrides ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexSectionID = reader.GetOrdinal("SectionID");
-							var indexTermCode = reader.GetOrdinal("TermCode");
-							var indexCourseCode = reader.GetOrdinal("CourseCode");
-							var indexBeginDate = reader.GetOrdinal("BeginDate");
-							var indexEndDate = reader.GetOrdinal("EndDate");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Overrides")
-								{
-									var valueSectionID = reader.GetString(indexSectionID);
-									var valueTermCode = reader.GetString(indexTermCode);
-									var valueCourseCode = reader.GetString(indexCourseCode);
-									var valueBeginDate = reader.GetDateTime(indexBeginDate);
-									var valueEndDate = reader.GetDateTime(indexEndDate);
-									
-									response.Overrides.Add(new(
-										valueSectionID,
-										valueTermCode,
-										valueCourseCode,
-										valueBeginDate,
-										valueEndDate));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Overrides.Add(new(
+								valueSectionID,
+								valueTermCode,
+								valueCourseCode,
+								valueBeginDate,
+								valueEndDate));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -138,8 +129,8 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isParticipation) errors.Add(new(51001, 12, 1, 140, "Participation", "Expected return table `Participation`"));
-		if (!isOverrides) errors.Add(new(51001, 12, 1, 141, "Overrides", "Expected return table `Overrides`"));
+		if (!isParticipation) errors.Add(new(51001, 12, 1, 131, "Participation", "Expected return table `Participation`"));
+		if (!isOverrides) errors.Add(new(51001, 12, 1, 132, "Overrides", "Expected return table `Overrides`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -173,12 +164,10 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Params_Terms table(
-			[__SQuiL__Table__Type__Params_Terms__] varchar(max) default('Params_Terms'),
 			[TermCode] varchar(10));
 		{inputTerms(parameters)}
 		
 		Declare @Returns_Participation table(
-			[__SQuiL__Table__Type__Returns_Participation__] varchar(max) default('Returns_Participation'),
 			[SectionID] varchar(20),
 			[PersonID] varchar(10),
 			[ProfessorID] varchar(10),
@@ -186,7 +175,6 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			[CompletedDate] datetime);
 		
 		Declare @Returns_Overrides table(
-			[__SQuiL__Table__Type__Returns_Overrides__] varchar(max) default('Returns_Overrides'),
 			[SectionID] varchar(20),
 			[TermCode] varchar(10),
 			[CourseCode] varchar(20),
@@ -197,7 +185,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		--Test;
 		
-		Insert Into @Returns_Participation([SectionID], [PersonID], [ProfessorID], [TermCode], [CompletedDate])
+		Insert Into @Returns_Participation
 		Select list.* From (
 		Select		--pv.ElementId As ElementID,
 					Max(Iif(pv.PropertyName = 'ParticipationSectionId', PropertyValue, Null)) as SectionID,
@@ -217,7 +205,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		) list Inner Join @Params_Terms t On list.TermCode = t.TermCode
 		Where		PersonID = @Param_PersonID;
 		
-		Insert Into @Returns_Overrides([SectionID], [TermCode], [CourseCode], [BeginDate], [EndDate])
+		Insert Into @Returns_Overrides
 		Select list.* From (
 		Select		Max(Iif(pv.PropertyName = 'SectionDateSectionId', PropertyValue, Null)) as SectionID,
 					Max(Iif(pv.PropertyName = 'SectionDateTerm', PropertyValue, Null)) as TermCode,
@@ -249,7 +237,6 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		ParticipationTerm
 		
 		*/
-		
 		""";
 	}
 }

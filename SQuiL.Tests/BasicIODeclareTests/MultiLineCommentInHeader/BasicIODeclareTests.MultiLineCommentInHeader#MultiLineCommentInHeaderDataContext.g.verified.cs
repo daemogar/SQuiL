@@ -50,7 +50,6 @@ partial class MultiLineCommentInHeaderDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

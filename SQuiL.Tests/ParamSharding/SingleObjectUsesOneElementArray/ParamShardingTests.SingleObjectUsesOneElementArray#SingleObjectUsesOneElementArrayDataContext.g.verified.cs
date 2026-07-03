@@ -70,7 +70,6 @@ partial class SingleObjectUsesOneElementArrayDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Param_Row table(
-			[__SQuiL__Table__Type__Param_Row__] varchar(max) default('Param_Row'),
 			[RowID] int,
 			[Name] varchar(50));
 		{inputRow(parameters)}
@@ -78,7 +77,6 @@ partial class SingleObjectUsesOneElementArrayDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

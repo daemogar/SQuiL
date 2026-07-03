@@ -46,36 +46,30 @@ partial class SameFileShapeMismatchPersonTableDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "personid:int|fullname:string":
 					{
-						case "__SQuiL__Table__Type__Returns_Person__":
+						isPerson = true;
+						
+						response.Person ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexPersonID = reader.GetOrdinal("PersonID");
+						var indexFullName = reader.GetOrdinal("FullName");
+						
+						do
 						{
-							isPerson = true;
+							var valuePersonID = reader.GetInt32(indexPersonID);
+							var valueFullName = reader.GetString(indexFullName);
 							
-							response.Person ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexPersonID = reader.GetOrdinal("PersonID");
-							var indexFullName = reader.GetOrdinal("FullName");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Person")
-								{
-									var valuePersonID = reader.GetInt32(indexPersonID);
-									var valueFullName = reader.GetString(indexFullName);
-									
-									response.Person.Add(new(
-										valuePersonID,
-										valueFullName));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Person.Add(new(
+								valuePersonID,
+								valueFullName));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -86,7 +80,7 @@ partial class SameFileShapeMismatchPersonTableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isPerson) errors.Add(new(51001, 12, 1, 88, "Person", "Expected return object `Person`"));
+		if (!isPerson) errors.Add(new(51001, 12, 1, 82, "Person", "Expected return object `Person`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -95,12 +89,10 @@ partial class SameFileShapeMismatchPersonTableDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Person table(
-			[__SQuiL__Table__Type__Returns_Person__] varchar(max) default('Returns_Person'),
 			[PersonID] int,
 			[FullName] varchar(100));
 		
 		Declare @Return_Person table(
-			[__SQuiL__Table__Type__Return_Person__] varchar(max) default('Return_Person'),
 			[PersonID] int,
 			[Age] int);
 		
@@ -108,7 +100,6 @@ partial class SameFileShapeMismatchPersonTableDataContext : SQuiLBaseDataContext
 		
 		Select * From @Returns_Person;
 		Select * From @Return_Person;
-		
 		""";
 	}
 }

@@ -71,7 +71,6 @@ partial class Input2VariableDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Param_Object table(
-			[__SQuiL__Table__Type__Param_Object__] varchar(max) default('Param_Object'),
 			[ObjectID] int,
 			[IsMale] bit,
 			[FirstName] varchar(100));
@@ -80,7 +79,6 @@ partial class Input2VariableDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

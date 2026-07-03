@@ -46,36 +46,30 @@ partial class MappedTablesWithMismatchedShapesDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "personid:int|firstname:string":
 					{
-						case "__SQuiL__Table__Type__Returns_People__":
+						isPeople = true;
+						
+						response.People ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexPersonID = reader.GetOrdinal("PersonID");
+						var indexFirstName = reader.GetOrdinal("FirstName");
+						
+						do
 						{
-							isPeople = true;
+							var valuePersonID = reader.GetInt32(indexPersonID);
+							var valueFirstName = reader.GetString(indexFirstName);
 							
-							response.People ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexPersonID = reader.GetOrdinal("PersonID");
-							var indexFirstName = reader.GetOrdinal("FirstName");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_People")
-								{
-									var valuePersonID = reader.GetInt32(indexPersonID);
-									var valueFirstName = reader.GetString(indexFirstName);
-									
-									response.People.Add(new(
-										valuePersonID,
-										valueFirstName));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.People.Add(new(
+								valuePersonID,
+								valueFirstName));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -86,7 +80,7 @@ partial class MappedTablesWithMismatchedShapesDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isPeople) errors.Add(new(51001, 12, 1, 88, "People", "Expected return table `People`"));
+		if (!isPeople) errors.Add(new(51001, 12, 1, 82, "People", "Expected return table `People`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -95,14 +89,12 @@ partial class MappedTablesWithMismatchedShapesDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_People table(
-			[__SQuiL__Table__Type__Returns_People__] varchar(max) default('Returns_People'),
 			[PersonID] int,
 			[FirstName] varchar(100));
 		
 		Use [{builder.InitialCatalog}];
 		
 		Select * From @Returns_People;
-		
 		""";
 	}
 }

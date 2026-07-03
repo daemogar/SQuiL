@@ -74,7 +74,6 @@ partial class ColumnDefaultsTrailingDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Params_Rows table(
-			[__SQuiL__Table__Type__Params_Rows__] varchar(max) default('Params_Rows'),
 			[RowID] int,
 			[Amount] decimal(18,2),
 			[Note] varchar(50));
@@ -83,7 +82,6 @@ partial class ColumnDefaultsTrailingDataContext : SQuiLBaseDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

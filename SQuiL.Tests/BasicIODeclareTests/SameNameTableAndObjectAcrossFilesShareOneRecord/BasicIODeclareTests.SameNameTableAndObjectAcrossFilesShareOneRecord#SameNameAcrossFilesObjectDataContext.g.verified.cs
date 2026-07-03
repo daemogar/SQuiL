@@ -46,40 +46,30 @@ partial class SameNameTableAndObjectAcrossFilesShareOneRecordDataContext : SQuiL
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "personid:int|fullname:string":
 					{
-						case "__SQuiL__Table__Type__Return_Person__":
-						{
-							if (isPerson) throw new Exception(
-								"Already returned value for `Person`");
-							
-							isPerson = true;
-							
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							if (response.Person is not null)
-								throw new Exception("Person was already set.");
-							
-							if (reader.GetString(0) == "Return_Person")
-							{
-								response.Person = new(
-									reader.GetInt32(reader.GetOrdinal("PersonID")),
-									reader.GetString(reader.GetOrdinal("FullName")));
-							}
-							else
-							{
-								continue;
-							}
-							
-							if (await reader.ReadAsync(cancellationToken))
-								throw new Exception(
-									"Return object results in more than one object. Consider using a return table instead.");
-							
-							break;
-						}
+						if (isPerson) throw new Exception(
+							"Already returned value for `Person`");
+						
+						isPerson = true;
+						
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						if (response.Person is not null)
+							throw new Exception("Person was already set.");
+						
+						response.Person = new(
+							reader.GetInt32(reader.GetOrdinal("PersonID")),
+							reader.GetString(reader.GetOrdinal("FullName")));
+						
+						if (await reader.ReadAsync(cancellationToken))
+							throw new Exception(
+								"Return object results in more than one object. Consider using a return table instead.");
+						
+						break;
 					}
 				}
 			}
@@ -90,7 +80,7 @@ partial class SameNameTableAndObjectAcrossFilesShareOneRecordDataContext : SQuiL
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isPerson) errors.Add(new(51001, 12, 1, 92, "Person", "Expected return object `Person`"));
+		if (!isPerson) errors.Add(new(51001, 12, 1, 82, "Person", "Expected return object `Person`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -99,14 +89,12 @@ partial class SameNameTableAndObjectAcrossFilesShareOneRecordDataContext : SQuiL
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Return_Person table(
-			[__SQuiL__Table__Type__Return_Person__] varchar(max) default('Return_Person'),
 			[PersonID] int,
 			[FullName] varchar(100));
 		
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

@@ -30,12 +30,6 @@ public class SQuiLDataContext(
 		bool DebugRollback = true)
 {
 	/// <summary>
-	/// Sentinel column name prefix injected into every result-set SELECT so the reader can
-	/// identify which table tag each row belongs to at runtime.
-	/// </summary>
-	internal static string SQuiLTableTypeDatabaseTagName => "__SQuiL__Table__Type__";
-
-	/// <summary>
 	/// Generates the full C# source for the data-context partial class.
 	/// </summary>
 	/// <param name="generation">The aggregated models (request, response, tables) for this query.</param>
@@ -57,14 +51,14 @@ public class SQuiLDataContext(
 		var inputs = Blocks
 			.Where(p => (p.CodeType & CodeType.INPUT) == CodeType.INPUT
 				&& p.CodeType != CodeType.INPUT_ARGUMENT)
-			.Select(p => (CodeBlock: p, Query: TableDeclaration(p.DatabaseType.Original!, p)))
+			.Select(p => (CodeBlock: p, Query: TableDeclaration(p)))
 			.ToList();
 
 		var outputs = Blocks
 			.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT)
 			.Select(p => (CodeBlock: p, Query: p.CodeType == CodeType.OUTPUT_VARIABLE
 				? $"Declare {p.DatabaseType.Original};"
-				: TableDeclaration(p.DatabaseType.Original!, p)))
+				: TableDeclaration(p)))
 			.ToList();
 
 		writer.WriteLine($$"""
@@ -220,11 +214,8 @@ public class SQuiLDataContext(
 							""",
 									new Action(() =>
 									{
-										writer.WriteLine("var tableTag = reader.GetName(0);");
-										writer.Block($"""if(tableTag.StartsWith("{SQuiLTableTypeDatabaseTagName}"))""", () =>
-										{
-											writer.Block($"switch (tableTag)", SwitchStatements);
-										});
+										writer.WriteLine("var __shape = ShapeKey(reader);");
+										writer.Block("switch (__shape)", SwitchStatements);
 									}),
 									"""
 							while (await reader.NextResultAsync(cancellationToken));
@@ -340,11 +331,15 @@ public class SQuiLDataContext(
 				foreach (var (block, query) in outputs)
 				{
 					if (!switchSeen.Add(block.Name)) continue;
-					var switchCase = block.Name;
-					if ((block.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT)
-						switchCase = $"{(block.IsTable ? "Returns" : "Return")}_{switchCase}";
 
-					writer.Block($"""case "{SQuiLTableTypeDatabaseTagName}{switchCase}__":""", () =>
+					// Result sets are routed by their column signature (shape key) instead of an
+					// injected sentinel column. A scalar's key is its single aliased column
+					// (name = the scalar's base name); a table/object's key is its ordered columns.
+					var shapeKey = (block.IsTable || block.IsObject)
+						? SQuiLShapeKey.ShapeKeyOf(block)
+						: SQuiLShapeKey.ScalarKeyOf(block.Name, block.CSharpType(block.Name));
+
+					writer.Block($"""case "{shapeKey}":""", () =>
 					{
 						if (!block.IsTable)
 						{
@@ -361,7 +356,7 @@ public class SQuiLDataContext(
 						writer.WriteLine("if (!await reader.ReadAsync(cancellationToken)) break;");
 						if (block.IsTable)
 						{
-							LoopProperties(switchCase, $"response.{block.Name}", block.Properties);
+							LoopProperties($"response.{block.Name}", block.Properties);
 						}
 						else if (block.IsObject)
 						{
@@ -371,24 +366,19 @@ public class SQuiLDataContext(
 									throw new Exception("{block.Name} was already set.");
 
 								""");
-							//writer.Block("if (await reader.ReadAsync(cancellationToken))"
-							writer.Block($"""if (reader.GetString(0) == "{switchCase}")""", () =>
+							writer.Write($"response.{block.Name} = new(");
+							writer.Indent++;
+							var comma = "";
+							foreach (var item in block.Properties)
 							{
-								writer.Write($"response.{block.Name} = new(");
-								writer.Indent++;
-								var comma = "";
-								foreach (var item in block.Properties)
-								{
-									writer.WriteLine(comma);
-									if (item.IsNullable)
-										writer.Write($"""reader.IsDBNull(reader.GetOrdinal("{item.Identifier.Value}")) ? default! : """);
-									writer.Write($"""{item.DataReader()}(reader.GetOrdinal("{item.Identifier.Value}"))""");
-									comma = ",";
-								}
-								writer.Indent--;
-								writer.WriteLine(");");
-							});
-							writer.Block("else", () => writer.WriteLine("continue;"));
+								writer.WriteLine(comma);
+								if (item.IsNullable)
+									writer.Write($"""reader.IsDBNull(reader.GetOrdinal("{item.Identifier.Value}")) ? default! : """);
+								writer.Write($"""{item.DataReader()}(reader.GetOrdinal("{item.Identifier.Value}"))""");
+								comma = ",";
+							}
+							writer.Indent--;
+							writer.WriteLine(");");
 							writer.Block($"""
 
 								if (await reader.ReadAsync(cancellationToken))
@@ -404,11 +394,11 @@ public class SQuiLDataContext(
 							var isNullable = "null";
 							if (!block.IsNullable)
 							{
-								var exception = $"Return value for {switchCase} cannot be null.";
+								var exception = $"Return value for {block.Name} cannot be null.";
 								isNullable = $"""throw new NullReferenceException("{exception}")""";
 							}
 
-							writer.WriteLine($"response.{block.Name} = !reader.IsDBNull(1) ? {block.DataReader()}(1) : {isNullable};");
+							writer.WriteLine($"response.{block.Name} = !reader.IsDBNull(0) ? {block.DataReader()}(0) : {isNullable};");
 						}
 						writer.WriteLine("break;");
 					});
@@ -419,7 +409,7 @@ public class SQuiLDataContext(
 				//writer.WriteLine("""//default: throw new Exception($"Invalid Table `{reader.GetString(0)}`");""");
 			}
 
-			void LoopProperties(string switchCase, string model, List<CodeItem> properties)
+			void LoopProperties(string model, List<CodeItem> properties)
 			{
 				writer.WriteLine();
 
@@ -429,44 +419,41 @@ public class SQuiLDataContext(
 				writer.WriteLine();
 				writer.Block("do", () =>
 				{
-					writer.Block($"""if (reader.GetString(0) == "{switchCase}")""", () =>
+					foreach (var item in properties)
 					{
-						foreach (var item in properties)
-						{
-							var defaultCondition = "";
-							if (item.IsNullable)
-								defaultCondition = $"reader.IsDBNull(index{item.Identifier.Value}) ? default! : ";
-							writer.WriteLine($"""var value{item.Identifier.Value} = {defaultCondition}{item.DataReader()}(index{item.Identifier.Value});""");
-						}
+						var defaultCondition = "";
+						if (item.IsNullable)
+							defaultCondition = $"reader.IsDBNull(index{item.Identifier.Value}) ? default! : ";
+						writer.WriteLine($"""var value{item.Identifier.Value} = {defaultCondition}{item.DataReader()}(index{item.Identifier.Value});""");
+					}
 
-						writer.WriteLine();
-						var positional = properties.Where(p => p.DefaultValue is null).ToList();
-						var defaulted = properties.Where(p => p.DefaultValue is not null).ToList();
-						writer.Write($"{model}.Add(new(");
+					writer.WriteLine();
+					var positional = properties.Where(p => p.DefaultValue is null).ToList();
+					var defaulted = properties.Where(p => p.DefaultValue is not null).ToList();
+					writer.Write($"{model}.Add(new(");
+					writer.Indent++;
+					var comma = "";
+					foreach (var item in positional)
+					{
+						writer.WriteLine(comma);
+						writer.Write($"value{item.Identifier.Value}");
+						comma = ",";
+					}
+					writer.Indent--;
+					if (defaulted.Count == 0)
+					{
+						writer.WriteLine("));");
+					}
+					else
+					{
+						writer.WriteLine(")");
+						writer.WriteLine("{");
 						writer.Indent++;
-						var comma = "";
-						foreach (var item in positional)
-						{
-							writer.WriteLine(comma);
-							writer.Write($"value{item.Identifier.Value}");
-							comma = ",";
-						}
+						foreach (var item in defaulted)
+							writer.WriteLine($"{item.Identifier.Value} = value{item.Identifier.Value},");
 						writer.Indent--;
-						if (defaulted.Count == 0)
-						{
-							writer.WriteLine("));");
-						}
-						else
-						{
-							writer.WriteLine(")");
-							writer.WriteLine("{");
-							writer.Indent++;
-							foreach (var item in defaulted)
-								writer.WriteLine($"{item.Identifier.Value} = value{item.Identifier.Value},");
-							writer.Indent--;
-							writer.WriteLine("});");
-						}
-					});
+						writer.WriteLine("});");
+					}
 				}, $"""while (await reader.ReadAsync(cancellationToken));""");
 			}
 		}
@@ -562,13 +549,10 @@ public class SQuiLDataContext(
 			}
 		}
 
-		string TableDeclaration(string name, CodeBlock block)
+		string TableDeclaration(CodeBlock block)
 		{
-			name = name[1..^6].Trim();
-
 			return $"""
 				Declare {block.DatabaseType.Original}(
-					[{SQuiLTableTypeDatabaseTagName}{name}__] varchar(max) default('{name}'),
 					{string.Join($",{writer.NewLine}\t", block.Properties.Select(p
 						=> $"[{p.Identifier.Value}] {p.Type.Original}{(p.IsNullable ? " Null" : "")}"))});
 				""";
@@ -730,7 +714,6 @@ public static class SQuiLShred
 	/// Builds the full <c>Insert Into … Select … From OpenJson(…) With (…);</c> shred statement
 	/// for the given input block. Binary columns are captured as <c>nvarchar(max)</c> in the
 	/// WITH clause and converted with <c>CONVERT(varbinary(N), col, 2)</c> in the SELECT.
-	/// The sentinel column <c>__SQuiL__Table__Type__</c> is excluded.
 	/// </summary>
 	public static string ShredSql(CodeBlock block)
 	{

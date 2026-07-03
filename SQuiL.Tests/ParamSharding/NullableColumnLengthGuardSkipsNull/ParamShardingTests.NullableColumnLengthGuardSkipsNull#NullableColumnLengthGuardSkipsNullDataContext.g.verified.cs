@@ -73,7 +73,6 @@ partial class NullableColumnLengthGuardSkipsNullDataContext : SQuiLBaseDataConte
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Params_People table(
-			[__SQuiL__Table__Type__Params_People__] varchar(max) default('Params_People'),
 			[PersonID] int,
 			[NickName] varchar(50) Null);
 		{inputPeople(parameters)}
@@ -81,7 +80,6 @@ partial class NullableColumnLengthGuardSkipsNullDataContext : SQuiLBaseDataConte
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

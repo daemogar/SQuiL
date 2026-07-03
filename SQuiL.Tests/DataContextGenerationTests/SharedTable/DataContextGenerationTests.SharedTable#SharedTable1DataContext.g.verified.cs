@@ -46,39 +46,29 @@ partial class SharedTableDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "id:int":
 					{
-						case "__SQuiL__Table__Type__Return_Bob__":
-						{
-							if (isBob) throw new Exception(
-								"Already returned value for `Bob`");
-							
-							isBob = true;
-							
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							if (response.Bob is not null)
-								throw new Exception("Bob was already set.");
-							
-							if (reader.GetString(0) == "Return_Bob")
-							{
-								response.Bob = new(
-									reader.GetInt32(reader.GetOrdinal("ID")));
-							}
-							else
-							{
-								continue;
-							}
-							
-							if (await reader.ReadAsync(cancellationToken))
-								throw new Exception(
-									"Return object results in more than one object. Consider using a return table instead.");
-							
-							break;
-						}
+						if (isBob) throw new Exception(
+							"Already returned value for `Bob`");
+						
+						isBob = true;
+						
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						if (response.Bob is not null)
+							throw new Exception("Bob was already set.");
+						
+						response.Bob = new(
+							reader.GetInt32(reader.GetOrdinal("ID")));
+						
+						if (await reader.ReadAsync(cancellationToken))
+							throw new Exception(
+								"Return object results in more than one object. Consider using a return table instead.");
+						
+						break;
 					}
 				}
 			}
@@ -89,7 +79,7 @@ partial class SharedTableDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isBob) errors.Add(new(51001, 12, 1, 91, "Bob", "Expected return object `Bob`"));
+		if (!isBob) errors.Add(new(51001, 12, 1, 81, "Bob", "Expected return object `Bob`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -98,13 +88,11 @@ partial class SharedTableDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Return_Bob table(
-			[__SQuiL__Table__Type__Return_Bob__] varchar(max) default('Return_Bob'),
 			[ID] int);
 		
 		Use [{builder.InitialCatalog}];
 		
 		Select 1;
-		
 		""";
 	}
 }

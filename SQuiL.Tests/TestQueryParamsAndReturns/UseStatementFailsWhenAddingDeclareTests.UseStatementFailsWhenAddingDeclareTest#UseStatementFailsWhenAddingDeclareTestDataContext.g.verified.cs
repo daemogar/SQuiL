@@ -46,36 +46,30 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "professorid:string|username:string":
 					{
-						case "__SQuiL__Table__Type__Returns_ExtendedCourses__":
+						isExtendedCourses = true;
+						
+						response.ExtendedCourses ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexProfessorID = reader.GetOrdinal("ProfessorID");
+						var indexUsername = reader.GetOrdinal("Username");
+						
+						do
 						{
-							isExtendedCourses = true;
+							var valueProfessorID = reader.GetString(indexProfessorID);
+							var valueUsername = reader.GetString(indexUsername);
 							
-							response.ExtendedCourses ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexProfessorID = reader.GetOrdinal("ProfessorID");
-							var indexUsername = reader.GetOrdinal("Username");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_ExtendedCourses")
-								{
-									var valueProfessorID = reader.GetString(indexProfessorID);
-									var valueUsername = reader.GetString(indexUsername);
-									
-									response.ExtendedCourses.Add(new(
-										valueProfessorID,
-										valueUsername));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.ExtendedCourses.Add(new(
+								valueProfessorID,
+								valueUsername));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -86,7 +80,7 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isExtendedCourses) errors.Add(new(51001, 12, 1, 88, "ExtendedCourses", "Expected return table `ExtendedCourses`"));
+		if (!isExtendedCourses) errors.Add(new(51001, 12, 1, 82, "ExtendedCourses", "Expected return table `ExtendedCourses`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -95,14 +89,12 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_ExtendedCourses table(
-			[__SQuiL__Table__Type__Returns_ExtendedCourses__] varchar(max) default('Returns_ExtendedCourses'),
 			[ProfessorID] varchar(10),
 			[Username] varchar(1000));
 		
 		Use [{builder.InitialCatalog}];
 		
 		Use [Database];
-		
 		""";
 	}
 }

@@ -50,23 +50,20 @@ partial class EnabledTransactionWrapsReaderPathDataContext : SQuiLBaseDataContex
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "count:int":
 					{
-						case "__SQuiL__Table__Type__Return_Count__":
-						{
-							if (isCount) throw new Exception(
-								"Already returned value for `Count`");
-							
-							isCount = true;
-							
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							response.Count = !reader.IsDBNull(1) ? reader.GetInt32(1) : throw new NullReferenceException("Return value for Return_Count cannot be null.");
-							break;
-						}
+						if (isCount) throw new Exception(
+							"Already returned value for `Count`");
+						
+						isCount = true;
+						
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						response.Count = !reader.IsDBNull(0) ? reader.GetInt32(0) : throw new NullReferenceException("Return value for Count cannot be null.");
+						break;
 					}
 				}
 			}
@@ -77,7 +74,7 @@ partial class EnabledTransactionWrapsReaderPathDataContext : SQuiLBaseDataContex
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isCount) errors.Add(new(51001, 12, 1, 79, "Count", "Expected return scaler `Count`"));
+		if (!isCount) errors.Add(new(51001, 12, 1, 76, "Count", "Expected return scaler `Count`"));
 		
 		if (errors.Count == 0)
 			transaction.Commit();
@@ -96,8 +93,7 @@ partial class EnabledTransactionWrapsReaderPathDataContext : SQuiLBaseDataContex
 		
 		Update [Documents] set Status = 'Done' where Id = @Param_Id;
 		Set @Return_Count = @@RowCount;
-		Select 'Return_Count' As [__SQuiL__Table__Type__Return_Count__], @Return_Count;
-		
+		Select @Return_Count;
 		""";
 	}
 }

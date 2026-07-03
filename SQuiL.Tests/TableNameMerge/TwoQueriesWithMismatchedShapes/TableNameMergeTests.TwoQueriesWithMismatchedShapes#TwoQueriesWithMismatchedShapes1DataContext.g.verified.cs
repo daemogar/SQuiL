@@ -46,36 +46,30 @@ partial class TwoQueriesWithMismatchedShapesDataContext : SQuiLBaseDataContext
 			
 			do
 			{
-				var tableTag = reader.GetName(0);
-				if(tableTag.StartsWith("__SQuiL__Table__Type__"))
+				var __shape = ShapeKey(reader);
+				switch (__shape)
 				{
-					switch (tableTag)
+					case "number:int|message:string":
 					{
-						case "__SQuiL__Table__Type__Returns_Questions__":
+						isQuestions = true;
+						
+						response.Questions ??= [];
+						if (!await reader.ReadAsync(cancellationToken)) break;
+						
+						var indexNumber = reader.GetOrdinal("Number");
+						var indexMessage = reader.GetOrdinal("Message");
+						
+						do
 						{
-							isQuestions = true;
+							var valueNumber = reader.GetInt32(indexNumber);
+							var valueMessage = reader.GetString(indexMessage);
 							
-							response.Questions ??= [];
-							if (!await reader.ReadAsync(cancellationToken)) break;
-							
-							var indexNumber = reader.GetOrdinal("Number");
-							var indexMessage = reader.GetOrdinal("Message");
-							
-							do
-							{
-								if (reader.GetString(0) == "Returns_Questions")
-								{
-									var valueNumber = reader.GetInt32(indexNumber);
-									var valueMessage = reader.GetString(indexMessage);
-									
-									response.Questions.Add(new(
-										valueNumber,
-										valueMessage));
-								}
-							}
-							while (await reader.ReadAsync(cancellationToken));
-							break;
+							response.Questions.Add(new(
+								valueNumber,
+								valueMessage));
 						}
+						while (await reader.ReadAsync(cancellationToken));
+						break;
 					}
 				}
 			}
@@ -86,7 +80,7 @@ partial class TwoQueriesWithMismatchedShapesDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isQuestions) errors.Add(new(51001, 12, 1, 88, "Questions", "Expected return table `Questions`"));
+		if (!isQuestions) errors.Add(new(51001, 12, 1, 82, "Questions", "Expected return table `Questions`"));
 		
 		if(errors.Count == 0)
 			return new(response);
@@ -95,14 +89,12 @@ partial class TwoQueriesWithMismatchedShapesDataContext : SQuiLBaseDataContext
 		
 		string Query(List<DbParameter> parameters) => $"""
 		Declare @Returns_Questions table(
-			[__SQuiL__Table__Type__Returns_Questions__] varchar(max) default('Returns_Questions'),
 			[Number] int,
 			[Message] varchar(max));
 		
 		Use [{builder.InitialCatalog}];
 		
 		Select * From @Returns_Questions;
-		
 		""";
 	}
 }
