@@ -507,9 +507,9 @@ export function lintUnmatchedSelect(parsed: SQuiLParseResult, bodyText: string):
   const lines = bodyText.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
+    // ^\s*select\s+ anchor already excludes Insert Into … Select … and Set … lines
     const m = /^\s*select\s+(?!\*)(.+?)\s+from\s/i.exec(raw);
     if (!m) continue;                                   // only Select <list> From ...
-    if (/^\s*insert\s+into/i.test(raw)) continue;       // not an INSERT ... SELECT line
     const cols = extractSelectColumnNames(m[1]);
     if (!cols) continue;                                // not statically inferable -> skip (best-effort)
     const key = cols.map(c => c.toLowerCase()).join('|');

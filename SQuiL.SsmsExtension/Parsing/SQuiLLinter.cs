@@ -92,12 +92,9 @@ internal static class SQuiLLinter
     // Port of lintUnmatchedSelect() in parser.ts (VS Code extension) —
     // change one side, change all three.
 
+    // ^\s*select\s+ anchor already excludes Insert Into … Select … and Set … lines
     private static readonly Regex SelectFromRegex = new(
         @"^\s*select\s+(?!\*)(.+?)\s+from\s",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static readonly Regex InsertIntoPrefix = new(
-        @"^\s*insert\s+into",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     internal static void LintUnmatchedSelect(string sql, List<SQuiLDiagnostic> diagnostics)
@@ -127,7 +124,6 @@ internal static class SQuiLLinter
 
             var selectMatch = SelectFromRegex.Match(raw);
             if (!selectMatch.Success) continue;             // only Select <list> From ...
-            if (InsertIntoPrefix.IsMatch(raw)) continue;    // not an INSERT ... SELECT line
 
             var cols = ExtractSelectColumnNames(selectMatch.Groups[1].Value);
             if (cols == null) continue;                     // not statically inferable -> skip
