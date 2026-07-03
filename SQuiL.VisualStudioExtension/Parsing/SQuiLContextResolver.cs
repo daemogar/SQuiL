@@ -36,6 +36,20 @@ internal static class SQuiLContextResolver
     private static readonly Regex LineComment =
         new Regex(@"//[^\r\n]*",                           RegexOptions.Compiled);
 
+    // ── Attribute-scanning patterns ────────────────────────────────────────
+    // Matches any [SQuiLQuery(Transaction)?...] attribute block; member filtering
+    // is done in C# after the match so this regex is invariant (compiled once).
+    private static readonly Regex AttributePattern =
+        new Regex(@"\[SQuiLQuery(Transaction)?\s*\([^\]]*\]",              RegexOptions.Compiled);
+
+    // ── Arg-parsing patterns ───────────────────────────────────────────────
+    // Detects a named arg (`word:`).
+    private static readonly Regex IsNamedArg =
+        new Regex(@"^\s*\w+\s*:",                                          RegexOptions.Compiled);
+    // Captures name + bool value from a named arg (`name: true|false`).
+    private static readonly Regex NamedArgCapture =
+        new Regex(@"^\s*(\w+)\s*:\s*(true|false)\s*$",        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     // ── Public API ────────────────────────────────────────────────────────
 
     /// <summary>Result of resolving a <c>.squil</c> file's C# attribute context.</summary>
@@ -237,15 +251,18 @@ internal static class SQuiLContextResolver
         // Strip comments before scanning so commented-out attributes are ignored.
         string src = MaskComments(text);
 
-        // Build a per-call pattern targeting the exact member name.
-        var pattern = new Regex(
-            @"\[SQuiLQuery(Transaction)?\s*\([^\]]*QueryFiles\." + Regex.Escape(member) + @"[^\]]*\]",
-            RegexOptions.None);
+        // Use the static invariant pattern; filter by member name in C# to avoid
+        // building a per-call Regex from the (variable) member string.
+        string memberRef = "QueryFiles." + member;
 
-        foreach (Match m in pattern.Matches(src))
+        foreach (Match m in AttributePattern.Matches(src))
         {
-            bool isTxn     = m.Groups[1].Success;
             string attrText = m.Value;
+
+            // Filter: must reference the exact QueryFiles member we're looking for.
+            if (!attrText.Contains(memberRef)) continue;
+
+            bool isTxn     = m.Groups[1].Success;
 
             // Extract the args list between the outer parens.
             int argsStart = attrText.IndexOf('(');
@@ -295,22 +312,20 @@ internal static class SQuiLContextResolver
     /// </summary>
     private static bool ParseBoolArg(List<string> args, string argName, int positionalSlot, bool defaultValue)
     {
-        // Try named arg (any position).
-        var namedPattern = new Regex(@"^\s*" + Regex.Escape(argName) + @"\s*:\s*(true|false)\s*$",
-            RegexOptions.IgnoreCase);
+        // Try named arg (any position) using the static capture regex.
+        // NamedArgCapture captures (\w+) : (true|false); we filter by name in C#.
         foreach (string arg in args)
         {
-            var m = namedPattern.Match(arg);
-            if (m.Success)
-                return string.Equals(m.Groups[1].Value, "true", StringComparison.OrdinalIgnoreCase);
+            var m = NamedArgCapture.Match(arg);
+            if (m.Success && string.Equals(m.Groups[1].Value, argName, StringComparison.OrdinalIgnoreCase))
+                return string.Equals(m.Groups[2].Value, "true", StringComparison.OrdinalIgnoreCase);
         }
 
         // Collect leading positional args (stop at first named arg — C# requires positionals first).
         var positionals = new List<string>();
-        var isNamed = new Regex(@"^\s*\w+\s*:");
         foreach (string arg in args)
         {
-            if (isNamed.IsMatch(arg)) break;
+            if (IsNamedArg.IsMatch(arg)) break;
             positionals.Add(arg.Trim());
         }
 
