@@ -64,9 +64,9 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 						
 						response.Student = new(
 							reader.GetInt32(reader.GetOrdinal("StudentID")),
-							reader.IsDBNull(reader.GetOrdinal("FirstName")) ? default! : reader.GetString(reader.GetOrdinal("FirstName")),
+							reader.IsDBNull(reader.GetOrdinal("FirstName")) ? default(string?) : reader.GetString(reader.GetOrdinal("FirstName")),
 							reader.GetString(reader.GetOrdinal("LastName")),
-							reader.IsDBNull(reader.GetOrdinal("Age")) ? default! : reader.GetInt32(reader.GetOrdinal("Age")));
+							reader.IsDBNull(reader.GetOrdinal("Age")) ? default(int?) : reader.GetInt32(reader.GetOrdinal("Age")));
 						
 						if (await reader.ReadAsync(cancellationToken))
 							throw new Exception(
@@ -89,9 +89,9 @@ partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
 						do
 						{
 							var valueParentID = reader.GetInt32(indexParentID);
-							var valueMiddleName = reader.IsDBNull(indexMiddleName) ? default! : reader.GetString(indexMiddleName);
+							var valueMiddleName = reader.IsDBNull(indexMiddleName) ? default(string?) : reader.GetString(indexMiddleName);
 							var valueSurname = reader.GetString(indexSurname);
-							var valueYearsOld = reader.IsDBNull(indexYearsOld) ? default! : reader.GetInt32(indexYearsOld);
+							var valueYearsOld = reader.IsDBNull(indexYearsOld) ? default(int?) : reader.GetInt32(indexYearsOld);
 							
 							response.Parents.Add(new(
 								valueParentID,

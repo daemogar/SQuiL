@@ -64,7 +64,7 @@ partial class DecimalPrecisionScaleTestDataContext : SQuiLBaseDataContext
 						do
 						{
 							var valueTotalID = reader.GetInt32(indexTotalID);
-							var valueAmount = reader.IsDBNull(indexAmount) ? default! : reader.GetDecimal(indexAmount);
+							var valueAmount = reader.IsDBNull(indexAmount) ? default(decimal?) : reader.GetDecimal(indexAmount);
 							var valueLabel = reader.GetString(indexLabel);
 							
 							response.Totals.Add(new(

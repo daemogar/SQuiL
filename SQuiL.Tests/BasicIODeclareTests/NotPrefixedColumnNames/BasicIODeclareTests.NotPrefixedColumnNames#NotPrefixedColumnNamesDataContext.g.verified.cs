@@ -67,8 +67,8 @@ partial class NotPrefixedColumnNamesDataContext : SQuiLBaseDataContext
 							var valueRecordID = reader.GetInt32(indexRecordID);
 							var valueNotes = reader.GetString(indexNotes);
 							var valueNotEnrolled = reader.GetBoolean(indexNotEnrolled);
-							var valueNotification = reader.IsDBNull(indexNotification) ? default! : reader.GetString(indexNotification);
-							var valueNullableFlag = reader.IsDBNull(indexNullableFlag) ? default! : reader.GetBoolean(indexNullableFlag);
+							var valueNotification = reader.IsDBNull(indexNotification) ? default(string?) : reader.GetString(indexNotification);
+							var valueNullableFlag = reader.IsDBNull(indexNullableFlag) ? default(bool?) : reader.GetBoolean(indexNullableFlag);
 							
 							response.Records.Add(new(
 								valueRecordID,
