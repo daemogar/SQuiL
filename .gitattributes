@@ -62,6 +62,11 @@
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
 
+# Verify snapshot assets MUST be stored and checked out with LF line endings.
+# Verify (Verify.XunitV3 31.x) throws if a *.verified.* file contains a CR, and
+# the repo's global convention is CRLF (see .editorconfig), so these must be
+# pinned explicitly or autocrlf=true would keep trying to CRLF them on checkout.
+*.verified.cs text eol=lf working-tree-encoding=UTF-8
 *.verified.txt text eol=lf working-tree-encoding=UTF-8
 *.verified.xml text eol=lf working-tree-encoding=UTF-8
 *.verified.json text eol=lf working-tree-encoding=UTF-8
