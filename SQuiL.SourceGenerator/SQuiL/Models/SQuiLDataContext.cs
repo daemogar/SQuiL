@@ -373,7 +373,12 @@ public class SQuiLDataContext(
 							{
 								writer.WriteLine(comma);
 								if (item.IsNullable)
-									writer.Write($"""reader.IsDBNull(reader.GetOrdinal("{item.Identifier.Value}")) ? default! : """);
+									// Must be default(<nullable type>), not default!. A bare `default!`
+									// takes the ternary's best-common-type from the other branch
+									// (e.g. int), so a NULL value-type column reads back as 0 /
+									// DateTime.MinValue instead of null. The explicit nullable type
+									// forces the null. (TODO #19)
+									writer.Write($"""reader.IsDBNull(reader.GetOrdinal("{item.Identifier.Value}")) ? default({item.CSharpType()}) : """);
 								writer.Write($"""{item.DataReader()}(reader.GetOrdinal("{item.Identifier.Value}"))""");
 								comma = ",";
 							}
@@ -423,7 +428,10 @@ public class SQuiLDataContext(
 					{
 						var defaultCondition = "";
 						if (item.IsNullable)
-							defaultCondition = $"reader.IsDBNull(index{item.Identifier.Value}) ? default! : ";
+							// default(<nullable type>), not default! — see the object-path note
+							// above: a bare default! yields 0/MinValue for NULL value-type
+							// columns because `var` + best-common-type discard the null. (TODO #19)
+							defaultCondition = $"reader.IsDBNull(index{item.Identifier.Value}) ? default({item.CSharpType()}) : ";
 						writer.WriteLine($"""var value{item.Identifier.Value} = {defaultCondition}{item.DataReader()}(index{item.Identifier.Value});""");
 					}
 
