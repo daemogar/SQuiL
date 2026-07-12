@@ -70,7 +70,7 @@ public enum TokenType
 	TYPE_GUID = TYPE + 9,
 	/// <summary><c>datetimeoffset</c> — maps to C# <c>System.DateTimeOffset</c>.</summary>
 	TYPE_DATETIMEOFFSET = TYPE + 10,
-	/// <summary><c>float</c> — maps to C# <c>double</c>.</summary>
+	/// <summary><c>real</c> — maps to C# <c>float</c>.</summary>
 	TYPE_FLOAT = TYPE + 11,
 	/// <summary><c>double</c> — maps to C# <c>double</c>.</summary>
 	TYPE_DOUBLE = TYPE + 12,

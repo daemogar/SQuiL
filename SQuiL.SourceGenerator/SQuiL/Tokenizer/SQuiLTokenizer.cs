@@ -29,7 +29,7 @@ public class SQuiLTokenizer(string Text)
 	/// the parens is never mistaken for a column separator.
 	/// </summary>
 	private static Regex TypeRegex { get; } = new(
-		"""^((bit|int|float|double|uniqueidentifier|date(?!time)|time|datetime(2|offset|)|n?text)\b|(decimal|numeric)(\s*\(\s*\d+\s*(,\s*\d+\s*)?\)|\b)|identity(\s*\(\s*\d+\s*,\s*\d+\s*\)|\b)|n?(var)?char\s*\(\s*(\d+|max)\s*\)|table\s*\(|default\s+(\d+(\.\d+)?|'.*?')|varbinary\s*\(\s*max\s*\)|binary\s*\(\s*\d+\s*\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+		"""^((bit|int|real|float|double|uniqueidentifier|date(?!time)|time|datetime(2|offset|)|n?text)\b|(decimal|numeric)(\s*\(\s*\d+\s*(,\s*\d+\s*)?\)|\b)|identity(\s*\(\s*\d+\s*,\s*\d+\s*\)|\b)|n?(var)?char\s*\(\s*(\d+|max)\s*\)|table\s*\(|default\s+(\d+(\.\d+)?|'.*?')|varbinary\s*\(\s*max\s*\)|binary\s*\(\s*\d+\s*\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
 
 	/// <summary>Matches built-in SQL function calls such as <c>GETDATE()</c>.</summary>
 	private static Regex FunctionRegex { get; } = new(
@@ -304,6 +304,8 @@ public class SQuiLTokenizer(string Text)
 					return T(TokenType.TYPE_BOOLEAN, p.Value);
 				case "int":
 					return T(TokenType.TYPE_INT, p.Value);
+				case "real":
+					return T(TokenType.TYPE_FLOAT, "real");
 				case "double" or "float":
 					return T(TokenType.TYPE_DOUBLE, "float");
 				case "decimal" or "numeric":

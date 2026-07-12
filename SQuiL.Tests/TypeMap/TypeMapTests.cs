@@ -22,6 +22,8 @@ public class TypeMapTests
     [InlineData(TokenType.TYPE_GUID,           "System.Guid",             "reader.GetGuid",                              "System.Data.SqlDbType.UniqueIdentifier")]
     [InlineData(TokenType.TYPE_BINARY,         "byte[]",                  "reader.GetFieldValue<byte[]>",                "System.Data.SqlDbType.Binary")]
     [InlineData(TokenType.TYPE_VARBINARY,      "byte[]",                  "reader.GetFieldValue<byte[]>",                "System.Data.SqlDbType.VarBinary")]
+    [InlineData(TokenType.TYPE_FLOAT,          "float",                   "reader.GetFloat",                             "System.Data.SqlDbType.Real")]
+    [InlineData(TokenType.TYPE_DOUBLE,         "double",                  "reader.GetDouble",                            "System.Data.SqlDbType.Float")]
     public void TypeMapping(TokenType type, string csharp, string reader, string sqlDbType)
     {
         var token = new Token(type, 0, "");

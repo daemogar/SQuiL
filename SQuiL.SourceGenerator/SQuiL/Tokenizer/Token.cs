@@ -52,7 +52,8 @@ public record Token(TokenType Type, int Offset, string Value)
 	{
 		TokenType.TYPE_BOOLEAN => nameof(System.Data.SqlDbType.Bit),
 		TokenType.TYPE_INT => nameof(System.Data.SqlDbType.Int),
-		TokenType.TYPE_FLOAT or TokenType.TYPE_DOUBLE => nameof(System.Data.SqlDbType.Float),
+		TokenType.TYPE_FLOAT => nameof(System.Data.SqlDbType.Real),
+		TokenType.TYPE_DOUBLE => nameof(System.Data.SqlDbType.Float),
 		TokenType.TYPE_DECIMAL => "Decimal",
 		TokenType.TYPE_STRING when size?.Equals("max", StringComparison.OrdinalIgnoreCase) == true => $"VarChar, -1",
 		TokenType.TYPE_STRING when size is not null => $"VarChar, {size}",
@@ -74,7 +75,8 @@ public record Token(TokenType Type, int Offset, string Value)
 	{
 		TokenType.TYPE_BOOLEAN => "bool",
 		TokenType.TYPE_INT => "int",
-		TokenType.TYPE_FLOAT or TokenType.TYPE_DOUBLE => "double",
+		TokenType.TYPE_FLOAT => "float",
+		TokenType.TYPE_DOUBLE => "double",
 		TokenType.TYPE_DECIMAL => "decimal",
 		TokenType.TYPE_STRING => "string",
 		TokenType.TYPE_DATE => "System.DateOnly",
@@ -98,7 +100,8 @@ public record Token(TokenType Type, int Offset, string Value)
 	{
 		TokenType.TYPE_BOOLEAN => int.TryParse(defaultValue, out var value) && value == 0 ? null : "true",
 		TokenType.TYPE_INT => defaultValue,
-		TokenType.TYPE_FLOAT or TokenType.TYPE_DOUBLE => defaultValue,
+		TokenType.TYPE_FLOAT => defaultValue is null ? null : $"{defaultValue}f",
+		TokenType.TYPE_DOUBLE => defaultValue,
 		TokenType.TYPE_DECIMAL => defaultValue is null ? null : $"{defaultValue}m",
 		TokenType.TYPE_STRING => defaultValue is null ? null : $"\"{defaultValue}\"",
 		TokenType.TYPE_DATE => DateTime.TryParse(defaultValue, out var date) ? $"System.DateOnly.Parse(\"{date:yyyy-MM-dd}\", System.Globalization.CultureInfo.InvariantCulture)" : defaultValue,

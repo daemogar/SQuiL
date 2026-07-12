@@ -47,4 +47,5 @@ public class KeyParityTests
     [Fact] public void Parity_Uniqueidentifier() => AssertParity("uniqueidentifier", "uniqueidentifier");
     [Fact] public void Parity_Varbinary() => AssertParity("varbinary(max)", "varbinary");
     [Fact] public void Parity_Float() => AssertParity("float", "float");
+    [Fact] public void Parity_Real() => AssertParity("real", "real");
 }

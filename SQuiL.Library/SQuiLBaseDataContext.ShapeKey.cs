@@ -41,7 +41,8 @@ public abstract partial class SQuiLBaseDataContext
 		"datetimeoffset" => "System.DateTimeOffset",
 		"uniqueidentifier" => "System.Guid",
 		"binary" or "varbinary" or "image" or "timestamp" or "rowversion" => "byte[]",
-		"float" or "real" => "double",
+		"real" => "float",
+		"float" => "double",
 		var other => other,
 	};
 
