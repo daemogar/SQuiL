@@ -269,3 +269,35 @@ test('SP0032 fires on a timestamp input table column', () => {
   ].join('\n')));
   assert.ok(diags.some(d => d.code === 'SP0032'), 'timestamp input table column flagged');
 });
+
+test('SP0032 (input table column) — squiggle range covers only the column name (single-line table)', () => {
+  const line = 'Declare @Params_Rows table(RowID int, Ver timestamp);';
+  const text = [line, 'Use Db;', 'Select 1;'].join('\n');
+  const diags = lintTimestampInput(parseSQuiL(text));
+  const d = diags.find(x => x.code === 'SP0032');
+  assert.ok(d, 'timestamp input table column flagged');
+  const expectedStart = line.indexOf('Ver');
+  assert.strictEqual(d!.line, 0, 'diagnostic line should be the declare line (single-line table)');
+  assert.strictEqual(d!.startChar, expectedStart, 'startChar should point at the column name, not the variable');
+  assert.strictEqual(d!.endChar, expectedStart + 'Ver'.length, 'endChar should cover only the column name');
+});
+
+test('SP0032 (input table column) — squiggle range is multi-line-precise (column on its own line)', () => {
+  const lines = [
+    'Declare @Params_Rows table(',
+    '    RowID int,',
+    '    Ver timestamp',
+    ');',
+    'Use Db;',
+    'Select 1;',
+  ];
+  const text = lines.join('\n');
+  const diags = lintTimestampInput(parseSQuiL(text));
+  const d = diags.find(x => x.code === 'SP0032');
+  assert.ok(d, 'timestamp input table column flagged (multi-line)');
+  const verLine = 2;
+  const expectedStart = lines[verLine].indexOf('Ver');
+  assert.strictEqual(d!.line, verLine, 'diagnostic line should be the column\'s own line, not the declare line');
+  assert.strictEqual(d!.startChar, expectedStart, 'startChar should point at the column name on its own line');
+  assert.strictEqual(d!.endChar, expectedStart + 'Ver'.length, 'endChar should cover only the column name');
+});

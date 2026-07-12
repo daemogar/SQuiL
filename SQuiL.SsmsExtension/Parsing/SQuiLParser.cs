@@ -41,6 +41,10 @@ public sealed class TableColumn
     public string? NullabilityMarker { get; set; }
     /// <summary>Raw <c>DEFAULT &lt;literal&gt;</c> value (string literals keep their single quotes), or null.</summary>
     public string? DefaultValue { get; set; }
+    /// <summary>0-based source line of the column NAME token — multi-line-<c>table(...)</c>-precise.</summary>
+    public int Line { get; set; }
+    /// <summary>0-based source character of the column NAME token on its own line.</summary>
+    public int Character { get; set; }
 }
 
 public sealed class SQuiLVariable
@@ -193,7 +197,7 @@ public static class SQuiLParser
                     }
                 }
 
-                ParseVariable(varName, typeStr, i, rawLine, result, afterUse: useCount > 0);
+                ParseVariable(varName, typeStr, i, rawLine, result, afterUse: useCount > 0, allLines: lines);
             }
         }
 
@@ -231,7 +235,8 @@ public static class SQuiLParser
     // ── Internal helpers ────────────────────────────────────────────────
 
     private static void ParseVariable(
-        string rawName, string typeStr, int lineNum, string fullLine, SQuiLParseResult result, bool afterUse)
+        string rawName, string typeStr, int lineNum, string fullLine, SQuiLParseResult result, bool afterUse,
+        string[] allLines)
     {
         int varStart = fullLine.IndexOf(rawName, StringComparison.Ordinal);
         string upper = rawName.ToUpperInvariant();
@@ -276,7 +281,29 @@ public static class SQuiLParser
         List<TableColumn>? columns = null;
         var tableMatch = TableTypeFull.Match(typeStr);
         if (tableMatch.Success)
+        {
             columns = ParseTableColumns(tableMatch.Groups[1].Value);
+
+            // Default fallback: the variable's own position (matches the old,
+            // variable-precise-only behavior) — overwritten below when the
+            // multi-line-aware scan finds precise per-column positions.
+            int fallbackChar = Math.Max(0, varStart);
+            foreach (var col in columns)
+            {
+                col.Line = lineNum;
+                col.Character = fallbackChar;
+            }
+
+            var colPositions = ScanTableColumnPositions(allLines, lineNum, fallbackChar + rawName.Length);
+            if (colPositions.Count == columns.Count)
+            {
+                for (int ci = 0; ci < columns.Count; ci++)
+                {
+                    columns[ci].Line = colPositions[ci].Line;
+                    columns[ci].Character = colPositions[ci].Character;
+                }
+            }
+        }
 
         // Scalar nullability marker — derived from the type string.
         // Table variables have per-column nullability; guard with isTable.
@@ -344,4 +371,77 @@ public static class SQuiLParser
 
     private static int IndexOfIgnoreCase(string haystack, string needle)
         => haystack.IndexOf(needle, StringComparison.OrdinalIgnoreCase);
+
+    private static readonly Regex TableOpenParen = new(
+        @"\bTABLE\s*\(",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// Scans the ORIGINAL source lines (not the joined/trimmed <paramref name="typeStr"/>)
+    /// for a <c>table( ... )</c> declaration starting at (<paramref name="startLine"/>,
+    /// <paramref name="startChar"/>) and returns the source (line, character) position of
+    /// each top-level column NAME token, in declaration order — correct even when the
+    /// table spans multiple lines.
+    ///
+    /// Nested parens (e.g. <c>decimal(18,2)</c>) are tracked via paren depth so their
+    /// commas are never mistaken for column separators (only depth==1 commas split columns).
+    /// </summary>
+    private static List<(int Line, int Character)> ScanTableColumnPositions(
+        string[] lines, int startLine, int startChar)
+    {
+        var results = new List<(int Line, int Character)>();
+
+        // Flatten the source from (startLine, startChar) to EOF into one string, with a
+        // parallel map from flattened index -> (line, character) in the original source,
+        // so multi-line declarations still yield real positions.
+        var flat = new System.Text.StringBuilder();
+        var map = new List<(int Line, int Character)>();
+        for (int li = startLine; li < lines.Length; li++)
+        {
+            string content = lines[li];
+            int begin = li == startLine ? Math.Min(Math.Max(startChar, 0), content.Length) : 0;
+            for (int ci = begin; ci < content.Length; ci++)
+            {
+                flat.Append(content[ci]);
+                map.Add((li, ci));
+            }
+            if (li < lines.Length - 1)
+            {
+                flat.Append('\n');
+                map.Add((li, content.Length));
+            }
+        }
+
+        string text = flat.ToString();
+        var openMatch = TableOpenParen.Match(text);
+        if (!openMatch.Success) return results;
+
+        int idx = openMatch.Index + openMatch.Length; // just past the opening '('
+        int depth = 1;
+        bool atSegmentStart = true;
+
+        while (idx < text.Length && depth > 0)
+        {
+            if (atSegmentStart)
+            {
+                while (idx < text.Length && char.IsWhiteSpace(text[idx])) idx++;
+                if (idx >= text.Length) break;
+
+                int nameStart = idx;
+                while (idx < text.Length && (char.IsLetterOrDigit(text[idx]) || text[idx] == '_')) idx++;
+                if (idx > nameStart) results.Add(map[nameStart]);
+
+                atSegmentStart = false;
+                continue;
+            }
+
+            char c = text[idx];
+            if (c == '(') { depth++; idx++; continue; }
+            if (c == ')') { depth--; idx++; if (depth == 0) break; continue; }
+            if (c == ',' && depth == 1) { atSegmentStart = true; idx++; continue; }
+            idx++;
+        }
+
+        return results;
+    }
 }

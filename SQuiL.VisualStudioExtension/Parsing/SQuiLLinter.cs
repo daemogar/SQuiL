@@ -238,9 +238,9 @@ internal static class SQuiLLinter
                     {
                         Message   = $"`{v.Name}.{col.Name}` is a timestamp/rowversion used as an input. " +
                                     "timestamp is server-generated and read-only — use it only on @Return_/@Returns_ outputs, or remove it.",
-                        Line      = v.Line,
-                        StartChar = v.Character,
-                        EndChar   = v.Character + v.RawName.Length,
+                        Line      = col.Line,
+                        StartChar = col.Character,
+                        EndChar   = col.Character + col.Name.Length,
                         Severity  = DiagnosticSeverity.Error,
                         Code      = "SP0032",
                     });
