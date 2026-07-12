@@ -138,49 +138,4 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_TABLE when tableType is not null => tableType(),
 		_ => throw new Exception($"Invalid database type `{Type}`")
 	};
-
-	/// <summary>
-	/// Generates an inline C# expression for embedding a property value into a parameterized SQL
-	/// string, handling type-specific formatting (dates, strings with length guards, etc.).
-	/// </summary>
-	/// <param name="classname">The enclosing class name, used in overflow error messages.</param>
-	/// <param name="model">The model name, used in overflow error messages.</param>
-	/// <param name="index">The zero-based position of this property in the table row, for error context.</param>
-	/// <param name="name">The property name, for error messages.</param>
-	/// <param name="property">The C# expression that accesses the property value.</param>
-	public string SqlProperty(string classname, string model, int index, string name, string property)
-	{
-		return Type switch
-		{
-			TokenType.TYPE_BOOLEAN => $"{property} ? '1' : '0'",
-			TokenType.TYPE_INT => property,
-			TokenType.TYPE_BIGINT or TokenType.TYPE_SMALLINT or TokenType.TYPE_TINYINT => property,
-			TokenType.TYPE_FLOAT or TokenType.TYPE_DOUBLE => property,
-			TokenType.TYPE_DECIMAL => property,
-			TokenType.TYPE_MONEY or TokenType.TYPE_SMALLMONEY => property,
-			TokenType.TYPE_STRING => S(),
-			TokenType.TYPE_DATE => D($"{property}:yyyy-MM-dd"),
-			TokenType.TYPE_TIME => D($"{property}:HH:mm:ss.FFFFFFF"),
-			TokenType.TYPE_DATETIME => D($"{property}:yyyy-MM-dd HH:mm:ss.FFFFFFF"),
-			TokenType.TYPE_SMALLDATETIME => D($"{property}:yyyy-MM-dd HH:mm:ss.FFFFFFF"),
-			TokenType.TYPE_DATETIMEOFFSET => D($"{property}:yyyy-MM-dd HH:mm:ss.FFFFFFF zzz"),
-			TokenType.TYPE_GUID => $"{property}",
-			TokenType.TYPE_XML => $"{property} is null ? \"Null\" : $\"'{{{property}}}'\"",
-			_ => throw new DiagnosticException($"Invalid model {property} type `{Type}`")
-		};
-
-		string D(string property) => $"$\"'{{{property}}}'\"";
-
-		string S() => Value.Equals("max", StringComparison.OrdinalIgnoreCase)
-			? $"{property} is null ? \"Null\" : $\"'{{{property}}}'\""
-			: $""""
-			{property} is null || {property}.Length <= {Value}
-				? ({property} is null ? "Null" : $"'{"{"}{property}{"}"}'")
-				: throw new Exception($"""
-					{classname}{model}Request model table property [{model}]
-					at index [{index}] has a string property [{name}]
-					with more than {Value} characters.
-					""")
-			"""";
-	}
 }

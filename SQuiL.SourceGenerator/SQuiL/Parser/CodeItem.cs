@@ -36,11 +36,4 @@ public record CodeItem(Token Identifier, Token Type)
 	/// <summary>Returns the C# type string for this column, optionally appending <c>?</c> for nullable columns.</summary>
 	/// <param name="callback">Optional override that returns a custom type name (e.g. for object/table columns).</param>
 	public string CSharpType(Func<string>? callback = default) => Type.CSharpType(callback) + (IsNullable ? "?" : "");
-
-	/// <summary>
-	/// Builds a delegate that generates a SQL property expression for a column at position
-	/// <c>i</c> in a parameterized insert, using <c>item.PropertyName</c> as the source value.
-	/// </summary>
-	public static Func<CodeItem, int, string> SqlProperty(string classname, string model)
-		=> (p, i) => p.Type.SqlProperty(classname, model, i, p.Identifier.Value, $"item.{p.Identifier.Value}");
 }
