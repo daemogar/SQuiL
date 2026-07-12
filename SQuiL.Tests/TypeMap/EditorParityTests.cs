@@ -47,9 +47,8 @@ public class EditorParityTests
         {
             var sql = m.Groups["sql"].Value;
             var cs = m.Groups["cs"].Value;
-            if (!Expected.TryGetValue(sql, out var want))
-                continue; // entry the matrix does not track yet — ignored until its task lands
-            Assert.Equal(want, cs);
+            Assert.True(Expected.ContainsKey(sql), $"editor map has '{sql}' not in the canonical matrix");
+            Assert.Equal(Expected[sql], cs);
         }
     }
 }
