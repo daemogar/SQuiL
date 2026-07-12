@@ -53,4 +53,6 @@ public class KeyParityTests
     [Fact] public void Parity_Tinyint() => AssertParity("tinyint", "tinyint");
     [Fact] public void Parity_Money() => AssertParity("money", "money");
     [Fact] public void Parity_Smallmoney() => AssertParity("smallmoney", "smallmoney");
+    [Fact] public void Parity_Smalldatetime() => AssertParity("smalldatetime", "smalldatetime");
+    [Fact] public void Parity_Xml() => AssertParity("xml", "xml");
 }

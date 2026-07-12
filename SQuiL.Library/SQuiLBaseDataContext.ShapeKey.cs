@@ -37,7 +37,7 @@ public abstract partial class SQuiLBaseDataContext
 		"smallint" => "short",
 		"tinyint" => "byte",
 		"decimal" or "numeric" or "money" or "smallmoney" => "decimal",
-		"varchar" or "nvarchar" or "char" or "nchar" or "text" or "ntext" => "string",
+		"varchar" or "nvarchar" or "char" or "nchar" or "text" or "ntext" or "xml" => "string",
 		"date" => "System.DateOnly",
 		"time" => "System.TimeOnly",
 		"datetime" or "datetime2" or "smalldatetime" => "System.DateTime",

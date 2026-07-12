@@ -88,10 +88,14 @@ public enum TokenType
 	TYPE_MONEY = TYPE + 18,
 	/// <summary><c>smallmoney</c> — maps to C# <c>decimal</c>.</summary>
 	TYPE_SMALLMONEY = TYPE + 19,
+	/// <summary><c>smalldatetime</c> — maps to C# <c>System.DateTime</c>.</summary>
+	TYPE_SMALLDATETIME = TYPE + 20,
 	/// <summary>Synthetic type indicating a <c>table(...)</c> variable (multi-row).</summary>
 	TYPE_TABLE = TYPE + 21,
 	/// <summary>Synthetic type indicating a <c>table(...)</c> variable used as a single object.</summary>
 	TYPE_OBJECT = TYPE + 22,
+	/// <summary><c>xml</c> — maps to C# <c>string</c>.</summary>
+	TYPE_XML = TYPE + 23,
 	/// <summary>A built-in SQL function call such as <c>GETDATE()</c>.</summary>
 	TYPE_FUNCTIONS = TYPE + 31,
 	/// <summary><c>identity</c> column specifier.</summary>
