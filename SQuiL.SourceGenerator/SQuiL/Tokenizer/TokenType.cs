@@ -84,6 +84,10 @@ public enum TokenType
 	TYPE_SMALLINT = TYPE + 16,
 	/// <summary><c>tinyint</c> — maps to C# <c>byte</c>.</summary>
 	TYPE_TINYINT = TYPE + 17,
+	/// <summary><c>money</c> — maps to C# <c>decimal</c>.</summary>
+	TYPE_MONEY = TYPE + 18,
+	/// <summary><c>smallmoney</c> — maps to C# <c>decimal</c>.</summary>
+	TYPE_SMALLMONEY = TYPE + 19,
 	/// <summary>Synthetic type indicating a <c>table(...)</c> variable (multi-row).</summary>
 	TYPE_TABLE = TYPE + 21,
 	/// <summary>Synthetic type indicating a <c>table(...)</c> variable used as a single object.</summary>

@@ -51,4 +51,6 @@ public class KeyParityTests
     [Fact] public void Parity_Bigint() => AssertParity("bigint", "bigint");
     [Fact] public void Parity_Smallint() => AssertParity("smallint", "smallint");
     [Fact] public void Parity_Tinyint() => AssertParity("tinyint", "tinyint");
+    [Fact] public void Parity_Money() => AssertParity("money", "money");
+    [Fact] public void Parity_Smallmoney() => AssertParity("smallmoney", "smallmoney");
 }
