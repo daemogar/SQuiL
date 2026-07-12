@@ -757,7 +757,7 @@ public static class SQuiLShred
 		}
 
 		static bool IsBinary(CodeItem p)
-			=> p.Type.Type is TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY;
+			=> p.Type.Type is TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY or TokenType.TYPE_IMAGE;
 
 		static string BinarySize(CodeItem p)
 			=> p.Type.Value is null || p.Type.Value.Equals("max", StringComparison.OrdinalIgnoreCase)

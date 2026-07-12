@@ -70,6 +70,21 @@ public class ParamShardingTests
 			"""]);
 	}
 
+	// image column in an input table: byte[] must take the binary shred path —
+	// Convert(varbinary(max), [Data], 2) in the SELECT, [Data] nvarchar(max) in the WITH clause
+	// (NOT [Data] image, which OPENJSON cannot bind). Regression for TODO #9 Task 6.
+	[Fact]
+	public Task ImageColumnUsesHexConvert()
+	{
+		var name = nameof(ImageColumnUsesHexConvert);
+		return TestHelper.Verify([Header()], [$$"""
+			--Name: {{name}}
+			Declare @Params_Blobs table(ID int, Data image);
+			Use [Db];
+			Select * From @Params_Blobs;
+			"""]);
+	}
+
 	// Single-object input → one-element JSON array, same OPENJSON fill path.
 	[Fact]
 	public Task SingleObjectUsesOneElementArray()
