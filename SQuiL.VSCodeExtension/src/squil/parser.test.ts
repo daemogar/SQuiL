@@ -260,3 +260,12 @@ test('SP0032 stays silent on a timestamp output scalar', () => {
   ].join('\n')));
   assert.strictEqual(diags.filter(d => d.code === 'SP0032').length, 0);
 });
+
+test('SP0032 fires on a timestamp input table column', () => {
+  const diags = lintTimestampInput(parseSQuiL([
+    'Declare @Params_Rows table(RowID int, Ver timestamp);',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n')));
+  assert.ok(diags.some(d => d.code === 'SP0032'), 'timestamp input table column flagged');
+});
