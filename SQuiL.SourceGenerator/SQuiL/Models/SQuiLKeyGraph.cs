@@ -88,17 +88,25 @@ public sealed class SQuiLKeyGraph
             childOf[child] = parent;
         }
 
-        // Cycle / self-reference detection over the childOf map.
+        // Cycle / self-reference detection over the childOf map. Report each cycle ONCE
+        // and name the actual partner (cur) whose FK closes the loop back to start.
+        var reportedCycle = new HashSet<CodeBlock>();
         foreach (var start in list)
         {
+            if (reportedCycle.Contains(start)) continue;
             var seen = new HashSet<CodeBlock>();
             var cur = start;
             while (childOf.TryGetValue(cur, out var next))
             {
                 if (ReferenceEquals(next, start))
                 {
-                    errors.Add(new("cycle", start.Name, next.Name,
-                        LineOf(sql, start.DatabaseType.Offset), LineOf(sql, next.DatabaseType.Offset)));
+                    errors.Add(new("cycle", start.Name, cur.Name,
+                        LineOf(sql, start.DatabaseType.Offset), LineOf(sql, cur.DatabaseType.Offset)));
+                    // Mark every member of this cycle so it is not re-reported from another start.
+                    reportedCycle.Add(start);
+                    var w = start;
+                    while (childOf.TryGetValue(w, out var n) && reportedCycle.Add(n))
+                        w = n;
                     break;
                 }
                 if (!seen.Add(next)) break;

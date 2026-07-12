@@ -77,6 +77,10 @@ public class KeyGraphTests
             Use Db; Select 1;
             """);
         Assert.Contains(g.Errors, f => f.Kind == "cycle");
+
+        var cycles = g.Errors.Where(f => f.Kind == "cycle").ToList();
+        Assert.Single(cycles);
+        Assert.Equal(new[] { "A", "B" }, new[] { cycles[0].Name, cycles[0].OtherName }.OrderBy(x => x).ToArray());
     }
 
     [Fact]
