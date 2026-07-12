@@ -296,6 +296,20 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0032 — timestamp/rowversion is server-generated and read-only; it cannot be a
+	/// meaningful input parameter. Declared on an input (@Param_/@Params_ scalar or input-table
+	/// column). Use it only on outputs (@Return_/@Returns_), or drop it from the input.
+	/// </summary>
+	public static void ReportTimestampInput(
+		this SourceProductionContext context, string filename,
+		SQuiL.SourceGenerator.Parser.SQuiLTimestampInputValidator.Finding finding)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0032", "Timestamp Input Not Allowed",
+			$"{filename}: `{finding.Name}` (line {finding.Line}) is a timestamp/rowversion used as an input. " +
+			"timestamp is server-generated and read-only — use it only on @Return_/@Returns_ outputs, or remove it."));
+	}
+
+	/// <summary>
 	/// SP0023 — A <c>[SQuiLQuery]</c> (or a <c>[SQuiLQueryTransaction]</c> with <c>enabled:false</c>)
 	/// wraps a body that contains a persistent real-table mutation (UPDATE/INSERT/DELETE/MERGE/EXEC/…).
 	/// Consider switching to <c>[SQuiLQueryTransaction]</c> so the mutation is wrapped in a transaction.

@@ -28,7 +28,7 @@ partial class MultiLineCommentInHeaderDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@Param_Count", System.Data.SqlDbType.BigInt, request.Count)
+			CreateParameter("@Param_Count", System.Data.SqlDbType.Int, request.Count)
 		};
 		
 		command.CommandText = Query(parameters);

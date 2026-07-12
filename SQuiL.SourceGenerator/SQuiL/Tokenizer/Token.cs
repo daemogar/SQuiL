@@ -30,16 +30,22 @@ public record Token(TokenType Type, int Offset, string Value)
 	{
 		TokenType.TYPE_BOOLEAN => nameof(SqlDataReader.GetBoolean),
 		TokenType.TYPE_INT => nameof(SqlDataReader.GetInt32),
+		TokenType.TYPE_BIGINT => nameof(SqlDataReader.GetInt64),
+		TokenType.TYPE_SMALLINT => nameof(SqlDataReader.GetInt16),
+		TokenType.TYPE_TINYINT => nameof(SqlDataReader.GetByte),
 		TokenType.TYPE_FLOAT => nameof(SqlDataReader.GetFloat),
 		TokenType.TYPE_DOUBLE => nameof(SqlDataReader.GetDouble),
 		TokenType.TYPE_DECIMAL => nameof(SqlDataReader.GetDecimal),
+		TokenType.TYPE_MONEY or TokenType.TYPE_SMALLMONEY => nameof(SqlDataReader.GetDecimal),
 		TokenType.TYPE_STRING => nameof(SqlDataReader.GetString),
 		TokenType.TYPE_DATE => $"{nameof(SqlDataReader.GetFieldValue)}<System.DateOnly>",
 		TokenType.TYPE_TIME => $"{nameof(SqlDataReader.GetFieldValue)}<System.TimeOnly>",
 		TokenType.TYPE_DATETIME => nameof(SqlDataReader.GetDateTime),
+		TokenType.TYPE_SMALLDATETIME => nameof(SqlDataReader.GetDateTime),
 		TokenType.TYPE_DATETIMEOFFSET => $"{nameof(SqlDataReader.GetFieldValue)}<System.DateTimeOffset>",
 		TokenType.TYPE_GUID => nameof(SqlDataReader.GetGuid),
-		TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY => $"{nameof(SqlDataReader.GetFieldValue)}<byte[]>",
+		TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY or TokenType.TYPE_IMAGE or TokenType.TYPE_TIMESTAMP => $"{nameof(SqlDataReader.GetFieldValue)}<byte[]>",
+		TokenType.TYPE_XML => nameof(SqlDataReader.GetString),
 		_ => throw new Exception($"Invalid database type `{Type}`")
 	};
 
@@ -51,9 +57,15 @@ public record Token(TokenType Type, int Offset, string Value)
 	public string SqlDbType(string? size = default, bool allowNullSize = false) => "System.Data.SqlDbType." + Type switch
 	{
 		TokenType.TYPE_BOOLEAN => nameof(System.Data.SqlDbType.Bit),
-		TokenType.TYPE_INT => "BigInt",
-		TokenType.TYPE_FLOAT or TokenType.TYPE_DOUBLE => nameof(System.Data.SqlDbType.Float),
+		TokenType.TYPE_INT => nameof(System.Data.SqlDbType.Int),
+		TokenType.TYPE_BIGINT => nameof(System.Data.SqlDbType.BigInt),
+		TokenType.TYPE_SMALLINT => nameof(System.Data.SqlDbType.SmallInt),
+		TokenType.TYPE_TINYINT => nameof(System.Data.SqlDbType.TinyInt),
+		TokenType.TYPE_FLOAT => nameof(System.Data.SqlDbType.Real),
+		TokenType.TYPE_DOUBLE => nameof(System.Data.SqlDbType.Float),
 		TokenType.TYPE_DECIMAL => "Decimal",
+		TokenType.TYPE_MONEY => nameof(System.Data.SqlDbType.Money),
+		TokenType.TYPE_SMALLMONEY => nameof(System.Data.SqlDbType.SmallMoney),
 		TokenType.TYPE_STRING when size?.Equals("max", StringComparison.OrdinalIgnoreCase) == true => $"VarChar, -1",
 		TokenType.TYPE_STRING when size is not null => $"VarChar, {size}",
 		TokenType.TYPE_STRING when allowNullSize => $"VarChar",
@@ -61,10 +73,14 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_DATE => "Date",
 		TokenType.TYPE_TIME => "Time",
 		TokenType.TYPE_DATETIME => "DateTime",
+		TokenType.TYPE_SMALLDATETIME => nameof(System.Data.SqlDbType.SmallDateTime),
 		TokenType.TYPE_DATETIMEOFFSET => nameof(System.Data.SqlDbType.DateTimeOffset),
 		TokenType.TYPE_GUID => "UniqueIdentifier",
 		TokenType.TYPE_BINARY => nameof(System.Data.SqlDbType.Binary),
 		TokenType.TYPE_VARBINARY => nameof(System.Data.SqlDbType.VarBinary),
+		TokenType.TYPE_IMAGE => nameof(System.Data.SqlDbType.Image),
+		TokenType.TYPE_TIMESTAMP => nameof(System.Data.SqlDbType.Timestamp),
+		TokenType.TYPE_XML => nameof(System.Data.SqlDbType.Xml),
 		_ => throw new Exception($"Unsupported database type `{Type}`")
 	};
 
@@ -74,15 +90,22 @@ public record Token(TokenType Type, int Offset, string Value)
 	{
 		TokenType.TYPE_BOOLEAN => "bool",
 		TokenType.TYPE_INT => "int",
-		TokenType.TYPE_FLOAT or TokenType.TYPE_DOUBLE => "double",
+		TokenType.TYPE_BIGINT => "long",
+		TokenType.TYPE_SMALLINT => "short",
+		TokenType.TYPE_TINYINT => "byte",
+		TokenType.TYPE_FLOAT => "float",
+		TokenType.TYPE_DOUBLE => "double",
 		TokenType.TYPE_DECIMAL => "decimal",
+		TokenType.TYPE_MONEY or TokenType.TYPE_SMALLMONEY => "decimal",
 		TokenType.TYPE_STRING => "string",
 		TokenType.TYPE_DATE => "System.DateOnly",
 		TokenType.TYPE_TIME => "System.TimeOnly",
 		TokenType.TYPE_DATETIME => "System.DateTime",
+		TokenType.TYPE_SMALLDATETIME => "System.DateTime",
 		TokenType.TYPE_DATETIMEOFFSET => "System.DateTimeOffset",
 		TokenType.TYPE_GUID => "System.Guid",
-		TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY => "byte[]",
+		TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY or TokenType.TYPE_IMAGE or TokenType.TYPE_TIMESTAMP => "byte[]",
+		TokenType.TYPE_XML => "string",
 		TokenType.TYPE_OBJECT when tableType is not null => tableType(),
 		TokenType.TYPE_TABLE when tableType is not null => $"System.Collections.Generic.List<{tableType()}>",
 		_ => throw new Exception($"Invalid database type `{Type}`")
@@ -98,14 +121,19 @@ public record Token(TokenType Type, int Offset, string Value)
 	{
 		TokenType.TYPE_BOOLEAN => int.TryParse(defaultValue, out var value) && value == 0 ? null : "true",
 		TokenType.TYPE_INT => defaultValue,
-		TokenType.TYPE_FLOAT or TokenType.TYPE_DOUBLE => defaultValue,
+		TokenType.TYPE_BIGINT or TokenType.TYPE_SMALLINT or TokenType.TYPE_TINYINT => defaultValue,
+		TokenType.TYPE_FLOAT => defaultValue is null ? null : $"{defaultValue}f",
+		TokenType.TYPE_DOUBLE => defaultValue,
 		TokenType.TYPE_DECIMAL => defaultValue is null ? null : $"{defaultValue}m",
+		TokenType.TYPE_MONEY or TokenType.TYPE_SMALLMONEY => defaultValue is null ? null : $"{defaultValue}m",
 		TokenType.TYPE_STRING => defaultValue is null ? null : $"\"{defaultValue}\"",
 		TokenType.TYPE_DATE => DateTime.TryParse(defaultValue, out var date) ? $"System.DateOnly.Parse(\"{date:yyyy-MM-dd}\", System.Globalization.CultureInfo.InvariantCulture)" : defaultValue,
 		TokenType.TYPE_TIME => DateTime.TryParse(defaultValue, out var time) ? $"System.TimeOnly.Parse(\"{time:HH:mm:ss.fffffff}\", System.Globalization.CultureInfo.InvariantCulture)" : defaultValue,
 		TokenType.TYPE_DATETIME => DateTime.TryParse(defaultValue, out var date) ? $"System.DateTime.Parse(\"{date:yyyy-MM-dd} {date:HH:mm:ss.fffffff}\", System.Globalization.CultureInfo.InvariantCulture)" : defaultValue,
+		TokenType.TYPE_SMALLDATETIME => DateTime.TryParse(defaultValue, out var smallDate) ? $"System.DateTime.Parse(\"{smallDate:yyyy-MM-dd} {smallDate:HH:mm:ss.fffffff}\", System.Globalization.CultureInfo.InvariantCulture)" : defaultValue,
 		TokenType.TYPE_DATETIMEOFFSET => DateTimeOffset.TryParse(defaultValue, out var dto) ? $"System.DateTimeOffset.Parse(\"{dto:yyyy-MM-dd HH:mm:ss.fffffff zzz}\", System.Globalization.CultureInfo.InvariantCulture)" : defaultValue,
 		TokenType.TYPE_GUID => Guid.TryParse(defaultValue, out var identifier) ? $"System.Guid.Parse(\"{identifier}\")" : defaultValue,
+		TokenType.TYPE_XML => defaultValue is null ? null : $"\"{defaultValue}\"",
 		TokenType.TYPE_OBJECT when tableType is not null => tableType(),
 		TokenType.TYPE_TABLE when tableType is not null => tableType(),
 		_ => throw new Exception($"Invalid database type `{Type}`")
@@ -126,20 +154,26 @@ public record Token(TokenType Type, int Offset, string Value)
 		{
 			TokenType.TYPE_BOOLEAN => $"{property} ? '1' : '0'",
 			TokenType.TYPE_INT => property,
+			TokenType.TYPE_BIGINT or TokenType.TYPE_SMALLINT or TokenType.TYPE_TINYINT => property,
 			TokenType.TYPE_FLOAT or TokenType.TYPE_DOUBLE => property,
 			TokenType.TYPE_DECIMAL => property,
+			TokenType.TYPE_MONEY or TokenType.TYPE_SMALLMONEY => property,
 			TokenType.TYPE_STRING => S(),
 			TokenType.TYPE_DATE => D($"{property}:yyyy-MM-dd"),
 			TokenType.TYPE_TIME => D($"{property}:HH:mm:ss.FFFFFFF"),
 			TokenType.TYPE_DATETIME => D($"{property}:yyyy-MM-dd HH:mm:ss.FFFFFFF"),
+			TokenType.TYPE_SMALLDATETIME => D($"{property}:yyyy-MM-dd HH:mm:ss.FFFFFFF"),
 			TokenType.TYPE_DATETIMEOFFSET => D($"{property}:yyyy-MM-dd HH:mm:ss.FFFFFFF zzz"),
 			TokenType.TYPE_GUID => $"{property}",
+			TokenType.TYPE_XML => $"{property} is null ? \"Null\" : $\"'{{{property}}}'\"",
 			_ => throw new DiagnosticException($"Invalid model {property} type `{Type}`")
 		};
 
 		string D(string property) => $"$\"'{{{property}}}'\"";
 
-		string S() => $""""
+		string S() => Value.Equals("max", StringComparison.OrdinalIgnoreCase)
+			? $"{property} is null ? \"Null\" : $\"'{{{property}}}'\""
+			: $""""
 			{property} is null || {property}.Length <= {Value}
 				? ({property} is null ? "Null" : $"'{"{"}{property}{"}"}'")
 				: throw new Exception($"""

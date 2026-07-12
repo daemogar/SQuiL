@@ -34,7 +34,7 @@ public static class SqlTypeMap
         ["smallint"]          = "short",
         ["smallmoney"]        = "decimal",
         ["text"]              = "string",
-        ["time"]              = "TimeSpan",
+        ["time"]              = "TimeOnly",
         ["timestamp"]         = "byte[]",
         ["tinyint"]           = "byte",
         ["uniqueidentifier"]  = "Guid",

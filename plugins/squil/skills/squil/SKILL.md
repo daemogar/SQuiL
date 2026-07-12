@@ -55,7 +55,7 @@ A scalar uses a primitive declared type (`int`, `varchar(10)`, `datetime`, `bit`
 
 ### Column types and defaults
 
-The declared SQL type maps to a C# type: `int`/`bigint`/`smallint`/`tinyint` → the matching integer type, `bit` → `bool`, `varchar`/`nvarchar`/`char`/`text` → `string`, `decimal(p,s)`/`numeric(p,s)` → `decimal` (precision and scale are preserved), `float` → `double`, `real` → `float`, `date` → `System.DateOnly`, `datetime`/`datetime2`/`smalldatetime` → `System.DateTime`, `datetimeoffset` → `System.DateTimeOffset`, `uniqueidentifier` → `System.Guid`, `varbinary`/`binary`/`image` → `byte[]`.
+The declared SQL type maps to a C# type: `int`/`bigint`/`smallint`/`tinyint` → the matching integer type, `bit` → `bool`, `varchar`/`nvarchar`/`char`/`text`/`xml` → `string`, `decimal(p,s)`/`numeric(p,s)` → `decimal` (precision and scale are preserved), `money`/`smallmoney` → `decimal`, `float` → `double`, `real` → `float`, `date` → `System.DateOnly`, `time` → `System.TimeOnly`, `datetime`/`datetime2`/`smalldatetime` → `System.DateTime`, `datetimeoffset` → `System.DateTimeOffset`, `uniqueidentifier` → `System.Guid`, `varbinary`/`binary`/`image` → `byte[]`, `timestamp`/`rowversion` → `byte[]` (output only — declaring one as an input parameter is build error **SP0032**, since the database assigns the value).
 
 **Nullability — the one rule:** a column or scalar is non-nullable UNLESS its `Declare` carries an explicit `null` marker. Reference types (`string`, `byte[]`) are **never** auto-`?`. An explicit `null` wins even alongside a default value.
 
@@ -182,6 +182,7 @@ Select @Return_Count As Count;  -- alias required: bare @Return_Count has no col
 - **Marking a read-only query with `[SQuiLQueryTransaction]`.** If the body has no persistent mutation (no `INSERT`/`UPDATE`/`DELETE`/`MERGE` on real tables), the generator warns SP0024 — use `[SQuiLQuery]` instead.
 - **Registering one query file on two data contexts.** Each query file maps to exactly one data context. A duplicate registration is build error **SP0027**.
 - **Applying both `[SQuiLQuery]` and `[SQuiLQueryTransaction]` to one class.** Build error **SP0029** — use one or the other, not both.
+- **Declaring a `timestamp`/`rowversion` column as an input.** The database assigns these values; declaring one on `@Param_`/`@Params_` (rather than only `@Return_`/`@Returns_`) is build error **SP0032**.
 
 ---
 

@@ -28,12 +28,12 @@ partial class ScalarNullabilityMatrixDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@Param_Required", System.Data.SqlDbType.BigInt, request.Required),
-			CreateParameter("@Param_Nullable", System.Data.SqlDbType.BigInt, request.Nullable ?? (object)System.DBNull.Value
+			CreateParameter("@Param_Required", System.Data.SqlDbType.Int, request.Required),
+			CreateParameter("@Param_Nullable", System.Data.SqlDbType.Int, request.Nullable ?? (object)System.DBNull.Value
 			, p => p.IsNullable = true),
-			CreateParameter("@Param_NotNull", System.Data.SqlDbType.BigInt, request.NotNull),
-			CreateParameter("@Param_Defaulted", System.Data.SqlDbType.BigInt, request.Defaulted),
-			CreateParameter("@Param_NullAndDefault", System.Data.SqlDbType.BigInt, request.NullAndDefault ?? (object)System.DBNull.Value
+			CreateParameter("@Param_NotNull", System.Data.SqlDbType.Int, request.NotNull),
+			CreateParameter("@Param_Defaulted", System.Data.SqlDbType.Int, request.Defaulted),
+			CreateParameter("@Param_NullAndDefault", System.Data.SqlDbType.Int, request.NullAndDefault ?? (object)System.DBNull.Value
 			, p => p.IsNullable = true)
 		};
 		

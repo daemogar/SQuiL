@@ -29,7 +29,7 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 		List<DbParameter> parameters = new()
 		{
 			CreateParameter("@Debug", System.Data.SqlDbType.Bit, request.Debug || EnvironmentName != "Production"),
-			CreateParameter("@Param_Scaler", System.Data.SqlDbType.BigInt, request.Scaler)
+			CreateParameter("@Param_Scaler", System.Data.SqlDbType.Int, request.Scaler)
 		};
 		
 		command.CommandText = Query(parameters);

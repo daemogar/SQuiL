@@ -62,7 +62,7 @@ public record CodeBlock(CodeType CodeType, Token DatabaseType, string Name, stri
 			IsObject = true;
 			Properties = [];
 		}
-		else if (Token.Type == TokenType.TYPE_BINARY || Token.Type == TokenType.TYPE_VARBINARY)
+		else if (Token.Type == TokenType.TYPE_BINARY || Token.Type == TokenType.TYPE_VARBINARY || Token.Type == TokenType.TYPE_IMAGE || Token.Type == TokenType.TYPE_TIMESTAMP)
 		{
 			IsBinary = true;
 			IsRequired = true;

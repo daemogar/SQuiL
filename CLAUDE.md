@@ -305,7 +305,18 @@ SQuiL/
     **SP0027 is now TAKEN** — Error: a query file is registered by more than one data context (duplicate mapping, one-to-one violation).
     **SP0028 is now TAKEN** — editor-only Warning: a `.squil` file no data context registers (orphan file).
     **SP0029 is now TAKEN** — Error: both `[SQuiLQuery]` and `[SQuiLQueryTransaction]` appear on one class.
-    Next free: **SP0030**. (Verify an id is truly unreferenced with a repo-wide grep
+    **SP0030 is now TAKEN** — build error (generator): within one query file, two
+    `@Return`/`@Returns` outputs share an identical ordered canonical signature
+    (same column names, order, and C# types — length/precision do not
+    differentiate); result sets can't be routed apart at runtime.
+    **SP0031 is now TAKEN** — editor-only Warning: a standalone `Select <col-list>
+    From …` in the query body matches no declared `@Returns_`/`@Return_` output
+    signature. NOT a build/generator diagnostic.
+    **SP0032 is now TAKEN** — build error (generator): a `timestamp`/`rowversion`
+    column or scalar is declared on an input (`@Param_`/`@Params_`); timestamp is
+    server-generated and read-only, so it may only appear on outputs
+    (`@Return_`/`@Returns_`).
+    Next free: **SP0033**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
   - Signature: `[SQuiLQueryTransaction(QueryFiles type, string setting = "SQuiLDatabase", bool enabled = true, bool debugRollback = true)]`
@@ -608,13 +619,17 @@ accepts `\d+(\.\d+)?`).
 
 **SP0010 is TAKEN** (since the nullability-unification feature) — it is the
 editor-only Hint that fires on any unmarked column or scalar declare (no `null`
-or `not null`). It is NOT a build/generator diagnostic. Next free id: **SP0030**
-(SP0023–SP0029 taken by the DML-transactions feature).
+or `not null`). It is NOT a build/generator diagnostic. SP0023–SP0029 taken by
+the DML-transactions feature; SP0030/SP0031 taken by the shape-detection
+feature; SP0032 taken by the timestamp-as-input check (see Diagnostic IDs
+above). Next free id: **SP0033**.
 
 ## Special Handling
 
 - **Identifiers starting with SQL keywords**: The generator adds special handling for cases where an identifier starts with a keyword (see test for USE keyword)
-- **datetimeoffset → DateTimeOffset**: `datetimeoffset` maps end-to-end to C# `System.DateTimeOffset` (read via `GetFieldValue<DateTimeOffset>`, parameterized as `SqlDbType.DateTimeOffset`). `datetime` / `datetime2` map to `System.DateTime`.
-- **Binary data**: `varbinary`/`binary` map to `byte[]`; nullability follows the unified rule — `byte[]` is non-nullable by default, `byte[]?` only with an explicit `null` marker.
+- **SQL → C# type map**: `int`/`bigint`/`smallint`/`tinyint` map to `int`/`long`/`short`/`byte` respectively (all fixed-width integer types, each with its own `SqlDbType`). `real` maps to `float` (distinct from `float`, which maps to `double`). `money`/`smallmoney` map to `decimal` (each with its own `SqlDbType`). `smalldatetime` maps to `System.DateTime` alongside `datetime`/`datetime2`. `xml` maps to `string`. `image` maps to `byte[]` (`SqlDbType.Image`). `timestamp`/`rowversion` map to `byte[]` and are **output-only** — declaring one as an input (`@Param_`/`@Params_` scalar or input-table column) is build error **SP0032**, since the value is server-generated and read-only.
+- **datetimeoffset → DateTimeOffset**: `datetimeoffset` maps end-to-end to C# `System.DateTimeOffset` (read via `GetFieldValue<DateTimeOffset>`, parameterized as `SqlDbType.DateTimeOffset`). `datetime` / `datetime2` / `smalldatetime` map to `System.DateTime`.
+- **time → TimeOnly**: `time` maps to `System.TimeOnly` (not `TimeSpan`).
+- **Binary data**: `varbinary`/`binary`/`image`/`timestamp`/`rowversion` map to `byte[]`; nullability follows the unified rule — `byte[]` is non-nullable by default, `byte[]?` only with an explicit `null` marker (timestamp/rowversion output columns follow the same rule).
 - **Nullability**: See the "Nullability rule (unified)" section under SQuiL naming conventions.
 - **Blank lines between data**: Adds formatting for better readability in generated code

@@ -47,4 +47,14 @@ public class KeyParityTests
     [Fact] public void Parity_Uniqueidentifier() => AssertParity("uniqueidentifier", "uniqueidentifier");
     [Fact] public void Parity_Varbinary() => AssertParity("varbinary(max)", "varbinary");
     [Fact] public void Parity_Float() => AssertParity("float", "float");
+    [Fact] public void Parity_Real() => AssertParity("real", "real");
+    [Fact] public void Parity_Bigint() => AssertParity("bigint", "bigint");
+    [Fact] public void Parity_Smallint() => AssertParity("smallint", "smallint");
+    [Fact] public void Parity_Tinyint() => AssertParity("tinyint", "tinyint");
+    [Fact] public void Parity_Money() => AssertParity("money", "money");
+    [Fact] public void Parity_Smallmoney() => AssertParity("smallmoney", "smallmoney");
+    [Fact] public void Parity_Smalldatetime() => AssertParity("smalldatetime", "smalldatetime");
+    [Fact] public void Parity_Xml() => AssertParity("xml", "xml");
+    [Fact] public void Parity_Image() => AssertParity("image", "image");
+    [Fact] public void Parity_Timestamp() => AssertParity("timestamp", "timestamp");
 }

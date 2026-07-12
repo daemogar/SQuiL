@@ -182,6 +182,11 @@ export function parseSQuiL(text: string): SQuiLParseResult {
     result.diagnostics.push(d);
   }
 
+  // SP0032: timestamp/rowversion is server-generated and read-only; forbidden as an input.
+  for (const d of lintTimestampInput(result)) {
+    result.diagnostics.push(d);
+  }
+
   return result;
 }
 
@@ -300,6 +305,55 @@ export function lintCardinalityCollision(result: SQuiLParseResult): SQuiLDiagnos
         relatedStartChar: first.character,
         relatedEndChar: first.character + first.rawName.length,
         relatedMessage: 'first declared here',
+      });
+    }
+  }
+
+  return diagnostics;
+}
+
+/** SP0032 — timestamp/rowversion is a server-generated, read-only value and cannot be a
+ *  meaningful input. Flags any INPUT declaration (scalar @Param_/@Params_ or a column of
+ *  an input table) whose SQL type is timestamp/rowversion. Output declarations are fine
+ *  (byte[]). Same rule as SQuiLTimestampInputValidator.cs (generator) and
+ *  LintTimestampInput in SQuiLLinter.cs (SSMS + Visual Studio) — change one, change all.
+ */
+export function lintTimestampInput(result: SQuiLParseResult): SQuiLDiagnostic[] {
+  const diagnostics: SQuiLDiagnostic[] = [];
+
+  const inputRoles = new Set<VariableRole>(['param', 'params', 'param-table']);
+  const isTimestamp = (sqlType: string): boolean => {
+    const base = sqlType.replace(/\s*\([^)]*\)/, '').trim().split(/\s+/)[0]?.toLowerCase();
+    return base === 'timestamp' || base === 'rowversion';
+  };
+
+  for (const v of result.variables) {
+    if (!inputRoles.has(v.role)) continue;
+
+    if (v.columns && v.columns.length > 0) {
+      for (const col of v.columns) {
+        if (!isTimestamp(col.sqlType)) continue;
+        diagnostics.push({
+          message:
+            `\`${v.name}.${col.name}\` is a timestamp/rowversion used as an input. ` +
+            `timestamp is server-generated and read-only — use it only on @Return_/@Returns_ outputs, or remove it.`,
+          line: v.line,
+          startChar: v.character,
+          endChar: v.character + v.rawName.length,
+          severity: 'error',
+          code: 'SP0032',
+        });
+      }
+    } else if (isTimestamp(v.sqlType)) {
+      diagnostics.push({
+        message:
+          `\`${v.name}\` is a timestamp/rowversion used as an input. ` +
+          `timestamp is server-generated and read-only — use it only on @Return_/@Returns_ outputs, or remove it.`,
+        line: v.line,
+        startChar: v.character,
+        endChar: v.character + v.rawName.length,
+        severity: 'error',
+        code: 'SP0032',
       });
     }
   }

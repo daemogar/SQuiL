@@ -83,6 +83,10 @@ public class FileGenerator(
 			foreach (var finding in SQuiLShapeCollisionValidator.Detect(blocks, sql))
 				Context.ReportShapeCollision(method, finding);
 
+			// Timestamp-input validation (SP0032)
+			foreach (var finding in SQuiLTimestampInputValidator.Detect(blocks, sql))
+				Context.ReportTimestampInput(method, finding);
+
 			if (ShowDebugMessages)
 			{
 				foreach (var code in blocks)

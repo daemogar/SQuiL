@@ -11,7 +11,7 @@ const SQL_CS: Record<string, string> = {
   int: 'int', money: 'decimal', nchar: 'string', ntext: 'string',
   numeric: 'decimal', nvarchar: 'string', real: 'float',
   smalldatetime: 'DateTime', smallint: 'short', smallmoney: 'decimal',
-  text: 'string', time: 'TimeSpan', tinyint: 'byte',
+  text: 'string', time: 'TimeOnly', tinyint: 'byte',
   uniqueidentifier: 'Guid', varbinary: 'byte[]', varchar: 'string', xml: 'string',
 };
 

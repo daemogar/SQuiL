@@ -70,7 +70,7 @@ public enum TokenType
 	TYPE_GUID = TYPE + 9,
 	/// <summary><c>datetimeoffset</c> — maps to C# <c>System.DateTimeOffset</c>.</summary>
 	TYPE_DATETIMEOFFSET = TYPE + 10,
-	/// <summary><c>float</c> — maps to C# <c>double</c>.</summary>
+	/// <summary><c>real</c> — maps to C# <c>float</c>.</summary>
 	TYPE_FLOAT = TYPE + 11,
 	/// <summary><c>double</c> — maps to C# <c>double</c>.</summary>
 	TYPE_DOUBLE = TYPE + 12,
@@ -78,10 +78,28 @@ public enum TokenType
 	TYPE_BINARY = TYPE + 13,
 	/// <summary><c>varbinary(max)</c> — maps to C# <c>byte[]</c>.</summary>
 	TYPE_VARBINARY = TYPE + 14,
+	/// <summary><c>bigint</c> — maps to C# <c>long</c>.</summary>
+	TYPE_BIGINT = TYPE + 15,
+	/// <summary><c>smallint</c> — maps to C# <c>short</c>.</summary>
+	TYPE_SMALLINT = TYPE + 16,
+	/// <summary><c>tinyint</c> — maps to C# <c>byte</c>.</summary>
+	TYPE_TINYINT = TYPE + 17,
+	/// <summary><c>money</c> — maps to C# <c>decimal</c>.</summary>
+	TYPE_MONEY = TYPE + 18,
+	/// <summary><c>smallmoney</c> — maps to C# <c>decimal</c>.</summary>
+	TYPE_SMALLMONEY = TYPE + 19,
+	/// <summary><c>smalldatetime</c> — maps to C# <c>System.DateTime</c>.</summary>
+	TYPE_SMALLDATETIME = TYPE + 20,
 	/// <summary>Synthetic type indicating a <c>table(...)</c> variable (multi-row).</summary>
 	TYPE_TABLE = TYPE + 21,
 	/// <summary>Synthetic type indicating a <c>table(...)</c> variable used as a single object.</summary>
 	TYPE_OBJECT = TYPE + 22,
+	/// <summary><c>xml</c> — maps to C# <c>string</c>.</summary>
+	TYPE_XML = TYPE + 23,
+	/// <summary><c>image</c> — maps to C# <c>byte[]</c> (deprecated in T-SQL; prefer varbinary(max)).</summary>
+	TYPE_IMAGE = TYPE + 24,
+	/// <summary><c>timestamp</c> / <c>rowversion</c> — maps to C# <c>byte[]</c>; read-only (SP0032 on input).</summary>
+	TYPE_TIMESTAMP = TYPE + 25,
 	/// <summary>A built-in SQL function call such as <c>GETDATE()</c>.</summary>
 	TYPE_FUNCTIONS = TYPE + 31,
 	/// <summary><c>identity</c> column specifier.</summary>
