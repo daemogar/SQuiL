@@ -35,6 +35,10 @@ public class SQuiLTokenizer(string Text)
 	private static Regex FunctionRegex { get; } = new(
 		"""^(getdate\(\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
 
+	/// <summary>Matches the <c>Primary Key</c> column constraint (case-insensitive, tolerant of inner whitespace).</summary>
+	private static Regex PrimaryKeyRegex { get; } = new(
+		"""^(primary\s+key)\b""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
 	/// <summary>Matches single-character punctuation and two-character comment openers.</summary>
 	private static Regex SymbolRegex { get; } = new(
 		"""^(;|=|,|\(|\)|--|/\*)""", RegexOptions.Compiled | RegexOptions.Singleline);
@@ -94,6 +98,8 @@ public class SQuiLTokenizer(string Text)
 				break;
 
 			if (Keyword())
+				continue;
+			if (Constraint())
 				continue;
 			if (CanBeType() && Type())
 				continue;
@@ -222,6 +228,8 @@ public class SQuiLTokenizer(string Text)
 		{
 			return T(TokenType.TYPE_FUNCTIONS, p.Value, p.Value.ToUpper());
 		});
+
+		bool Constraint() => Try(PrimaryKeyRegex, p => T(TokenType.TYPE_PRIMARY_KEY, p.Value));
 
 		bool Symbol() => Try(SymbolRegex, p =>
 		{
