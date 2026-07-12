@@ -29,6 +29,10 @@ export interface TableColumn {
   nullabilityMarker?: 'NULL' | 'NOT NULL';
   /** Raw `DEFAULT <literal>` value (string literals keep their single quotes), or undefined. */
   defaultValue?: string;
+  /** 0-based source line of the column NAME token — multi-line-`table(...)`-precise. */
+  line: number;
+  /** 0-based source character of the column NAME token on its own line. */
+  character: number;
 }
 
 export interface SQuiLVariable {
@@ -144,7 +148,7 @@ export function parseSQuiL(text: string): SQuiLParseResult {
         }
       }
 
-      parseVariable(varName, typeStr, i, rawLine, result, useCount > 0);
+      parseVariable(varName, typeStr, i, rawLine, result, useCount > 0, lines);
     }
   }
 
@@ -337,9 +341,9 @@ export function lintTimestampInput(result: SQuiLParseResult): SQuiLDiagnostic[] 
           message:
             `\`${v.name}.${col.name}\` is a timestamp/rowversion used as an input. ` +
             `timestamp is server-generated and read-only — use it only on @Return_/@Returns_ outputs, or remove it.`,
-          line: v.line,
-          startChar: v.character,
-          endChar: v.character + v.rawName.length,
+          line: col.line,
+          startChar: col.character,
+          endChar: col.character + col.name.length,
           severity: 'error',
           code: 'SP0032',
         });
@@ -426,6 +430,7 @@ function parseVariable(
   fullLine: string,
   result: SQuiLParseResult,
   afterUse: boolean,
+  allLines: string[],
 ): void {
   const varStart = fullLine.indexOf(rawName);
   const upper = rawName.toUpperCase();
@@ -482,6 +487,24 @@ function parseVariable(
   const tableMatch = typeStr.match(/TABLE\s*\((.+)\)/is);
   if (tableMatch) {
     columns = parseTableColumns(tableMatch[1]);
+
+    // Default fallback: the variable's own position (matches the old,
+    // variable-precise-only behavior) — overwritten below when the
+    // multi-line-aware scan finds precise per-column positions.
+    const fallbackLine = lineNum;
+    const fallbackChar = varStart >= 0 ? varStart : 0;
+    for (const col of columns) {
+      col.line = fallbackLine;
+      col.character = fallbackChar;
+    }
+
+    const colPositions = scanTableColumnPositions(allLines, lineNum, fallbackChar + rawName.length);
+    if (colPositions.length === columns.length) {
+      columns.forEach((col, idx) => {
+        col.line = colPositions[idx].line;
+        col.character = colPositions[idx].character;
+      });
+    }
   }
 
   const scalarNull = !isTable && /\bnull\b/i.test(typeStr) && !/\bnot\s+null\b/i.test(typeStr);
@@ -518,10 +541,82 @@ function parseTableColumns(columnsStr: string): TableColumn[] {
         nullable: marker === 'NULL',
         nullabilityMarker: marker,
         defaultValue: match[4],
+        // Positions are filled in by the caller (parseVariable) once the
+        // declare's real source location is known — placeholders here.
+        line: 0,
+        character: 0,
       });
     }
   }
   return cols;
+}
+
+/**
+ * Scans the ORIGINAL source lines (not the joined/trimmed `typeStr`) for a
+ * `table( ... )` declaration starting at (startLine, startChar) and returns
+ * the source (line, character) position of each top-level column NAME token,
+ * in declaration order — correct even when the table spans multiple lines.
+ *
+ * Nested parens (e.g. `decimal(18,2)`) are tracked via paren depth so their
+ * commas are never mistaken for column separators (only depth===1 commas
+ * split columns).
+ */
+function scanTableColumnPositions(
+  lines: string[],
+  startLine: number,
+  startChar: number,
+): { line: number; character: number }[] {
+  const results: { line: number; character: number }[] = [];
+
+  // Flatten the source from (startLine, startChar) to EOF into one string,
+  // with a parallel map from flattened index -> (line, character) in the
+  // original source, so multi-line declarations still yield real positions.
+  const flatChars: string[] = [];
+  const map: { line: number; character: number }[] = [];
+  for (let li = startLine; li < lines.length; li++) {
+    const content = lines[li];
+    const begin = li === startLine ? Math.min(Math.max(startChar, 0), content.length) : 0;
+    for (let ci = begin; ci < content.length; ci++) {
+      flatChars.push(content[ci]);
+      map.push({ line: li, character: ci });
+    }
+    if (li < lines.length - 1) {
+      flatChars.push('\n');
+      map.push({ line: li, character: content.length });
+    }
+  }
+
+  const text = flatChars.join('');
+  const openMatch = /\bTABLE\s*\(/i.exec(text);
+  if (!openMatch) return results;
+
+  const isNameChar = (c: string) => /[A-Za-z0-9_]/.test(c);
+
+  let idx = openMatch.index + openMatch[0].length; // just past the opening '('
+  let depth = 1;
+  let atSegmentStart = true;
+
+  while (idx < text.length && depth > 0) {
+    if (atSegmentStart) {
+      while (idx < text.length && /\s/.test(text[idx])) idx++;
+      if (idx >= text.length) break;
+
+      const nameStart = idx;
+      while (idx < text.length && isNameChar(text[idx])) idx++;
+      if (idx > nameStart) results.push(map[nameStart]);
+
+      atSegmentStart = false;
+      continue;
+    }
+
+    const c = text[idx];
+    if (c === '(') { depth++; idx++; continue; }
+    if (c === ')') { depth--; idx++; if (depth === 0) break; continue; }
+    if (c === ',' && depth === 1) { atSegmentStart = true; idx++; continue; }
+    idx++;
+  }
+
+  return results;
 }
 
 export function splitTopLevelCommas(str: string): string[] {
