@@ -78,6 +78,12 @@ public enum TokenType
 	TYPE_BINARY = TYPE + 13,
 	/// <summary><c>varbinary(max)</c> — maps to C# <c>byte[]</c>.</summary>
 	TYPE_VARBINARY = TYPE + 14,
+	/// <summary><c>bigint</c> — maps to C# <c>long</c>.</summary>
+	TYPE_BIGINT = TYPE + 15,
+	/// <summary><c>smallint</c> — maps to C# <c>short</c>.</summary>
+	TYPE_SMALLINT = TYPE + 16,
+	/// <summary><c>tinyint</c> — maps to C# <c>byte</c>.</summary>
+	TYPE_TINYINT = TYPE + 17,
 	/// <summary>Synthetic type indicating a <c>table(...)</c> variable (multi-row).</summary>
 	TYPE_TABLE = TYPE + 21,
 	/// <summary>Synthetic type indicating a <c>table(...)</c> variable used as a single object.</summary>

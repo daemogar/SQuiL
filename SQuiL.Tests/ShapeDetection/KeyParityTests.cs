@@ -48,4 +48,7 @@ public class KeyParityTests
     [Fact] public void Parity_Varbinary() => AssertParity("varbinary(max)", "varbinary");
     [Fact] public void Parity_Float() => AssertParity("float", "float");
     [Fact] public void Parity_Real() => AssertParity("real", "real");
+    [Fact] public void Parity_Bigint() => AssertParity("bigint", "bigint");
+    [Fact] public void Parity_Smallint() => AssertParity("smallint", "smallint");
+    [Fact] public void Parity_Tinyint() => AssertParity("tinyint", "tinyint");
 }

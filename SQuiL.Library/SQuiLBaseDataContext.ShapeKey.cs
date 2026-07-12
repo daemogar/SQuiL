@@ -33,6 +33,9 @@ public abstract partial class SQuiLBaseDataContext
 	{
 		"bit" => "bool",
 		"int" => "int",
+		"bigint" => "long",
+		"smallint" => "short",
+		"tinyint" => "byte",
 		"decimal" or "numeric" or "money" or "smallmoney" => "decimal",
 		"varchar" or "nvarchar" or "char" or "nchar" or "text" or "ntext" => "string",
 		"date" => "System.DateOnly",

@@ -30,6 +30,9 @@ public record Token(TokenType Type, int Offset, string Value)
 	{
 		TokenType.TYPE_BOOLEAN => nameof(SqlDataReader.GetBoolean),
 		TokenType.TYPE_INT => nameof(SqlDataReader.GetInt32),
+		TokenType.TYPE_BIGINT => nameof(SqlDataReader.GetInt64),
+		TokenType.TYPE_SMALLINT => nameof(SqlDataReader.GetInt16),
+		TokenType.TYPE_TINYINT => nameof(SqlDataReader.GetByte),
 		TokenType.TYPE_FLOAT => nameof(SqlDataReader.GetFloat),
 		TokenType.TYPE_DOUBLE => nameof(SqlDataReader.GetDouble),
 		TokenType.TYPE_DECIMAL => nameof(SqlDataReader.GetDecimal),
@@ -52,6 +55,9 @@ public record Token(TokenType Type, int Offset, string Value)
 	{
 		TokenType.TYPE_BOOLEAN => nameof(System.Data.SqlDbType.Bit),
 		TokenType.TYPE_INT => nameof(System.Data.SqlDbType.Int),
+		TokenType.TYPE_BIGINT => nameof(System.Data.SqlDbType.BigInt),
+		TokenType.TYPE_SMALLINT => nameof(System.Data.SqlDbType.SmallInt),
+		TokenType.TYPE_TINYINT => nameof(System.Data.SqlDbType.TinyInt),
 		TokenType.TYPE_FLOAT => nameof(System.Data.SqlDbType.Real),
 		TokenType.TYPE_DOUBLE => nameof(System.Data.SqlDbType.Float),
 		TokenType.TYPE_DECIMAL => "Decimal",
@@ -75,6 +81,9 @@ public record Token(TokenType Type, int Offset, string Value)
 	{
 		TokenType.TYPE_BOOLEAN => "bool",
 		TokenType.TYPE_INT => "int",
+		TokenType.TYPE_BIGINT => "long",
+		TokenType.TYPE_SMALLINT => "short",
+		TokenType.TYPE_TINYINT => "byte",
 		TokenType.TYPE_FLOAT => "float",
 		TokenType.TYPE_DOUBLE => "double",
 		TokenType.TYPE_DECIMAL => "decimal",
@@ -100,6 +109,7 @@ public record Token(TokenType Type, int Offset, string Value)
 	{
 		TokenType.TYPE_BOOLEAN => int.TryParse(defaultValue, out var value) && value == 0 ? null : "true",
 		TokenType.TYPE_INT => defaultValue,
+		TokenType.TYPE_BIGINT or TokenType.TYPE_SMALLINT or TokenType.TYPE_TINYINT => defaultValue,
 		TokenType.TYPE_FLOAT => defaultValue is null ? null : $"{defaultValue}f",
 		TokenType.TYPE_DOUBLE => defaultValue,
 		TokenType.TYPE_DECIMAL => defaultValue is null ? null : $"{defaultValue}m",
@@ -129,6 +139,7 @@ public record Token(TokenType Type, int Offset, string Value)
 		{
 			TokenType.TYPE_BOOLEAN => $"{property} ? '1' : '0'",
 			TokenType.TYPE_INT => property,
+			TokenType.TYPE_BIGINT or TokenType.TYPE_SMALLINT or TokenType.TYPE_TINYINT => property,
 			TokenType.TYPE_FLOAT or TokenType.TYPE_DOUBLE => property,
 			TokenType.TYPE_DECIMAL => property,
 			TokenType.TYPE_STRING => S(),
