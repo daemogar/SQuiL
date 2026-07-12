@@ -252,21 +252,14 @@ public class SQuiLParser(List<Token> Tokens)
 						var identifier = Expect(TokenType.IDENTIFIER);
 						CodeItem item = new(identifier, Expect(TokenType.TYPE));
 
-						if (Current.Type == TokenType.LITERAL_NULL)
+						// Peel optional column modifiers in any order: null marker, Primary Key, default.
+						while (true)
 						{
-							item = item with { IsNullable = true };
-							Consume();
-						}
-						else if (Current.Type == TokenType.LITERAL_NOT_NULL)
-						{
-							item = item with { IsNullable = false };
-							Consume();
-						}
-
-						if (Current.Type == TokenType.TYPE_DEFAULT)
-						{
-							item = item with { DefaultValue = Current.Value };
-							Consume();
+							if (Current.Type == TokenType.LITERAL_NULL) { item = item with { IsNullable = true }; Consume(); }
+							else if (Current.Type == TokenType.LITERAL_NOT_NULL) { item = item with { IsNullable = false }; Consume(); }
+							else if (Current.Type == TokenType.TYPE_PRIMARY_KEY) { item = item with { IsPrimaryKey = true }; Consume(); }
+							else if (Current.Type == TokenType.TYPE_DEFAULT) { item = item with { DefaultValue = Current.Value }; Consume(); }
+							else break;
 						}
 
 						block.Properties.Add(item);
