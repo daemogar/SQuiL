@@ -57,16 +57,18 @@ public static class SqlTypeMap
 
     /// <summary>
     /// C# type for an entire variable, taking its role into account:
-    ///   • <c>Params</c>/<c>Returns</c> → <c>IEnumerable&lt;NameTable&gt;</c>
-    ///   • <c>ParamTable</c>/<c>ReturnTable</c> → <c>NameObject</c>
+    ///   • <c>Params</c>/<c>Returns</c> → <c>IEnumerable&lt;Name&gt;</c>
+    ///   • <c>ParamTable</c>/<c>ReturnTable</c> → <c>Name</c>
     ///   • everything else → scalar mapping of its SQL type.
+    /// The <c>Table</c>/<c>Object</c> suffix was dropped in TODO #3 — the bare
+    /// record name is used directly (matches the generator and the VS Code hover).
     /// </summary>
     public static string GetCSharpType(SQuiLVariable v) => v.Role switch
     {
-        VariableRole.Params      => $"IEnumerable<{v.Name}Table>",
-        VariableRole.Returns     => $"IEnumerable<{v.Name}Table>",
-        VariableRole.ParamTable  => $"{v.Name}Object",
-        VariableRole.ReturnTable => $"{v.Name}Object",
+        VariableRole.Params      => $"IEnumerable<{v.Name}>",
+        VariableRole.Returns     => $"IEnumerable<{v.Name}>",
+        VariableRole.ParamTable  => $"{v.Name}",
+        VariableRole.ReturnTable => $"{v.Name}",
         _                        => SqlToCSharp(v.SqlType),
     };
 
