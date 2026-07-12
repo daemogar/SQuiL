@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
-import { parseSQuiL, lintCardinalityCollision, lintShapeCollision, lintUnmatchedSelect } from './parser';
+import { parseSQuiL, lintCardinalityCollision, lintShapeCollision, lintUnmatchedSelect, lintTimestampInput } from './parser';
 import { shapeHints } from './shapeHints';
 
 // Recognition parity with the generator's SQuiLParser: bare @SuppressDebug and
@@ -240,4 +240,23 @@ test('SP0031 ignores Select * and Insert Into', () => {
     'Select * From @Returns_People;',
   ].join('\n');
   assert.strictEqual(lintUnmatchedSelect(parseSQuiL(text), text).filter(d => d.code === 'SP0031').length, 0);
+});
+
+// SP0032: timestamp/rowversion is server-generated and read-only — forbidden as an input.
+test('SP0032 fires on a timestamp input scalar', () => {
+  const diags = lintTimestampInput(parseSQuiL([
+    'Declare @Param_V timestamp;',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n')));
+  assert.ok(diags.some(d => d.code === 'SP0032'), 'timestamp input flagged');
+});
+
+test('SP0032 stays silent on a timestamp output scalar', () => {
+  const diags = lintTimestampInput(parseSQuiL([
+    'Declare @Return_V timestamp;',
+    'Use Db;',
+    'Select @Return_V;',
+  ].join('\n')));
+  assert.strictEqual(diags.filter(d => d.code === 'SP0032').length, 0);
 });

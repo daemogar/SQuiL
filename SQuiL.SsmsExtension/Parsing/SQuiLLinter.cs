@@ -71,6 +71,7 @@ internal static class SQuiLLinter
         LintSimilarSignatures(text, diagnostics);
         LintCardinalityCollision(text, diagnostics);
         LintUnmatchedSelect(text, diagnostics);
+        LintTimestampInput(text, diagnostics);
         if (squilFilePath is not null)
         {
             LintOrphanContext(squilFilePath, diagnostics);
@@ -197,6 +198,68 @@ internal static class SQuiLLinter
         }
         parts.Add(str.Substring(start));
         return parts;
+    }
+
+    // ── Timestamp-input detection (SP0032) ───────────────────────────────────
+    //
+    // timestamp/rowversion is a server-generated, read-only value and cannot be
+    // a meaningful input. Flags any INPUT declaration (scalar @Param_/@Params_
+    // or a column of an input table) whose SQL type is timestamp/rowversion.
+    // Output declarations are fine (byte[]).
+    //
+    // Port of SQuiLTimestampInputValidator.cs (source generator) — change one,
+    // change all three (+ TS).
+
+    internal static void LintTimestampInput(string sql, List<SQuiLDiagnostic> diagnostics)
+    {
+        var parsed = SQuiLParser.Parse(sql);
+
+        static bool IsTimestamp(string sqlType)
+        {
+            var t = sqlType.Trim();
+            int paren = t.IndexOf('(');
+            if (paren >= 0) t = t.Substring(0, paren);
+            var word = t.Split(' ')[0];
+            return string.Equals(word, "timestamp", System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(word, "rowversion", System.StringComparison.OrdinalIgnoreCase);
+        }
+
+        foreach (var v in parsed.Variables)
+        {
+            bool isInput = v.Role == VariableRole.Param || v.Role == VariableRole.Params || v.Role == VariableRole.ParamTable;
+            if (!isInput) continue;
+
+            if (v.Columns is { Count: > 0 })
+            {
+                foreach (var col in v.Columns)
+                {
+                    if (!IsTimestamp(col.SqlType)) continue;
+                    diagnostics.Add(new SQuiLDiagnostic
+                    {
+                        Message   = $"`{v.Name}.{col.Name}` is a timestamp/rowversion used as an input. " +
+                                    "timestamp is server-generated and read-only — use it only on @Return_/@Returns_ outputs, or remove it.",
+                        Line      = v.Line,
+                        StartChar = v.Character,
+                        EndChar   = v.Character + v.RawName.Length,
+                        Severity  = DiagnosticSeverity.Error,
+                        Code      = "SP0032",
+                    });
+                }
+            }
+            else if (IsTimestamp(v.SqlType))
+            {
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message   = $"`{v.Name}` is a timestamp/rowversion used as an input. " +
+                                "timestamp is server-generated and read-only — use it only on @Return_/@Returns_ outputs, or remove it.",
+                    Line      = v.Line,
+                    StartChar = v.Character,
+                    EndChar   = v.Character + v.RawName.Length,
+                    Severity  = DiagnosticSeverity.Error,
+                    Code      = "SP0032",
+                });
+            }
+        }
     }
 
     // ── Orphan / duplicate context resolver (SP0028 / SP0027) ────────────────

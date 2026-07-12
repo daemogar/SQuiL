@@ -98,6 +98,8 @@ public enum TokenType
 	TYPE_XML = TYPE + 23,
 	/// <summary><c>image</c> — maps to C# <c>byte[]</c> (deprecated in T-SQL; prefer varbinary(max)).</summary>
 	TYPE_IMAGE = TYPE + 24,
+	/// <summary><c>timestamp</c> / <c>rowversion</c> — maps to C# <c>byte[]</c>; read-only (SP0032 on input).</summary>
+	TYPE_TIMESTAMP = TYPE + 25,
 	/// <summary>A built-in SQL function call such as <c>GETDATE()</c>.</summary>
 	TYPE_FUNCTIONS = TYPE + 31,
 	/// <summary><c>identity</c> column specifier.</summary>
