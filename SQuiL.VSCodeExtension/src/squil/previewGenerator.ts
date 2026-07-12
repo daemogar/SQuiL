@@ -33,7 +33,7 @@ const SQL_TO_CS: Record<string, string> = {
   smallint: 'short',
   smallmoney: 'decimal',
   text: 'string',
-  time: 'TimeSpan',
+  time: 'TimeOnly',
   timestamp: 'byte[]',
   tinyint: 'byte',
   uniqueidentifier: 'Guid',

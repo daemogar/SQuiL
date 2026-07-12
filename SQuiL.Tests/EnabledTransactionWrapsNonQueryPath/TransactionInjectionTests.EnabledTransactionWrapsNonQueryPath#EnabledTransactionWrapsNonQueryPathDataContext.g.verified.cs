@@ -28,7 +28,7 @@ partial class EnabledTransactionWrapsNonQueryPathDataContext : SQuiLBaseDataCont
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@Param_Id", System.Data.SqlDbType.BigInt, request.Id)
+			CreateParameter("@Param_Id", System.Data.SqlDbType.Int, request.Id)
 		};
 		
 		command.CommandText = Query(parameters);

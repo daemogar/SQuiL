@@ -51,7 +51,7 @@ public record Token(TokenType Type, int Offset, string Value)
 	public string SqlDbType(string? size = default, bool allowNullSize = false) => "System.Data.SqlDbType." + Type switch
 	{
 		TokenType.TYPE_BOOLEAN => nameof(System.Data.SqlDbType.Bit),
-		TokenType.TYPE_INT => "BigInt",
+		TokenType.TYPE_INT => nameof(System.Data.SqlDbType.Int),
 		TokenType.TYPE_FLOAT or TokenType.TYPE_DOUBLE => nameof(System.Data.SqlDbType.Float),
 		TokenType.TYPE_DECIMAL => "Decimal",
 		TokenType.TYPE_STRING when size?.Equals("max", StringComparison.OrdinalIgnoreCase) == true => $"VarChar, -1",
@@ -139,7 +139,9 @@ public record Token(TokenType Type, int Offset, string Value)
 
 		string D(string property) => $"$\"'{{{property}}}'\"";
 
-		string S() => $""""
+		string S() => Value.Equals("max", StringComparison.OrdinalIgnoreCase)
+			? $"{property} is null ? \"Null\" : $\"'{{{property}}}'\""
+			: $""""
 			{property} is null || {property}.Length <= {Value}
 				? ({property} is null ? "Null" : $"'{"{"}{property}{"}"}'")
 				: throw new Exception($"""

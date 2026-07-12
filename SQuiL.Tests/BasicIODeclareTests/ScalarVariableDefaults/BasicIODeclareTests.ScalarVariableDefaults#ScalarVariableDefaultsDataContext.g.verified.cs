@@ -30,7 +30,7 @@ partial class ScalarVariableDefaultsDataContext : SQuiLBaseDataContext
 		{
 			CreateParameter("@Param_Id", System.Data.SqlDbType.UniqueIdentifier, request.Id),
 			CreateParameter("@Param_AmountWhole", System.Data.SqlDbType.Decimal, request.AmountWhole),
-			CreateParameter("@Param_Count", System.Data.SqlDbType.BigInt, request.Count),
+			CreateParameter("@Param_Count", System.Data.SqlDbType.Int, request.Count),
 			CreateParameter("@Param_Ratio", System.Data.SqlDbType.Float, request.Ratio),
 			CreateParameter("@Param_Flag", System.Data.SqlDbType.Bit, request.Flag),
 			CreateParameter("@Param_Label", System.Data.SqlDbType.VarChar, 50, request.Label switch
