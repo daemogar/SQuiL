@@ -31,6 +31,7 @@ public class TypeMapTests
     [InlineData(TokenType.TYPE_SMALLMONEY, "decimal", "reader.GetDecimal", "System.Data.SqlDbType.SmallMoney")]
     [InlineData(TokenType.TYPE_SMALLDATETIME, "System.DateTime", "reader.GetDateTime", "System.Data.SqlDbType.SmallDateTime")]
     [InlineData(TokenType.TYPE_XML,           "string",          "reader.GetString",  "System.Data.SqlDbType.Xml")]
+    [InlineData(TokenType.TYPE_IMAGE,         "byte[]",          "reader.GetFieldValue<byte[]>", "System.Data.SqlDbType.Image")]
     public void TypeMapping(TokenType type, string csharp, string reader, string sqlDbType)
     {
         var token = new Token(type, 0, "");

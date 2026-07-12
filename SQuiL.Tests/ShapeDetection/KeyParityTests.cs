@@ -55,4 +55,5 @@ public class KeyParityTests
     [Fact] public void Parity_Smallmoney() => AssertParity("smallmoney", "smallmoney");
     [Fact] public void Parity_Smalldatetime() => AssertParity("smalldatetime", "smalldatetime");
     [Fact] public void Parity_Xml() => AssertParity("xml", "xml");
+    [Fact] public void Parity_Image() => AssertParity("image", "image");
 }
