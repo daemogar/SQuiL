@@ -45,6 +45,70 @@ internal static class SQuiLPreviewGenerator
     private static bool IsCollection(SQuiLVariable v) =>
         v.Role is VariableRole.Params or VariableRole.Returns;
 
+    // ── Nested-objects key graph (preview-only mirror of SQuiLKeyGraph.cs) ──
+
+    /// <summary>Parent → its direct children (declaration order) plus a lookup for "is this
+    /// variable someone's child" — the child collapses into the parent record and drops off
+    /// the Response top level.</summary>
+    private sealed class NestedGraph
+    {
+        public List<SQuiLVariable> Roots { get; } = new();
+        public Dictionary<SQuiLVariable, List<SQuiLVariable>> ChildrenOf { get; } = new();
+        private readonly HashSet<SQuiLVariable> _children = new();
+        public bool IsChild(SQuiLVariable v) => _children.Contains(v);
+        public void MarkChild(SQuiLVariable v) => _children.Add(v);
+    }
+
+    /// <summary>
+    /// Minimal preview mirror of the generator's <c>SQuiLKeyGraph</c>
+    /// (<c>SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs</c>): a table/object OUTPUT
+    /// variable's key is its single <c>Primary Key</c> column; any OTHER output variable
+    /// carrying a column of that exact name becomes its child. Variables nobody links to
+    /// are roots. Only OUTPUT (<c>@Return*</c>) table/object variables participate — input
+    /// nesting is out of scope (matches the generator, which builds its graph from OUTPUT
+    /// blocks only).
+    ///
+    /// Simplified relative to the generator: ambiguous (&gt;1 distinct parent) or cyclic
+    /// links are build-time errors owned by the generator/editor diagnostics, not the
+    /// preview — here the first matching PK owner silently wins so the preview always
+    /// renders something reasonable (graceful degradation to the flat shape when there are
+    /// no links at all).
+    /// </summary>
+    private static NestedGraph BuildNestedGraph(List<SQuiLVariable> tableVars)
+    {
+        var pkOwner = new Dictionary<string, SQuiLVariable>(System.StringComparer.OrdinalIgnoreCase);
+        foreach (var v in tableVars)
+        {
+            var pk = v.Columns?.FirstOrDefault(c => c.IsPrimaryKey);
+            if (pk is not null && !pkOwner.ContainsKey(pk.Name))
+                pkOwner[pk.Name] = v;
+        }
+
+        var parentOf = new Dictionary<SQuiLVariable, SQuiLVariable>();
+        foreach (var child in tableVars)
+        {
+            foreach (var col in child.Columns ?? new List<TableColumn>())
+            {
+                if (!pkOwner.TryGetValue(col.Name, out var owner) || ReferenceEquals(owner, child))
+                    continue;
+                parentOf[child] = owner;
+                break;
+            }
+        }
+
+        var graph = new NestedGraph();
+        foreach (var v in tableVars)
+        {
+            if (!parentOf.TryGetValue(v, out var parent)) continue;
+            graph.MarkChild(v);
+            if (!graph.ChildrenOf.TryGetValue(parent, out var list))
+                graph.ChildrenOf[parent] = list = new List<SQuiLVariable>();
+            list.Add(v);
+        }
+        graph.Roots.AddRange(tableVars.Where(v => !parentOf.ContainsKey(v)));
+        return graph;
+    }
+
     public static string Generate(SQuiLParseResult parsed, string queryName, string ns = "YourNamespace", bool enabled = false, bool debugRollback = true)
     {
         string db = parsed.Database ?? "/* database */";
@@ -56,12 +120,18 @@ internal static class SQuiLPreviewGenerator
             v.Role is VariableRole.Return or VariableRole.Returns or VariableRole.ReturnTable).ToList();
 
         // Collect all table-valued variables that need row records
-        var tableVars = paramVars.Where(v => v.Columns is { Count: > 0 })
-            .Concat(returnVars.Where(v => v.Columns is { Count: > 0 }))
-            .ToList();
+        var paramTableVars = paramVars.Where(v => v.Columns is { Count: > 0 }).ToList();
+        var returnTableVars = returnVars.Where(v => v.Columns is { Count: > 0 }).ToList();
+        var tableVars = paramTableVars.Concat(returnTableVars).ToList();
         // The Namespace override on [SQuiLQuery] is generator-only; editors cannot read C# attributes,
         // so the preview always uses the default "Models" sub-namespace segment.
         string modelsNs = $"{ns}.Models";
+
+        // Nested-objects: only OUTPUT table/object variables link into a parent/child graph
+        // (input nesting is out of scope, matching the generator). Children collapse into
+        // their parent record and drop off the Response top level.
+        var graph = BuildNestedGraph(returnTableVars);
+        var responseVars = returnVars.Where(v => !graph.IsChild(v)).ToList();
 
         EmitBanner(lines, queryName, db);
         lines.Add("");
@@ -86,11 +156,12 @@ internal static class SQuiLPreviewGenerator
         lines.Add("// ── Request ─────────────────────────────────────────────");
         EmitModelRecord(lines, $"{queryName}Request", paramVars, isResponse: false, parsed.Variables, modelsNs);
 
-        // ── Response record ─────────────────────────────────────────────
+        // ── Response record (only nesting ROOTS appear at the top level — a
+        // child collapses into its parent record as a member instead) ──────
         if (returnVars.Count > 0)
         {
             lines.Add("// ── Response ────────────────────────────────────────────");
-            EmitModelRecord(lines, $"{queryName}Response", returnVars, isResponse: true, modelsNs: modelsNs);
+            EmitModelRecord(lines, $"{queryName}Response", responseVars, isResponse: true, modelsNs: modelsNs);
         }
 
         // ── Data context ────────────────────────────────────────────────
@@ -153,7 +224,7 @@ internal static class SQuiLPreviewGenerator
             lines.Add($"namespace {modelsNs};");
             lines.Add("");
             foreach (var v in tableVars)
-                EmitTableRecord(lines, RecordTypeName(v), v);
+                EmitTableRecord(lines, RecordTypeName(v), v, modelsNs, graph.ChildrenOf.TryGetValue(v, out var kids) ? kids : null);
         }
 
         return string.Join("\r\n", lines);
@@ -178,7 +249,9 @@ internal static class SQuiLPreviewGenerator
     private static string Pad(string s, int len) =>
         s.Length >= len ? s.Substring(0, len) : s + new string(' ', len - s.Length);
 
-    private static void EmitTableRecord(List<string> lines, string typeName, SQuiLVariable v)
+    private static void EmitTableRecord(
+        List<string> lines, string typeName, SQuiLVariable v,
+        string? modelsNs = null, List<SQuiLVariable>? children = null)
     {
         if (v.Columns is null || v.Columns.Count == 0) return;
 
@@ -192,8 +265,9 @@ internal static class SQuiLPreviewGenerator
         var positional = v.Columns.Where(c => c.DefaultValue is null).ToList();
         var defaulted = v.Columns.Where(c => c.DefaultValue is not null).ToList();
         string @params = string.Join(", ", positional.Select(c => $"{CsType(c)} {c.Name}"));
+        bool hasChildren = children is { Count: > 0 };
 
-        if (defaulted.Count == 0)
+        if (defaulted.Count == 0 && !hasChildren)
         {
             lines.Add($"public partial record {typeName}({@params});");
             lines.Add("");
@@ -204,6 +278,13 @@ internal static class SQuiLPreviewGenerator
         lines.Add("{");
         foreach (var col in defaulted)
             lines.Add($"    public {CsType(col)} {col.Name} {{ get; init; }} = {CSharpDefault(col.SqlType, col.DefaultValue!)};");
+        // Nested-objects: a child table/object collapses into its parent record as a plain
+        // settable member (no `= []`/`= default!` initializer — those belong only to
+        // top-level Response properties), typed the same as a top-level list/object member
+        // (List<ns.Models.Child>? for a list child, ns.Models.Child? for an object child).
+        if (hasChildren)
+            foreach (var child in children!)
+                lines.Add($"    public {GetPropertyType(child, modelsNs)} {child.Name} {{ get; set; }}");
         lines.Add("}");
         lines.Add("");
     }

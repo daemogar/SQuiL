@@ -151,3 +151,69 @@ test('preview mirrors generator nullability', () => {
   assert.ok(out.includes('public List<YourNamespace.Models.Rows>? Rows { get; set; };'), 'list response → List<ns.Models.X>? with no initializer');
   assert.ok(!out.includes('List<YourNamespace.Models.Rows>? Rows { get; set; } = []'), 'response list must not have = [] initializer');
 });
+
+// ─── Nested objects (Transcript → Institution → Course) ────────────────────
+
+test('preview renders nested child members and only the root at the Response top level', () => {
+  const out = preview([
+    '--Name: ThreeLevelListNesting',
+    'Declare @Return_Transcript table(TranscriptID int Primary Key, IssueDate date);',
+    'Declare @Returns_Institution table(InstitutionID int Primary Key, TranscriptID int, SchoolName varchar(50));',
+    'Declare @Returns_Course table(CourseID int, InstitutionID int, Title varchar(50));',
+    'Use Db;',
+    'Insert Into @Return_Transcript Select TranscriptID, IssueDate From T;',
+    'Insert Into @Returns_Institution Select InstitutionID, TranscriptID, SchoolName From I;',
+    'Insert Into @Returns_Course Select CourseID, InstitutionID, Title From C;',
+    'Select * From @Return_Transcript;',
+    'Select * From @Returns_Institution;',
+    'Select * From @Returns_Course;',
+  ].join('\n'));
+
+  // Response top level: only the root (Transcript) — Institution/Course must NOT
+  // appear as Response properties, they collapse into their parent records.
+  assert.ok(out.includes('YourNamespace.Models.Transcript? Transcript { get; set; }'), 'Transcript is the only Response root');
+  const responseSection = out.slice(out.indexOf('ThreeLevelListNestingResponse'), out.indexOf('DataContext'));
+  assert.ok(!responseSection.includes('Institution'), 'Institution must not be a Response top-level member');
+  assert.ok(!responseSection.includes('Course'), 'Course must not be a Response top-level member');
+
+  // Transcript record gets a nested List<...Institution>? member.
+  assert.ok(out.includes('public partial record Transcript(int TranscriptID, DateOnly IssueDate)'), 'Transcript record emitted with its own columns');
+  assert.ok(out.includes('List<YourNamespace.Models.Institution>? Institution { get; set; }'), 'Transcript record has a nested Institution list member');
+
+  // Institution record gets a nested List<...Course>? member.
+  assert.ok(out.includes('List<YourNamespace.Models.Course>? Course { get; set; }'), 'Institution record has a nested Course list member');
+
+  // Course is a leaf: no nested members, still a plain positional record.
+  assert.ok(out.includes('public partial record Course(int CourseID, int InstitutionID, string Title);'), 'Course stays a plain positional record (no children)');
+});
+
+test('preview renders a nested object child (non-list) as a nullable member, no default', () => {
+  const out = preview([
+    '--Name: EmbeddedObjectChild',
+    'Declare @Return_Transcript table(TranscriptID int Primary Key, IssueDate date);',
+    'Declare @Return_Student table(StudentID int Primary Key, TranscriptID int, FirstName varchar(50));',
+    'Use Db;',
+    'Insert Into @Return_Transcript Select TranscriptID, IssueDate From T;',
+    'Insert Into @Return_Student Select StudentID, TranscriptID, FirstName From S;',
+    'Select * From @Return_Transcript;',
+    'Select * From @Return_Student;',
+  ].join('\n'));
+
+  const responseSection = out.slice(out.indexOf('EmbeddedObjectChildResponse'), out.indexOf('DataContext'));
+  assert.ok(!responseSection.includes('Student'), 'Student must not be a Response top-level member');
+  assert.ok(out.includes('YourNamespace.Models.Student? Student { get; set; }'), 'Transcript record has a nested nullable Student member');
+});
+
+test('preview stays flat when Primary Keys exist but no column links them (graceful degradation)', () => {
+  const out = preview([
+    '--Name: NoLinks',
+    'Declare @Returns_A table(AID int Primary Key, Name varchar(50));',
+    'Declare @Returns_B table(BID int Primary Key, Name varchar(50));',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n'));
+
+  const responseSection = out.slice(out.indexOf('NoLinksResponse'), out.indexOf('DataContext'));
+  assert.ok(responseSection.includes('A { get; set; }'), 'A stays a flat Response member');
+  assert.ok(responseSection.includes('B { get; set; }'), 'B stays a flat Response member');
+});

@@ -59,6 +59,66 @@ function isCollectionRole(v: SQuiLVariable): boolean {
   return v.role === 'params' || v.role === 'returns';
 }
 
+// ─── Nested-objects key graph (preview-only mirror of SQuiLKeyGraph.cs) ───
+
+/**
+ * Minimal preview mirror of the generator's `SQuiLKeyGraph`
+ * (`SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs`): a table/object
+ * OUTPUT variable's key is its single `Primary Key` column; any OTHER output
+ * variable carrying a column of that exact name becomes its child. Variables
+ * nobody links to are roots. Only OUTPUT (`@Return*`) table/object variables
+ * participate — input nesting is out of scope (matches the generator, which
+ * builds its graph from OUTPUT blocks only).
+ *
+ * Simplified relative to the generator: ambiguous (>1 distinct parent) or
+ * cyclic links are build-time errors owned by the generator/editor
+ * diagnostics, not the preview — here the first matching PK owner silently
+ * wins so the preview always renders *something* reasonable (graceful
+ * degradation to the flat shape when there are no links at all).
+ */
+interface NestedGraph {
+  /** Variables that are not any other variable's child — the top-level Response members. */
+  roots: SQuiLVariable[];
+  /** parent → its direct children, in declaration order. */
+  childrenOf: Map<SQuiLVariable, SQuiLVariable[]>;
+  /** true when `v` collapses into a parent record instead of staying top-level. */
+  isChild: (v: SQuiLVariable) => boolean;
+}
+
+function buildNestedGraph(tableVars: SQuiLVariable[]): NestedGraph {
+  // key column name (lower-cased) -> the variable whose Primary Key it is.
+  const pkOwner = new Map<string, SQuiLVariable>();
+  for (const v of tableVars) {
+    const pk = (v.columns ?? []).find(c => c.isPrimaryKey);
+    if (pk && !pkOwner.has(pk.name.toLowerCase())) {
+      pkOwner.set(pk.name.toLowerCase(), v);
+    }
+  }
+
+  const parentOf = new Map<SQuiLVariable, SQuiLVariable>();
+  for (const child of tableVars) {
+    for (const col of child.columns ?? []) {
+      const owner = pkOwner.get(col.name.toLowerCase());
+      if (owner && owner !== child) {
+        parentOf.set(child, owner);
+        break;
+      }
+    }
+  }
+
+  const childrenOf = new Map<SQuiLVariable, SQuiLVariable[]>();
+  for (const v of tableVars) {
+    const parent = parentOf.get(v);
+    if (!parent) continue;
+    const list = childrenOf.get(parent);
+    if (list) list.push(v);
+    else childrenOf.set(parent, [v]);
+  }
+
+  const roots = tableVars.filter(v => !parentOf.has(v));
+  return { roots, childrenOf, isChild: v => parentOf.has(v) };
+}
+
 function getPropertyType(v: SQuiLVariable, modelsNs?: string): string {
   if (v.role === 'params' || v.role === 'returns') {
     const typeName = modelsNs ? `${modelsNs}.${recordTypeName(v)}` : recordTypeName(v);
@@ -93,13 +153,18 @@ export function generateCSharpPreview(
   );
 
   // Collect all table-valued variables that need row records
-  const tableVars = [
-    ...params.filter(v => v.columns && v.columns.length > 0),
-    ...returns.filter(v => v.columns && v.columns.length > 0),
-  ];
+  const paramTableVars = params.filter(v => v.columns && v.columns.length > 0);
+  const returnTableVars = returns.filter(v => v.columns && v.columns.length > 0);
+  const tableVars = [...paramTableVars, ...returnTableVars];
   // The Namespace override on [SQuiLQuery] is generator-only; editors cannot read C# attributes,
   // so the preview always uses the default "Models" sub-namespace segment.
   const modelsNs = `${namespace}.Models`;
+
+  // Nested-objects: only OUTPUT table/object variables link into a parent/child
+  // graph (input nesting is out of scope, matching the generator). Children
+  // collapse into their parent record and drop off the Response top level.
+  const graph = buildNestedGraph(returnTableVars);
+  const responseVars = returns.filter(v => !graph.isChild(v));
 
   banner(lines, queryName, db);
   lines.push('');
@@ -123,10 +188,11 @@ export function generateCSharpPreview(
   lines.push(`// ── Request ─────────────────────────────────────────────`);
   emitModelRecord(lines, `${queryName}Request`, params, /*isResponse*/ false, parsed.variables, modelsNs);
 
-  // ── Response record
+  // ── Response record (only nesting ROOTS appear at the top level — a
+  // child collapses into its parent record as a member instead)
   if (returns.length > 0) {
     lines.push(`// ── Response ────────────────────────────────────────────`);
-    emitModelRecord(lines, `${queryName}Response`, returns, /*isResponse*/ true, undefined, modelsNs);
+    emitModelRecord(lines, `${queryName}Response`, responseVars, /*isResponse*/ true, undefined, modelsNs);
   }
 
   // ── Data context
@@ -185,7 +251,7 @@ export function generateCSharpPreview(
     lines.push(`namespace ${modelsNs};`);
     lines.push('');
     for (const v of tableVars) {
-      emitTableRecord(lines, recordTypeName(v), v);
+      emitTableRecord(lines, recordTypeName(v), v, modelsNs, graph.childrenOf.get(v));
     }
   }
 
@@ -224,7 +290,13 @@ function csharpDefault(sqlType: string, raw: string): string {
   return raw;
 }
 
-function emitTableRecord(lines: string[], typeName: string, v: SQuiLVariable): void {
+function emitTableRecord(
+  lines: string[],
+  typeName: string,
+  v: SQuiLVariable,
+  modelsNs?: string,
+  children?: SQuiLVariable[],
+): void {
   if (!v.columns || v.columns.length === 0) return;
 
   const csType = (col: typeof v.columns[number]): string => {
@@ -235,8 +307,9 @@ function emitTableRecord(lines: string[], typeName: string, v: SQuiLVariable): v
   const positional = v.columns.filter(c => !c.defaultValue);
   const defaulted = v.columns.filter(c => c.defaultValue);
   const params = positional.map(c => `${csType(c)} ${c.name}`).join(', ');
+  const hasChildren = children !== undefined && children.length > 0;
 
-  if (defaulted.length === 0) {
+  if (defaulted.length === 0 && !hasChildren) {
     lines.push(`public partial record ${typeName}(${params});`);
     lines.push('');
     return;
@@ -247,6 +320,16 @@ function emitTableRecord(lines: string[], typeName: string, v: SQuiLVariable): v
   defaulted.forEach(col => {
     lines.push(`    public ${csType(col)} ${col.name} { get; init; } = ${csharpDefault(col.sqlType, col.defaultValue!)};`);
   });
+  // Nested-objects: a child table/object collapses into its parent record as a
+  // plain settable member (no `= []`/`= default!` initializer — those belong
+  // only to top-level Response properties), typed the same as a top-level
+  // list/object member (List<ns.Models.Child>? for a list child, ns.Models.Child?
+  // for an object child).
+  if (hasChildren) {
+    children!.forEach(child => {
+      lines.push(`    public ${getPropertyType(child, modelsNs)} ${child.name} { get; set; }`);
+    });
+  }
   lines.push(`}`);
   lines.push('');
 }
