@@ -95,14 +95,24 @@ public class FileGenerator(
 					Context.Debug(token.Expect());
 			}
 
-			// Nested-objects (Task 4): build the key graph from OUTPUT blocks only (INPUT
-			// nesting is out of scope). An errored graph (ambiguous/cycle) falls back to an
-			// empty graph here so generation stays on the flat path for this file; diagnostics
-			// for `graph.Errors` are reported elsewhere (Task 7) — this call site must not crash.
+			// Nested-objects (Task 4/7): build the key graph from OUTPUT blocks only (INPUT
+			// nesting is out of scope). An errored graph (ambiguous/cycle) is a build error —
+			// report SP0033/SP0034 for each finding and skip emitting this file's models and
+			// data-context entirely (same "bail out of Create" shape as the DiagnosticException
+			// catch below), rather than silently falling back to the flat path.
 			var outputBlocksForGraph = blocks.Where(b => (b.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT);
 			var keyGraph = SQuiLKeyGraph.Build(outputBlocksForGraph, sql);
 			if (keyGraph.Errors.Count > 0)
-				keyGraph = SQuiLKeyGraph.Build([], "");
+			{
+				foreach (var finding in keyGraph.Errors)
+				{
+					if (finding.Kind == "cycle")
+						Context.ReportKeyCycle(method, finding);
+					else
+						Context.ReportAmbiguousKeyLink(method, finding);
+				}
+				return default;
+			}
 
 			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, recordNamespace, method, blocks, TableMap, records, sql, keyGraph);
 

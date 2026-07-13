@@ -316,7 +316,19 @@ SQuiL/
     column or scalar is declared on an input (`@Param_`/`@Params_`); timestamp is
     server-generated and read-only, so it may only appear on outputs
     (`@Return_`/`@Returns_`).
-    Next free: **SP0033**. (Verify an id is truly unreferenced with a repo-wide grep
+    **SP0033 is now TAKEN** — build error (generator): within one query file's
+    nested-object key graph (OUTPUT blocks only), a child table/object's column
+    matches the declared Primary Key of more than one other table/object
+    (ambiguous parent — a nested-object child must resolve to exactly one
+    parent). See `SQuiLKeyGraph.Errors` (`Kind == "ambiguous"`) +
+    `DiagnosticsMessages.ReportAmbiguousKeyLink`.
+    **SP0034 is now TAKEN** — build error (generator): within one query file's
+    nested-object key graph, following Primary-Key/Foreign-Key links from a
+    table returns to that same table (cycle — nested objects require a tree).
+    See `SQuiLKeyGraph.Errors` (`Kind == "cycle"`) +
+    `DiagnosticsMessages.ReportKeyCycle`. Both SP0033/SP0034 suppress code
+    emission entirely for the offending query file (no flat-path fallback).
+    Next free: **SP0035**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
   - Signature: `[SQuiLQueryTransaction(QueryFiles type, string setting = "SQuiLDatabase", bool enabled = true, bool debugRollback = true)]`
@@ -621,8 +633,9 @@ accepts `\d+(\.\d+)?`).
 editor-only Hint that fires on any unmarked column or scalar declare (no `null`
 or `not null`). It is NOT a build/generator diagnostic. SP0023–SP0029 taken by
 the DML-transactions feature; SP0030/SP0031 taken by the shape-detection
-feature; SP0032 taken by the timestamp-as-input check (see Diagnostic IDs
-above). Next free id: **SP0033**.
+feature; SP0032 taken by the timestamp-as-input check; SP0033/SP0034 taken by
+the nested-objects key-graph diagnostics (ambiguous/cycle) (see Diagnostic IDs
+above). Next free id: **SP0035**.
 
 ## Special Handling
 
