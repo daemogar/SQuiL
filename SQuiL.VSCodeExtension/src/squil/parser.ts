@@ -29,6 +29,9 @@ export interface TableColumn {
   nullabilityMarker?: 'NULL' | 'NOT NULL';
   /** Raw `DEFAULT <literal>` value (string literals keep their single quotes), or undefined. */
   defaultValue?: string;
+  /** `true` when the column was declared `PRIMARY KEY` — its name becomes the table's
+   * relationship key for nested-object linking. */
+  isPrimaryKey: boolean;
   /** 0-based source line of the column NAME token — multi-line-`table(...)`-precise. */
   line: number;
   /** 0-based source character of the column NAME token on its own line. */
@@ -531,22 +534,51 @@ function parseTableColumns(columnsStr: string): TableColumn[] {
   const parts = splitTopLevelCommas(columnsStr);
   for (const part of parts) {
     const trimmed = part.trim();
-    const match = trimmed.match(/^(\w+)\s+([\w]+(?:\([^)]*\))?)\s*(NULL|NOT\s+NULL)?\s*(?:DEFAULT\s+('[^']*'|\S+))?$/i);
-    if (match) {
-      const nullability = (match[3] ?? '').toUpperCase().trim();
-      const marker = nullability === 'NULL' ? 'NULL' : nullability === 'NOT NULL' ? 'NOT NULL' : undefined;
-      cols.push({
-        name: match[1],
-        sqlType: match[2].trim(),
-        nullable: marker === 'NULL',
-        nullabilityMarker: marker,
-        defaultValue: match[4],
-        // Positions are filled in by the caller (parseVariable) once the
-        // declare's real source location is known — placeholders here.
-        line: 0,
-        character: 0,
-      });
+    const head = trimmed.match(/^(\w+)\s+([\w]+(?:\([^)]*\))?)\s*(.*)$/is);
+    if (!head) continue;
+
+    let nullabilityMarker: 'NULL' | 'NOT NULL' | undefined;
+    let isPrimaryKey = false;
+    let defaultValue: string | undefined;
+
+    // Peel optional column modifiers in any order: null marker, Primary Key,
+    // default — mirrors the generator's tokenizer-driven peeling loop.
+    let tail = head[3].trim();
+    while (tail.length > 0) {
+      const notNull = tail.match(/^NOT\s+NULL\b\s*/i);
+      const nullOnly = notNull ? null : tail.match(/^NULL\b\s*/i);
+      const primaryKey = notNull || nullOnly ? null : tail.match(/^PRIMARY\s+KEY\b\s*/i);
+      const defaultMatch = notNull || nullOnly || primaryKey ? null : tail.match(/^DEFAULT\s+('[^']*'|\S+)\s*/i);
+
+      if (notNull) {
+        nullabilityMarker = 'NOT NULL';
+        tail = tail.slice(notNull[0].length);
+      } else if (nullOnly) {
+        nullabilityMarker = 'NULL';
+        tail = tail.slice(nullOnly[0].length);
+      } else if (primaryKey) {
+        isPrimaryKey = true;
+        tail = tail.slice(primaryKey[0].length);
+      } else if (defaultMatch) {
+        defaultValue = defaultMatch[1];
+        tail = tail.slice(defaultMatch[0].length);
+      } else {
+        break;
+      }
     }
+
+    cols.push({
+      name: head[1],
+      sqlType: head[2].trim(),
+      nullable: nullabilityMarker === 'NULL',
+      nullabilityMarker,
+      defaultValue,
+      isPrimaryKey,
+      // Positions are filled in by the caller (parseVariable) once the
+      // declare's real source location is known — placeholders here.
+      line: 0,
+      character: 0,
+    });
   }
   return cols;
 }

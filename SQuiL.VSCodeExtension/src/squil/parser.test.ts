@@ -50,6 +50,41 @@ test('column nullable only with explicit NULL; scalar marker captured', () => {
   assert.strictEqual(r.variables.find(v => v.name === 'SN')!.nullabilityMarker, 'NULL');
 });
 
+// Task 8: PRIMARY KEY column constraint parity with the generator — parsed
+// and flagged, order-independent alongside NULL/NOT NULL/DEFAULT, no error.
+test('table column PRIMARY KEY is parsed and flagged (isPrimaryKey), no diagnostics', () => {
+  const r = parseSQuiL([
+    '--Name: PrimaryKeyParse',
+    'Declare @Returns_Course table(CourseID int Primary Key, Title varchar(100));',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n'));
+
+  assert.deepStrictEqual(r.diagnostics.filter((d) => d.severity === 'error'), []);
+
+  const course = r.variables.find((v) => v.name === 'Course')!;
+  assert.ok(course, '@Returns_Course should be parsed');
+  assert.deepStrictEqual(course.columns!.map((c) => c.isPrimaryKey), [true, false]);
+});
+
+// PRIMARY KEY must peel in any order alongside NULL/NOT NULL/DEFAULT, like the
+// generator's tokenizer-driven column-modifier loop.
+test('table column PRIMARY KEY is order-independent with NOT NULL / DEFAULT', () => {
+  const r = parseSQuiL([
+    '--Name: PrimaryKeyOrder',
+    'Declare @Returns_Row table(A int not null Primary Key, B int Primary Key not null, C int default 1);',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n'));
+
+  assert.deepStrictEqual(r.diagnostics.filter((d) => d.severity === 'error'), []);
+
+  const row = r.variables.find((v) => v.name === 'Row')!;
+  assert.deepStrictEqual(row.columns!.map((c) => c.isPrimaryKey), [true, true, false]);
+  assert.deepStrictEqual(row.columns!.map((c) => c.nullabilityMarker), ['NOT NULL', 'NOT NULL', undefined]);
+  assert.strictEqual(row.columns![2].defaultValue, '1');
+});
+
 // SP0017: shape mismatch between two same-name table variables in one file.
 test('SP0017 shape mismatch: same name different columns fires error with relatedInformation', () => {
   const sql = [
