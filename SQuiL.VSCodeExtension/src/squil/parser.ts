@@ -83,6 +83,7 @@ export interface SQuiLParseResult {
 
 import { validateVariables, findingMessage, findingSeverity } from './variableValidator';
 import { shapeKeyOf } from './shapeKey';
+import { buildKeyGraph } from './keyGraph';
 
 /** Parse a full SQuiL SQL file text into a structured result. */
 export function parseSQuiL(text: string): SQuiLParseResult {
@@ -194,7 +195,71 @@ export function parseSQuiL(text: string): SQuiLParseResult {
     result.diagnostics.push(d);
   }
 
+  // SP0033 / SP0034: nested-object key-graph errors (ambiguous parent / cycle).
+  for (const d of lintKeyGraph(result)) {
+    result.diagnostics.push(d);
+  }
+
   return result;
+}
+
+/**
+ * SP0033 (Error) — a nested-object child's column matches the declared Primary
+ * Key of more than one other table/object (ambiguous parent — a nested-object
+ * child must resolve to exactly one parent).
+ *
+ * SP0034 (Error) — following Primary-Key/Foreign-Key links from a table
+ * eventually returns to that same table (cycle — nested objects require a tree).
+ *
+ * Both are build errors in the generator (`SQuiLKeyGraph.Errors`,
+ * `DiagnosticsMessages.ReportAmbiguousKeyLink` / `ReportKeyCycle`) — this is the
+ * editor-squiggle mirror. Port of `LintKeyGraph` in `SQuiLLinter.cs`
+ * (SSMS + Visual Studio) — change one side, change all three.
+ */
+export function lintKeyGraph(result: SQuiLParseResult): SQuiLDiagnostic[] {
+  const diagnostics: SQuiLDiagnostic[] = [];
+  const graph = buildKeyGraph(result.variables);
+
+  for (const finding of graph.errors) {
+    const v = finding.variable;
+    const other = finding.otherVariable;
+
+    if (finding.kind === 'ambiguous') {
+      diagnostics.push({
+        message:
+          `\`${v.name}\` (line ${v.line + 1}) links to more than one table — it also matches ` +
+          `\`${other.name}\`'s (line ${other.line + 1}) primary key. A nested-object child must have ` +
+          `exactly one parent — rename one of the key columns so only one match remains.`,
+        line: v.line,
+        startChar: v.character,
+        endChar: v.character + v.rawName.length,
+        severity: 'error',
+        code: 'SP0033',
+        relatedLine: other.line,
+        relatedStartChar: other.character,
+        relatedEndChar: other.character + other.rawName.length,
+        relatedMessage: "matches this table's primary key",
+      });
+    } else {
+      // cycle
+      diagnostics.push({
+        message:
+          `\`${v.name}\` (line ${v.line + 1}) and \`${other.name}\` (line ${other.line + 1}) ` +
+          `form a primary-key/foreign-key cycle. Nested objects cannot be recursive — remove one of the links.`,
+        line: v.line,
+        startChar: v.character,
+        endChar: v.character + v.rawName.length,
+        severity: 'error',
+        code: 'SP0034',
+        relatedLine: other.line,
+        relatedStartChar: other.character,
+        relatedEndChar: other.character + other.rawName.length,
+        relatedMessage: 'cycle partner declared here',
+      });
+    }
+  }
+
+  return diagnostics;
 }
 
 /** SP0017 — within a single file, detect table variables that share the same base

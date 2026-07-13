@@ -336,3 +336,51 @@ test('SP0032 (input table column) — squiggle range is multi-line-precise (colu
   assert.strictEqual(d!.startChar, expectedStart, 'startChar should point at the column name on its own line');
   assert.strictEqual(d!.endChar, expectedStart + 'Ver'.length, 'endChar should cover only the column name');
 });
+
+// ── SP0033 / SP0034: nested-object key-graph errors (editor squiggle parity
+// with the generator's build-time SQuiLKeyGraph.Errors) ─────────────────────
+
+test('SP0033 fires when a child column matches more than one declared Primary Key (ambiguous)', () => {
+  const result = parseSQuiL([
+    '--Name: Ambiguous',
+    'Declare @Returns_A table(SharedID int Primary Key, N int);',
+    'Declare @Returns_B table(SharedID int Primary Key, M int);',
+    'Declare @Returns_C table(CID int, SharedID int);',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n'));
+
+  const sp0033 = result.diagnostics.filter(d => d.code === 'SP0033');
+  assert.strictEqual(sp0033.length, 1, 'should emit exactly one SP0033 diagnostic');
+  assert.strictEqual(sp0033[0].severity, 'error');
+  assert.ok(sp0033[0].message.includes('C'), 'message should name the ambiguous child');
+  assert.ok(sp0033[0].message.includes('A'), 'message should name a matched parent');
+});
+
+test('SP0034 fires when Primary-Key/Foreign-Key links form a cycle', () => {
+  const result = parseSQuiL([
+    '--Name: Cycle',
+    'Declare @Return_A table(AID int Primary Key, BID int);',
+    'Declare @Return_B table(BID int Primary Key, AID int);',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n'));
+
+  const sp0034 = result.diagnostics.filter(d => d.code === 'SP0034');
+  assert.strictEqual(sp0034.length, 1, 'should emit exactly one SP0034 diagnostic');
+  assert.strictEqual(sp0034[0].severity, 'error');
+  assert.ok(sp0034[0].message.includes('A') && sp0034[0].message.includes('B'), 'message should name both tables');
+});
+
+test('SP0033/SP0034 stay silent on a well-formed tree (no ambiguity, no cycle)', () => {
+  const result = parseSQuiL([
+    '--Name: Tree',
+    'Declare @Returns_Parent table(ParentID int Primary Key, Name varchar(50));',
+    'Declare @Returns_Child table(ChildID int Primary Key, ParentID int);',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n'));
+
+  assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0033').length, 0);
+  assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0034').length, 0);
+});

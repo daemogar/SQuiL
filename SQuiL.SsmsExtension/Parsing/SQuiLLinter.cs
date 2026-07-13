@@ -72,6 +72,7 @@ internal static class SQuiLLinter
         LintCardinalityCollision(text, diagnostics);
         LintUnmatchedSelect(text, diagnostics);
         LintTimestampInput(text, diagnostics);
+        LintKeyGraph(text, diagnostics);
         if (squilFilePath is not null)
         {
             LintOrphanContext(squilFilePath, diagnostics);
@@ -257,6 +258,159 @@ internal static class SQuiLLinter
                     EndChar   = v.Character + v.RawName.Length,
                     Severity  = DiagnosticSeverity.Error,
                     Code      = "SP0032",
+                });
+            }
+        }
+    }
+
+    // ── Nested-objects key-graph diagnostics (SP0033 / SP0034 / SP0035) ──────
+    //
+    // SP0033 (Error): a child table/object's column matches the declared Primary
+    //   Key of more than one other table/object (ambiguous parent — a
+    //   nested-object child must resolve to exactly one parent).
+    // SP0034 (Error): following Primary-Key/Foreign-Key links from a table
+    //   eventually returns to that same table (cycle — nested objects require
+    //   a tree).
+    // SP0035 (Info, editor-only — NOT a build/generator diagnostic): a
+    //   table/object's Primary Key that NO other table/object links to, but
+    //   ONLY surfaced when nesting is already in play elsewhere in the file
+    //   (at least one real parent/child link exists). A deliberately-flat file
+    //   whose tables happen to each declare an unrelated Primary Key must NOT
+    //   be nagged.
+    //
+    // Only OUTPUT (@Return_/@Returns_) table/object variables participate —
+    // input nesting is out of scope, matching the generator (which builds its
+    // graph from OUTPUT blocks only).
+    //
+    // Mirrors SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs (SP0033/SP0034
+    // are also build-time errors there) and keyGraph.ts / nestedObjectHints.ts
+    // (VS Code extension) — change one side, change all three.
+
+    internal static void LintKeyGraph(string sql, List<SQuiLDiagnostic> diagnostics)
+    {
+        var parsed = SQuiLParser.Parse(sql);
+        var list = parsed.Variables.Where(v =>
+            (v.Role == VariableRole.Returns || v.Role == VariableRole.ReturnTable)
+            && v.Columns is { Count: > 0 })
+            .ToList();
+
+        // Key column name -> owning variable(s). A variable's key = its single
+        // Primary-Key column.
+        var pkOwners = new Dictionary<string, List<SQuiLVariable>>(System.StringComparer.OrdinalIgnoreCase);
+        var pkColumnOf = new Dictionary<SQuiLVariable, TableColumn>();
+        foreach (var v in list)
+        {
+            var pk = v.Columns!.FirstOrDefault(c => c.IsPrimaryKey);
+            if (pk is null) continue;
+            pkColumnOf[v] = pk;
+            if (!pkOwners.TryGetValue(pk.Name, out var owners))
+                pkOwners[pk.Name] = owners = new List<SQuiLVariable>();
+            owners.Add(v);
+        }
+
+        var edges = new List<(SQuiLVariable Parent, SQuiLVariable Child)>();
+        var childOf = new Dictionary<SQuiLVariable, SQuiLVariable>();
+
+        foreach (var child in list)
+        {
+            // Which declared keys does this variable carry a matching column for
+            // (excluding its own PK)?
+            var matches = new List<(string Key, SQuiLVariable Parent)>();
+            foreach (var col in child.Columns!)
+            {
+                if (!pkOwners.TryGetValue(col.Name, out var owners)) continue;
+                foreach (var owner in owners)
+                {
+                    if (ReferenceEquals(owner, child)) continue; // own PK column
+                    matches.Add((col.Name, owner));
+                }
+            }
+            if (matches.Count == 0) continue;
+
+            // A child column matching >1 distinct parent → ambiguous (graph must be a tree).
+            var distinctParents = matches.Select(m => m.Parent).Distinct().ToList();
+            if (distinctParents.Count > 1)
+            {
+                var other = distinctParents.First(p => !ReferenceEquals(p, distinctParents[0]));
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message = $"`{child.Name}` (line {child.Line + 1}) links to more than one table — it also matches " +
+                              $"`{other.Name}`'s (line {other.Line + 1}) primary key. A nested-object child must have " +
+                              "exactly one parent — rename one of the key columns so only one match remains.",
+                    Line = child.Line,
+                    StartChar = child.Character,
+                    EndChar = child.Character + child.RawName.Length,
+                    Severity = DiagnosticSeverity.Error,
+                    Code = "SP0033",
+                    RelatedLine = other.Line,
+                    RelatedStartChar = other.Character,
+                    RelatedEndChar = other.Character + other.RawName.Length,
+                    RelatedMessage = "matches this table's primary key",
+                });
+                continue;
+            }
+
+            var parent = distinctParents[0];
+            edges.Add((parent, child));
+            childOf[child] = parent;
+        }
+
+        // Cycle / self-reference detection over the childOf map. Report each cycle
+        // ONCE and name the actual partner (cur) whose FK closes the loop back to start.
+        var reportedCycle = new HashSet<SQuiLVariable>();
+        foreach (var start in list)
+        {
+            if (reportedCycle.Contains(start)) continue;
+            var seen = new HashSet<SQuiLVariable>();
+            var cur = start;
+            while (childOf.TryGetValue(cur, out var next))
+            {
+                if (ReferenceEquals(next, start))
+                {
+                    diagnostics.Add(new SQuiLDiagnostic
+                    {
+                        Message = $"`{start.Name}` (line {start.Line + 1}) and `{cur.Name}` (line {cur.Line + 1}) " +
+                                  "form a primary-key/foreign-key cycle. Nested objects cannot be recursive — remove one of the links.",
+                        Line = start.Line,
+                        StartChar = start.Character,
+                        EndChar = start.Character + start.RawName.Length,
+                        Severity = DiagnosticSeverity.Error,
+                        Code = "SP0034",
+                        RelatedLine = cur.Line,
+                        RelatedStartChar = cur.Character,
+                        RelatedEndChar = cur.Character + cur.RawName.Length,
+                        RelatedMessage = "cycle partner declared here",
+                    });
+                    // Mark every member of this cycle so it is not re-reported from another start.
+                    reportedCycle.Add(start);
+                    var w = start;
+                    while (childOf.TryGetValue(w, out var n) && reportedCycle.Add(n))
+                        w = n;
+                    break;
+                }
+                if (!seen.Add(next)) break;
+                cur = next;
+            }
+        }
+
+        // SP0035: orphan PK hint — only when at least one real link exists (hasLinks).
+        if (edges.Count > 0)
+        {
+            foreach (var kv in pkColumnOf)
+            {
+                var v = kv.Key;
+                var col = kv.Value;
+                if (edges.Any(e => ReferenceEquals(e.Parent, v))) continue;
+
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message = $"Primary Key `{col.Name}` on `{v.Name}` has no child linking to it — no nesting will occur; " +
+                              "add a matching column on a child table, or remove the key.",
+                    Line = col.Line,
+                    StartChar = col.Character,
+                    EndChar = col.Character + col.Name.Length,
+                    Severity = DiagnosticSeverity.Info,
+                    Code = "SP0035",
                 });
             }
         }

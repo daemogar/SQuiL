@@ -328,7 +328,15 @@ SQuiL/
     See `SQuiLKeyGraph.Errors` (`Kind == "cycle"`) +
     `DiagnosticsMessages.ReportKeyCycle`. Both SP0033/SP0034 suppress code
     emission entirely for the offending query file (no flat-path fallback).
-    Next free: **SP0035**. (Verify an id is truly unreferenced with a repo-wide grep
+    **SP0035 is now TAKEN** — editor-only Hint/Info (VS Code `Hint`, C# `Info` —
+    NOT a build/generator diagnostic): a table/object's Primary Key that no
+    other table/object in the file links to, surfaced ONLY when nesting is
+    already in play elsewhere (at least one real link exists — mirrors
+    `SQuiLKeyGraph.Hints`'s `HasLinks` gate). A deliberately-flat file with
+    unrelated Primary Keys stays silent. See `keyGraph.ts` +
+    `nestedObjectHints.ts` (VS Code) and `SQuiLLinter.LintKeyGraph` (SSMS +
+    Visual Studio — the two C# copies stay byte-identical modulo namespace).
+    Next free: **SP0036**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
   - Signature: `[SQuiLQueryTransaction(QueryFiles type, string setting = "SQuiLDatabase", bool enabled = true, bool debugRollback = true)]`
@@ -634,8 +642,9 @@ editor-only Hint that fires on any unmarked column or scalar declare (no `null`
 or `not null`). It is NOT a build/generator diagnostic. SP0023–SP0029 taken by
 the DML-transactions feature; SP0030/SP0031 taken by the shape-detection
 feature; SP0032 taken by the timestamp-as-input check; SP0033/SP0034 taken by
-the nested-objects key-graph diagnostics (ambiguous/cycle) (see Diagnostic IDs
-above). Next free id: **SP0035**.
+the nested-objects key-graph diagnostics (ambiguous/cycle); SP0035 taken by
+the editor-only orphaned-PK hint (see Diagnostic IDs above). Next free id:
+**SP0036**.
 
 ## Special Handling
 
