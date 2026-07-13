@@ -26,4 +26,22 @@ public class NestedOutputTests
             Select * From @Returns_Course;
             """]);
     }
+
+    // Embedded object child: Transcript (object root) -> Student (single object child).
+    // Exercises the object-child SingleOrDefault stitch (not a list).
+    [Fact]
+    public Task EmbeddedObjectChild()
+    {
+        var name = nameof(EmbeddedObjectChild);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Return_Transcript table(TranscriptID int Primary Key, IssueDate date);
+            Declare @Return_Student table(StudentID int Primary Key, TranscriptID int, FirstName varchar(50));
+            Use [Db];
+            Insert Into @Return_Transcript Select TranscriptID, IssueDate From T;
+            Insert Into @Return_Student Select StudentID, TranscriptID, FirstName From S;
+            Select * From @Return_Transcript;
+            Select * From @Return_Student;
+            """]);
+    }
 }
