@@ -95,7 +95,16 @@ public class FileGenerator(
 					Context.Debug(token.Expect());
 			}
 
-			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, recordNamespace, method, blocks, TableMap, records, sql);
+			// Nested-objects (Task 4): build the key graph from OUTPUT blocks only (INPUT
+			// nesting is out of scope). An errored graph (ambiguous/cycle) falls back to an
+			// empty graph here so generation stays on the flat path for this file; diagnostics
+			// for `graph.Errors` are reported elsewhere (Task 7) — this call site must not crash.
+			var outputBlocksForGraph = blocks.Where(b => (b.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT);
+			var keyGraph = SQuiLKeyGraph.Build(outputBlocksForGraph, sql);
+			if (keyGraph.Errors.Count > 0)
+				keyGraph = SQuiLKeyGraph.Build([], "");
+
+			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, recordNamespace, method, blocks, TableMap, records, sql, keyGraph);
 
 			foreach (var property in generation.Request.Properties.Union(generation.Response.Properties))
 				if (property is SQuiLTable table)
@@ -137,7 +146,7 @@ public class FileGenerator(
 				}
 			}
 
-			generation.Context = new(@namespace, classname, method, setting, blocks, enabled, debugRollback);
+			generation.Context = new(@namespace, classname, method, setting, blocks, enabled, debugRollback, keyGraph);
 
 			Generations.Add(generation);
 

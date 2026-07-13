@@ -69,13 +69,14 @@ public class SQuiLModel(
 		List<CodeBlock> blocks,
 		SQuiLTableMap tableMap,
 		ImmutableDictionary<string, SQuiLPartialModel> records,
-		string sql = "")
+		string sql = "",
+		SQuiLKeyGraph? outputGraph = null)
 	{
 		var request = new SQuiLModel(@namespace, modelname, "Request", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql }
-			.Build(blocks.Where(p => (p.CodeType & CodeType.INPUT) == CodeType.INPUT));
+			.Build(blocks.Where(p => (p.CodeType & CodeType.INPUT) == CodeType.INPUT), null);
 
 		var response = new SQuiLModel(@namespace, modelname, "Response", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql }
-			.Build(blocks.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT));
+			.Build(blocks.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT), outputGraph);
 
 		return (request, response);
 	}
@@ -144,7 +145,7 @@ public class SQuiLModel(
 		return new ExceptionOrValue<string>(text.ToString());
 	}
 
-	private SQuiLModel Build(IEnumerable<CodeBlock> blocks)
+	private SQuiLModel Build(IEnumerable<CodeBlock> blocks, SQuiLKeyGraph? graph)
 	{
 		foreach (var block in blocks)
 		{
@@ -170,7 +171,14 @@ public class SQuiLModel(
 				// still register with the TableMap (for shape/merge tracking) but do not
 				// add a duplicate property.
 				var alreadyDeclared = Properties.Any(p => p.OriginalName == block.Name);
-				CreateTableObject(block, !inherits && !alreadyDeclared);
+
+				// Nested-objects envelope (Task 4): a block that is some edge's Child collapses
+				// into its parent — it is NOT a top-level response property, even though its
+				// record type still gets generated (registered with TableMap below).
+				var isChild = graph is { HasLinks: true }
+					&& graph.Edges.Any(e => ReferenceEquals(e.Child, block));
+
+				CreateTableObject(block, !inherits && !alreadyDeclared && !isChild, graph);
 			}
 			else if (!inherits)
 				Properties.Add(new(block, TableMap));
@@ -179,7 +187,7 @@ public class SQuiLModel(
 		return this;
 	}
 
-	private void CreateTableObject(CodeBlock block, bool addProperty = true)
+	private void CreateTableObject(CodeBlock block, bool addProperty = true, SQuiLKeyGraph? graph = null)
 	{
 		var type = (addProperty
 				? (block.IsTable ? typeof(SQuiLTable) : typeof(SQuiLObject))
@@ -198,20 +206,36 @@ public class SQuiLModel(
 
 		var sourceLine = LineOf(block.DatabaseType.Offset);
 
+		// Nested-objects (Task 4): every child edge rooted at THIS block adds a settable,
+		// nullable, no-initializer member to the record — a list for a table child, a plain
+		// reference for an object child. The positional constructor stays columns-only (row
+		// reads are unchanged); TypeName is pre-formatted here so GenerateCode need only
+		// append "?" + the member declaration.
+		var childMembers = (graph?.ChildrenOf(block) ?? [])
+			.Select(e => (
+				Name: e.Child.Name,
+				TypeName: e.Child.IsTable
+					? $"System.Collections.Generic.List<{RecordNamespace}.{e.Child.Name}>"
+					: $"{RecordNamespace}.{e.Child.Name}",
+				IsList: e.Child.IsTable))
+			.ToList();
+
 		SQuiLTable table = block.IsTable
 			? new SQuiLTable(NameSpace, Modifier(name), type, block, TableMap, Records)
 			{
 				HasParameterizedConstructor = hasParameterizedConstructor,
 				RecordNamespace = RecordNamespace,
 				SourceName = QueryName,
-				SourceLine = sourceLine
+				SourceLine = sourceLine,
+				ChildMembers = childMembers
 			}
 			: new SQuiLObject(NameSpace, Modifier(name), type, block, TableMap, Records)
 			{
 				HasParameterizedConstructor = hasParameterizedConstructor,
 				RecordNamespace = RecordNamespace,
 				SourceName = QueryName,
-				SourceLine = sourceLine
+				SourceLine = sourceLine,
+				ChildMembers = childMembers
 			};
 
 		if (addProperty) Properties.Add(table);

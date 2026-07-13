@@ -27,8 +27,17 @@ public class SQuiLDataContext(
 		string Setting,
 		List<CodeBlock> Blocks,
 		bool Enabled = false,
-		bool DebugRollback = true)
+		bool DebugRollback = true,
+		SQuiLKeyGraph? Graph = null)
 {
+	/// <summary>
+	/// Resolved key graph for this query's OUTPUT blocks (Task 4, nested objects). A default
+	/// parameter value must be a compile-time constant, so <paramref name="Graph"/> defaults to
+	/// <c>null</c> here and is coalesced to an empty (no-links) graph — every existing call site
+	/// that omits <c>Graph</c> keeps today's flat reader behavior byte-for-byte.
+	/// </summary>
+	private SQuiLKeyGraph EffectiveGraph { get; } = Graph ?? SQuiLKeyGraph.Build([], "");
+
 	/// <summary>
 	/// Generates the full C# source for the data-context partial class.
 	/// </summary>
@@ -70,6 +79,13 @@ public class SQuiLDataContext(
 			using System.Data.Common;
 			using System.Threading;
 			using System.Threading.Tasks;
+			""");
+		// Nested-objects (Task 4): the stitch step uses LINQ extension methods (Where/ToList)
+		// on the flat `__<Name>` locals. Only add the using when it is actually needed so the
+		// flat (non-nested) reader path stays byte-for-byte identical to today's output.
+		if (EffectiveGraph.HasLinks)
+			writer.WriteLine("using System.Linq;");
+		writer.WriteLine($$"""
 
 			using {{SourceGeneratorHelper.NamespaceName}};
 
@@ -207,19 +223,10 @@ public class SQuiLDataContext(
 						writer.WriteLine($"List<SQuiLError> errors = [];");
 						writer.Block("try", () =>
 						{
-							writer.Block("""
-							using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-							do
-							""",
-									new Action(() =>
-									{
-										writer.WriteLine("var __shape = ShapeKey(reader);");
-										writer.Block("switch (__shape)", SwitchStatements);
-									}),
-									"""
-							while (await reader.NextResultAsync(cancellationToken));
-							""");
+							if (!EffectiveGraph.HasLinks)
+								EmitFlatReader();
+							else
+								EmitNestedReader();
 						}, new IndentedTextWriterBlock("catch(SqlException e)", () =>
 						{
 							writer.WriteLine("errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));");
@@ -413,56 +420,215 @@ public class SQuiLDataContext(
 			{
 				//writer.WriteLine("""//default: throw new Exception($"Invalid Table `{reader.GetString(0)}`");""");
 			}
+		}
 
-			void LoopProperties(string model, List<CodeItem> properties)
+		// Reads every row of the CURRENT result set into `{model}.Add(new(...))`, mapping
+		// declared (non-defaulted) columns positionally and defaulted columns by name.
+		// Shared by the flat path (SwitchStatements, model = "response.<Name>") and the
+		// nested path (NestedSwitchStatements, model = "__<Name>") — Task 4 hoisted this out
+		// of SwitchStatements so both switch-case emitters can call it unchanged.
+		void LoopProperties(string model, List<CodeItem> properties)
+		{
+			writer.WriteLine();
+
+			foreach (var item in properties)
+				writer.WriteLine($"""var index{item.Identifier.Value} = reader.GetOrdinal("{item.Identifier.Value}");""");
+
+			writer.WriteLine();
+			writer.Block("do", () =>
 			{
-				writer.WriteLine();
-
 				foreach (var item in properties)
-					writer.WriteLine($"""var index{item.Identifier.Value} = reader.GetOrdinal("{item.Identifier.Value}");""");
+				{
+					var defaultCondition = "";
+					if (item.IsNullable)
+						// default(<nullable type>), not default! — see the object-path note
+						// above: a bare default! yields 0/MinValue for NULL value-type
+						// columns because `var` + best-common-type discard the null. (TODO #19)
+						defaultCondition = $"reader.IsDBNull(index{item.Identifier.Value}) ? default({item.CSharpType()}) : ";
+					writer.WriteLine($"""var value{item.Identifier.Value} = {defaultCondition}{item.DataReader()}(index{item.Identifier.Value});""");
+				}
 
 				writer.WriteLine();
-				writer.Block("do", () =>
+				var positional = properties.Where(p => p.DefaultValue is null).ToList();
+				var defaulted = properties.Where(p => p.DefaultValue is not null).ToList();
+				writer.Write($"{model}.Add(new(");
+				writer.Indent++;
+				var comma = "";
+				foreach (var item in positional)
 				{
-					foreach (var item in properties)
-					{
-						var defaultCondition = "";
-						if (item.IsNullable)
-							// default(<nullable type>), not default! — see the object-path note
-							// above: a bare default! yields 0/MinValue for NULL value-type
-							// columns because `var` + best-common-type discard the null. (TODO #19)
-							defaultCondition = $"reader.IsDBNull(index{item.Identifier.Value}) ? default({item.CSharpType()}) : ";
-						writer.WriteLine($"""var value{item.Identifier.Value} = {defaultCondition}{item.DataReader()}(index{item.Identifier.Value});""");
-					}
-
-					writer.WriteLine();
-					var positional = properties.Where(p => p.DefaultValue is null).ToList();
-					var defaulted = properties.Where(p => p.DefaultValue is not null).ToList();
-					writer.Write($"{model}.Add(new(");
+					writer.WriteLine(comma);
+					writer.Write($"value{item.Identifier.Value}");
+					comma = ",";
+				}
+				writer.Indent--;
+				if (defaulted.Count == 0)
+				{
+					writer.WriteLine("));");
+				}
+				else
+				{
+					writer.WriteLine(")");
+					writer.WriteLine("{");
 					writer.Indent++;
-					var comma = "";
-					foreach (var item in positional)
-					{
-						writer.WriteLine(comma);
-						writer.Write($"value{item.Identifier.Value}");
-						comma = ",";
-					}
+					foreach (var item in defaulted)
+						writer.WriteLine($"{item.Identifier.Value} = value{item.Identifier.Value},");
 					writer.Indent--;
-					if (defaulted.Count == 0)
+					writer.WriteLine("});");
+				}
+			}, $"""while (await reader.ReadAsync(cancellationToken));""");
+		}
+
+		// Flat reader path (today's behavior, byte-for-byte): one reader loop routing each
+		// result set to `response.<Name>` by shape key. Used whenever the query's output graph
+		// has no parent/child links (the overwhelming majority of queries).
+		void EmitFlatReader()
+		{
+			writer.Block("""
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+			do
+			""",
+					new Action(() =>
 					{
-						writer.WriteLine("));");
-					}
+						writer.WriteLine("var __shape = ShapeKey(reader);");
+						writer.Block("switch (__shape)", SwitchStatements);
+					}),
+					"""
+			while (await reader.NextResultAsync(cancellationToken));
+			""");
+		}
+
+		// Nested reader path (Task 4, gated on EffectiveGraph.HasLinks): every participating
+		// table/object (root AND child) is read into a flat `__<Name>` local list, then
+		// deepest-first stitched into its parent by matching PK/FK column, and finally only
+		// the graph ROOTS are assigned onto `response` (scalars keep writing straight to
+		// `response` from inside NestedSwitchStatements, unchanged from the flat path).
+		void EmitNestedReader()
+		{
+			var recordNamespace = generation.Response.RecordNamespace;
+
+			var participants = new List<CodeBlock>();
+			var participantsSeen = new HashSet<string>();
+			foreach (var (block, _) in outputs)
+			{
+				if (!block.IsTable && !block.IsObject) continue;
+				if (!participantsSeen.Add(block.Name)) continue;
+				participants.Add(block);
+			}
+
+			foreach (var block in participants)
+				writer.WriteLine($"List<{recordNamespace}.{block.Name}> __{block.Name} = [];");
+			writer.WriteLine();
+
+			writer.Block("""
+			using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+			do
+			""",
+					new Action(() =>
+					{
+						writer.WriteLine("var __shape = ShapeKey(reader);");
+						writer.Block("switch (__shape)", NestedSwitchStatements);
+					}),
+					"""
+			while (await reader.NextResultAsync(cancellationToken));
+			""");
+
+			writer.WriteLine();
+
+			foreach (var edge in DeepestFirstEdges())
+			{
+				writer.Block($"foreach (var parent in __{edge.Parent.Name})", () =>
+				{
+					if (edge.Child.IsTable)
+						writer.WriteLine($"parent.{edge.Child.Name} = __{edge.Child.Name}.Where(c => c.{edge.KeyName} == parent.{edge.KeyName}).ToList();");
 					else
+						writer.WriteLine($"parent.{edge.Child.Name} = System.Linq.Enumerable.SingleOrDefault(__{edge.Child.Name}.Where(c => c.{edge.KeyName} == parent.{edge.KeyName}));");
+				});
+			}
+
+			writer.WriteLine();
+
+			foreach (var root in EffectiveGraph.Roots)
+			{
+				if (root.IsObject)
+					writer.WriteLine($"response.{root.Name} = System.Linq.Enumerable.SingleOrDefault(__{root.Name});");
+				else if (root.IsTable)
+					writer.WriteLine($"response.{root.Name} = __{root.Name};");
+			}
+		}
+
+		// Post-order traversal of the key graph: for a chain like Transcript -> Institution ->
+		// Course, this yields (Institution, Course) BEFORE (Transcript, Institution), so a
+		// parent is only stitched into ITS parent after its own children have already been
+		// attached (a middle node's List<T>/child members must be fully populated first).
+		List<SQuiLKeyEdge> DeepestFirstEdges()
+		{
+			var result = new List<SQuiLKeyEdge>();
+
+			void Visit(CodeBlock parent)
+			{
+				foreach (var edge in EffectiveGraph.ChildrenOf(parent))
+				{
+					Visit(edge.Child);
+					result.Add(edge);
+				}
+			}
+
+			foreach (var root in EffectiveGraph.Roots)
+				Visit(root);
+
+			return result;
+		}
+
+		// Nested-path switch cases (Task 4). Every participating table/object routes its rows
+		// into its own flat `__<Name>` list via the shared LoopProperties helper — regardless
+		// of list/object cardinality, since object cardinality (<=1) is enforced later, at
+		// stitch/root-assignment time, via SingleOrDefault (which throws on >1 match). Scalars
+		// are unaffected and keep writing straight to `response`, identical to the flat path.
+		void NestedSwitchStatements()
+		{
+			var switchSeen = new HashSet<string>();
+			foreach (var (block, query) in outputs)
+			{
+				if (!switchSeen.Add(block.Name)) continue;
+
+				if (block.IsTable || block.IsObject)
+				{
+					var shapeKey = SQuiLShapeKey.ShapeKeyOf(block);
+					writer.Block($"""case "{shapeKey}":""", () =>
 					{
-						writer.WriteLine(")");
-						writer.WriteLine("{");
+						writer.WriteLine($"is{block.Name} = true;");
+						writer.WriteLine();
+						writer.WriteLine("if (!await reader.ReadAsync(cancellationToken)) break;");
+						LoopProperties($"__{block.Name}", block.Properties);
+						writer.WriteLine("break;");
+					});
+				}
+				else
+				{
+					var shapeKey = SQuiLShapeKey.ScalarKeyOf(block.Name, block.CSharpType(block.Name));
+					writer.Block($"""case "{shapeKey}":""", () =>
+					{
+						writer.WriteLine($"if (is{block.Name}) throw new Exception(");
 						writer.Indent++;
-						foreach (var item in defaulted)
-							writer.WriteLine($"{item.Identifier.Value} = value{item.Identifier.Value},");
+						writer.WriteLine($"\"Already returned value for `{block.Name}`\");");
 						writer.Indent--;
-						writer.WriteLine("});");
-					}
-				}, $"""while (await reader.ReadAsync(cancellationToken));""");
+						writer.WriteLine();
+						writer.WriteLine($"is{block.Name} = true;");
+						writer.WriteLine();
+
+						var isNullable = "null";
+						if (!block.IsNullable)
+						{
+							var exception = $"Return value for {block.Name} cannot be null.";
+							isNullable = $"""throw new NullReferenceException("{exception}")""";
+						}
+
+						writer.WriteLine($"response.{block.Name} = !reader.IsDBNull(0) ? {block.DataReader()}(0) : {isNullable};");
+						writer.WriteLine("break;");
+					});
+				}
 			}
 		}
 
