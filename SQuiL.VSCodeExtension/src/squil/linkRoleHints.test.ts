@@ -87,6 +87,24 @@ test('hovering a Primary Key column with no linking child notes the orphan (SP00
   assert.ok(text!.includes('UnrelatedID'));
 });
 
+test('hovering a Primary Key column in a file with NO links at all returns undefined (graceful degradation)', () => {
+  // Single output table, zero edges (hasLinks === false). The orphan-PK note
+  // must NOT fire here — that's the case the "with no linking child" test
+  // above misses, since its fixture has links elsewhere (Parent/Child).
+  const sql = [
+    '--Name: NoLinksHover',
+    'Declare @Returns_Foo table(FooID int Primary Key, Name varchar(50));',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n');
+  const parsed = parseSQuiL(sql);
+  const character = sql.split('\n')[1].indexOf('FooID');
+
+  const text = describeColumnLinkRole(parsed, 1, character);
+
+  assert.strictEqual(text, undefined);
+});
+
 test('non-column position (e.g. the Use statement) returns undefined', () => {
   const parsed = parseSQuiL(SQL);
   const text = describeColumnLinkRole(parsed, 4, 0); // 'Use [Db];' line

@@ -400,9 +400,15 @@ internal static class SQuiLLinter
             && ReferenceEquals(ownPk, column))
         {
             bool hasChild = graph.Edges.Any(e => ReferenceEquals(e.Parent, owner));
-            return hasChild
-                ? $"Primary Key — child tables that carry a `{column.Name}` column nest under `{owner.Name}`."
-                : $"Primary Key — no child table links to `{column.Name}` yet; add a matching column on a " +
+            if (hasChild)
+                return $"Primary Key — child tables that carry a `{column.Name}` column nest under `{owner.Name}`.";
+
+            // Graceful degradation: in a file with no links at all, an "orphan" PK
+            // note would fire on every table's PK, which is noise, not a hint. Only
+            // surface the orphan note when at least one real link exists elsewhere
+            // in the file (mirrors SP0035's `graph.Edges.Count > 0` gate).
+            if (graph.Edges.Count == 0) return null;
+            return $"Primary Key — no child table links to `{column.Name}` yet; add a matching column on a " +
                   $"child table to nest rows under `{owner.Name}`.";
         }
 

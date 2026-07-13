@@ -67,10 +67,16 @@ export function describeColumnLinkRole(
     if (ownPk !== column) return undefined;
 
     const hasChild = graph.edges.some(e => e.parent === variable);
-    return hasChild
-      ? `Primary Key — child tables that carry a \`${column.name}\` column nest under \`${variable.name}\`.`
-      : `Primary Key — no child table links to \`${column.name}\` yet; add a matching column on a child ` +
-          `table to nest rows under \`${variable.name}\`.`;
+    if (hasChild) {
+      return `Primary Key — child tables that carry a \`${column.name}\` column nest under \`${variable.name}\`.`;
+    }
+    // Graceful degradation: in a file with no links at all, an "orphan" PK
+    // note would fire on every table's PK, which is noise, not a hint. Only
+    // surface the orphan note when at least one real link exists elsewhere
+    // in the file (mirrors SP0035's `graph.hasLinks` gate).
+    if (!graph.hasLinks) return undefined;
+    return `Primary Key — no child table links to \`${column.name}\` yet; add a matching column on a child ` +
+        `table to nest rows under \`${variable.name}\`.`;
   }
 
   const edge = graph.edges.find(
