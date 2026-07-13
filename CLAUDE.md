@@ -637,6 +637,88 @@ per-type `Token.CSharpValue` mapping (decimal gets an `m` suffix, dates/guids
 are parsed, strings quoted). Numeric literals may be fractional (`NumberRegex`
 accepts `\d+(\.\d+)?`).
 
+### Nested objects (output)
+
+A `@Return*`/`@Returns*` table column marked `Primary Key` names that table's
+key. Any OTHER declared table in the same file carrying a column with that
+EXACT name is that table's child (foreign key by convention) — the `.squil`
+stays valid T-SQL as written: no `@`-typed columns, no nested `table()`
+syntax. Cardinality follows each table's own prefix: `@Return_X` (singular)
+nests as an object child/root, `@Returns_X` (plural) nests as a list
+child/root.
+
+**Root-only response reshaping.** Only ROOT tables — ones no other declared
+table links to — stay top-level `<Query>Response` properties. Every child
+table collapses into its parent record as a settable nested member:
+`List<<Ctx>.Models.<Child>>? <Child>` for a list child, `<Ctx>.Models.<Child>?
+<Child>` for an object child. The member name is the child table's base name;
+positional record constructors stay columns-only (the nested member is a
+plain settable property, not part of the ctor). The `Process…Async` /
+`SQuiLResultType<Response>` / `TryGetValue` calling convention is UNCHANGED —
+only the Response's internal shape nests.
+
+**Transport — in-memory key-stitch (dialect-agnostic).** Authors write normal
+flat `Select * From @Return*`/`@Returns*` statements, one per declared table —
+no SQL-side JOIN, no nested JSON. The generator reads each table into a flat
+list, then relinks children into parents in C# by matching PK⇄FK column
+values (`parent.Child = __Child.Where(c => c.FK == parent.PK).ToList()` for
+list children; `SingleOrDefault`/direct assignment for object children). This
+works unchanged regardless of target database — it isn't blocked on
+TODO #6/multi-DB. **Nuance:** a parent row with zero matching children gets
+an EMPTY list `[]` for that member, not null — different from the top-level
+list-return convention where null means "result set absent." An object child
+that finds no match is `null`.
+
+**Diagnostics:** SP0033 (build error — ambiguous: a child's column matches
+more than one table's Primary Key), SP0034 (build error — PK/FK cycle:
+following links returns to the same table; no recursion in v1), SP0035
+(editor-only Hint/Info — a Primary Key that no other table links to,
+surfaced only when nesting is already in play elsewhere in the file). See
+"Diagnostic IDs" above for the full narrative. Graceful degradation: a file
+with no PK/FK links generates today's flat response, unchanged.
+
+**Worked example** — a transcript with a list of institutions, each with a
+list of courses:
+
+```sql
+Declare @Return_Transcript table(TranscriptID int Primary Key, IssueDate date);
+Declare @Returns_Institution table(InstitutionID int Primary Key, TranscriptID int, SchoolName varchar(50));
+Declare @Returns_Course table(CourseID int, InstitutionID int, Title varchar(50));
+Use [Db];
+Insert Into @Return_Transcript Select TranscriptID, IssueDate From T;
+Insert Into @Returns_Institution Select InstitutionID, TranscriptID, SchoolName From I;
+Insert Into @Returns_Course Select CourseID, InstitutionID, Title From C;
+Select * From @Return_Transcript;
+Select * From @Returns_Institution;
+Select * From @Returns_Course;
+```
+
+`Institution` links to `Transcript` via `TranscriptID`; `Course` links to
+`Institution` via `InstitutionID`. Only `Transcript` is a root, so it's the
+only property left on the Response — everything else nests:
+
+```csharp
+public partial record MyQueryResponse
+{
+    public TestCase.Models.Transcript? Transcript { get; set; } = default!;
+}
+
+public partial record Transcript(int TranscriptID, System.DateOnly IssueDate)
+{
+    public List<TestCase.Models.Institution>? Institution { get; set; }
+}
+
+public partial record Institution(int InstitutionID, int TranscriptID, string SchoolName)
+{
+    public List<TestCase.Models.Course>? Course { get; set; }
+}
+
+public partial record Course(int CourseID, int InstitutionID, string Title);
+```
+
+See `SQuiL.Tests/NestedObjects/**/*.g.verified.cs` (esp. `ThreeLevelListNesting/`
+and `EmbeddedObjectChild/`) for ground truth on every generated shape.
+
 **SP0010 is TAKEN** (since the nullability-unification feature) — it is the
 editor-only Hint that fires on any unmarked column or scalar declare (no `null`
 or `not null`). It is NOT a build/generator diagnostic. SP0023–SP0029 taken by
