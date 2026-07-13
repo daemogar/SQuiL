@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { parseSQuiL, SQuiLVariable, describeRole } from '../squil/parser';
+import { describeColumnLinkRole } from '../squil/linkRoleHints';
 
 // ─── SQL → C# quick-reference (duplicated from previewGenerator for independence) ──
 
@@ -38,7 +39,7 @@ export class SQuiLHoverProvider implements vscode.HoverProvider {
     position: vscode.Position,
   ): vscode.Hover | undefined {
     const wordRange = document.getWordRangeAtPosition(position, /@[\w_]+/);
-    if (!wordRange) return undefined;
+    if (!wordRange) return this.provideColumnLinkRoleHover(document, position);
 
     const word = document.getText(wordRange);
     if (!word.startsWith('@')) return undefined;
@@ -115,5 +116,26 @@ export class SQuiLHoverProvider implements vscode.HoverProvider {
     }
 
     return new vscode.Hover(md, wordRange);
+  }
+
+  /**
+   * Hover for a bare table-column identifier (no `@` prefix) that plays a
+   * role in the nested-object PK/FK-by-convention graph — see
+   * `linkRoleHints.ts` (`describeColumnLinkRole`). Columns that play no
+   * link role fall through to `undefined`, leaving hover completely
+   * unchanged (graceful degradation — a no-links file shows no link text).
+   */
+  private provideColumnLinkRoleHover(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): vscode.Hover | undefined {
+    const wordRange = document.getWordRangeAtPosition(position);
+    if (!wordRange) return undefined;
+
+    const parsed = parseSQuiL(document.getText());
+    const text = describeColumnLinkRole(parsed, wordRange.start.line, wordRange.start.character);
+    if (!text) return undefined;
+
+    return new vscode.Hover(new vscode.MarkdownString(text), wordRange);
   }
 }
