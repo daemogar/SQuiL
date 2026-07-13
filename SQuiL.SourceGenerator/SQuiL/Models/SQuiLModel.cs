@@ -70,10 +70,11 @@ public class SQuiLModel(
 		SQuiLTableMap tableMap,
 		ImmutableDictionary<string, SQuiLPartialModel> records,
 		string sql = "",
-		SQuiLKeyGraph? outputGraph = null)
+		SQuiLKeyGraph? outputGraph = null,
+		SQuiLKeyGraph? inputGraph = null)
 	{
 		var request = new SQuiLModel(@namespace, modelname, "Request", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql }
-			.Build(blocks.Where(p => (p.CodeType & CodeType.INPUT) == CodeType.INPUT), null);
+			.Build(blocks.Where(p => (p.CodeType & CodeType.INPUT) == CodeType.INPUT), inputGraph);
 
 		var response = new SQuiLModel(@namespace, modelname, "Response", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql }
 			.Build(blocks.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT), outputGraph);
@@ -206,18 +207,22 @@ public class SQuiLModel(
 
 		var sourceLine = LineOf(block.DatabaseType.Offset);
 
-		// Nested-objects (Task 4): every child edge rooted at THIS block adds a settable,
-		// nullable, no-initializer member to the record — a list for a table child, a plain
-		// reference for an object child. The positional constructor stays columns-only (row
-		// reads are unchanged); TypeName is pre-formatted here so GenerateCode need only
-		// append "?" + the member declaration.
+		// Nested-objects (Task 4/13): every child edge rooted at THIS block adds a settable,
+		// nullable member to the record — a list for a table child, a plain reference for an
+		// object child. The positional constructor stays columns-only (row reads/flatten are
+		// unchanged); TypeName is pre-formatted here so GenerateCode need only append "?" + the
+		// member declaration. On the INPUT/request side a list child keeps the `= []` initializer
+		// (the existing "input lists keep = []" rule); OUTPUT/response children and object
+		// children have no initializer (Initializer = "").
+		var isRequest = ModelType == "Request";
 		var childMembers = (graph?.ChildrenOf(block) ?? [])
 			.Select(e => (
 				Name: e.Child.Name,
 				TypeName: e.Child.IsTable
 					? $"System.Collections.Generic.List<{RecordNamespace}.{e.Child.Name}>"
 					: $"{RecordNamespace}.{e.Child.Name}",
-				IsList: e.Child.IsTable))
+				IsList: e.Child.IsTable,
+				Initializer: isRequest && e.Child.IsTable ? " = [];" : ""))
 			.ToList();
 
 		SQuiLTable table = block.IsTable

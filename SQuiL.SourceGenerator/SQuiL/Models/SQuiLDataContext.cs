@@ -28,7 +28,8 @@ public class SQuiLDataContext(
 		List<CodeBlock> Blocks,
 		bool Enabled = false,
 		bool DebugRollback = true,
-		SQuiLKeyGraph? Graph = null)
+		SQuiLKeyGraph? Graph = null,
+		SQuiLKeyGraph? InputGraph = null)
 {
 	/// <summary>
 	/// Resolved key graph for this query's OUTPUT blocks (Task 4, nested objects). A default
@@ -37,6 +38,13 @@ public class SQuiLDataContext(
 	/// that omits <c>Graph</c> keeps today's flat reader behavior byte-for-byte.
 	/// </summary>
 	private SQuiLKeyGraph EffectiveGraph { get; } = Graph ?? SQuiLKeyGraph.Build([], "");
+
+	/// <summary>
+	/// Resolved key graph for this query's INPUT blocks (Task 13, nested objects). Coalesced to an
+	/// empty (no-links) graph so every call site that omits <c>InputGraph</c> keeps today's flat
+	/// per-table <c>input&lt;Name&gt;</c> emission byte-for-byte.
+	/// </summary>
+	private SQuiLKeyGraph EffectiveInputGraph { get; } = InputGraph ?? SQuiLKeyGraph.Build([], "");
 
 	/// <summary>
 	/// Generates the full C# source for the data-context partial class.
@@ -166,6 +174,12 @@ public class SQuiLDataContext(
 					}
 
 					CommandParameters(inputArgs, hasDebug, hasSuppressDebug, hoistDebug);
+					// Nested input (Task 13): flatten the caller's nested request into per-table
+					// `__<Name>` lists with synthesized join keys BEFORE Query(parameters) runs (the
+					// `input<Name>` local functions serialize those lists). Emitted only when the
+					// input key graph has links; otherwise today's flat path is unchanged.
+					if (EffectiveInputGraph.HasLinks)
+						EmitInputFlatten();
 					writer.Block($"""
 
 									command.CommandText = Query(parameters);
@@ -632,6 +646,134 @@ public class SQuiLDataContext(
 			}
 		}
 
+		// Nested input flatten (Task 13, gated on EffectiveInputGraph.HasLinks): walk the caller's
+		// root request object(s) following the input key graph and, for every participating input
+		// table/object, build a flat `__<Name>` list whose rows carry SYNTHESIZED join keys — a
+		// parent's key (int → 1-based sequential per table via `__<Name>.Count + 1`; guid →
+		// Guid.NewGuid()) is written into each child row's foreign-key column. Row records' key
+		// columns are positional/immutable, so each flat row is rebuilt with the synthesized values
+		// rather than mutating the caller's objects. The flat lists are then serialized by the
+		// existing `input<Name>` / AddJsonParameter / OPENJSON path (unchanged).
+		void EmitInputFlatten()
+		{
+			var recordNamespace = generation.Request.RecordNamespace;
+			var graph = EffectiveInputGraph;
+
+			var participants = new List<CodeBlock>();
+			var participantsSeen = new HashSet<string>();
+			foreach (var (block, _) in inputs)
+			{
+				if (!block.IsTable && !block.IsObject) continue;
+				if (!participantsSeen.Add(block.Name)) continue;
+				participants.Add(block);
+			}
+
+			writer.WriteLine();
+			foreach (var block in participants)
+				writer.WriteLine($"List<{recordNamespace}.{block.Name}> __{block.Name} = [];");
+			writer.WriteLine();
+
+			foreach (var root in graph.Roots)
+			{
+				if (root.IsObject)
+					writer.Block($"if (request.{root.Name} is not null)",
+						() => EmitNode(root, $"request.{root.Name}", null, null));
+				else
+					writer.Block($"foreach (var {Camel(root.Name)} in request.{root.Name} ?? [])",
+						() => EmitNode(root, Camel(root.Name), null, null));
+			}
+
+			// Emits one node's key-synthesis + flat-row construction, then recurses into its
+			// children. `itemExpr` is the caller expression for this node's source object;
+			// `parentKeyLocal`/`fkColName` carry the parent's synthesized key value and the column
+			// on THIS node that receives it (null for a root).
+			void EmitNode(CodeBlock node, string itemExpr, string? parentKeyLocal, string? fkColName)
+			{
+				var children = graph.ChildrenOf(node);
+
+				// Synthesize this node's key only if it is a parent (some child references its PK).
+				string? keyLocal = null;
+				string? pkColName = null;
+				if (children.Count > 0)
+				{
+					var pk = node.Properties?.FirstOrDefault(p => p.IsPrimaryKey);
+					if (pk is not null)
+					{
+						pkColName = pk.Identifier.Value;
+						keyLocal = $"{Camel(node.Name)}Key";
+						var keyExpr = pk.Type.Type == TokenType.TYPE_GUID
+							? "System.Guid.NewGuid()"
+							: $"__{node.Name}.Count + 1";
+						writer.WriteLine($"var {keyLocal} = {keyExpr};");
+					}
+				}
+
+				EmitRowConstruction(node, itemExpr, keyLocal, pkColName, parentKeyLocal, fkColName);
+
+				foreach (var edge in children)
+				{
+					var child = edge.Child;
+					var childItem = Camel(child.Name);
+					if (child.IsTable)
+						writer.Block($"foreach (var {childItem} in {itemExpr}.{child.Name} ?? [])",
+							() => EmitNode(child, childItem, keyLocal, edge.KeyName));
+					else
+						writer.Block($"if ({itemExpr}.{child.Name} is not null)", () =>
+						{
+							writer.WriteLine($"var {childItem} = {itemExpr}.{child.Name};");
+							EmitNode(child, childItem, keyLocal, edge.KeyName);
+						});
+				}
+			}
+
+			// Rebuilds a flat row with synthesized keys: a column equal to this node's PK gets the
+			// node's synthesized key; a column equal to the foreign-key-to-parent gets the parent's
+			// key; every other column is copied from the caller's object. Non-defaulted columns are
+			// positional ctor args; defaulted columns are object-initializer members (target-typed
+			// `new(...)` — `__<Name>` already fixes the element type).
+			void EmitRowConstruction(CodeBlock node, string itemExpr,
+				string? keyLocal, string? pkColName, string? parentKeyLocal, string? fkColName)
+			{
+				string ColValue(CodeItem col)
+				{
+					var name = col.Identifier.Value;
+					if (keyLocal is not null && name == pkColName) return keyLocal;
+					if (fkColName is not null && name == fkColName) return parentKeyLocal!;
+					return $"{itemExpr}.{name}";
+				}
+
+				var positional = node.Properties.Where(p => p.DefaultValue is null).ToList();
+				var defaulted = node.Properties.Where(p => p.DefaultValue is not null).ToList();
+
+				writer.Write($"__{node.Name}.Add(new(");
+				writer.Indent++;
+				var comma = "";
+				foreach (var item in positional)
+				{
+					writer.WriteLine(comma);
+					writer.Write(ColValue(item));
+					comma = ",";
+				}
+				writer.Indent--;
+				if (defaulted.Count == 0)
+				{
+					writer.WriteLine("));");
+				}
+				else
+				{
+					writer.WriteLine(")");
+					writer.WriteLine("{");
+					writer.Indent++;
+					foreach (var item in defaulted)
+						writer.WriteLine($"{item.Identifier.Value} = {ColValue(item)},");
+					writer.Indent--;
+					writer.WriteLine("});");
+				}
+			}
+
+			static string Camel(string name) => $"{name[0..1].ToLower()}{name[1..]}";
+		}
+
 		void InsertQueries()
 		{
 			foreach (var (CodeBlock, Query) in inputs)
@@ -639,7 +781,26 @@ public class SQuiLDataContext(
 				writer.WriteLine();
 				writer.Block($"string input{CodeBlock.Name}(List<DbParameter> parameters)", () =>
 				{
-					if (CodeBlock.IsTable)
+					// Nested input (Task 13): serialize the pre-flattened `__<Name>` list (built by
+					// EmitInputFlatten, with synthesized keys) instead of request.<Name>. Uniform for
+					// list AND object participants — an object root flattens to a one-element list.
+					// The JSON param name + shred SQL are keyed on IsTable and stay unchanged.
+					if (EffectiveInputGraph.HasLinks)
+					{
+						if (CodeBlock.Properties.Any(IsSizedString))
+						{
+							writer.WriteLine("var index = 0;");
+							writer.Block($"foreach (var item in __{CodeBlock.Name})", () =>
+							{
+								EmitStringLengthGuards(CodeBlock, "item", "index");
+								writer.WriteLine("index++;");
+							});
+							writer.WriteLine();
+						}
+
+						writer.WriteLine($"""AddJsonParameter(parameters, "{SQuiLShred.JsonParamName(CodeBlock)}", __{CodeBlock.Name});""");
+					}
+					else if (CodeBlock.IsTable)
 					{
 						writer.WriteLine($"""if (request.{CodeBlock.Name} is null || request.{CodeBlock.Name}.Count == 0) return "";""");
 						writer.WriteLine();

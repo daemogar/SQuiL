@@ -384,6 +384,21 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0036 — Within one query file's nested-INPUT key graph, a parent/child link column's
+	/// declared type is neither integer-family (int/bigint/smallint) nor uniqueidentifier, so the
+	/// generator cannot synthesize a join key for it. The file's code emission is skipped.
+	/// </summary>
+	public static void ReportUnsupportedKeyType(
+		this SourceProductionContext context, string filename,
+		string childName, string keyColumn, string sqlType, int line)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0036", "Unsupported Nested-Input Key Type",
+			$"{filename}: the nested-input link column `{keyColumn}` on `{childName}` (line {line}) has type " +
+			$"`{sqlType}`, which cannot have a join key synthesized. A nested-input key column must be an integer " +
+			"type (int, bigint, or smallint) or uniqueidentifier — change the link column's type."));
+	}
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)
