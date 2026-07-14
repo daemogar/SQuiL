@@ -46,6 +46,48 @@ public class NestedInputTests
             """]);
     }
 
+    // Leaf-owns-its-own-PK regression: Order (object root, int PK) -> Line (list,
+    // int PK on LineID + OrderID FK). Line is a LEAF (no children of its own) but
+    // still declares `Primary Key` on LineID. Its own key must be synthesized
+    // (1-based sequential, since LineID is int) rather than copied from the
+    // caller's `line.LineID` — a leaf that owns a PK is still part of the
+    // relationship tree and must never be left to the caller to hand-manage.
+    [Fact]
+    public Task LeafOwnPrimaryKeyInputNesting()
+    {
+        var name = nameof(LeafOwnPrimaryKeyInputNesting);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Param_Order table(OrderID int Primary Key, Placed date);
+            Declare @Params_Line table(LineID int Primary Key, OrderID int, Sku varchar(50));
+            Use [Db];
+            Insert Into dbo.Orders Select OrderID, Placed From @Param_Order;
+            Insert Into dbo.Lines Select LineID, OrderID, Sku From @Params_Line;
+            """]);
+    }
+
+    // Guardrail regression: an ISOLATED input table (its own PK, but no edge
+    // touches it — nobody references CategoryID as a FK, and it references
+    // nobody else's PK) sits alongside a genuinely-linked Order -> Line tree in
+    // the SAME file (so EffectiveInputGraph.HasLinks is true). Category must
+    // keep the existing 1:1 caller-supplied copy path — its own CategoryID is
+    // NOT synthesized, even though it declares a Primary Key.
+    [Fact]
+    public Task IsolatedTableWithOwnPrimaryKeyUnaffectedByLinkedSiblings()
+    {
+        var name = nameof(IsolatedTableWithOwnPrimaryKeyUnaffectedByLinkedSiblings);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Param_Order table(OrderID int Primary Key, Placed date);
+            Declare @Params_Line table(LineID int Primary Key, OrderID int, Sku varchar(50));
+            Declare @Params_Category table(CategoryID int Primary Key, Label varchar(50));
+            Use [Db];
+            Insert Into dbo.Orders Select OrderID, Placed From @Param_Order;
+            Insert Into dbo.Lines Select LineID, OrderID, Sku From @Params_Line;
+            Insert Into dbo.Categories Select CategoryID, Label From @Params_Category;
+            """]);
+    }
+
     // SP0036: a nested INPUT link column whose declared type is neither
     // integer-family nor uniqueidentifier (here varchar TranscriptCode) cannot
     // have a key synthesized. The generator must report SP0036 and skip emitting

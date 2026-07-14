@@ -691,21 +691,25 @@ public class SQuiLDataContext(
 			{
 				var children = graph.ChildrenOf(node);
 
-				// Synthesize this node's key only if it is a parent (some child references its PK).
+				// Synthesize this node's OWN Primary Key whenever it is part of the relationship
+				// tree — i.e. it is a parent (some child references its PK, children.Count > 0)
+				// OR it is itself a child (reached via a parent edge, fkColName is not null). A
+				// leaf child (has its own PK, but no children of its own) must still get its PK
+				// synthesized rather than passed through from the caller — otherwise a caller that
+				// leaves the leaf's PK default collides on insert. An ISOLATED root (no PK-based
+				// edge touches it at all — fkColName is null AND it has no children) is left alone:
+				// it keeps the existing 1:1 caller-supplied copy path.
 				string? keyLocal = null;
 				string? pkColName = null;
-				if (children.Count > 0)
+				var pk = node.Properties?.FirstOrDefault(p => p.IsPrimaryKey);
+				if (pk is not null && (children.Count > 0 || fkColName is not null))
 				{
-					var pk = node.Properties?.FirstOrDefault(p => p.IsPrimaryKey);
-					if (pk is not null)
-					{
-						pkColName = pk.Identifier.Value;
-						keyLocal = $"{Camel(node.Name)}Key";
-						var keyExpr = pk.Type.Type == TokenType.TYPE_GUID
-							? "System.Guid.NewGuid()"
-							: $"__{node.Name}.Count + 1";
-						writer.WriteLine($"var {keyLocal} = {keyExpr};");
-					}
+					pkColName = pk.Identifier.Value;
+					keyLocal = $"{Camel(node.Name)}Key";
+					var keyExpr = pk.Type.Type == TokenType.TYPE_GUID
+						? "System.Guid.NewGuid()"
+						: $"__{node.Name}.Count + 1";
+					writer.WriteLine($"var {keyLocal} = {keyExpr};");
 				}
 
 				EmitRowConstruction(node, itemExpr, keyLocal, pkColName, parentKeyLocal, fkColName);
