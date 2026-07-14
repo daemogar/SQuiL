@@ -88,6 +88,45 @@ public class NestedInputTests
             """]);
     }
 
+    // Embedded OBJECT input child: Order (object root) -> Shipment (single object
+    // child, via OrderID). Shipment is a `@Param_` (singular), not `@Params_`, so
+    // it must collapse into the parent request record as a settable OBJECT member
+    // (`<Ctx>.Models.Shipment? Shipment { get; set; }` — no `= []`), and the
+    // DataContext flatten must build exactly one Shipment row (its own PK
+    // synthesized, FK = parent's synthesized OrderID).
+    [Fact]
+    public Task EmbeddedObjectChildInputNesting()
+    {
+        var name = nameof(EmbeddedObjectChildInputNesting);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Param_Order table(OrderID int Primary Key, CustomerName varchar(50));
+            Declare @Param_Shipment table(ShipmentID int Primary Key, OrderID int, Carrier varchar(50));
+            Use [Db];
+            Insert Into dbo.Orders Select OrderID, CustomerName From @Param_Order;
+            Insert Into dbo.Shipments Select ShipmentID, OrderID, Carrier From @Param_Shipment;
+            """]);
+    }
+
+    // Graceful degradation (input): two @Params_ input tables that each declare
+    // a Primary Key, but neither carries the other's key-column name. HasLinks
+    // must be false, so both stay flat top-level Request properties and the
+    // generated DataContext must use the existing flat per-table input<Name>
+    // path (no __<Name> flatten/synthesis locals).
+    [Fact]
+    public Task PrimaryKeysNoLinksInput()
+    {
+        var name = nameof(PrimaryKeysNoLinksInput);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Params_Alpha table(AlphaID int Primary Key, N int);
+            Declare @Params_Beta table(BetaID int Primary Key, M int);
+            Use [Db];
+            Insert Into dbo.Alphas Select AlphaID, N From @Params_Alpha;
+            Insert Into dbo.Betas Select BetaID, M From @Params_Beta;
+            """]);
+    }
+
     // SP0036: a nested INPUT link column whose declared type is neither
     // integer-family nor uniqueidentifier (here varchar TranscriptCode) cannot
     // have a key synthesized. The generator must report SP0036 and skip emitting
