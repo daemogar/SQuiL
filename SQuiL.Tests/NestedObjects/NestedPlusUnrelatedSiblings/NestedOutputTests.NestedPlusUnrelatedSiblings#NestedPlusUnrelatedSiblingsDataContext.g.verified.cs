@@ -172,7 +172,12 @@ partial class NestedPlusUnrelatedSiblingsDataContext : SQuiLBaseDataContext
 				parent.Institution = __Institution.Where(c => c.TranscriptID == parent.TranscriptID).ToList();
 			}
 			
-			response.Transcript = System.Linq.Enumerable.SingleOrDefault(__Transcript);
+			var __transcriptMatch = __Transcript.ToList();
+			if (__transcriptMatch.Count > 1)
+			{
+				throw new Exception("Return object results in more than one object. Consider using a return table instead.");
+			}
+			response.Transcript = __transcriptMatch.Count == 1 ? __transcriptMatch[0] : null;
 			response.Log = __Log;
 		}
 		catch(SqlException e)
@@ -180,11 +185,11 @@ partial class NestedPlusUnrelatedSiblingsDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTotal) errors.Add(new(51001, 12, 1, 182, "Total", "Expected return scaler `Total`"));
-		if (!isTranscript) errors.Add(new(51001, 12, 1, 183, "Transcript", "Expected return object `Transcript`"));
-		if (!isInstitution) errors.Add(new(51001, 12, 1, 184, "Institution", "Expected return table `Institution`"));
-		if (!isCourse) errors.Add(new(51001, 12, 1, 185, "Course", "Expected return table `Course`"));
-		if (!isLog) errors.Add(new(51001, 12, 1, 186, "Log", "Expected return table `Log`"));
+		if (!isTotal) errors.Add(new(51001, 12, 1, 187, "Total", "Expected return scaler `Total`"));
+		if (!isTranscript) errors.Add(new(51001, 12, 1, 188, "Transcript", "Expected return object `Transcript`"));
+		if (!isInstitution) errors.Add(new(51001, 12, 1, 189, "Institution", "Expected return table `Institution`"));
+		if (!isCourse) errors.Add(new(51001, 12, 1, 190, "Course", "Expected return table `Course`"));
+		if (!isLog) errors.Add(new(51001, 12, 1, 191, "Log", "Expected return table `Log`"));
 		
 		if(errors.Count == 0)
 			return new(response);

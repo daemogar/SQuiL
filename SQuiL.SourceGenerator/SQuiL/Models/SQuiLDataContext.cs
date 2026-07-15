@@ -557,7 +557,8 @@ public class SQuiLDataContext(
 					if (edge.Child.IsTable)
 						writer.WriteLine($"parent.{edge.Child.Name} = __{edge.Child.Name}.Where(c => c.{edge.KeyName} == parent.{edge.KeyName}).ToList();");
 					else
-						writer.WriteLine($"parent.{edge.Child.Name} = System.Linq.Enumerable.SingleOrDefault(__{edge.Child.Name}.Where(c => c.{edge.KeyName} == parent.{edge.KeyName}));");
+						EmitSingleOrFriendly($"parent.{edge.Child.Name}",
+							$"__{edge.Child.Name}.Where(c => c.{edge.KeyName} == parent.{edge.KeyName})", "__match");
 				});
 			}
 
@@ -566,9 +567,32 @@ public class SQuiLDataContext(
 			foreach (var root in EffectiveGraph.Roots)
 			{
 				if (root.IsObject)
-					writer.WriteLine($"response.{root.Name} = System.Linq.Enumerable.SingleOrDefault(__{root.Name});");
+					EmitSingleOrFriendly($"response.{root.Name}", $"__{root.Name}", $"__{Camel(root.Name)}Match");
 				else if (root.IsTable)
 					writer.WriteLine($"response.{root.Name} = __{root.Name};");
+			}
+
+			static string Camel(string name) => $"{name[0..1].ToLower()}{name[1..]}";
+
+			// Nested-object over-cardinality guard (Important-1 fix): a root/child OBJECT
+			// result set with >1 matching row must fail with the SAME friendly message the
+			// FLAT object path already throws (see the "Return object results in more than
+			// one object..." Exception a few dozen lines up in this file, under EmitSwitchStatements'
+			// object branch) rather than the raw ".NET "Sequence contains more than one element""
+			// LINQ message that plain SingleOrDefault would surface. 0 rows -> null; 1 row -> the
+			// object; 2+ rows -> the friendly Exception. `tempVar` must be caller-unique within its
+			// enclosing C# scope (each per-edge foreach body is its own scope, so a shared literal is
+			// safe there; sibling object ROOTS share the outer method scope, so those get names keyed
+			// off the root's own identifier to avoid a duplicate-local-variable compile error).
+			void EmitSingleOrFriendly(string assignTo, string sourceExpr, string tempVar)
+			{
+				writer.WriteLine($"var {tempVar} = {sourceExpr}.ToList();");
+				writer.Block($"if ({tempVar}.Count > 1)", () =>
+				{
+					writer.WriteLine(
+						"""throw new Exception("Return object results in more than one object. Consider using a return table instead.");""");
+				});
+				writer.WriteLine($"{assignTo} = {tempVar}.Count == 1 ? {tempVar}[0] : null;");
 			}
 		}
 
@@ -706,9 +730,14 @@ public class SQuiLDataContext(
 				{
 					pkColName = pk.Identifier.Value;
 					keyLocal = $"{Camel(node.Name)}Key";
+					// The synthesized sequential value is an `int` expression (`__<Name>.Count + 1`);
+					// cast it to the PK column's own CLR type so `smallint`/`tinyint` PKs (short/byte)
+					// don't fail to compile (CS1503) when the synthesized value is assigned into the
+					// row's positional ctor arg or copied down to a child's FK column of the same type.
+					// `int` and `bigint` (long) also go through the cast — harmless / a widening no-op.
 					var keyExpr = pk.Type.Type == TokenType.TYPE_GUID
 						? "System.Guid.NewGuid()"
-						: $"__{node.Name}.Count + 1";
+						: $"({pk.Type.CSharpType()})(__{node.Name}.Count + 1)";
 					writer.WriteLine($"var {keyLocal} = {keyExpr};");
 				}
 

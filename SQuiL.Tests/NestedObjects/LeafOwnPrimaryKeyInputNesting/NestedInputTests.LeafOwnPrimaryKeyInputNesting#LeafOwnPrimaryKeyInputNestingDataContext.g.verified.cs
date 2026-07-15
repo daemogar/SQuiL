@@ -35,13 +35,13 @@ partial class LeafOwnPrimaryKeyInputNestingDataContext : SQuiLBaseDataContext
 		
 		if (request.Order is not null)
 		{
-			var orderKey = __Order.Count + 1;
+			var orderKey = (int)(__Order.Count + 1);
 			__Order.Add(new(
 				orderKey,
 				request.Order.Placed));
 			foreach (var line in request.Order.Line ?? [])
 			{
-				var lineKey = __Line.Count + 1;
+				var lineKey = (int)(__Line.Count + 1);
 				__Line.Add(new(
 					lineKey,
 					orderKey,

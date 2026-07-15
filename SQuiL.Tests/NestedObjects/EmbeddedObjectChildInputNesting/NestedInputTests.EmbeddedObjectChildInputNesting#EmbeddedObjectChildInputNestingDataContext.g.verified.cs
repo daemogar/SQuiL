@@ -35,14 +35,14 @@ partial class EmbeddedObjectChildInputNestingDataContext : SQuiLBaseDataContext
 		
 		if (request.Order is not null)
 		{
-			var orderKey = __Order.Count + 1;
+			var orderKey = (int)(__Order.Count + 1);
 			__Order.Add(new(
 				orderKey,
 				request.Order.CustomerName));
 			if (request.Order.Shipment is not null)
 			{
 				var shipment = request.Order.Shipment;
-				var shipmentKey = __Shipment.Count + 1;
+				var shipmentKey = (int)(__Shipment.Count + 1);
 				__Shipment.Add(new(
 					shipmentKey,
 					orderKey,

@@ -622,7 +622,8 @@ target database).</p>
 <p>The <code>Process…Async</code> / <code>SQuiLResultType</code> / <code>TryGetValue</code> calling
 convention is unchanged — only the response's internal shape nests. A parent row with no matching children
 gets an empty list (<code>[]</code>), not <code>null</code> — different from a top-level list return, where
-<code>null</code> means the result set itself was absent.</p>
+<code>null</code> means the result set itself was absent. A child row whose key matches no parent row is
+dropped from the tree entirely (it has nowhere to attach) — it will not appear anywhere in the response.</p>
 <p>Three diagnostics guard the link graph: <code>SP0033</code> (build error) if a child's column matches
 more than one table's <code>Primary Key</code>; <code>SP0034</code> (build error) if following links
 loops back to the same table (no recursion in v1); <code>SP0035</code> (editor hint) if a

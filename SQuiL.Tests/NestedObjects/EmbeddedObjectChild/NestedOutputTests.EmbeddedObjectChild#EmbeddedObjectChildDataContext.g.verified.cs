@@ -105,18 +105,28 @@ partial class EmbeddedObjectChildDataContext : SQuiLBaseDataContext
 			
 			foreach (var parent in __Transcript)
 			{
-				parent.Student = System.Linq.Enumerable.SingleOrDefault(__Student.Where(c => c.TranscriptID == parent.TranscriptID));
+				var __match = __Student.Where(c => c.TranscriptID == parent.TranscriptID).ToList();
+				if (__match.Count > 1)
+				{
+					throw new Exception("Return object results in more than one object. Consider using a return table instead.");
+				}
+				parent.Student = __match.Count == 1 ? __match[0] : null;
 			}
 			
-			response.Transcript = System.Linq.Enumerable.SingleOrDefault(__Transcript);
+			var __transcriptMatch = __Transcript.ToList();
+			if (__transcriptMatch.Count > 1)
+			{
+				throw new Exception("Return object results in more than one object. Consider using a return table instead.");
+			}
+			response.Transcript = __transcriptMatch.Count == 1 ? __transcriptMatch[0] : null;
 		}
 		catch(SqlException e)
 		{
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTranscript) errors.Add(new(51001, 12, 1, 117, "Transcript", "Expected return object `Transcript`"));
-		if (!isStudent) errors.Add(new(51001, 12, 1, 118, "Student", "Expected return object `Student`"));
+		if (!isTranscript) errors.Add(new(51001, 12, 1, 127, "Transcript", "Expected return object `Transcript`"));
+		if (!isStudent) errors.Add(new(51001, 12, 1, 128, "Student", "Expected return object `Student`"));
 		
 		if(errors.Count == 0)
 			return new(response);

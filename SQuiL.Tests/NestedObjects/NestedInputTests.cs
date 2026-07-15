@@ -145,4 +145,42 @@ public class NestedInputTests
             Insert Into dbo.Institutions Select InstitutionID, TranscriptCode, SchoolName From @Params_Institution;
             """], compileCheck: false);
     }
+
+    // Narrowing-integer regression: a `smallint` (C# `short`) PK/FK link column.
+    // The synthesized sequential value (`__<Name>.Count + 1`) is an `int`
+    // expression; it must be cast down to `short` at the synthesis site so the
+    // generated row-record ctor call and FK propagation both compile (would
+    // otherwise be CS1503: cannot convert `int` to `short`).
+    [Fact]
+    public Task SmallintKeyInputNesting()
+    {
+        var name = nameof(SmallintKeyInputNesting);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Param_Order table(OrderID smallint Primary Key, Placed date);
+            Declare @Params_Line table(LineID smallint Primary Key, OrderID smallint, Sku varchar(50));
+            Use [Db];
+            Insert Into dbo.Orders Select OrderID, Placed From @Param_Order;
+            Insert Into dbo.Lines Select LineID, OrderID, Sku From @Params_Line;
+            """]);
+    }
+
+    // Widening-integer boundary regression: a `bigint` (C# `long`) PK/FK link
+    // column. The synthesized `int` value widens implicitly into `long`, but the
+    // synthesis site now always casts explicitly (`(long)(...)`) regardless —
+    // this locks that the explicit cast keeps working at the widening end of the
+    // integer family, not just the narrowing end.
+    [Fact]
+    public Task BigintKeyInputNesting()
+    {
+        var name = nameof(BigintKeyInputNesting);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Param_Order table(OrderID bigint Primary Key, Placed date);
+            Declare @Params_Line table(LineID bigint Primary Key, OrderID bigint, Sku varchar(50));
+            Use [Db];
+            Insert Into dbo.Orders Select OrderID, Placed From @Param_Order;
+            Insert Into dbo.Lines Select LineID, OrderID, Sku From @Params_Line;
+            """]);
+    }
 }

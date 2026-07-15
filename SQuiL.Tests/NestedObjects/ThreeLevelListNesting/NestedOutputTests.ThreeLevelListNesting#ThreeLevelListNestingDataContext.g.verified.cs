@@ -138,16 +138,21 @@ partial class ThreeLevelListNestingDataContext : SQuiLBaseDataContext
 				parent.Institution = __Institution.Where(c => c.TranscriptID == parent.TranscriptID).ToList();
 			}
 			
-			response.Transcript = System.Linq.Enumerable.SingleOrDefault(__Transcript);
+			var __transcriptMatch = __Transcript.ToList();
+			if (__transcriptMatch.Count > 1)
+			{
+				throw new Exception("Return object results in more than one object. Consider using a return table instead.");
+			}
+			response.Transcript = __transcriptMatch.Count == 1 ? __transcriptMatch[0] : null;
 		}
 		catch(SqlException e)
 		{
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTranscript) errors.Add(new(51001, 12, 1, 147, "Transcript", "Expected return object `Transcript`"));
-		if (!isInstitution) errors.Add(new(51001, 12, 1, 148, "Institution", "Expected return table `Institution`"));
-		if (!isCourse) errors.Add(new(51001, 12, 1, 149, "Course", "Expected return table `Course`"));
+		if (!isTranscript) errors.Add(new(51001, 12, 1, 152, "Transcript", "Expected return object `Transcript`"));
+		if (!isInstitution) errors.Add(new(51001, 12, 1, 153, "Institution", "Expected return table `Institution`"));
+		if (!isCourse) errors.Add(new(51001, 12, 1, 154, "Course", "Expected return table `Course`"));
 		
 		if(errors.Count == 0)
 			return new(response);

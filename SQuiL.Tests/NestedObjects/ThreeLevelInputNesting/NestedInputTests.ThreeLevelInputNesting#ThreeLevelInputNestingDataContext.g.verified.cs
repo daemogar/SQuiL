@@ -36,13 +36,13 @@ partial class ThreeLevelInputNestingDataContext : SQuiLBaseDataContext
 		
 		if (request.Transcript is not null)
 		{
-			var transcriptKey = __Transcript.Count + 1;
+			var transcriptKey = (int)(__Transcript.Count + 1);
 			__Transcript.Add(new(
 				transcriptKey,
 				request.Transcript.IssueDate));
 			foreach (var institution in request.Transcript.Institution ?? [])
 			{
-				var institutionKey = __Institution.Count + 1;
+				var institutionKey = (int)(__Institution.Count + 1);
 				__Institution.Add(new(
 					institutionKey,
 					transcriptKey,
