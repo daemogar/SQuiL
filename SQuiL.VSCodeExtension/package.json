@@ -127,7 +127,24 @@
           "description": "Automatically check GitHub for newer SQuiL extension releases. The 'SQuiL: Check for Updates' command always works regardless of this setting."
         }
       }
-    }
+    },
+    "semanticTokenTypes": [
+      {
+        "id": "relationshipKey",
+        "description": "A nested-object relationship key: a table's Primary Key column and its matching foreign-key-by-convention column(s) on child tables."
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "squil",
+        "scopes": {
+          "relationshipKey": [
+            "entity.name.tag.squil",
+            "entity.name.tag"
+          ]
+        }
+      }
+    ]
   },
   "scripts": {
     "sync-shared": "node scripts/sync-shared.js",

@@ -45,6 +45,11 @@ internal static class SQuiLColours
     public static readonly Color Comment   = Color.FromRgb(0x6A, 0x99, 0x55);
     public static readonly Color StringLit = Color.FromRgb(0xCE, 0x91, 0x78);
     public static readonly Color Number    = Color.FromRgb(0xB5, 0xCE, 0xA8);
+
+    // Task 16 — relationship key (linked Primary Key / foreign-key-by-convention
+    // column). Amber, distinct from every other SQuiL colour above, and bold +
+    // underlined so a linked column reads as "clickable/related" at a glance.
+    public static readonly Color RelationshipKey = Color.FromRgb(0xFF, 0xCB, 0x6B);
 }
 
 // ── @Param_*, @Params_* ──────────────────────────────────────────────────
@@ -351,5 +356,24 @@ internal sealed class SQuiLNumberFormat : ClassificationFormatDefinition
     {
         DisplayName     = "SQuiL Number Literal";
         ForegroundColor = SQuiLColours.Number;
+    }
+}
+
+// ── Relationship key (linked Primary Key / FK-by-convention column) ─────
+// Task 16. Bumped to Priority.High so it visibly wins over SSMS's default
+// (usually uncoloured) identifier rendering for the tagged column spans —
+// same reasoning as the SQL-type override above.
+[Export(typeof(EditorFormatDefinition))]
+[ClassificationType(ClassificationTypeNames = SQuiLClassificationTypes.SQuiLRelationshipKey)]
+[Name(SQuiLClassificationTypes.SQuiLRelationshipKey)]
+[UserVisible(true)]
+[Order(After = Priority.High)]
+internal sealed class SQuiLRelationshipKeyFormat : ClassificationFormatDefinition
+{
+    public SQuiLRelationshipKeyFormat()
+    {
+        DisplayName     = "SQuiL Relationship Key (nested-object PK/FK link)";
+        ForegroundColor = SQuiLColours.RelationshipKey;
+        IsBold          = true;
     }
 }

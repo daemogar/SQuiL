@@ -385,6 +385,53 @@ internal static class SQuiLLinter
     }
 
     /// <summary>
+    /// Task 16 — relationship-key classification span list. Every column NAME
+    /// token (line, character, length) that plays a role in the nested-object
+    /// PK/FK-by-convention graph: a parent's designated Primary Key column,
+    /// and every child column that resolves to it. Classification-only (never
+    /// a diagnostic) — consumed by <c>SQuiLLinkedKeyClassifier</c>. Covers
+    /// BOTH the OUTPUT and INPUT universes independently, never mixed, same
+    /// as every other nested-object feature. Graceful degradation: a file
+    /// with no links produces an empty list. Mirrors <c>linkedColumnRanges</c>
+    /// in <c>linkedColumnRanges.ts</c> (VS Code) — change one side, change
+    /// both (the exact span REPRESENTATION differs — LSP-style semantic
+    /// tokens there vs. plain (line, character, length) tuples here, since
+    /// this feeds a classic <c>IClassifier</c>, not a semantic-tokens API).
+    /// </summary>
+    internal static List<(int Line, int Character, int Length)> LinkedColumnSpans(SQuiLParseResult parsed)
+    {
+        var spans = new List<(int Line, int Character, int Length)>();
+        var seen = new HashSet<(int, int, int)>();
+
+        foreach (var list in new[] { OutputTableVariables(parsed), InputTableVariables(parsed) })
+        {
+            var graph = BuildKeyGraph(list);
+            if (graph.Edges.Count == 0) continue;
+
+            foreach (var edge in graph.Edges)
+            {
+                var pkCol = edge.Parent.Columns!.FirstOrDefault(c =>
+                    c.IsPrimaryKey && string.Equals(c.Name, edge.KeyName, System.StringComparison.OrdinalIgnoreCase));
+                if (pkCol is not null)
+                {
+                    var span = (pkCol.Line, pkCol.Character, pkCol.Name.Length);
+                    if (seen.Add(span)) spans.Add(span);
+                }
+
+                var fkCol = edge.Child.Columns!.FirstOrDefault(c =>
+                    string.Equals(c.Name, edge.KeyName, System.StringComparison.OrdinalIgnoreCase));
+                if (fkCol is not null)
+                {
+                    var span = (fkCol.Line, fkCol.Character, fkCol.Name.Length);
+                    if (seen.Add(span)) spans.Add(span);
+                }
+            }
+        }
+
+        return spans;
+    }
+
+    /// <summary>
     /// Nested-object link role text for the column at the given source
     /// position, or null when the position isn't on a column that plays a
     /// PK/FK-by-convention role (graceful degradation — hover is left

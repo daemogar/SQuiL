@@ -43,6 +43,14 @@ internal static class SQuiLClassificationTypes
     public const string SQuiLString           = "squil.string";
     public const string SQuiLNumber           = "squil.number";
 
+    // Task 16 — nested-object relationship key: a table's Primary Key column
+    // and its matching foreign-key-by-convention column(s) on child tables.
+    // Exported by SQuiLLinkedKeyClassifierProvider (a SEPARATE IClassifier
+    // layered alongside SQuiLClassifier — see SQuiLLinkedKeyClassifier.cs —
+    // because it needs a whole-document key-graph pass, unlike this file's
+    // per-line, stateless-beyond-block-comments classifier).
+    public const string SQuiLRelationshipKey  = "squil.relationship-key";
+
     // ── Exports (one per classification type) ──────────────────────────────
 
     [Export] [Name(SQuiLParamVariable)]   internal static ClassificationTypeDefinition ParamVariable   { get; } = null!;
@@ -68,4 +76,5 @@ internal static class SQuiLClassificationTypes
     [Export] [Name(SQuiLBlockComment)]    internal static ClassificationTypeDefinition BlockComment    { get; } = null!;
     [Export] [Name(SQuiLString)]          internal static ClassificationTypeDefinition String          { get; } = null!;
     [Export] [Name(SQuiLNumber)]          internal static ClassificationTypeDefinition Number          { get; } = null!;
+    [Export] [Name(SQuiLRelationshipKey)] internal static ClassificationTypeDefinition RelationshipKey { get; } = null!;
 }

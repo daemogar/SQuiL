@@ -194,21 +194,24 @@ public static class SQuiLParser
                 string varName = declareMatch.Groups[1].Value;
                 string typeStr = declareMatch.Groups[2].Value.Trim();
 
-                // If a TABLE type starts here but the closing ) is on a later line, collect it
-                if (TableTypePrefix.IsMatch(typeStr) && !typeStr.Contains(")"))
+                // If a TABLE type starts here but the closing ) is on a later line, collect it.
+                // Tracks paren DEPTH (not "does this line contain a )") so a column whose
+                // type itself carries parens (varchar(50), decimal(18,2), …) on an earlier
+                // line doesn't fool the join into stopping before the table's real closing
+                // paren — that silently dropped every column declared after it. Mirrors the
+                // depth-tracking ScanTableColumnPositions below already uses correctly.
+                if (TableTypePrefix.IsMatch(typeStr))
                 {
+                    int depth = ParenDepthDelta(typeStr);
                     int j = i + 1;
-                    while (j < lines.Length && !lines[j].Contains(")"))
-                    {
-                        typeStr += " " + lines[j].Trim();
-                        j++;
-                    }
-                    if (j < lines.Length)
+                    while (depth > 0 && j < lines.Length)
                     {
                         var seg = lines[j].Trim();
                         int semi = seg.IndexOf(';');
                         if (semi >= 0) seg = seg.Substring(0, semi);
                         typeStr += " " + seg;
+                        depth += ParenDepthDelta(seg);
+                        j++;
                     }
                 }
 
@@ -384,6 +387,20 @@ public static class SQuiLParser
             });
         }
         return cols;
+    }
+
+    /// <summary>Net change in paren depth across a string ('(' count minus ')' count).
+    /// Used to find the real end of a multi-line <c>TABLE( ... )</c> declaration without
+    /// being fooled by a column type's own parens (e.g. <c>varchar(50)</c>).</summary>
+    private static int ParenDepthDelta(string s)
+    {
+        int delta = 0;
+        foreach (char ch in s)
+        {
+            if (ch == '(') delta++;
+            else if (ch == ')') delta--;
+        }
+        return delta;
     }
 
     private static IEnumerable<string> SplitTopLevelCommas(string str)

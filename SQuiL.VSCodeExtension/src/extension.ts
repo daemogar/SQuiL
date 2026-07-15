@@ -6,6 +6,11 @@ import { SQuiLCompletionProvider } from './providers/completionProvider';
 import { SQuiLDiagnosticsProvider } from './providers/diagnosticsProvider';
 import { SQuiLHoverProvider } from './providers/hoverProvider';
 import {
+  SQuiLSemanticTokensProvider,
+  squilSemanticTokensLegend,
+} from './providers/semanticTokensProvider';
+import { SQuiLCodeActionProvider } from './providers/codeActionProvider';
+import {
   SQuiLPreviewContentProvider,
   openPreview,
   refreshPreview,
@@ -39,6 +44,26 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerHoverProvider(
       { language: SQUIL_LANG },
       new SQuiLHoverProvider(),
+    ),
+  );
+
+  // Task 16: relationship-key coloring — tags linked PK/FK column NAME
+  // tokens with the `relationshipKey` semantic token type (see
+  // package.json's `semanticTokenTypes`/`semanticTokenScopes`).
+  context.subscriptions.push(
+    vscode.languages.registerDocumentSemanticTokensProvider(
+      { language: SQUIL_LANG },
+      new SQuiLSemanticTokensProvider(),
+      squilSemanticTokensLegend,
+    ),
+  );
+
+  // Task 16: "Add Primary Key" / "Link to <Table> via <PK>" code actions.
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      { language: SQUIL_LANG },
+      new SQuiLCodeActionProvider(),
+      { providedCodeActionKinds: SQuiLCodeActionProvider.providedCodeActionKinds },
     ),
   );
 

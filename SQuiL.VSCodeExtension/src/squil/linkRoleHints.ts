@@ -26,7 +26,10 @@
 import { SQuiLParseResult, SQuiLVariable, TableColumn, VariableRole } from './parser';
 import { buildKeyGraph, OUTPUT_TABLE_ROLES, INPUT_TABLE_ROLES } from './keyGraph';
 
-function tableVariablesFor(
+/** Exported for reuse by other editor-only helpers (semantic tokens, code actions)
+ *  that need the same "table/object variable with columns, restricted to one
+ *  role universe" filter — one implementation, not a third duplicated copy. */
+export function tableVariablesFor(
   parsed: SQuiLParseResult,
   roles: ReadonlySet<VariableRole>,
 ): (SQuiLVariable & { columns: TableColumn[] })[] {

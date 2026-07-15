@@ -140,15 +140,20 @@ export function parseSQuiL(text: string): SQuiLParseResult {
       const varName = declareMatch[1];
       let typeStr = declareMatch[2].trim();
 
-      // If a TABLE type starts here but the closing ) is on a later line, collect it
-      if (/^TABLE\s*\(/i.test(typeStr) && !typeStr.includes(')')) {
+      // If a TABLE type starts here but the closing ) is on a later line, collect it.
+      // Tracks paren DEPTH (not "does this line contain a )") so a column whose type
+      // itself carries parens (varchar(50), decimal(18,2), …) on an earlier line
+      // doesn't fool the join into stopping before the table's real closing paren —
+      // that silently dropped every column declared after it. Mirrors the
+      // depth-tracking `scanTableColumnPositions` below already uses correctly.
+      if (/^TABLE\s*\(/i.test(typeStr)) {
+        let depth = parenDepthDelta(typeStr);
         let j = i + 1;
-        while (j < lines.length && !lines[j].includes(')')) {
-          typeStr += ' ' + lines[j].trim();
+        while (depth > 0 && j < lines.length) {
+          const seg = lines[j].trim().replace(/;.*$/, '');
+          typeStr += ' ' + seg;
+          depth += parenDepthDelta(seg);
           j++;
-        }
-        if (j < lines.length) {
-          typeStr += ' ' + lines[j].trim().replace(/;.*$/, '');
         }
       }
 
@@ -770,6 +775,18 @@ function scanTableColumnPositions(
   }
 
   return results;
+}
+
+/** Net change in paren depth across a string ('(' count minus ')' count).
+ *  Used to find the real end of a multi-line `TABLE( ... )` declaration
+ *  without being fooled by a column type's own parens (e.g. `varchar(50)`). */
+function parenDepthDelta(s: string): number {
+  let delta = 0;
+  for (const ch of s) {
+    if (ch === '(') delta++;
+    else if (ch === ')') delta--;
+  }
+  return delta;
 }
 
 export function splitTopLevelCommas(str: string): string[] {

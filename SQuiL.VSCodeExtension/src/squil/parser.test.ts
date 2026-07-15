@@ -482,3 +482,31 @@ test('SP0036 stays silent for int/bigint/smallint/uniqueidentifier link columns'
   ].join('\n'));
   assert.strictEqual(guidResult.diagnostics.filter(d => d.code === 'SP0036').length, 0);
 });
+
+// Regression (found while building Task 16's link-insertion code action): a
+// multi-line TABLE(...) declaration where a MIDDLE column's own type carries
+// parens (varchar(50), decimal(18,2), …) used to fool the continuation-join
+// into stopping at that coincidental ')' instead of the table's real closing
+// paren, silently dropping every column declared after it.
+test('multi-line TABLE(...) declaration keeps every column even when an earlier column\'s type has its own parens', () => {
+  const result = parseSQuiL([
+    '--Name: MultiLineParenMiddle',
+    'Declare @Returns_Order table(',
+    '  OrderID int,',
+    '  Total decimal(18,2),',
+    '  Note varchar(50),',
+    '  CreatedOn datetime',
+    ');',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n'));
+
+  const order = result.variables.find(v => v.name === 'Order');
+  assert.ok(order, 'Order should be parsed');
+  assert.strictEqual(order!.columns?.length, 4, 'all 4 columns should survive the multi-line join');
+  assert.deepStrictEqual(order!.columns!.map(c => c.name), ['OrderID', 'Total', 'Note', 'CreatedOn']);
+  // The last column's position should be resolved onto its OWN line (5), not the
+  // declare line (1) — confirms scanTableColumnPositions ran on the FULL, correctly
+  // joined declaration rather than a truncated one.
+  assert.strictEqual(order!.columns!.find(c => c.name === 'CreatedOn')!.line, 5);
+});
