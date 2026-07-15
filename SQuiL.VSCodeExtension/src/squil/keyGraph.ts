@@ -4,10 +4,15 @@
  *
  * Build-time parent/child graph inferred from Primary-Key columns and
  * matching-named "foreign key by convention" columns, over one query file's
- * OUTPUT (`@Return_`/`@Returns_`) table/object blocks. A table's key is its
- * single Primary-Key column name; any OTHER block carrying a column of that
- * exact name is its child. Graceful degradation: no PKs / no matches → no
- * links (flat model).
+ * table/object blocks. A table's key is its single Primary-Key column name;
+ * any OTHER block carrying a column of that exact name is its child. Graceful
+ * degradation: no PKs / no matches → no links (flat model).
+ *
+ * Two independent universes participate, never mixed in the same graph —
+ * matches the generator, which calls `SQuiLKeyGraph.Build` once for OUTPUT
+ * blocks and once for INPUT blocks (`FileGenerator.cs`'s `keyGraph` /
+ * `inputGraph`). Pass `OUTPUT_TABLE_ROLES` (the default) for `@Return_`/
+ * `@Returns_` blocks, or `INPUT_TABLE_ROLES` for `@Param_`/`@Params_` blocks.
  *
  * Detects the same two error findings the generator reports as build errors
  * (SP0033 ambiguous / SP0034 cycle), plus an editor-only orphan-PK hint
@@ -42,14 +47,18 @@ export interface KeyGraphResult {
   hasLinks: boolean;
 }
 
-/** Only OUTPUT table/object variables participate — input nesting is out of
- * scope, matching the generator (which builds its graph from OUTPUT blocks only). */
-const OUTPUT_TABLE_ROLES: ReadonlySet<VariableRole> = new Set(['returns', 'return-table']);
+/** OUTPUT table/object roles — the default universe (matches the generator's OUTPUT graph). */
+export const OUTPUT_TABLE_ROLES: ReadonlySet<VariableRole> = new Set(['returns', 'return-table']);
+/** INPUT table/object roles — the `@Param_`/`@Params_` universe (matches the generator's INPUT graph). */
+export const INPUT_TABLE_ROLES: ReadonlySet<VariableRole> = new Set(['params', 'param-table']);
 
-export function buildKeyGraph(variables: SQuiLVariable[]): KeyGraphResult {
+export function buildKeyGraph(
+  variables: SQuiLVariable[],
+  roles: ReadonlySet<VariableRole> = OUTPUT_TABLE_ROLES,
+): KeyGraphResult {
   const list = variables.filter(
     (v): v is SQuiLVariable & { columns: TableColumn[] } =>
-      OUTPUT_TABLE_ROLES.has(v.role) && Array.isArray(v.columns) && v.columns.length > 0,
+      roles.has(v.role) && Array.isArray(v.columns) && v.columns.length > 0,
   );
 
   // Key column name (lowercased) -> owning variable(s). A variable's key = its

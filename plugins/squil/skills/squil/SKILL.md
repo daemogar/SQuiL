@@ -214,6 +214,40 @@ public partial record Course(int CourseID, int InstitutionID, string Title);
 
 **Diagnostics:** SP0033 (build error) if a child's column matches more than one table's `Primary Key` (ambiguous parent); SP0034 (build error) if following PK/FK links loops back to the same table (cycle — no recursion in v1); SP0035 (editor-only Hint/Info) if a `Primary Key` has no linking child, surfaced only once nesting is already in play elsewhere in the file. A file with no `Primary Key` links generates today's flat response, unchanged — graceful degradation, not an opt-in flag.
 
+### Nested objects (input)
+
+The same `Primary Key`-by-convention rule nests `@Param_`/`@Params_` tables too — a **separate** graph from the output one above (never mixed). Only **root** input tables stay top-level `<QueryName>Request` properties; every child input table collapses into its parent request record as a settable nested member, exactly like the response side. The one difference: a **list** child **keeps** its `= []` initializer (matching every other input list property, since a request list is never "absent" the way a response list can be); an **object** child gets no initializer, same as the output side.
+
+You never populate the linking columns yourself — SQuiL synthesizes a join key for every nested input row when it flattens the request: an integer-family key (`int`/`bigint`/`smallint`) gets a 1-based sequential value per table; a `uniqueidentifier` key gets a fresh `Guid`. The synthesized parent key is copied into the child's matching FK column automatically before each row is serialized through the normal JSON/OPENJSON path — unchanged for callers, and files with no input links keep today's flat per-table path untouched.
+
+```sql
+Declare @Param_Order     table(OrderID int Primary Key, CustomerName varchar(50));
+Declare @Params_Shipment table(ShipmentID int Primary Key, OrderID int, Carrier varchar(50));
+
+Use [Db];
+
+Insert Into dbo.Orders    Select OrderID, CustomerName From @Param_Order;
+Insert Into dbo.Shipments Select ShipmentID, OrderID, Carrier From @Params_Shipment;
+```
+
+`Shipment` links to `Order` via `OrderID`, so only `Order` is a root; the caller never sets `OrderID`/`ShipmentID` — SQuiL synthesizes both:
+
+```csharp
+public partial record PlaceOrderRequest
+{
+    public TestCase.Models.Order? Order { get; set; } = default!;
+}
+
+public partial record Order(int OrderID, string CustomerName)
+{
+    public List<TestCase.Models.Shipment>? Shipment { get; set; } = [];
+}
+
+public partial record Shipment(int ShipmentID, int OrderID, string Carrier);
+```
+
+**Diagnostics:** SP0033/SP0034/SP0035 above apply to this graph too, independently of the output graph. **SP0036** (build error) is input-only: it fires when a link column's declared type is neither integer-family (`int`/`bigint`/`smallint`) nor `uniqueidentifier` — nothing else can have a join key synthesized; all three editors squiggle it too.
+
 ### Common authoring mistakes
 
 - **Skipping `Use <DB>`.** Required, and it must come after the declares but before any data-modifying SQL.
@@ -232,6 +266,7 @@ public partial record Course(int CourseID, int InstitutionID, string Title);
 - **Declaring a `timestamp`/`rowversion` column as an input.** The database assigns these values; declaring one on `@Param_`/`@Params_` (rather than only `@Return_`/`@Returns_`) is build error **SP0032**.
 - **Two tables both carrying a column that matches the same `Primary Key` name.** A nested-object child must resolve to exactly one parent — an ambiguous match is build error **SP0033**. Rename one of the colliding columns.
 - **A `Primary Key`/foreign-key chain that loops back on itself.** Nested objects require a tree, not a cycle; a self-referencing or circular link chain is build error **SP0034**.
+- **A nested-input link column typed as something other than an integer or `uniqueidentifier`.** SQuiL synthesizes nested-input join keys itself, but only for integer-family (`int`/`bigint`/`smallint`) or `uniqueidentifier` columns — anything else (e.g. `varchar`) is build error **SP0036**. Change the link column's type.
 
 ---
 

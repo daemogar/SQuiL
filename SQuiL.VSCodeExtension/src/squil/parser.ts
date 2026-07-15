@@ -83,7 +83,7 @@ export interface SQuiLParseResult {
 
 import { validateVariables, findingMessage, findingSeverity } from './variableValidator';
 import { shapeKeyOf } from './shapeKey';
-import { buildKeyGraph } from './keyGraph';
+import { buildKeyGraph, KeyGraphResult, OUTPUT_TABLE_ROLES, INPUT_TABLE_ROLES } from './keyGraph';
 
 /** Parse a full SQuiL SQL file text into a structured result. */
 export function parseSQuiL(text: string): SQuiLParseResult {
@@ -195,7 +195,8 @@ export function parseSQuiL(text: string): SQuiLParseResult {
     result.diagnostics.push(d);
   }
 
-  // SP0033 / SP0034: nested-object key-graph errors (ambiguous parent / cycle).
+  // SP0033 / SP0034: nested-object key-graph errors (ambiguous parent / cycle),
+  // over BOTH the OUTPUT and INPUT graphs. SP0036: unsupported nested-input key type.
   for (const d of lintKeyGraph(result)) {
     result.diagnostics.push(d);
   }
@@ -215,48 +216,103 @@ export function parseSQuiL(text: string): SQuiLParseResult {
  * `DiagnosticsMessages.ReportAmbiguousKeyLink` / `ReportKeyCycle`) — this is the
  * editor-squiggle mirror. Port of `LintKeyGraph` in `SQuiLLinter.cs`
  * (SSMS + Visual Studio) — change one side, change all three.
+ *
+ * Applied to BOTH the OUTPUT (`@Return_`/`@Returns_`) and INPUT (`@Param_`/
+ * `@Params_`) key graphs, matching the generator building one of each
+ * (`FileGenerator.cs`'s `keyGraph` / `inputGraph`). SP0036 (unsupported
+ * nested-input key type) is checked against the INPUT graph only.
  */
 export function lintKeyGraph(result: SQuiLParseResult): SQuiLDiagnostic[] {
   const diagnostics: SQuiLDiagnostic[] = [];
-  const graph = buildKeyGraph(result.variables);
+  const outputGraph = buildKeyGraph(result.variables, OUTPUT_TABLE_ROLES);
+  const inputGraph = buildKeyGraph(result.variables, INPUT_TABLE_ROLES);
 
-  for (const finding of graph.errors) {
-    const v = finding.variable;
-    const other = finding.otherVariable;
+  for (const graph of [outputGraph, inputGraph]) {
+    for (const finding of graph.errors) {
+      const v = finding.variable;
+      const other = finding.otherVariable;
 
-    if (finding.kind === 'ambiguous') {
-      diagnostics.push({
-        message:
-          `\`${v.name}\` (line ${v.line + 1}) links to more than one table — it also matches ` +
-          `\`${other.name}\`'s (line ${other.line + 1}) primary key. A nested-object child must have ` +
-          `exactly one parent — rename one of the key columns so only one match remains.`,
-        line: v.line,
-        startChar: v.character,
-        endChar: v.character + v.rawName.length,
-        severity: 'error',
-        code: 'SP0033',
-        relatedLine: other.line,
-        relatedStartChar: other.character,
-        relatedEndChar: other.character + other.rawName.length,
-        relatedMessage: "matches this table's primary key",
-      });
-    } else {
-      // cycle
-      diagnostics.push({
-        message:
-          `\`${v.name}\` (line ${v.line + 1}) and \`${other.name}\` (line ${other.line + 1}) ` +
-          `form a primary-key/foreign-key cycle. Nested objects cannot be recursive — remove one of the links.`,
-        line: v.line,
-        startChar: v.character,
-        endChar: v.character + v.rawName.length,
-        severity: 'error',
-        code: 'SP0034',
-        relatedLine: other.line,
-        relatedStartChar: other.character,
-        relatedEndChar: other.character + other.rawName.length,
-        relatedMessage: 'cycle partner declared here',
-      });
+      if (finding.kind === 'ambiguous') {
+        diagnostics.push({
+          message:
+            `\`${v.name}\` (line ${v.line + 1}) links to more than one table — it also matches ` +
+            `\`${other.name}\`'s (line ${other.line + 1}) primary key. A nested-object child must have ` +
+            `exactly one parent — rename one of the key columns so only one match remains.`,
+          line: v.line,
+          startChar: v.character,
+          endChar: v.character + v.rawName.length,
+          severity: 'error',
+          code: 'SP0033',
+          relatedLine: other.line,
+          relatedStartChar: other.character,
+          relatedEndChar: other.character + other.rawName.length,
+          relatedMessage: "matches this table's primary key",
+        });
+      } else {
+        // cycle
+        diagnostics.push({
+          message:
+            `\`${v.name}\` (line ${v.line + 1}) and \`${other.name}\` (line ${other.line + 1}) ` +
+            `form a primary-key/foreign-key cycle. Nested objects cannot be recursive — remove one of the links.`,
+          line: v.line,
+          startChar: v.character,
+          endChar: v.character + v.rawName.length,
+          severity: 'error',
+          code: 'SP0034',
+          relatedLine: other.line,
+          relatedStartChar: other.character,
+          relatedEndChar: other.character + other.rawName.length,
+          relatedMessage: 'cycle partner declared here',
+        });
+      }
     }
+  }
+
+  diagnostics.push(...lintUnsupportedInputKeyType(inputGraph));
+
+  return diagnostics;
+}
+
+/** SQL types the generator can synthesize a nested-input join key for
+ *  (`IsSynthesizableKeyType` in `FileGenerator.cs`): integer-family + uniqueidentifier. */
+const SYNTHESIZABLE_KEY_TYPES = new Set(['int', 'bigint', 'smallint', 'uniqueidentifier']);
+
+function baseSqlType(sqlType: string): string {
+  return sqlType.replace(/\s*\([^)]*\)/, '').trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+}
+
+/**
+ * SP0036 (Error) — within the nested-INPUT key graph, a parent/child link
+ * column's declared type is neither integer-family (int/bigint/smallint) nor
+ * uniqueidentifier, so the generator cannot synthesize a join key for it.
+ * Mirrors the build error (`IsSynthesizableKeyType` / `ReportUnsupportedKeyType`
+ * in `FileGenerator.cs`/`DiagnosticsMessages.cs`) — editor-squiggle parity,
+ * checked only against the INPUT graph (there is no INPUT-side equivalent on
+ * OUTPUT graphs, which never synthesize keys).
+ */
+export function lintUnsupportedInputKeyType(inputGraph: KeyGraphResult): SQuiLDiagnostic[] {
+  const diagnostics: SQuiLDiagnostic[] = [];
+
+  for (const edge of inputGraph.edges) {
+    const parentColumns = (edge.parent.columns ?? []) as TableColumn[];
+    const keyColumn =
+      parentColumns.find(c => c.isPrimaryKey && c.name.toLowerCase() === edge.keyName.toLowerCase()) ??
+      parentColumns.find(c => c.name.toLowerCase() === edge.keyName.toLowerCase());
+    if (!keyColumn) continue;
+    if (SYNTHESIZABLE_KEY_TYPES.has(baseSqlType(keyColumn.sqlType))) continue;
+
+    const child = edge.child;
+    diagnostics.push({
+      message:
+        `Link column \`${edge.keyName}\` on \`${child.name}\` (line ${child.line + 1}) has type ` +
+        `\`${keyColumn.sqlType}\`, which cannot have a join key synthesized. A nested-input key column must ` +
+        `be an integer type (int, bigint, or smallint) or uniqueidentifier — change the link column's type.`,
+      line: child.line,
+      startChar: child.character,
+      endChar: child.character + child.rawName.length,
+      severity: 'error',
+      code: 'SP0036',
+    });
   }
 
   return diagnostics;

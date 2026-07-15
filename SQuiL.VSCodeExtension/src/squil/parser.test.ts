@@ -384,3 +384,101 @@ test('SP0033/SP0034 stay silent on a well-formed tree (no ambiguity, no cycle)',
   assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0033').length, 0);
   assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0034').length, 0);
 });
+
+// ── SP0033 / SP0034 on the INPUT (`@Param_`/`@Params_`) key graph — the same
+// checks applied to a second, independent graph (Task 15) ──────────────────
+
+test('SP0033 fires on the INPUT graph when a child column matches more than one declared Primary Key', () => {
+  const result = parseSQuiL([
+    '--Name: AmbiguousInput',
+    'Declare @Params_A table(SharedID int Primary Key, N int);',
+    'Declare @Params_B table(SharedID int Primary Key, M int);',
+    'Declare @Params_C table(CID int, SharedID int);',
+    'Use [Db];',
+    'Insert Into dbo.As Select SharedID, N From @Params_A;',
+    'Insert Into dbo.Bs Select SharedID, M From @Params_B;',
+    'Insert Into dbo.Cs Select CID, SharedID From @Params_C;',
+  ].join('\n'));
+
+  const sp0033 = result.diagnostics.filter(d => d.code === 'SP0033');
+  assert.strictEqual(sp0033.length, 1, 'should emit exactly one SP0033 diagnostic for the input graph');
+  assert.strictEqual(sp0033[0].severity, 'error');
+  assert.ok(sp0033[0].message.includes('C'), 'message should name the ambiguous child');
+  assert.ok(sp0033[0].message.includes('A'), 'message should name a matched parent');
+});
+
+test('SP0034 fires on the INPUT graph when Primary-Key/Foreign-Key links form a cycle', () => {
+  const result = parseSQuiL([
+    '--Name: CycleInput',
+    'Declare @Param_A table(AID int Primary Key, BID int);',
+    'Declare @Param_B table(BID int Primary Key, AID int);',
+    'Use [Db];',
+    'Insert Into dbo.As Select AID, BID From @Param_A;',
+    'Insert Into dbo.Bs Select BID, AID From @Param_B;',
+  ].join('\n'));
+
+  const sp0034 = result.diagnostics.filter(d => d.code === 'SP0034');
+  assert.strictEqual(sp0034.length, 1, 'should emit exactly one SP0034 diagnostic for the input graph');
+  assert.strictEqual(sp0034[0].severity, 'error');
+  assert.ok(sp0034[0].message.includes('A') && sp0034[0].message.includes('B'), 'message should name both tables');
+});
+
+test('SP0033/SP0034 on the INPUT graph do not fire from an unrelated OUTPUT-side ambiguity/cycle (graphs stay independent)', () => {
+  const result = parseSQuiL([
+    '--Name: MixedTree',
+    'Declare @Returns_Parent table(ParentID int Primary Key, Name varchar(50));',
+    'Declare @Returns_Child table(ChildID int Primary Key, ParentID int);',
+    'Declare @Params_InParent table(InParentID int Primary Key, Name varchar(50));',
+    'Declare @Params_InChild table(InChildID int Primary Key, InParentID int);',
+    'Use [Db];',
+    'Insert Into dbo.P Select InParentID, Name From @Params_InParent;',
+    'Insert Into dbo.C Select InChildID, InParentID From @Params_InChild;',
+  ].join('\n'));
+
+  assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0033').length, 0);
+  assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0034').length, 0);
+});
+
+// ── SP0036 — unsupported nested-input key type (Task 15; mirrors the
+// generator's build error from Task 13, `IsSynthesizableKeyType` /
+// `ReportUnsupportedKeyType`) ────────────────────────────────────────────────
+
+test('SP0036 fires when a nested-input link column type cannot have a join key synthesized', () => {
+  const result = parseSQuiL([
+    '--Name: UnsupportedLinkType',
+    'Declare @Param_Order table(OrderID varchar(10) Primary Key, CustomerName varchar(50));',
+    'Declare @Params_Line table(LineID int, OrderID varchar(10), Amount decimal(18,2));',
+    'Use [Db];',
+    'Insert Into dbo.Orders Select OrderID, CustomerName From @Param_Order;',
+    'Insert Into dbo.Lines Select LineID, OrderID, Amount From @Params_Line;',
+  ].join('\n'));
+
+  const sp0036 = result.diagnostics.filter(d => d.code === 'SP0036');
+  assert.strictEqual(sp0036.length, 1, 'should emit exactly one SP0036 diagnostic');
+  assert.strictEqual(sp0036[0].severity, 'error');
+  assert.ok(sp0036[0].message.includes('OrderID'), 'message should name the link column');
+  assert.ok(sp0036[0].message.includes('Line'), 'message should name the child table');
+  assert.ok(sp0036[0].message.toLowerCase().includes('varchar'), 'message should name the offending type');
+});
+
+test('SP0036 stays silent for int/bigint/smallint/uniqueidentifier link columns', () => {
+  const intResult = parseSQuiL([
+    '--Name: IntKey',
+    'Declare @Param_Order table(OrderID int Primary Key, CustomerName varchar(50));',
+    'Declare @Params_Line table(LineID int, OrderID int, Amount decimal(18,2));',
+    'Use [Db];',
+    'Insert Into dbo.Orders Select OrderID, CustomerName From @Param_Order;',
+    'Insert Into dbo.Lines Select LineID, OrderID, Amount From @Params_Line;',
+  ].join('\n'));
+  assert.strictEqual(intResult.diagnostics.filter(d => d.code === 'SP0036').length, 0);
+
+  const guidResult = parseSQuiL([
+    '--Name: GuidKey',
+    'Declare @Param_Order table(OrderID uniqueidentifier Primary Key, CustomerName varchar(50));',
+    'Declare @Params_Line table(LineID int, OrderID uniqueidentifier, Amount decimal(18,2));',
+    'Use [Db];',
+    'Insert Into dbo.Orders Select OrderID, CustomerName From @Param_Order;',
+    'Insert Into dbo.Lines Select LineID, OrderID, Amount From @Params_Line;',
+  ].join('\n'));
+  assert.strictEqual(guidResult.diagnostics.filter(d => d.code === 'SP0036').length, 0);
+});

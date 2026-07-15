@@ -263,7 +263,7 @@ internal static class SQuiLLinter
         }
     }
 
-    // ── Nested-objects key-graph diagnostics (SP0033 / SP0034 / SP0035) ──────
+    // ── Nested-objects key-graph diagnostics (SP0033 / SP0034 / SP0035 / SP0036) ──
     //
     // SP0033 (Error): a child table/object's column matches the declared Primary
     //   Key of more than one other table/object (ambiguous parent — a
@@ -277,14 +277,22 @@ internal static class SQuiLLinter
     //   (at least one real parent/child link exists). A deliberately-flat file
     //   whose tables happen to each declare an unrelated Primary Key must NOT
     //   be nagged.
+    // SP0036 (Error): a nested-INPUT link column's declared type is neither
+    //   integer-family (int/bigint/smallint) nor uniqueidentifier, so the
+    //   generator cannot synthesize a join key for it.
     //
-    // Only OUTPUT (@Return_/@Returns_) table/object variables participate —
-    // input nesting is out of scope, matching the generator (which builds its
-    // graph from OUTPUT blocks only).
+    // TWO independent universes participate, never mixed — OUTPUT
+    // (@Return_/@Returns_) and INPUT (@Param_/@Params_) table/object variables
+    // each get their OWN graph, matching the generator, which calls
+    // SQuiLKeyGraph.Build once for OUTPUT blocks and once for INPUT blocks
+    // (FileGenerator.cs's keyGraph / inputGraph). SP0033/SP0034/SP0035 apply to
+    // BOTH graphs; SP0036 applies to the INPUT graph only (OUTPUT never
+    // synthesizes keys).
     //
     // Mirrors SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs (SP0033/SP0034
-    // are also build-time errors there) and keyGraph.ts / nestedObjectHints.ts
-    // (VS Code extension) — change one side, change all three.
+    // are also build-time errors there; SP0036 mirrors FileGenerator.cs's
+    // IsSynthesizableKeyType/ReportUnsupportedKeyType) and keyGraph.ts /
+    // nestedObjectHints.ts (VS Code extension) — change one side, change all three.
 
     // ── Shared key-graph builder ─────────────────────────────────────────────
     //
@@ -318,6 +326,13 @@ internal static class SQuiLLinter
     internal static List<SQuiLVariable> OutputTableVariables(SQuiLParseResult parsed) =>
         parsed.Variables.Where(v =>
             (v.Role == VariableRole.Returns || v.Role == VariableRole.ReturnTable)
+            && v.Columns is { Count: > 0 })
+            .ToList();
+
+    /// <summary>Only INPUT (@Param_/@Params_) table/object variables participate.</summary>
+    internal static List<SQuiLVariable> InputTableVariables(SQuiLParseResult parsed) =>
+        parsed.Variables.Where(v =>
+            (v.Role == VariableRole.Params || v.Role == VariableRole.ParamTable)
             && v.Columns is { Count: > 0 })
             .ToList();
 
@@ -373,25 +388,36 @@ internal static class SQuiLLinter
     /// Nested-object link role text for the column at the given source
     /// position, or null when the position isn't on a column that plays a
     /// PK/FK-by-convention role (graceful degradation — hover is left
-    /// unchanged). Ported to hoverProvider.ts's <c>describeColumnLinkRole</c>
+    /// unchanged). Searches OUTPUT variables first, then INPUT — a position
+    /// can only ever land on one variable's column, so the search order isn't
+    /// observable. Resolves the role against whichever universe the hit
+    /// variable belongs to, never mixing OUTPUT and INPUT into one graph.
+    /// Ported to hoverProvider.ts's <c>describeColumnLinkRole</c>
     /// (via linkRoleHints.ts) — change one side, change all three.
     /// </summary>
     internal static string? DescribeColumnLinkRole(SQuiLParseResult parsed, int line, int character)
     {
-        var list = OutputTableVariables(parsed);
+        var outputList = OutputTableVariables(parsed);
+        var inputList = InputTableVariables(parsed);
 
         SQuiLVariable? owner = null;
         TableColumn? column = null;
-        foreach (var v in list)
+        List<SQuiLVariable>? list = null;
+        foreach (var candidates in new[] { outputList, inputList })
         {
-            var hit = v.Columns!.FirstOrDefault(c =>
-                c.Line == line && character >= c.Character && character <= c.Character + c.Name.Length);
-            if (hit is null) continue;
-            owner = v;
-            column = hit;
-            break;
+            foreach (var v in candidates)
+            {
+                var hit = v.Columns!.FirstOrDefault(c =>
+                    c.Line == line && character >= c.Character && character <= c.Character + c.Name.Length);
+                if (hit is null) continue;
+                owner = v;
+                column = hit;
+                list = candidates;
+                break;
+            }
+            if (owner is not null) break;
         }
-        if (owner is null || column is null) return null;
+        if (owner is null || column is null || list is null) return null;
 
         var graph = BuildKeyGraph(list);
 
@@ -423,9 +449,23 @@ internal static class SQuiLLinter
     internal static void LintKeyGraph(string sql, List<SQuiLDiagnostic> diagnostics)
     {
         var parsed = SQuiLParser.Parse(sql);
-        var list = OutputTableVariables(parsed);
-        var graph = BuildKeyGraph(list);
+        var outputList = OutputTableVariables(parsed);
+        var inputList = InputTableVariables(parsed);
+        var outputGraph = BuildKeyGraph(outputList);
+        var inputGraph = BuildKeyGraph(inputList);
 
+        foreach (var (list, graph) in new[] { (outputList, outputGraph), (inputList, inputGraph) })
+        {
+            LintOneKeyGraph(list, graph, diagnostics);
+        }
+
+        LintUnsupportedInputKeyType(inputGraph, diagnostics);
+    }
+
+    /// <summary>SP0033/SP0034/SP0035 for ONE key graph (either OUTPUT or INPUT) — called
+    /// once per universe by <see cref="LintKeyGraph"/> so the two graphs stay independent.</summary>
+    private static void LintOneKeyGraph(List<SQuiLVariable> list, KeyGraph graph, List<SQuiLDiagnostic> diagnostics)
+    {
         foreach (var ambiguity in graph.Ambiguities)
         {
             var child = ambiguity.Child;
@@ -507,6 +547,54 @@ internal static class SQuiLLinter
                     Code = "SP0035",
                 });
             }
+        }
+    }
+
+    /// <summary>SQL types the generator can synthesize a nested-input join key for
+    /// (<c>IsSynthesizableKeyType</c> in FileGenerator.cs): integer-family + uniqueidentifier.</summary>
+    private static bool IsSynthesizableKeyType(string sqlType)
+    {
+        var t = sqlType.Trim();
+        int paren = t.IndexOf('(');
+        if (paren >= 0) t = t.Substring(0, paren);
+        var word = t.Split(' ')[0];
+        return string.Equals(word, "int", System.StringComparison.OrdinalIgnoreCase)
+            || string.Equals(word, "bigint", System.StringComparison.OrdinalIgnoreCase)
+            || string.Equals(word, "smallint", System.StringComparison.OrdinalIgnoreCase)
+            || string.Equals(word, "uniqueidentifier", System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// SP0036 (Error) — within the nested-INPUT key graph, a parent/child link
+    /// column's declared type is neither integer-family (int/bigint/smallint) nor
+    /// uniqueidentifier, so the generator cannot synthesize a join key for it.
+    /// Mirrors the build error (IsSynthesizableKeyType / ReportUnsupportedKeyType
+    /// in FileGenerator.cs/DiagnosticsMessages.cs) — editor-squiggle parity,
+    /// checked only against the INPUT graph (OUTPUT graphs never synthesize keys).
+    /// </summary>
+    private static void LintUnsupportedInputKeyType(KeyGraph inputGraph, List<SQuiLDiagnostic> diagnostics)
+    {
+        foreach (var edge in inputGraph.Edges)
+        {
+            var keyColumn = edge.Parent.Columns?.FirstOrDefault(c =>
+                c.IsPrimaryKey && string.Equals(c.Name, edge.KeyName, System.StringComparison.OrdinalIgnoreCase))
+                ?? edge.Parent.Columns?.FirstOrDefault(c =>
+                    string.Equals(c.Name, edge.KeyName, System.StringComparison.OrdinalIgnoreCase));
+            if (keyColumn is null) continue;
+            if (IsSynthesizableKeyType(keyColumn.SqlType)) continue;
+
+            var child = edge.Child;
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message = $"Link column `{edge.KeyName}` on `{child.Name}` (line {child.Line + 1}) has type " +
+                          $"`{keyColumn.SqlType}`, which cannot have a join key synthesized. A nested-input key column " +
+                          "must be an integer type (int, bigint, or smallint) or uniqueidentifier — change the link column's type.",
+                Line = child.Line,
+                StartChar = child.Character,
+                EndChar = child.Character + child.RawName.Length,
+                Severity = DiagnosticSeverity.Error,
+                Code = "SP0036",
+            });
         }
     }
 

@@ -217,3 +217,66 @@ test('preview stays flat when Primary Keys exist but no column links them (grace
   assert.ok(responseSection.includes('A { get; set; }'), 'A stays a flat Response member');
   assert.ok(responseSection.includes('B { get; set; }'), 'B stays a flat Response member');
 });
+
+// ─── Nested INPUT objects (mirrors the OUTPUT tests above — Task 15) ────────
+
+test('preview renders nested INPUT list child members and only the root at the Request top level', () => {
+  const out = preview([
+    '--Name: ThreeLevelInputNesting',
+    'Declare @Param_Transcript table(TranscriptID int Primary Key, IssueDate date);',
+    'Declare @Params_Institution table(InstitutionID int Primary Key, TranscriptID int, SchoolName varchar(50));',
+    'Declare @Params_Course table(CourseID int, InstitutionID int, Title varchar(50));',
+    'Use Db;',
+    'Insert Into dbo.Transcripts Select TranscriptID, IssueDate From @Param_Transcript;',
+    'Insert Into dbo.Institutions Select InstitutionID, TranscriptID, SchoolName From @Params_Institution;',
+    'Insert Into dbo.Courses Select CourseID, InstitutionID, Title From @Params_Course;',
+  ].join('\n'));
+
+  // Request top level: only the root (Transcript) — Institution/Course must NOT
+  // appear as Request properties, they collapse into their parent records.
+  const requestSection = out.slice(out.indexOf('ThreeLevelInputNestingRequest'), out.indexOf('DataContext'));
+  assert.ok(out.includes('YourNamespace.Models.Transcript? Transcript { get; set; };'), 'Transcript is the only Request root');
+  assert.ok(!requestSection.includes('Institution {'), 'Institution must not be a Request top-level member');
+  assert.ok(!requestSection.includes('Course {'), 'Course must not be a Request top-level member');
+
+  // Transcript record gets a nested List<...Institution>? member, KEEPING = [].
+  assert.ok(out.includes('public partial record Transcript(int TranscriptID, DateOnly IssueDate)'), 'Transcript record emitted with its own columns');
+  assert.ok(out.includes('List<YourNamespace.Models.Institution>? Institution { get; set; } = [];'), 'Transcript record has a nested Institution list member with = []');
+
+  // Institution record gets a nested List<...Course>? member, also KEEPING = [].
+  assert.ok(out.includes('List<YourNamespace.Models.Course>? Course { get; set; } = [];'), 'Institution record has a nested Course list member with = []');
+
+  // Course is a leaf: no nested members, still a plain positional record.
+  assert.ok(out.includes('public partial record Course(int CourseID, int InstitutionID, string Title);'), 'Course stays a plain positional record (no children)');
+});
+
+test('preview renders a nested INPUT object child (non-list) as a settable member with no initializer', () => {
+  const out = preview([
+    '--Name: EmbeddedObjectChildInput',
+    'Declare @Param_Order table(OrderID int Primary Key, CustomerName varchar(50));',
+    'Declare @Param_Shipment table(ShipmentID int Primary Key, OrderID int, Carrier varchar(50));',
+    'Use Db;',
+    'Insert Into dbo.Orders Select OrderID, CustomerName From @Param_Order;',
+    'Insert Into dbo.Shipments Select ShipmentID, OrderID, Carrier From @Param_Shipment;',
+  ].join('\n'));
+
+  const requestSection = out.slice(out.indexOf('EmbeddedObjectChildInputRequest'), out.indexOf('DataContext'));
+  assert.ok(!requestSection.includes('Shipment {'), 'Shipment must not be a Request top-level member');
+  assert.ok(out.includes('YourNamespace.Models.Shipment? Shipment { get; set; }\n'), 'Order record has a nested nullable Shipment member with NO initializer');
+  assert.ok(!out.includes('Shipment { get; set; } = '), 'object child must not get an initializer');
+});
+
+test('preview stays flat on INPUT side when Primary Keys exist but no column links them (graceful degradation)', () => {
+  const out = preview([
+    '--Name: NoInputLinks',
+    'Declare @Params_Alpha table(AlphaID int Primary Key, N int);',
+    'Declare @Params_Beta table(BetaID int Primary Key, M int);',
+    'Use Db;',
+    'Insert Into dbo.Alphas Select AlphaID, N From @Params_Alpha;',
+    'Insert Into dbo.Betas Select BetaID, M From @Params_Beta;',
+  ].join('\n'));
+
+  const requestSection = out.slice(out.indexOf('NoInputLinksRequest'), out.indexOf('DataContext'));
+  assert.ok(requestSection.includes('Alpha>? Alpha { get; set; } = [];'), 'Alpha stays a flat Request member (with the usual input-list = [])');
+  assert.ok(requestSection.includes('Beta>? Beta { get; set; } = [];'), 'Beta stays a flat Request member (with the usual input-list = [])');
+});

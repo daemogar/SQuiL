@@ -64,11 +64,12 @@ function isCollectionRole(v: SQuiLVariable): boolean {
 /**
  * Minimal preview mirror of the generator's `SQuiLKeyGraph`
  * (`SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs`): a table/object
- * OUTPUT variable's key is its single `Primary Key` column; any OTHER output
- * variable carrying a column of that exact name becomes its child. Variables
- * nobody links to are roots. Only OUTPUT (`@Return*`) table/object variables
- * participate — input nesting is out of scope (matches the generator, which
- * builds its graph from OUTPUT blocks only).
+ * variable's key is its single `Primary Key` column; any OTHER variable in
+ * the SAME universe carrying a column of that exact name becomes its child.
+ * Variables nobody links to are roots. Called once for OUTPUT (`@Return*`)
+ * table/object variables and once for INPUT (`@Param*`) table/object
+ * variables (never mixed), matching the generator building one graph per
+ * side (`FileGenerator.cs`'s `keyGraph` / `inputGraph`).
  *
  * Simplified relative to the generator: ambiguous (>1 distinct parent) or
  * cyclic links are build-time errors owned by the generator/editor
@@ -160,11 +161,18 @@ export function generateCSharpPreview(
   // so the preview always uses the default "Models" sub-namespace segment.
   const modelsNs = `${namespace}.Models`;
 
-  // Nested-objects: only OUTPUT table/object variables link into a parent/child
-  // graph (input nesting is out of scope, matching the generator). Children
-  // collapse into their parent record and drop off the Response top level.
-  const graph = buildNestedGraph(returnTableVars);
-  const responseVars = returns.filter(v => !graph.isChild(v));
+  // Nested-objects: OUTPUT and INPUT table/object variables each link into their
+  // OWN parent/child graph (never mixed, matching the generator's two independent
+  // graphs). Children collapse into their parent record and drop off the
+  // Request/Response top level.
+  const outputGraph = buildNestedGraph(returnTableVars);
+  const inputGraph = buildNestedGraph(paramTableVars);
+  const responseVars = returns.filter(v => !outputGraph.isChild(v));
+  const requestVars = params.filter(v => !inputGraph.isChild(v));
+
+  function childrenOf(v: SQuiLVariable): SQuiLVariable[] | undefined {
+    return outputGraph.childrenOf.get(v) ?? inputGraph.childrenOf.get(v);
+  }
 
   banner(lines, queryName, db);
   lines.push('');
@@ -184,9 +192,11 @@ export function generateCSharpPreview(
     lines.push('');
   }
 
-  // ── Request record (always partial; specials are opt-in)
+  // ── Request record (always partial; specials are opt-in). Only nesting
+  // ROOTS appear at the top level — an input child collapses into its
+  // parent record as a member instead (mirrors the Response nesting below).
   lines.push(`// ── Request ─────────────────────────────────────────────`);
-  emitModelRecord(lines, `${queryName}Request`, params, /*isResponse*/ false, parsed.variables, modelsNs);
+  emitModelRecord(lines, `${queryName}Request`, requestVars, /*isResponse*/ false, parsed.variables, modelsNs);
 
   // ── Response record (only nesting ROOTS appear at the top level — a
   // child collapses into its parent record as a member instead)
@@ -251,7 +261,7 @@ export function generateCSharpPreview(
     lines.push(`namespace ${modelsNs};`);
     lines.push('');
     for (const v of tableVars) {
-      emitTableRecord(lines, recordTypeName(v), v, modelsNs, graph.childrenOf.get(v));
+      emitTableRecord(lines, recordTypeName(v), v, modelsNs, childrenOf(v));
     }
   }
 
@@ -321,13 +331,20 @@ function emitTableRecord(
     lines.push(`    public ${csType(col)} ${col.name} { get; init; } = ${csharpDefault(col.sqlType, col.defaultValue!)};`);
   });
   // Nested-objects: a child table/object collapses into its parent record as a
-  // plain settable member (no `= []`/`= default!` initializer — those belong
-  // only to top-level Response properties), typed the same as a top-level
-  // list/object member (List<ns.Models.Child>? for a list child, ns.Models.Child?
-  // for an object child).
+  // plain settable member, typed the same as a top-level list/object member
+  // (List<ns.Models.Child>? for a list child, ns.Models.Child? for an object
+  // child). Initializer depends on the child's OWN role, not its parent's:
+  // an OUTPUT list child gets no initializer (matches top-level Response
+  // lists, which are null-when-absent), while an INPUT list child KEEPS the
+  // `= []` initializer (matches top-level Request lists — Task 13's
+  // generator output). Object children (either side) never get one.
   if (hasChildren) {
     children!.forEach(child => {
-      lines.push(`    public ${getPropertyType(child, modelsNs)} ${child.name} { get; set; }`);
+      // Only the INPUT list case gets an initializer (and thus needs the
+      // trailing `;`); a bare auto-property has no initializer and no `;`
+      // (matches `*.g.verified.cs` ground truth for both sides).
+      const initializer = child.role === 'params' ? ' = [];' : '';
+      lines.push(`    public ${getPropertyType(child, modelsNs)} ${child.name} { get; set; }${initializer}`);
     });
   }
   lines.push(`}`);

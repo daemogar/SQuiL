@@ -110,3 +110,95 @@ test('non-column position (e.g. the Use statement) returns undefined', () => {
   const text = describeColumnLinkRole(parsed, 4, 0); // 'Use [Db];' line
   assert.strictEqual(text, undefined);
 });
+
+// ── INPUT (`@Param_`/`@Params_`) side — same hover roles, independent graph
+// (Task 15). Fixture mirrors the OUTPUT one above: Order(PK)→Line(FK, leaf).
+
+const INPUT_SQL = [
+  '--Name: NestedInputHover',
+  'Declare @Param_Order table(OrderID int Primary Key, CustomerName varchar(50));',
+  'Declare @Params_Line table(LineID int, OrderID int, Amount decimal(18,2));',
+  'Use [Db];',
+  'Insert Into dbo.Orders Select OrderID, CustomerName From @Param_Order;',
+  'Insert Into dbo.Lines Select LineID, OrderID, Amount From @Params_Line;',
+].join('\n');
+
+const inputLines = INPUT_SQL.split('\n');
+
+function inputColPos(lineIdx: number, columnName: string): { line: number; character: number } {
+  const character = inputLines[lineIdx].indexOf(columnName);
+  assert.ok(character >= 0, `fixture line ${lineIdx} should contain ${columnName}`);
+  return { line: lineIdx, character };
+}
+
+test('hovering an INPUT Primary Key column (with a linking child) explains the PK role', () => {
+  const parsed = parseSQuiL(INPUT_SQL);
+  const { line, character } = inputColPos(1, 'OrderID'); // Order's own PK
+
+  const text = describeColumnLinkRole(parsed, line, character);
+
+  assert.ok(text, 'expected PK role text');
+  assert.ok(text!.includes('Primary Key'));
+  assert.ok(text!.includes('OrderID'));
+  assert.ok(text!.includes('Order'));
+});
+
+test('hovering an INPUT foreign-key-by-convention column explains the FK role', () => {
+  const parsed = parseSQuiL(INPUT_SQL);
+  const { line, character } = inputColPos(2, 'OrderID'); // Line's FK-by-convention column
+
+  const text = describeColumnLinkRole(parsed, line, character);
+
+  assert.ok(text, 'expected FK role text');
+  assert.ok(text!.includes('Foreign key by convention'));
+  assert.ok(text!.includes('Line'));
+  assert.ok(text!.includes('Order'));
+});
+
+test('hovering a non-link INPUT column (CustomerName) leaves hover unchanged (undefined)', () => {
+  const parsed = parseSQuiL(INPUT_SQL);
+  const { line, character } = inputColPos(1, 'CustomerName');
+
+  const text = describeColumnLinkRole(parsed, line, character);
+
+  assert.strictEqual(text, undefined);
+});
+
+test('hovering an INPUT Primary Key column in a file with NO input links at all returns undefined (graceful degradation)', () => {
+  const sql = [
+    '--Name: NoInputLinksHover',
+    'Declare @Params_Foo table(FooID int Primary Key, Name varchar(50));',
+    'Use [Db];',
+    'Insert Into dbo.Foos Select FooID, Name From @Params_Foo;',
+  ].join('\n');
+  const parsed = parseSQuiL(sql);
+  const character = sql.split('\n')[1].indexOf('FooID');
+
+  const text = describeColumnLinkRole(parsed, 1, character);
+
+  assert.strictEqual(text, undefined);
+});
+
+test('hovering an OUTPUT column is unaffected by an unrelated INPUT-side link, and vice versa (graphs stay independent)', () => {
+  const sql = [
+    '--Name: MixedHover',
+    'Declare @Return_Parent table(ParentID int Primary Key, Name varchar(50));',
+    'Declare @Returns_Child table(ChildID int, ParentID int);',
+    'Declare @Params_Solo table(SoloID int Primary Key, X int);',
+    'Use [Db];',
+    'Insert Into dbo.S Select SoloID, X From @Params_Solo;',
+  ].join('\n');
+  const parsed = parseSQuiL(sql);
+  const lines2 = sql.split('\n');
+
+  // Output side: Parent's PK legitimately has a linking child (Child) — PK-with-child text.
+  const parentPos = lines2[1].indexOf('ParentID');
+  const outputText = describeColumnLinkRole(parsed, 1, parentPos);
+  assert.ok(outputText?.includes('Primary Key') && outputText.includes('child tables'));
+
+  // Input side: Solo's PK has NO input-side link — must be undefined, not
+  // "rescued" into a hit by the unrelated output-side link existing.
+  const soloPos = lines2[2].indexOf('SoloID');
+  const inputText = describeColumnLinkRole(parsed, 2, soloPos);
+  assert.strictEqual(inputText, undefined);
+});

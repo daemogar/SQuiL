@@ -317,26 +317,42 @@ SQuiL/
     server-generated and read-only, so it may only appear on outputs
     (`@Return_`/`@Returns_`).
     **SP0033 is now TAKEN** — build error (generator): within one query file's
-    nested-object key graph (OUTPUT blocks only), a child table/object's column
-    matches the declared Primary Key of more than one other table/object
-    (ambiguous parent — a nested-object child must resolve to exactly one
-    parent). See `SQuiLKeyGraph.Errors` (`Kind == "ambiguous"`) +
+    nested-object key graph, a child table/object's column matches the
+    declared Primary Key of more than one other table/object (ambiguous
+    parent — a nested-object child must resolve to exactly one parent).
+    Applies to BOTH the OUTPUT (`@Return_`/`@Returns_`) graph and the INPUT
+    (`@Param_`/`@Params_`) graph — the generator builds one independent graph
+    per side (`FileGenerator.cs`'s `keyGraph` / `inputGraph`, both via
+    `SQuiLKeyGraph.Build`). See `SQuiLKeyGraph.Errors` (`Kind == "ambiguous"`) +
     `DiagnosticsMessages.ReportAmbiguousKeyLink`.
     **SP0034 is now TAKEN** — build error (generator): within one query file's
-    nested-object key graph, following Primary-Key/Foreign-Key links from a
-    table returns to that same table (cycle — nested objects require a tree).
-    See `SQuiLKeyGraph.Errors` (`Kind == "cycle"`) +
-    `DiagnosticsMessages.ReportKeyCycle`. Both SP0033/SP0034 suppress code
-    emission entirely for the offending query file (no flat-path fallback).
+    nested-object key graph (OUTPUT or INPUT, same two-graph split as SP0033),
+    following Primary-Key/Foreign-Key links from a table returns to that same
+    table (cycle — nested objects require a tree). See `SQuiLKeyGraph.Errors`
+    (`Kind == "cycle"`) + `DiagnosticsMessages.ReportKeyCycle`. Both
+    SP0033/SP0034 suppress code emission entirely for the offending query file
+    (no flat-path fallback).
     **SP0035 is now TAKEN** — editor-only Hint/Info (VS Code `Hint`, C# `Info` —
     NOT a build/generator diagnostic): a table/object's Primary Key that no
-    other table/object in the file links to, surfaced ONLY when nesting is
-    already in play elsewhere (at least one real link exists — mirrors
-    `SQuiLKeyGraph.Hints`'s `HasLinks` gate). A deliberately-flat file with
-    unrelated Primary Keys stays silent. See `keyGraph.ts` +
-    `nestedObjectHints.ts` (VS Code) and `SQuiLLinter.LintKeyGraph` (SSMS +
-    Visual Studio — the two C# copies stay byte-identical modulo namespace).
-    Next free: **SP0036**. (Verify an id is truly unreferenced with a repo-wide grep
+    other table/object IN THE SAME GRAPH links to, surfaced ONLY when nesting
+    is already in play elsewhere in that graph (at least one real link exists
+    — mirrors `SQuiLKeyGraph.Hints`'s `HasLinks` gate). Applies independently
+    to BOTH the OUTPUT and INPUT graphs — an orphaned PK on one side is never
+    masked (or falsely triggered) by an unrelated link on the other side. A
+    deliberately-flat file with unrelated Primary Keys stays silent. See
+    `keyGraph.ts` + `nestedObjectHints.ts` (VS Code) and
+    `SQuiLLinter.LintKeyGraph` (SSMS + Visual Studio — the two C# copies stay
+    byte-identical modulo namespace).
+    **SP0036 is now TAKEN** — build error (generator) + editor squiggle (all 3
+    editors, Error): within the nested-INPUT key graph only, a parent/child
+    link column's declared type is neither integer-family (`int`/`bigint`/
+    `smallint`) nor `uniqueidentifier`, so the generator cannot synthesize a
+    join key for it (see "Nested objects (input)" below). See
+    `FileGenerator.cs`'s `IsSynthesizableKeyType` +
+    `DiagnosticsMessages.ReportUnsupportedKeyType`, and the editor mirrors
+    `lintUnsupportedInputKeyType`/`lintKeyGraph` (`parser.ts`, VS Code) and
+    `LintUnsupportedInputKeyType` (`SQuiLLinter.cs`, SSMS + Visual Studio).
+    Next free: **SP0037**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
   - Signature: `[SQuiLQueryTransaction(QueryFiles type, string setting = "SQuiLDatabase", bool enabled = true, bool debugRollback = true)]`
@@ -719,14 +735,81 @@ public partial record Course(int CourseID, int InstitutionID, string Title);
 See `SQuiL.Tests/NestedObjects/**/*.g.verified.cs` (esp. `ThreeLevelListNesting/`
 and `EmbeddedObjectChild/`) for ground truth on every generated shape.
 
+### Nested objects (input)
+
+The INPUT mirror of the section above: a `@Param*`/`@Params*` table column
+marked `Primary Key` names that table's key; any OTHER declared INPUT table in
+the same file carrying a column with that EXACT name is its child. This is a
+SEPARATE graph from the OUTPUT one above — an OUTPUT link never affects the
+INPUT graph and vice versa (two independent calls to `SQuiLKeyGraph.Build`,
+one per side).
+
+**Root-only request reshaping.** Only ROOT input tables stay top-level
+`<Query>Request` properties. Every child input table collapses into its
+parent request record as a settable nested member — but UNLIKE the output
+side, a LIST child KEEPS its `= []` initializer (`List<<Ctx>.Models.<Child>>?
+<Child> { get; set; } = [];`, matching every other input list property); an
+OBJECT child gets no initializer (`<Ctx>.Models.<Child>? <Child> { get;
+set; }`), same as the output side.
+
+**Key synthesis (no caller-supplied keys required).** Callers do not need to
+populate a nested input's PK/FK columns themselves — the generator
+synthesizes them at flatten time: an integer-family key (`int`/`bigint`/
+`smallint`) gets a 1-based sequential value per table
+(`__Child.Count + 1`-style); a `uniqueidentifier` key gets `Guid.NewGuid()`.
+The synthesized parent key is copied into the child's matching FK column
+before each flattened row is serialized through the existing
+`AddJsonParameter`/OPENJSON path — unchanged for callers, and unchanged for
+tables that declare no links (today's flat per-table path is untouched, zero
+snapshot churn).
+
+**Diagnostics:** SP0033/SP0034/SP0035 all apply to the INPUT graph exactly as
+described above (independent gating — see "Diagnostic IDs"). **SP0036** (build
+error) additionally fires when an input link column's declared type is
+neither integer-family nor `uniqueidentifier` (nothing else can have a key
+synthesized) — the offending file's emission is skipped, same "no
+flat-path fallback" behavior as SP0033/SP0034. All three editors squiggle
+SP0036 the same way (Error).
+
+**Worked example** — an order with a list of shipments (int keys synthesized
+at flatten time; caller never sets `OrderID`/`ShipmentID`):
+
+```sql
+Declare @Param_Order table(OrderID int Primary Key, CustomerName varchar(50));
+Declare @Params_Shipment table(ShipmentID int Primary Key, OrderID int, Carrier varchar(50));
+Use [Db];
+Insert Into dbo.Orders Select OrderID, CustomerName From @Param_Order;
+Insert Into dbo.Shipments Select ShipmentID, OrderID, Carrier From @Params_Shipment;
+```
+
+```csharp
+public partial record MyQueryRequest
+{
+    public TestCase.Models.Order? Order { get; set; } = default!;
+}
+
+public partial record Order(int OrderID, string CustomerName)
+{
+    public System.Collections.Generic.List<TestCase.Models.Shipment>? Shipment { get; set; } = [];
+}
+
+public partial record Shipment(int ShipmentID, int OrderID, string Carrier);
+```
+
+See `SQuiL.Tests/NestedObjects/ThreeLevelInputNesting/`,
+`GuidKeyInputNesting/`, `EmbeddedObjectChildInputNesting/`, and
+`UnsupportedLinkTypeInput/` for ground truth (int sequential keys, guid keys,
+object children, and the SP0036 error path respectively).
+
 **SP0010 is TAKEN** (since the nullability-unification feature) — it is the
 editor-only Hint that fires on any unmarked column or scalar declare (no `null`
 or `not null`). It is NOT a build/generator diagnostic. SP0023–SP0029 taken by
 the DML-transactions feature; SP0030/SP0031 taken by the shape-detection
 feature; SP0032 taken by the timestamp-as-input check; SP0033/SP0034 taken by
-the nested-objects key-graph diagnostics (ambiguous/cycle); SP0035 taken by
-the editor-only orphaned-PK hint (see Diagnostic IDs above). Next free id:
-**SP0036**.
+the nested-objects key-graph diagnostics (ambiguous/cycle, both OUTPUT and
+INPUT graphs); SP0035 taken by the editor-only orphaned-PK hint (both graphs);
+SP0036 taken by the nested-INPUT unsupported-key-type check (see Diagnostic
+IDs above). Next free id: **SP0037**.
 
 ## Special Handling
 

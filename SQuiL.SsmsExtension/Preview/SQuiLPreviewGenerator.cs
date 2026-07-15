@@ -61,12 +61,13 @@ internal static class SQuiLPreviewGenerator
 
     /// <summary>
     /// Minimal preview mirror of the generator's <c>SQuiLKeyGraph</c>
-    /// (<c>SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs</c>): a table/object OUTPUT
-    /// variable's key is its single <c>Primary Key</c> column; any OTHER output variable
-    /// carrying a column of that exact name becomes its child. Variables nobody links to
-    /// are roots. Only OUTPUT (<c>@Return*</c>) table/object variables participate — input
-    /// nesting is out of scope (matches the generator, which builds its graph from OUTPUT
-    /// blocks only).
+    /// (<c>SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs</c>): a table/object
+    /// variable's key is its single <c>Primary Key</c> column; any OTHER variable in the
+    /// SAME universe carrying a column of that exact name becomes its child. Variables
+    /// nobody links to are roots. Called once for OUTPUT (<c>@Return*</c>) table/object
+    /// variables and once for INPUT (<c>@Param*</c>) table/object variables (never mixed),
+    /// matching the generator building one graph per side (FileGenerator.cs's
+    /// <c>keyGraph</c> / <c>inputGraph</c>).
     ///
     /// Simplified relative to the generator: ambiguous (&gt;1 distinct parent) or cyclic
     /// links are build-time errors owned by the generator/editor diagnostics, not the
@@ -127,11 +128,17 @@ internal static class SQuiLPreviewGenerator
         // so the preview always uses the default "Models" sub-namespace segment.
         string modelsNs = $"{ns}.Models";
 
-        // Nested-objects: only OUTPUT table/object variables link into a parent/child graph
-        // (input nesting is out of scope, matching the generator). Children collapse into
-        // their parent record and drop off the Response top level.
-        var graph = BuildNestedGraph(returnTableVars);
-        var responseVars = returnVars.Where(v => !graph.IsChild(v)).ToList();
+        // Nested-objects: OUTPUT and INPUT table/object variables each link into their OWN
+        // parent/child graph (never mixed, matching the generator's two independent graphs).
+        // Children collapse into their parent record and drop off the Request/Response top level.
+        var outputGraph = BuildNestedGraph(returnTableVars);
+        var inputGraph = BuildNestedGraph(paramTableVars);
+        var responseVars = returnVars.Where(v => !outputGraph.IsChild(v)).ToList();
+        var requestVars = paramVars.Where(v => !inputGraph.IsChild(v)).ToList();
+
+        List<SQuiLVariable>? ChildrenOf(SQuiLVariable v) =>
+            outputGraph.ChildrenOf.TryGetValue(v, out var oc) ? oc :
+            inputGraph.ChildrenOf.TryGetValue(v, out var ic) ? ic : null;
 
         EmitBanner(lines, queryName, db);
         lines.Add("");
@@ -152,9 +159,11 @@ internal static class SQuiLPreviewGenerator
             lines.Add("");
         }
 
-        // ── Request record (always partial; specials are opt-in) ──
+        // ── Request record (always partial; specials are opt-in). Only nesting ROOTS
+        // appear at the top level — an input child collapses into its parent record as
+        // a member instead (mirrors the Response nesting below). ──────────────────────
         lines.Add("// ── Request ─────────────────────────────────────────────");
-        EmitModelRecord(lines, $"{queryName}Request", paramVars, isResponse: false, parsed.Variables, modelsNs);
+        EmitModelRecord(lines, $"{queryName}Request", requestVars, isResponse: false, parsed.Variables, modelsNs);
 
         // ── Response record (only nesting ROOTS appear at the top level — a
         // child collapses into its parent record as a member instead) ──────
@@ -224,7 +233,7 @@ internal static class SQuiLPreviewGenerator
             lines.Add($"namespace {modelsNs};");
             lines.Add("");
             foreach (var v in tableVars)
-                EmitTableRecord(lines, RecordTypeName(v), v, modelsNs, graph.ChildrenOf.TryGetValue(v, out var kids) ? kids : null);
+                EmitTableRecord(lines, RecordTypeName(v), v, modelsNs, ChildrenOf(v));
         }
 
         return string.Join("\r\n", lines);
@@ -279,12 +288,19 @@ internal static class SQuiLPreviewGenerator
         foreach (var col in defaulted)
             lines.Add($"    public {CsType(col)} {col.Name} {{ get; init; }} = {CSharpDefault(col.SqlType, col.DefaultValue!)};");
         // Nested-objects: a child table/object collapses into its parent record as a plain
-        // settable member (no `= []`/`= default!` initializer — those belong only to
-        // top-level Response properties), typed the same as a top-level list/object member
+        // settable member, typed the same as a top-level list/object member
         // (List<ns.Models.Child>? for a list child, ns.Models.Child? for an object child).
+        // Initializer depends on the child's OWN role, not its parent's: an OUTPUT list
+        // child gets no initializer (matches top-level Response lists, which are
+        // null-when-absent), while an INPUT list child KEEPS the `= []` initializer
+        // (matches top-level Request lists — Task 13's generator output). Object
+        // children (either side) never get one.
         if (hasChildren)
             foreach (var child in children!)
-                lines.Add($"    public {GetPropertyType(child, modelsNs)} {child.Name} {{ get; set; }}");
+            {
+                string initializer = child.Role == VariableRole.Params ? " = [];" : "";
+                lines.Add($"    public {GetPropertyType(child, modelsNs)} {child.Name} {{ get; set; }}{initializer}");
+            }
         lines.Add("}");
         lines.Add("");
     }

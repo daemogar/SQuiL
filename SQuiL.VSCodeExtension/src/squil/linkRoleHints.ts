@@ -14,34 +14,44 @@
  *     → undefined, so hover is left completely unchanged (graceful
  *     degradation — a no-links file surfaces no link text at all).
  *
+ * Covers BOTH the OUTPUT (`@Return_`/`@Returns_`) and INPUT (`@Param_`/
+ * `@Params_`) table/object universes — a hovered column resolves its role
+ * against whichever graph its own variable belongs to, never mixing the two
+ * (matches the generator's two independent graphs).
+ *
  * Ported to `SQuiLQuickInfoSource.cs` (SSMS + Visual Studio, via the shared
  * `SQuiLLinter.DescribeColumnLinkRole`) — change one side, change all three.
  */
 
-import { SQuiLParseResult, SQuiLVariable, TableColumn } from './parser';
-import { buildKeyGraph } from './keyGraph';
+import { SQuiLParseResult, SQuiLVariable, TableColumn, VariableRole } from './parser';
+import { buildKeyGraph, OUTPUT_TABLE_ROLES, INPUT_TABLE_ROLES } from './keyGraph';
 
-const OUTPUT_TABLE_ROLES = new Set(['returns', 'return-table']);
-
-function outputTableVariables(parsed: SQuiLParseResult): (SQuiLVariable & { columns: TableColumn[] })[] {
+function tableVariablesFor(
+  parsed: SQuiLParseResult,
+  roles: ReadonlySet<VariableRole>,
+): (SQuiLVariable & { columns: TableColumn[] })[] {
   return parsed.variables.filter(
     (v): v is SQuiLVariable & { columns: TableColumn[] } =>
-      OUTPUT_TABLE_ROLES.has(v.role) && Array.isArray(v.columns) && v.columns.length > 0,
+      roles.has(v.role) && Array.isArray(v.columns) && v.columns.length > 0,
   );
 }
 
 /** Finds the table-column token (owning variable + column) whose NAME token
- * covers (line, character), or undefined when the position isn't on one. */
+ * covers (line, character), or undefined when the position isn't on one.
+ * Searches OUTPUT variables first, then INPUT — a position can only ever
+ * land on one variable's column, so the search order is not observable. */
 export function findColumnAtPosition(
   parsed: SQuiLParseResult,
   line: number,
   character: number,
 ): { variable: SQuiLVariable; column: TableColumn } | undefined {
-  for (const variable of outputTableVariables(parsed)) {
-    const column = variable.columns.find(
-      c => c.line === line && character >= c.character && character <= c.character + c.name.length,
-    );
-    if (column) return { variable, column };
+  for (const roles of [OUTPUT_TABLE_ROLES, INPUT_TABLE_ROLES]) {
+    for (const variable of tableVariablesFor(parsed, roles)) {
+      const column = variable.columns.find(
+        c => c.line === line && character >= c.character && character <= c.character + c.name.length,
+      );
+      if (column) return { variable, column };
+    }
   }
   return undefined;
 }
@@ -57,8 +67,11 @@ export function describeColumnLinkRole(
   if (!hit) return undefined;
   const { variable, column } = hit;
 
-  const list = outputTableVariables(parsed);
-  const graph = buildKeyGraph(list);
+  // Resolve against the SAME universe the hovered variable belongs to —
+  // never mix OUTPUT and INPUT columns into one graph.
+  const roles = OUTPUT_TABLE_ROLES.has(variable.role) ? OUTPUT_TABLE_ROLES : INPUT_TABLE_ROLES;
+  const list = tableVariablesFor(parsed, roles);
+  const graph = buildKeyGraph(list, roles);
 
   if (column.isPrimaryKey) {
     // Only the variable's OWN designated Primary Key column (the first one
