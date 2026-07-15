@@ -4,6 +4,7 @@ import { parseSQuiL, SQuiLDiagnostic, lintShapeCollision, lintUnmatchedSelect } 
 import { nullabilityHints } from '../squil/nullabilityHints';
 import { shapeHints } from '../squil/shapeHints';
 import { transactionHints } from '../squil/transactionHints';
+import { nestedObjectHints } from '../squil/nestedObjectHints';
 import { resolveContext } from '../squil/contextResolver';
 import { scanMutations } from '../squil/mutationScanner';
 
@@ -61,6 +62,22 @@ export class SQuiLDiagnosticsProvider {
     // canonical shape key.  These can't be routed to different records at runtime.
     for (const d of lintShapeCollision(parsed)) {
       vsDiags.push(this.toDiagnostic(document, d));
+    }
+
+    // SP0035: orphaned Primary Key (editor-only hint) — a table/object OUTPUT
+    // variable's Primary Key that no other table/object links to, only surfaced
+    // when nesting is already in play elsewhere in the file.
+    for (const hint of nestedObjectHints(parsed)) {
+      const line = Math.min(hint.line, document.lineCount - 1);
+      const lineLength = document.lineAt(line).text.length;
+      const range = new vscode.Range(
+        new vscode.Position(line, Math.min(hint.character, lineLength)),
+        new vscode.Position(line, Math.min(hint.character + hint.length, lineLength)),
+      );
+      const d = new vscode.Diagnostic(range, hint.message, vscode.DiagnosticSeverity.Hint);
+      d.source = 'squil';
+      d.code = hint.code;
+      vsDiags.push(d);
     }
 
     // SP0028 / SP0027: orphan / duplicate context resolver diagnostics.

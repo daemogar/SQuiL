@@ -574,6 +574,102 @@ a <code>bool SuppressDebug</code> appears on the request too and gates the auto-
   tolerates <code>Null</code> instead of producing one.
 </div>
 
+<h3>5. Nested objects — <code>Primary Key</code> by convention</h3>
+<p>Mark a table column <code>Primary Key</code> to name that table's key. Any other declared table with a
+column of that <em>exact</em> name becomes its child, linked by that name (foreign key by convention) — the
+<code>.squil</code> stays valid T-SQL as written, with no <code>@</code>-typed columns and no nested
+<code>table()</code> syntax. Cardinality follows each table's own prefix: <code class="ret">@Return_X</code>
+(singular) nests as an object, <code class="ret">@Returns_X</code> (plural) nests as a list. Only tables
+nobody links to stay top-level <code>Response</code> properties — every child collapses into its parent as a
+nested member instead. Authors still write plain, flat <code>Select * From</code> statements; SQuiL relinks
+the rows into a tree in C# after reading them (an in-memory key-stitch, so it works the same regardless of
+target database).</p>
+<pre><code><span class="ann">--Name: GetTranscript</span>
+
+<span class="kw">Declare</span> <span class="ret">@Return_Transcript</span>   <span class="tp">table</span> (TranscriptID <span class="tp">int</span> <span class="kw">Primary Key</span>, IssueDate <span class="tp">date</span>);
+<span class="kw">Declare</span> <span class="ret">@Returns_Institution</span> <span class="tp">table</span> (InstitutionID <span class="tp">int</span> <span class="kw">Primary Key</span>, TranscriptID <span class="tp">int</span>, SchoolName <span class="tp">varchar(50)</span>);
+<span class="kw">Declare</span> <span class="ret">@Returns_Course</span>      <span class="tp">table</span> (CourseID <span class="tp">int</span>, InstitutionID <span class="tp">int</span>, Title <span class="tp">varchar(50)</span>);
+
+<span class="kw">Use</span> [Db];
+
+<span class="kw">Insert Into</span> <span class="ret">@Return_Transcript</span>   <span class="kw">Select</span> TranscriptID, IssueDate <span class="kw">From</span> T;
+<span class="kw">Insert Into</span> <span class="ret">@Returns_Institution</span> <span class="kw">Select</span> InstitutionID, TranscriptID, SchoolName <span class="kw">From</span> I;
+<span class="kw">Insert Into</span> <span class="ret">@Returns_Course</span>      <span class="kw">Select</span> CourseID, InstitutionID, Title <span class="kw">From</span> C;
+
+<span class="kw">Select</span> * <span class="kw">From</span> <span class="ret">@Return_Transcript</span>;
+<span class="kw">Select</span> * <span class="kw">From</span> <span class="ret">@Returns_Institution</span>;
+<span class="kw">Select</span> * <span class="kw">From</span> <span class="ret">@Returns_Course</span>;</code></pre>
+
+<p><strong>Generated C#</strong> — <code>Institution</code> links to <code>Transcript</code> via
+<code>TranscriptID</code>, <code>Course</code> links to <code>Institution</code> via
+<code>InstitutionID</code>, so only <code>Transcript</code> is a root:</p>
+<pre><code><span class="cs-kw">public partial record</span> <span class="cs-cls">GetTranscriptResponse</span>
+{
+    <span class="cs-kw">public</span> <span class="cs-cls">TestApp.Data.Models.Transcript</span>? <span class="cs-pn">Transcript</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; } = <span class="cs-kw">default</span>!;
+}
+
+<span class="cs-kw">public partial record</span> <span class="cs-cls">Transcript</span>(<span class="cs-tp">int</span> <span class="cs-pn">TranscriptID</span>, <span class="cs-cls">DateOnly</span> <span class="cs-pn">IssueDate</span>)
+{
+    <span class="cs-kw">public</span> <span class="cs-cls">List</span>&lt;<span class="cs-cls">TestApp.Data.Models.Institution</span>&gt;? <span class="cs-pn">Institution</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+}
+
+<span class="cs-kw">public partial record</span> <span class="cs-cls">Institution</span>(<span class="cs-tp">int</span> <span class="cs-pn">InstitutionID</span>, <span class="cs-tp">int</span> <span class="cs-pn">TranscriptID</span>, <span class="cs-tp">string</span> <span class="cs-pn">SchoolName</span>)
+{
+    <span class="cs-kw">public</span> <span class="cs-cls">List</span>&lt;<span class="cs-cls">TestApp.Data.Models.Course</span>&gt;? <span class="cs-pn">Course</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+}
+
+<span class="cs-kw">public partial record</span> <span class="cs-cls">Course</span>(<span class="cs-tp">int</span> <span class="cs-pn">CourseID</span>, <span class="cs-tp">int</span> <span class="cs-pn">InstitutionID</span>, <span class="cs-tp">string</span> <span class="cs-pn">Title</span>);</code></pre>
+<p>The <code>Process…Async</code> / <code>SQuiLResultType</code> / <code>TryGetValue</code> calling
+convention is unchanged — only the response's internal shape nests. A parent row with no matching children
+gets an empty list (<code>[]</code>), not <code>null</code> — different from a top-level list return, where
+<code>null</code> means the result set itself was absent. A child row whose key matches no parent row is
+dropped from the tree entirely (it has nowhere to attach) — it will not appear anywhere in the response.</p>
+<p>Three diagnostics guard the link graph: <code>SP0033</code> (build error) if a child's column matches
+more than one table's <code>Primary Key</code>; <code>SP0034</code> (build error) if following links
+loops back to the same table (no recursion in v1); <code>SP0035</code> (editor hint) if a
+<code>Primary Key</code> has no linking child, shown only once nesting is already in play elsewhere in the
+file. A file with no <code>Primary Key</code> links generates today's flat response, unchanged.</p>
+
+<h3>5b. Nested objects on the input side — same convention, request envelope</h3>
+<p>The same <code>Primary Key</code>-by-convention rule nests <code class="par">@Param_</code>/<code
+class="par">@Params_</code> tables too — a SEPARATE graph from the output one above, never mixed. Only ROOT
+input tables stay top-level <code>Request</code> properties; every child input table collapses into its
+parent request record as a nested member, just like the response side. The one difference: a LIST child
+KEEPS its <code>= []</code> initializer (matching every other input list property), where a response list
+child gets none.</p>
+<p>Callers never need to populate the linking columns themselves — SQuiL synthesizes a join key for every
+nested input row when it flattens the request: an integer-family key (<code class="tp">int</code>/<code
+class="tp">bigint</code>/<code class="tp">smallint</code>) gets a 1-based sequential value per table; a
+<code class="tp">uniqueidentifier</code> key gets a fresh <code>Guid</code>. The synthesized parent key is
+copied into the child's matching column automatically.</p>
+<pre><code><span class="ann">--Name: PlaceOrder</span>
+
+<span class="kw">Declare</span> <span class="par">@Param_Order</span>     <span class="tp">table</span> (OrderID <span class="tp">int</span> <span class="kw">Primary Key</span>, CustomerName <span class="tp">varchar(50)</span>);
+<span class="kw">Declare</span> <span class="par">@Params_Shipment</span> <span class="tp">table</span> (ShipmentID <span class="tp">int</span> <span class="kw">Primary Key</span>, OrderID <span class="tp">int</span>, Carrier <span class="tp">varchar(50)</span>);
+
+<span class="kw">Use</span> [Db];
+
+<span class="kw">Insert Into</span> dbo.Orders    <span class="kw">Select</span> OrderID, CustomerName <span class="kw">From</span> <span class="par">@Param_Order</span>;
+<span class="kw">Insert Into</span> dbo.Shipments <span class="kw">Select</span> ShipmentID, OrderID, Carrier <span class="kw">From</span> <span class="par">@Params_Shipment</span>;</code></pre>
+
+<p><strong>Generated C#</strong> — <code>Shipment</code> links to <code>Order</code> via <code>OrderID</code>,
+so only <code>Order</code> is a root; the caller supplies no keys at all, SQuiL synthesizes them:</p>
+<pre><code><span class="cs-kw">public partial record</span> <span class="cs-cls">PlaceOrderRequest</span>
+{
+    <span class="cs-kw">public</span> <span class="cs-cls">TestApp.Data.Models.Order</span>? <span class="cs-pn">Order</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; } = <span class="cs-kw">default</span>!;
+}
+
+<span class="cs-kw">public partial record</span> <span class="cs-cls">Order</span>(<span class="cs-tp">int</span> <span class="cs-pn">OrderID</span>, <span class="cs-tp">string</span> <span class="cs-pn">CustomerName</span>)
+{
+    <span class="cs-kw">public</span> <span class="cs-cls">List</span>&lt;<span class="cs-cls">TestApp.Data.Models.Shipment</span>&gt;? <span class="cs-pn">Shipment</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; } = [];
+}
+
+<span class="cs-kw">public partial record</span> <span class="cs-cls">Shipment</span>(<span class="cs-tp">int</span> <span class="cs-pn">ShipmentID</span>, <span class="cs-tp">int</span> <span class="cs-pn">OrderID</span>, <span class="cs-tp">string</span> <span class="cs-pn">Carrier</span>);</code></pre>
+<p>SP0033/SP0034/SP0035 above apply to this graph too, independently of the output graph. One extra
+diagnostic is INPUT-only: <code>SP0036</code> (build error, squiggled in all three editors) fires when a
+link column's declared type is neither integer-family nor <code>uniqueidentifier</code> — nothing else can
+have a join key synthesized.</p>
+
 <!-- ──────────────────── Sample Data Insertion ────────────────────────── -->
 <h2 id="sample-data">Sample Data Insertion</h2>
 <p>For local testing, you can have SQuiL generate an <code>Insert Into</code> block populated with type-aware

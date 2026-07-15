@@ -29,6 +29,9 @@ export interface TableColumn {
   nullabilityMarker?: 'NULL' | 'NOT NULL';
   /** Raw `DEFAULT <literal>` value (string literals keep their single quotes), or undefined. */
   defaultValue?: string;
+  /** `true` when the column was declared `PRIMARY KEY` — its name becomes the table's
+   * relationship key for nested-object linking. */
+  isPrimaryKey: boolean;
   /** 0-based source line of the column NAME token — multi-line-`table(...)`-precise. */
   line: number;
   /** 0-based source character of the column NAME token on its own line. */
@@ -80,6 +83,7 @@ export interface SQuiLParseResult {
 
 import { validateVariables, findingMessage, findingSeverity } from './variableValidator';
 import { shapeKeyOf } from './shapeKey';
+import { buildKeyGraph, KeyGraphResult, OUTPUT_TABLE_ROLES, INPUT_TABLE_ROLES } from './keyGraph';
 
 /** Parse a full SQuiL SQL file text into a structured result. */
 export function parseSQuiL(text: string): SQuiLParseResult {
@@ -136,15 +140,20 @@ export function parseSQuiL(text: string): SQuiLParseResult {
       const varName = declareMatch[1];
       let typeStr = declareMatch[2].trim();
 
-      // If a TABLE type starts here but the closing ) is on a later line, collect it
-      if (/^TABLE\s*\(/i.test(typeStr) && !typeStr.includes(')')) {
+      // If a TABLE type starts here but the closing ) is on a later line, collect it.
+      // Tracks paren DEPTH (not "does this line contain a )") so a column whose type
+      // itself carries parens (varchar(50), decimal(18,2), …) on an earlier line
+      // doesn't fool the join into stopping before the table's real closing paren —
+      // that silently dropped every column declared after it. Mirrors the
+      // depth-tracking `scanTableColumnPositions` below already uses correctly.
+      if (/^TABLE\s*\(/i.test(typeStr)) {
+        let depth = parenDepthDelta(typeStr);
         let j = i + 1;
-        while (j < lines.length && !lines[j].includes(')')) {
-          typeStr += ' ' + lines[j].trim();
+        while (depth > 0 && j < lines.length) {
+          const seg = lines[j].trim().replace(/;.*$/, '');
+          typeStr += ' ' + seg;
+          depth += parenDepthDelta(seg);
           j++;
-        }
-        if (j < lines.length) {
-          typeStr += ' ' + lines[j].trim().replace(/;.*$/, '');
         }
       }
 
@@ -191,7 +200,127 @@ export function parseSQuiL(text: string): SQuiLParseResult {
     result.diagnostics.push(d);
   }
 
+  // SP0033 / SP0034: nested-object key-graph errors (ambiguous parent / cycle),
+  // over BOTH the OUTPUT and INPUT graphs. SP0036: unsupported nested-input key type.
+  for (const d of lintKeyGraph(result)) {
+    result.diagnostics.push(d);
+  }
+
   return result;
+}
+
+/**
+ * SP0033 (Error) — a nested-object child's column matches the declared Primary
+ * Key of more than one other table/object (ambiguous parent — a nested-object
+ * child must resolve to exactly one parent).
+ *
+ * SP0034 (Error) — following Primary-Key/Foreign-Key links from a table
+ * eventually returns to that same table (cycle — nested objects require a tree).
+ *
+ * Both are build errors in the generator (`SQuiLKeyGraph.Errors`,
+ * `DiagnosticsMessages.ReportAmbiguousKeyLink` / `ReportKeyCycle`) — this is the
+ * editor-squiggle mirror. Port of `LintKeyGraph` in `SQuiLLinter.cs`
+ * (SSMS + Visual Studio) — change one side, change all three.
+ *
+ * Applied to BOTH the OUTPUT (`@Return_`/`@Returns_`) and INPUT (`@Param_`/
+ * `@Params_`) key graphs, matching the generator building one of each
+ * (`FileGenerator.cs`'s `keyGraph` / `inputGraph`). SP0036 (unsupported
+ * nested-input key type) is checked against the INPUT graph only.
+ */
+export function lintKeyGraph(result: SQuiLParseResult): SQuiLDiagnostic[] {
+  const diagnostics: SQuiLDiagnostic[] = [];
+  const outputGraph = buildKeyGraph(result.variables, OUTPUT_TABLE_ROLES);
+  const inputGraph = buildKeyGraph(result.variables, INPUT_TABLE_ROLES);
+
+  for (const graph of [outputGraph, inputGraph]) {
+    for (const finding of graph.errors) {
+      const v = finding.variable;
+      const other = finding.otherVariable;
+
+      if (finding.kind === 'ambiguous') {
+        diagnostics.push({
+          message:
+            `\`${v.name}\` (line ${v.line + 1}) links to more than one table — it also matches ` +
+            `\`${other.name}\`'s (line ${other.line + 1}) primary key. A nested-object child must have ` +
+            `exactly one parent — rename one of the key columns so only one match remains.`,
+          line: v.line,
+          startChar: v.character,
+          endChar: v.character + v.rawName.length,
+          severity: 'error',
+          code: 'SP0033',
+          relatedLine: other.line,
+          relatedStartChar: other.character,
+          relatedEndChar: other.character + other.rawName.length,
+          relatedMessage: "matches this table's primary key",
+        });
+      } else {
+        // cycle
+        diagnostics.push({
+          message:
+            `\`${v.name}\` (line ${v.line + 1}) and \`${other.name}\` (line ${other.line + 1}) ` +
+            `form a primary-key/foreign-key cycle. Nested objects cannot be recursive — remove one of the links.`,
+          line: v.line,
+          startChar: v.character,
+          endChar: v.character + v.rawName.length,
+          severity: 'error',
+          code: 'SP0034',
+          relatedLine: other.line,
+          relatedStartChar: other.character,
+          relatedEndChar: other.character + other.rawName.length,
+          relatedMessage: 'cycle partner declared here',
+        });
+      }
+    }
+  }
+
+  diagnostics.push(...lintUnsupportedInputKeyType(inputGraph));
+
+  return diagnostics;
+}
+
+/** SQL types the generator can synthesize a nested-input join key for
+ *  (`IsSynthesizableKeyType` in `FileGenerator.cs`): integer-family + uniqueidentifier. */
+const SYNTHESIZABLE_KEY_TYPES = new Set(['int', 'bigint', 'smallint', 'uniqueidentifier']);
+
+function baseSqlType(sqlType: string): string {
+  return sqlType.replace(/\s*\([^)]*\)/, '').trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+}
+
+/**
+ * SP0036 (Error) — within the nested-INPUT key graph, a parent/child link
+ * column's declared type is neither integer-family (int/bigint/smallint) nor
+ * uniqueidentifier, so the generator cannot synthesize a join key for it.
+ * Mirrors the build error (`IsSynthesizableKeyType` / `ReportUnsupportedKeyType`
+ * in `FileGenerator.cs`/`DiagnosticsMessages.cs`) — editor-squiggle parity,
+ * checked only against the INPUT graph (there is no INPUT-side equivalent on
+ * OUTPUT graphs, which never synthesize keys).
+ */
+export function lintUnsupportedInputKeyType(inputGraph: KeyGraphResult): SQuiLDiagnostic[] {
+  const diagnostics: SQuiLDiagnostic[] = [];
+
+  for (const edge of inputGraph.edges) {
+    const parentColumns = (edge.parent.columns ?? []) as TableColumn[];
+    const keyColumn =
+      parentColumns.find(c => c.isPrimaryKey && c.name.toLowerCase() === edge.keyName.toLowerCase()) ??
+      parentColumns.find(c => c.name.toLowerCase() === edge.keyName.toLowerCase());
+    if (!keyColumn) continue;
+    if (SYNTHESIZABLE_KEY_TYPES.has(baseSqlType(keyColumn.sqlType))) continue;
+
+    const child = edge.child;
+    diagnostics.push({
+      message:
+        `Link column \`${edge.keyName}\` on \`${child.name}\` (line ${child.line + 1}) has type ` +
+        `\`${keyColumn.sqlType}\`, which cannot have a join key synthesized. A nested-input key column must ` +
+        `be an integer type (int, bigint, or smallint) or uniqueidentifier — change the link column's type.`,
+      line: child.line,
+      startChar: child.character,
+      endChar: child.character + child.rawName.length,
+      severity: 'error',
+      code: 'SP0036',
+    });
+  }
+
+  return diagnostics;
 }
 
 /** SP0017 — within a single file, detect table variables that share the same base
@@ -531,22 +660,51 @@ function parseTableColumns(columnsStr: string): TableColumn[] {
   const parts = splitTopLevelCommas(columnsStr);
   for (const part of parts) {
     const trimmed = part.trim();
-    const match = trimmed.match(/^(\w+)\s+([\w]+(?:\([^)]*\))?)\s*(NULL|NOT\s+NULL)?\s*(?:DEFAULT\s+('[^']*'|\S+))?$/i);
-    if (match) {
-      const nullability = (match[3] ?? '').toUpperCase().trim();
-      const marker = nullability === 'NULL' ? 'NULL' : nullability === 'NOT NULL' ? 'NOT NULL' : undefined;
-      cols.push({
-        name: match[1],
-        sqlType: match[2].trim(),
-        nullable: marker === 'NULL',
-        nullabilityMarker: marker,
-        defaultValue: match[4],
-        // Positions are filled in by the caller (parseVariable) once the
-        // declare's real source location is known — placeholders here.
-        line: 0,
-        character: 0,
-      });
+    const head = trimmed.match(/^(\w+)\s+([\w]+(?:\([^)]*\))?)\s*(.*)$/is);
+    if (!head) continue;
+
+    let nullabilityMarker: 'NULL' | 'NOT NULL' | undefined;
+    let isPrimaryKey = false;
+    let defaultValue: string | undefined;
+
+    // Peel optional column modifiers in any order: null marker, Primary Key,
+    // default — mirrors the generator's tokenizer-driven peeling loop.
+    let tail = head[3].trim();
+    while (tail.length > 0) {
+      const notNull = tail.match(/^NOT\s+NULL\b\s*/i);
+      const nullOnly = notNull ? null : tail.match(/^NULL\b\s*/i);
+      const primaryKey = notNull || nullOnly ? null : tail.match(/^PRIMARY\s+KEY\b\s*/i);
+      const defaultMatch = notNull || nullOnly || primaryKey ? null : tail.match(/^DEFAULT\s+('[^']*'|\S+)\s*/i);
+
+      if (notNull) {
+        nullabilityMarker = 'NOT NULL';
+        tail = tail.slice(notNull[0].length);
+      } else if (nullOnly) {
+        nullabilityMarker = 'NULL';
+        tail = tail.slice(nullOnly[0].length);
+      } else if (primaryKey) {
+        isPrimaryKey = true;
+        tail = tail.slice(primaryKey[0].length);
+      } else if (defaultMatch) {
+        defaultValue = defaultMatch[1];
+        tail = tail.slice(defaultMatch[0].length);
+      } else {
+        break;
+      }
     }
+
+    cols.push({
+      name: head[1],
+      sqlType: head[2].trim(),
+      nullable: nullabilityMarker === 'NULL',
+      nullabilityMarker,
+      defaultValue,
+      isPrimaryKey,
+      // Positions are filled in by the caller (parseVariable) once the
+      // declare's real source location is known — placeholders here.
+      line: 0,
+      character: 0,
+    });
   }
   return cols;
 }
@@ -617,6 +775,18 @@ function scanTableColumnPositions(
   }
 
   return results;
+}
+
+/** Net change in paren depth across a string ('(' count minus ')' count).
+ *  Used to find the real end of a multi-line `TABLE( ... )` declaration
+ *  without being fooled by a column type's own parens (e.g. `varchar(50)`). */
+function parenDepthDelta(s: string): number {
+  let delta = 0;
+  for (const ch of s) {
+    if (ch === '(') delta++;
+    else if (ch === ')') delta--;
+  }
+  return delta;
 }
 
 export function splitTopLevelCommas(str: string): string[] {

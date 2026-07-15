@@ -50,6 +50,41 @@ test('column nullable only with explicit NULL; scalar marker captured', () => {
   assert.strictEqual(r.variables.find(v => v.name === 'SN')!.nullabilityMarker, 'NULL');
 });
 
+// Task 8: PRIMARY KEY column constraint parity with the generator — parsed
+// and flagged, order-independent alongside NULL/NOT NULL/DEFAULT, no error.
+test('table column PRIMARY KEY is parsed and flagged (isPrimaryKey), no diagnostics', () => {
+  const r = parseSQuiL([
+    '--Name: PrimaryKeyParse',
+    'Declare @Returns_Course table(CourseID int Primary Key, Title varchar(100));',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n'));
+
+  assert.deepStrictEqual(r.diagnostics.filter((d) => d.severity === 'error'), []);
+
+  const course = r.variables.find((v) => v.name === 'Course')!;
+  assert.ok(course, '@Returns_Course should be parsed');
+  assert.deepStrictEqual(course.columns!.map((c) => c.isPrimaryKey), [true, false]);
+});
+
+// PRIMARY KEY must peel in any order alongside NULL/NOT NULL/DEFAULT, like the
+// generator's tokenizer-driven column-modifier loop.
+test('table column PRIMARY KEY is order-independent with NOT NULL / DEFAULT', () => {
+  const r = parseSQuiL([
+    '--Name: PrimaryKeyOrder',
+    'Declare @Returns_Row table(A int not null Primary Key, B int Primary Key not null, C int default 1);',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n'));
+
+  assert.deepStrictEqual(r.diagnostics.filter((d) => d.severity === 'error'), []);
+
+  const row = r.variables.find((v) => v.name === 'Row')!;
+  assert.deepStrictEqual(row.columns!.map((c) => c.isPrimaryKey), [true, true, false]);
+  assert.deepStrictEqual(row.columns!.map((c) => c.nullabilityMarker), ['NOT NULL', 'NOT NULL', undefined]);
+  assert.strictEqual(row.columns![2].defaultValue, '1');
+});
+
 // SP0017: shape mismatch between two same-name table variables in one file.
 test('SP0017 shape mismatch: same name different columns fires error with relatedInformation', () => {
   const sql = [
@@ -300,4 +335,178 @@ test('SP0032 (input table column) — squiggle range is multi-line-precise (colu
   assert.strictEqual(d!.line, verLine, 'diagnostic line should be the column\'s own line, not the declare line');
   assert.strictEqual(d!.startChar, expectedStart, 'startChar should point at the column name on its own line');
   assert.strictEqual(d!.endChar, expectedStart + 'Ver'.length, 'endChar should cover only the column name');
+});
+
+// ── SP0033 / SP0034: nested-object key-graph errors (editor squiggle parity
+// with the generator's build-time SQuiLKeyGraph.Errors) ─────────────────────
+
+test('SP0033 fires when a child column matches more than one declared Primary Key (ambiguous)', () => {
+  const result = parseSQuiL([
+    '--Name: Ambiguous',
+    'Declare @Returns_A table(SharedID int Primary Key, N int);',
+    'Declare @Returns_B table(SharedID int Primary Key, M int);',
+    'Declare @Returns_C table(CID int, SharedID int);',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n'));
+
+  const sp0033 = result.diagnostics.filter(d => d.code === 'SP0033');
+  assert.strictEqual(sp0033.length, 1, 'should emit exactly one SP0033 diagnostic');
+  assert.strictEqual(sp0033[0].severity, 'error');
+  assert.ok(sp0033[0].message.includes('C'), 'message should name the ambiguous child');
+  assert.ok(sp0033[0].message.includes('A'), 'message should name a matched parent');
+});
+
+test('SP0034 fires when Primary-Key/Foreign-Key links form a cycle', () => {
+  const result = parseSQuiL([
+    '--Name: Cycle',
+    'Declare @Return_A table(AID int Primary Key, BID int);',
+    'Declare @Return_B table(BID int Primary Key, AID int);',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n'));
+
+  const sp0034 = result.diagnostics.filter(d => d.code === 'SP0034');
+  assert.strictEqual(sp0034.length, 1, 'should emit exactly one SP0034 diagnostic');
+  assert.strictEqual(sp0034[0].severity, 'error');
+  assert.ok(sp0034[0].message.includes('A') && sp0034[0].message.includes('B'), 'message should name both tables');
+});
+
+test('SP0033/SP0034 stay silent on a well-formed tree (no ambiguity, no cycle)', () => {
+  const result = parseSQuiL([
+    '--Name: Tree',
+    'Declare @Returns_Parent table(ParentID int Primary Key, Name varchar(50));',
+    'Declare @Returns_Child table(ChildID int Primary Key, ParentID int);',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n'));
+
+  assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0033').length, 0);
+  assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0034').length, 0);
+});
+
+// ── SP0033 / SP0034 on the INPUT (`@Param_`/`@Params_`) key graph — the same
+// checks applied to a second, independent graph (Task 15) ──────────────────
+
+test('SP0033 fires on the INPUT graph when a child column matches more than one declared Primary Key', () => {
+  const result = parseSQuiL([
+    '--Name: AmbiguousInput',
+    'Declare @Params_A table(SharedID int Primary Key, N int);',
+    'Declare @Params_B table(SharedID int Primary Key, M int);',
+    'Declare @Params_C table(CID int, SharedID int);',
+    'Use [Db];',
+    'Insert Into dbo.As Select SharedID, N From @Params_A;',
+    'Insert Into dbo.Bs Select SharedID, M From @Params_B;',
+    'Insert Into dbo.Cs Select CID, SharedID From @Params_C;',
+  ].join('\n'));
+
+  const sp0033 = result.diagnostics.filter(d => d.code === 'SP0033');
+  assert.strictEqual(sp0033.length, 1, 'should emit exactly one SP0033 diagnostic for the input graph');
+  assert.strictEqual(sp0033[0].severity, 'error');
+  assert.ok(sp0033[0].message.includes('C'), 'message should name the ambiguous child');
+  assert.ok(sp0033[0].message.includes('A'), 'message should name a matched parent');
+});
+
+test('SP0034 fires on the INPUT graph when Primary-Key/Foreign-Key links form a cycle', () => {
+  const result = parseSQuiL([
+    '--Name: CycleInput',
+    'Declare @Param_A table(AID int Primary Key, BID int);',
+    'Declare @Param_B table(BID int Primary Key, AID int);',
+    'Use [Db];',
+    'Insert Into dbo.As Select AID, BID From @Param_A;',
+    'Insert Into dbo.Bs Select BID, AID From @Param_B;',
+  ].join('\n'));
+
+  const sp0034 = result.diagnostics.filter(d => d.code === 'SP0034');
+  assert.strictEqual(sp0034.length, 1, 'should emit exactly one SP0034 diagnostic for the input graph');
+  assert.strictEqual(sp0034[0].severity, 'error');
+  assert.ok(sp0034[0].message.includes('A') && sp0034[0].message.includes('B'), 'message should name both tables');
+});
+
+test('SP0033/SP0034 on the INPUT graph do not fire from an unrelated OUTPUT-side ambiguity/cycle (graphs stay independent)', () => {
+  const result = parseSQuiL([
+    '--Name: MixedTree',
+    'Declare @Returns_Parent table(ParentID int Primary Key, Name varchar(50));',
+    'Declare @Returns_Child table(ChildID int Primary Key, ParentID int);',
+    'Declare @Params_InParent table(InParentID int Primary Key, Name varchar(50));',
+    'Declare @Params_InChild table(InChildID int Primary Key, InParentID int);',
+    'Use [Db];',
+    'Insert Into dbo.P Select InParentID, Name From @Params_InParent;',
+    'Insert Into dbo.C Select InChildID, InParentID From @Params_InChild;',
+  ].join('\n'));
+
+  assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0033').length, 0);
+  assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0034').length, 0);
+});
+
+// ── SP0036 — unsupported nested-input key type (Task 15; mirrors the
+// generator's build error from Task 13, `IsSynthesizableKeyType` /
+// `ReportUnsupportedKeyType`) ────────────────────────────────────────────────
+
+test('SP0036 fires when a nested-input link column type cannot have a join key synthesized', () => {
+  const result = parseSQuiL([
+    '--Name: UnsupportedLinkType',
+    'Declare @Param_Order table(OrderID varchar(10) Primary Key, CustomerName varchar(50));',
+    'Declare @Params_Line table(LineID int, OrderID varchar(10), Amount decimal(18,2));',
+    'Use [Db];',
+    'Insert Into dbo.Orders Select OrderID, CustomerName From @Param_Order;',
+    'Insert Into dbo.Lines Select LineID, OrderID, Amount From @Params_Line;',
+  ].join('\n'));
+
+  const sp0036 = result.diagnostics.filter(d => d.code === 'SP0036');
+  assert.strictEqual(sp0036.length, 1, 'should emit exactly one SP0036 diagnostic');
+  assert.strictEqual(sp0036[0].severity, 'error');
+  assert.ok(sp0036[0].message.includes('OrderID'), 'message should name the link column');
+  assert.ok(sp0036[0].message.includes('Line'), 'message should name the child table');
+  assert.ok(sp0036[0].message.toLowerCase().includes('varchar'), 'message should name the offending type');
+});
+
+test('SP0036 stays silent for int/bigint/smallint/uniqueidentifier link columns', () => {
+  const intResult = parseSQuiL([
+    '--Name: IntKey',
+    'Declare @Param_Order table(OrderID int Primary Key, CustomerName varchar(50));',
+    'Declare @Params_Line table(LineID int, OrderID int, Amount decimal(18,2));',
+    'Use [Db];',
+    'Insert Into dbo.Orders Select OrderID, CustomerName From @Param_Order;',
+    'Insert Into dbo.Lines Select LineID, OrderID, Amount From @Params_Line;',
+  ].join('\n'));
+  assert.strictEqual(intResult.diagnostics.filter(d => d.code === 'SP0036').length, 0);
+
+  const guidResult = parseSQuiL([
+    '--Name: GuidKey',
+    'Declare @Param_Order table(OrderID uniqueidentifier Primary Key, CustomerName varchar(50));',
+    'Declare @Params_Line table(LineID int, OrderID uniqueidentifier, Amount decimal(18,2));',
+    'Use [Db];',
+    'Insert Into dbo.Orders Select OrderID, CustomerName From @Param_Order;',
+    'Insert Into dbo.Lines Select LineID, OrderID, Amount From @Params_Line;',
+  ].join('\n'));
+  assert.strictEqual(guidResult.diagnostics.filter(d => d.code === 'SP0036').length, 0);
+});
+
+// Regression (found while building Task 16's link-insertion code action): a
+// multi-line TABLE(...) declaration where a MIDDLE column's own type carries
+// parens (varchar(50), decimal(18,2), …) used to fool the continuation-join
+// into stopping at that coincidental ')' instead of the table's real closing
+// paren, silently dropping every column declared after it.
+test('multi-line TABLE(...) declaration keeps every column even when an earlier column\'s type has its own parens', () => {
+  const result = parseSQuiL([
+    '--Name: MultiLineParenMiddle',
+    'Declare @Returns_Order table(',
+    '  OrderID int,',
+    '  Total decimal(18,2),',
+    '  Note varchar(50),',
+    '  CreatedOn datetime',
+    ');',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n'));
+
+  const order = result.variables.find(v => v.name === 'Order');
+  assert.ok(order, 'Order should be parsed');
+  assert.strictEqual(order!.columns?.length, 4, 'all 4 columns should survive the multi-line join');
+  assert.deepStrictEqual(order!.columns!.map(c => c.name), ['OrderID', 'Total', 'Note', 'CreatedOn']);
+  // The last column's position should be resolved onto its OWN line (5), not the
+  // declare line (1) — confirms scanTableColumnPositions ran on the FULL, correctly
+  // joined declaration rather than a truncated one.
+  assert.strictEqual(order!.columns!.find(c => c.name === 'CreatedOn')!.line, 5);
 });

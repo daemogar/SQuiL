@@ -354,6 +354,51 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0033 — Within one query file's nested-object key graph, a child table/object's column
+	/// matches the declared Primary Key of more than one other table/object. A nested-object
+	/// child must resolve to exactly one parent, so an ambiguous match is a build error and
+	/// the file's code emission is skipped.
+	/// </summary>
+	public static void ReportAmbiguousKeyLink(
+		this SourceProductionContext context, string filename,
+		SQuiL.Models.SQuiLKeyFinding finding)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0033", "Ambiguous Key Link",
+			$"{filename}: `{finding.Name}` (line {finding.Line}) links to more than one table — it also matches " +
+			$"`{finding.OtherName}`'s (line {finding.OtherLine}) primary key. A nested-object child must have " +
+			"exactly one parent — rename one of the key columns so only one match remains."));
+	}
+
+	/// <summary>
+	/// SP0034 — Within one query file's nested-object key graph, following Primary-Key/Foreign-Key
+	/// links from a table eventually returns to that same table, forming a cycle. Nested objects
+	/// require a tree (no cycles); the file's code emission is skipped.
+	/// </summary>
+	public static void ReportKeyCycle(
+		this SourceProductionContext context, string filename,
+		SQuiL.Models.SQuiLKeyFinding finding)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0034", "Key Cycle",
+			$"{filename}: `{finding.Name}` (line {finding.Line}) and `{finding.OtherName}` (line {finding.OtherLine}) " +
+			"form a primary-key/foreign-key cycle. Nested objects cannot be recursive — remove one of the links."));
+	}
+
+	/// <summary>
+	/// SP0036 — Within one query file's nested-INPUT key graph, a parent/child link column's
+	/// declared type is neither integer-family (int/bigint/smallint) nor uniqueidentifier, so the
+	/// generator cannot synthesize a join key for it. The file's code emission is skipped.
+	/// </summary>
+	public static void ReportUnsupportedKeyType(
+		this SourceProductionContext context, string filename,
+		string childName, string keyColumn, string sqlType, int line)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0036", "Unsupported Nested-Input Key Type",
+			$"{filename}: the nested-input link column `{keyColumn}` on `{childName}` (line {line}) has type " +
+			$"`{sqlType}`, which cannot have a join key synthesized. A nested-input key column must be an integer " +
+			"type (int, bigint, or smallint) or uniqueidentifier — change the link column's type."));
+	}
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

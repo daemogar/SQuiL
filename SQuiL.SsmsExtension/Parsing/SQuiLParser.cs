@@ -41,6 +41,9 @@ public sealed class TableColumn
     public string? NullabilityMarker { get; set; }
     /// <summary>Raw <c>DEFAULT &lt;literal&gt;</c> value (string literals keep their single quotes), or null.</summary>
     public string? DefaultValue { get; set; }
+    /// <summary><c>true</c> when the column was declared <c>PRIMARY KEY</c> — its name becomes the
+    /// table's relationship key for nested-object linking.</summary>
+    public bool IsPrimaryKey { get; set; } = false;
     /// <summary>0-based source line of the column NAME token — multi-line-<c>table(...)</c>-precise.</summary>
     public int Line { get; set; }
     /// <summary>0-based source character of the column NAME token on its own line.</summary>
@@ -114,9 +117,21 @@ public static class SQuiLParser
         @"TABLE\s*\((.+)\)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
-    private static readonly Regex ColumnSpec = new(
-        @"^(\w+)\s+(\w+(?:\([^)]*\))?)\s*(NULL|NOT\s+NULL)?\s*(?:DEFAULT\s+('[^']*'|\S+))?$",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ColumnHead = new(
+        @"^(\w+)\s+(\w+(?:\([^)]*\))?)\s*(.*)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+    private static readonly Regex NotNullModifier = new(
+        @"^NOT\s+NULL\b\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex NullModifier = new(
+        @"^NULL\b\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex PrimaryKeyModifier = new(
+        @"^PRIMARY\s+KEY\b\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex DefaultModifier = new(
+        @"^DEFAULT\s+('[^']*'|\S+)\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static SQuiLParseResult Parse(string text)
     {
@@ -179,21 +194,24 @@ public static class SQuiLParser
                 string varName = declareMatch.Groups[1].Value;
                 string typeStr = declareMatch.Groups[2].Value.Trim();
 
-                // If a TABLE type starts here but the closing ) is on a later line, collect it
-                if (TableTypePrefix.IsMatch(typeStr) && !typeStr.Contains(")"))
+                // If a TABLE type starts here but the closing ) is on a later line, collect it.
+                // Tracks paren DEPTH (not "does this line contain a )") so a column whose
+                // type itself carries parens (varchar(50), decimal(18,2), …) on an earlier
+                // line doesn't fool the join into stopping before the table's real closing
+                // paren — that silently dropped every column declared after it. Mirrors the
+                // depth-tracking ScanTableColumnPositions below already uses correctly.
+                if (TableTypePrefix.IsMatch(typeStr))
                 {
+                    int depth = ParenDepthDelta(typeStr);
                     int j = i + 1;
-                    while (j < lines.Length && !lines[j].Contains(")"))
-                    {
-                        typeStr += " " + lines[j].Trim();
-                        j++;
-                    }
-                    if (j < lines.Length)
+                    while (depth > 0 && j < lines.Length)
                     {
                         var seg = lines[j].Trim();
                         int semi = seg.IndexOf(';');
                         if (semi >= 0) seg = seg.Substring(0, semi);
                         typeStr += " " + seg;
+                        depth += ParenDepthDelta(seg);
+                        j++;
                     }
                 }
 
@@ -334,21 +352,55 @@ public static class SQuiLParser
         foreach (string part in SplitTopLevelCommas(columnsStr))
         {
             string trimmed = part.Trim();
-            var match = ColumnSpec.Match(trimmed);
-            if (!match.Success) continue;
+            var head = ColumnHead.Match(trimmed);
+            if (!head.Success) continue;
 
-            string nullability = (match.Groups[3].Value ?? "").ToUpperInvariant().Trim();
-            string? colMarker  = nullability == "NULL" ? "NULL" : nullability == "NOT NULL" ? "NOT NULL" : null;
+            string? nullabilityMarker = null;
+            bool isPrimaryKey = false;
+            string? defaultValue = null;
+
+            // Peel optional column modifiers in any order: null marker, Primary Key,
+            // default — mirrors the generator's tokenizer-driven peeling loop.
+            string tail = head.Groups[3].Value.Trim();
+            while (tail.Length > 0)
+            {
+                var notNull = NotNullModifier.Match(tail);
+                var nullOnly = notNull.Success ? Match.Empty : NullModifier.Match(tail);
+                var primaryKey = (notNull.Success || nullOnly.Success) ? Match.Empty : PrimaryKeyModifier.Match(tail);
+                var defaultMatch = (notNull.Success || nullOnly.Success || primaryKey.Success) ? Match.Empty : DefaultModifier.Match(tail);
+
+                if (notNull.Success) { nullabilityMarker = "NOT NULL"; tail = tail.Substring(notNull.Length); }
+                else if (nullOnly.Success) { nullabilityMarker = "NULL"; tail = tail.Substring(nullOnly.Length); }
+                else if (primaryKey.Success) { isPrimaryKey = true; tail = tail.Substring(primaryKey.Length); }
+                else if (defaultMatch.Success) { defaultValue = defaultMatch.Groups[1].Value; tail = tail.Substring(defaultMatch.Length); }
+                else break;
+            }
+
             cols.Add(new TableColumn
             {
-                Name              = match.Groups[1].Value,
-                SqlType           = match.Groups[2].Value.Trim(),
-                Nullable          = colMarker == "NULL",
-                NullabilityMarker = colMarker,
-                DefaultValue      = match.Groups[4].Success ? match.Groups[4].Value : null,
+                Name              = head.Groups[1].Value,
+                SqlType           = head.Groups[2].Value.Trim(),
+                Nullable          = nullabilityMarker == "NULL",
+                NullabilityMarker = nullabilityMarker,
+                DefaultValue      = defaultValue,
+                IsPrimaryKey      = isPrimaryKey,
             });
         }
         return cols;
+    }
+
+    /// <summary>Net change in paren depth across a string ('(' count minus ')' count).
+    /// Used to find the real end of a multi-line <c>TABLE( ... )</c> declaration without
+    /// being fooled by a column type's own parens (e.g. <c>varchar(50)</c>).</summary>
+    private static int ParenDepthDelta(string s)
+    {
+        int delta = 0;
+        foreach (char ch in s)
+        {
+            if (ch == '(') delta++;
+            else if (ch == ')') delta--;
+        }
+        return delta;
     }
 
     private static IEnumerable<string> SplitTopLevelCommas(string str)

@@ -95,7 +95,60 @@ public class FileGenerator(
 					Context.Debug(token.Expect());
 			}
 
-			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, recordNamespace, method, blocks, TableMap, records, sql);
+			// Nested-objects (Task 4/7): build the key graph from OUTPUT blocks only (INPUT
+			// nesting is out of scope). An errored graph (ambiguous/cycle) is a build error —
+			// report SP0033/SP0034 for each finding and skip emitting this file's models and
+			// data-context entirely (same "bail out of Create" shape as the DiagnosticException
+			// catch below), rather than silently falling back to the flat path.
+			var outputBlocksForGraph = blocks.Where(b => (b.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT);
+			var keyGraph = SQuiLKeyGraph.Build(outputBlocksForGraph, sql);
+			if (keyGraph.Errors.Count > 0)
+			{
+				foreach (var finding in keyGraph.Errors)
+				{
+					if (finding.Kind == "cycle")
+						Context.ReportKeyCycle(method, finding);
+					else
+						Context.ReportAmbiguousKeyLink(method, finding);
+				}
+				return default;
+			}
+
+			// Nested-objects (Task 13): build the key graph from INPUT blocks (@Param*/@Params*
+			// table/object). An ambiguous/cyclic input graph is a build error (reuse SP0033/SP0034);
+			// SP0036 fires when an input link column's declared type cannot have a key synthesized
+			// (neither integer-family nor uniqueidentifier). Any of these skips this file's emission.
+			var inputBlocksForGraph = blocks.Where(b => (b.CodeType & CodeType.INPUT) == CodeType.INPUT);
+			var inputGraph = SQuiLKeyGraph.Build(inputBlocksForGraph, sql);
+			if (inputGraph.Errors.Count > 0)
+			{
+				foreach (var finding in inputGraph.Errors)
+				{
+					if (finding.Kind == "cycle")
+						Context.ReportKeyCycle(method, finding);
+					else
+						Context.ReportAmbiguousKeyLink(method, finding);
+				}
+				return default;
+			}
+
+			// SP0036: every input link column must be synthesizable (int/bigint/smallint sequential
+			// or uniqueidentifier → Guid.NewGuid()). The link column is the parent's Primary Key,
+			// carried by the child as its foreign key (edge.KeyName).
+			foreach (var edge in inputGraph.Edges)
+			{
+				var keyColumn = edge.Parent.Properties?.FirstOrDefault(p => p.IsPrimaryKey && p.Identifier.Value == edge.KeyName)
+					?? edge.Parent.Properties?.FirstOrDefault(p => p.Identifier.Value == edge.KeyName);
+				if (keyColumn is null || IsSynthesizableKeyType(keyColumn.Type.Type))
+					continue;
+
+				Context.ReportUnsupportedKeyType(method, edge.Child.Name, edge.KeyName,
+					keyColumn.Type.Original ?? keyColumn.Type.Type.ToString(),
+					LineOf(sql, edge.Child.DatabaseType.Offset));
+				return default;
+			}
+
+			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, recordNamespace, method, blocks, TableMap, records, sql, keyGraph, inputGraph);
 
 			foreach (var property in generation.Request.Properties.Union(generation.Response.Properties))
 				if (property is SQuiLTable table)
@@ -137,7 +190,7 @@ public class FileGenerator(
 				}
 			}
 
-			generation.Context = new(@namespace, classname, method, setting, blocks, enabled, debugRollback);
+			generation.Context = new(@namespace, classname, method, setting, blocks, enabled, debugRollback, keyGraph, inputGraph);
 
 			Generations.Add(generation);
 
@@ -148,6 +201,27 @@ public class FileGenerator(
 			Context.ReportLexicalParseErrorDiagnostic(e, method);
 			return default;
 		}
+	}
+
+	/// <summary>
+	/// Nested-input key synthesis (Task 13) supports integer-family keys (assigned a 1-based
+	/// sequential value per table) and <c>uniqueidentifier</c> keys (assigned <c>Guid.NewGuid()</c>).
+	/// Any other declared type on a link column is rejected with SP0036.
+	/// </summary>
+	private static bool IsSynthesizableKeyType(SQuiL.Tokenizer.TokenType type)
+		=> type is SQuiL.Tokenizer.TokenType.TYPE_INT
+			or SQuiL.Tokenizer.TokenType.TYPE_BIGINT
+			or SQuiL.Tokenizer.TokenType.TYPE_SMALLINT
+			or SQuiL.Tokenizer.TokenType.TYPE_GUID;
+
+	/// <summary>Computes the 1-based line number for a character <paramref name="offset"/> into <paramref name="sql"/>.</summary>
+	private static int LineOf(string sql, int offset)
+	{
+		var line = 1;
+		for (var i = 0; i < offset && i < sql.Length; i++)
+			if (sql[i] == '\n')
+				line++;
+		return line;
 	}
 
 	/// <summary>

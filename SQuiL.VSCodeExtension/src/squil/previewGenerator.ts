@@ -59,6 +59,67 @@ function isCollectionRole(v: SQuiLVariable): boolean {
   return v.role === 'params' || v.role === 'returns';
 }
 
+// ─── Nested-objects key graph (preview-only mirror of SQuiLKeyGraph.cs) ───
+
+/**
+ * Minimal preview mirror of the generator's `SQuiLKeyGraph`
+ * (`SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs`): a table/object
+ * variable's key is its single `Primary Key` column; any OTHER variable in
+ * the SAME universe carrying a column of that exact name becomes its child.
+ * Variables nobody links to are roots. Called once for OUTPUT (`@Return*`)
+ * table/object variables and once for INPUT (`@Param*`) table/object
+ * variables (never mixed), matching the generator building one graph per
+ * side (`FileGenerator.cs`'s `keyGraph` / `inputGraph`).
+ *
+ * Simplified relative to the generator: ambiguous (>1 distinct parent) or
+ * cyclic links are build-time errors owned by the generator/editor
+ * diagnostics, not the preview — here the first matching PK owner silently
+ * wins so the preview always renders *something* reasonable (graceful
+ * degradation to the flat shape when there are no links at all).
+ */
+interface NestedGraph {
+  /** Variables that are not any other variable's child — the top-level Response members. */
+  roots: SQuiLVariable[];
+  /** parent → its direct children, in declaration order. */
+  childrenOf: Map<SQuiLVariable, SQuiLVariable[]>;
+  /** true when `v` collapses into a parent record instead of staying top-level. */
+  isChild: (v: SQuiLVariable) => boolean;
+}
+
+function buildNestedGraph(tableVars: SQuiLVariable[]): NestedGraph {
+  // key column name (lower-cased) -> the variable whose Primary Key it is.
+  const pkOwner = new Map<string, SQuiLVariable>();
+  for (const v of tableVars) {
+    const pk = (v.columns ?? []).find(c => c.isPrimaryKey);
+    if (pk && !pkOwner.has(pk.name.toLowerCase())) {
+      pkOwner.set(pk.name.toLowerCase(), v);
+    }
+  }
+
+  const parentOf = new Map<SQuiLVariable, SQuiLVariable>();
+  for (const child of tableVars) {
+    for (const col of child.columns ?? []) {
+      const owner = pkOwner.get(col.name.toLowerCase());
+      if (owner && owner !== child) {
+        parentOf.set(child, owner);
+        break;
+      }
+    }
+  }
+
+  const childrenOf = new Map<SQuiLVariable, SQuiLVariable[]>();
+  for (const v of tableVars) {
+    const parent = parentOf.get(v);
+    if (!parent) continue;
+    const list = childrenOf.get(parent);
+    if (list) list.push(v);
+    else childrenOf.set(parent, [v]);
+  }
+
+  const roots = tableVars.filter(v => !parentOf.has(v));
+  return { roots, childrenOf, isChild: v => parentOf.has(v) };
+}
+
 function getPropertyType(v: SQuiLVariable, modelsNs?: string): string {
   if (v.role === 'params' || v.role === 'returns') {
     const typeName = modelsNs ? `${modelsNs}.${recordTypeName(v)}` : recordTypeName(v);
@@ -93,13 +154,25 @@ export function generateCSharpPreview(
   );
 
   // Collect all table-valued variables that need row records
-  const tableVars = [
-    ...params.filter(v => v.columns && v.columns.length > 0),
-    ...returns.filter(v => v.columns && v.columns.length > 0),
-  ];
+  const paramTableVars = params.filter(v => v.columns && v.columns.length > 0);
+  const returnTableVars = returns.filter(v => v.columns && v.columns.length > 0);
+  const tableVars = [...paramTableVars, ...returnTableVars];
   // The Namespace override on [SQuiLQuery] is generator-only; editors cannot read C# attributes,
   // so the preview always uses the default "Models" sub-namespace segment.
   const modelsNs = `${namespace}.Models`;
+
+  // Nested-objects: OUTPUT and INPUT table/object variables each link into their
+  // OWN parent/child graph (never mixed, matching the generator's two independent
+  // graphs). Children collapse into their parent record and drop off the
+  // Request/Response top level.
+  const outputGraph = buildNestedGraph(returnTableVars);
+  const inputGraph = buildNestedGraph(paramTableVars);
+  const responseVars = returns.filter(v => !outputGraph.isChild(v));
+  const requestVars = params.filter(v => !inputGraph.isChild(v));
+
+  function childrenOf(v: SQuiLVariable): SQuiLVariable[] | undefined {
+    return outputGraph.childrenOf.get(v) ?? inputGraph.childrenOf.get(v);
+  }
 
   banner(lines, queryName, db);
   lines.push('');
@@ -119,14 +192,17 @@ export function generateCSharpPreview(
     lines.push('');
   }
 
-  // ── Request record (always partial; specials are opt-in)
+  // ── Request record (always partial; specials are opt-in). Only nesting
+  // ROOTS appear at the top level — an input child collapses into its
+  // parent record as a member instead (mirrors the Response nesting below).
   lines.push(`// ── Request ─────────────────────────────────────────────`);
-  emitModelRecord(lines, `${queryName}Request`, params, /*isResponse*/ false, parsed.variables, modelsNs);
+  emitModelRecord(lines, `${queryName}Request`, requestVars, /*isResponse*/ false, parsed.variables, modelsNs);
 
-  // ── Response record
+  // ── Response record (only nesting ROOTS appear at the top level — a
+  // child collapses into its parent record as a member instead)
   if (returns.length > 0) {
     lines.push(`// ── Response ────────────────────────────────────────────`);
-    emitModelRecord(lines, `${queryName}Response`, returns, /*isResponse*/ true, undefined, modelsNs);
+    emitModelRecord(lines, `${queryName}Response`, responseVars, /*isResponse*/ true, undefined, modelsNs);
   }
 
   // ── Data context
@@ -185,7 +261,7 @@ export function generateCSharpPreview(
     lines.push(`namespace ${modelsNs};`);
     lines.push('');
     for (const v of tableVars) {
-      emitTableRecord(lines, recordTypeName(v), v);
+      emitTableRecord(lines, recordTypeName(v), v, modelsNs, childrenOf(v));
     }
   }
 
@@ -224,7 +300,13 @@ function csharpDefault(sqlType: string, raw: string): string {
   return raw;
 }
 
-function emitTableRecord(lines: string[], typeName: string, v: SQuiLVariable): void {
+function emitTableRecord(
+  lines: string[],
+  typeName: string,
+  v: SQuiLVariable,
+  modelsNs?: string,
+  children?: SQuiLVariable[],
+): void {
   if (!v.columns || v.columns.length === 0) return;
 
   const csType = (col: typeof v.columns[number]): string => {
@@ -235,8 +317,9 @@ function emitTableRecord(lines: string[], typeName: string, v: SQuiLVariable): v
   const positional = v.columns.filter(c => !c.defaultValue);
   const defaulted = v.columns.filter(c => c.defaultValue);
   const params = positional.map(c => `${csType(c)} ${c.name}`).join(', ');
+  const hasChildren = children !== undefined && children.length > 0;
 
-  if (defaulted.length === 0) {
+  if (defaulted.length === 0 && !hasChildren) {
     lines.push(`public partial record ${typeName}(${params});`);
     lines.push('');
     return;
@@ -247,6 +330,23 @@ function emitTableRecord(lines: string[], typeName: string, v: SQuiLVariable): v
   defaulted.forEach(col => {
     lines.push(`    public ${csType(col)} ${col.name} { get; init; } = ${csharpDefault(col.sqlType, col.defaultValue!)};`);
   });
+  // Nested-objects: a child table/object collapses into its parent record as a
+  // plain settable member, typed the same as a top-level list/object member
+  // (List<ns.Models.Child>? for a list child, ns.Models.Child? for an object
+  // child). Initializer depends on the child's OWN role, not its parent's:
+  // an OUTPUT list child gets no initializer (matches top-level Response
+  // lists, which are null-when-absent), while an INPUT list child KEEPS the
+  // `= []` initializer (matches top-level Request lists — Task 13's
+  // generator output). Object children (either side) never get one.
+  if (hasChildren) {
+    children!.forEach(child => {
+      // Only the INPUT list case gets an initializer (and thus needs the
+      // trailing `;`); a bare auto-property has no initializer and no `;`
+      // (matches `*.g.verified.cs` ground truth for both sides).
+      const initializer = child.role === 'params' ? ' = [];' : '';
+      lines.push(`    public ${getPropertyType(child, modelsNs)} ${child.name} { get; set; }${initializer}`);
+    });
+  }
   lines.push(`}`);
   lines.push('');
 }

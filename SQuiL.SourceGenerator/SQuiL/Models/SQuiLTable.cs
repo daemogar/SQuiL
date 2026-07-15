@@ -69,6 +69,19 @@ public class SQuiLTable(
 	public List<string> ConstructorParameters { get; set; } = default!;
 
 	/// <summary>
+	/// Nested-objects (Task 4/13): one entry per child edge rooted at this table/object, added as
+	/// a settable, nullable member alongside the columns-only positional constructor.
+	/// <c>TypeName</c> is pre-formatted by the caller (<c>SQuiLModel.CreateTableObject</c>) to
+	/// already include the <c>List&lt;...&gt;</c> wrapper for a list child, or just the bare record
+	/// type for an object child; <c>IsList</c> is carried for callers that need to branch on
+	/// cardinality but is not required by <see cref="GenerateCode(List{CodeItem})"/> itself.
+	/// <c>Initializer</c> is the trailing member initializer text (e.g. <c>" = [];"</c> for an
+	/// INPUT/request list child, per the "input lists keep = []" rule) or empty for OUTPUT/response
+	/// children and object children — appended verbatim after the member declaration.
+	/// </summary>
+	public IReadOnlyList<(string Name, string TypeName, bool IsList, string Initializer)> ChildMembers { get; set; } = [];
+
+	/// <summary>
 	/// Generates the C# source text for this table's record type, merging <paramref name="properties"/>
 	/// with any hand-written properties found on the user's partial record.
 	/// </summary>
@@ -156,7 +169,7 @@ public class SQuiLTable(
 		{
 			WriteParameterizedConstructor(p => p);
 			var defaulted = properties.Where(p => p.DefaultValue is not null).ToList();
-			if (defaulted.Count == 0)
+			if (ChildMembers.Count == 0 && defaulted.Count == 0)
 				record.WriteLine(";");
 			else
 			{
@@ -165,6 +178,8 @@ public class SQuiLTable(
 				record.Indent++;
 				foreach (var item in defaulted)
 					record.WriteLine($"public {item.CSharpType()} {item.Identifier.Value} {{ get; init; }} = {item.CSharpValue()};");
+				foreach (var (name, typeName, _, initializer) in ChildMembers)
+					record.WriteLine($"public {typeName}? {name} {{ get; set; }}{initializer}");
 				record.Indent--;
 				record.WriteLine("}");
 			}

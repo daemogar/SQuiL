@@ -44,19 +44,50 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
         if (triggerPoint == null) return Task.FromResult<QuickInfoItem?>(null);
 
         var atSpan = TryGetAtVariableSpan(snapshot, triggerPoint.Value.Position);
-        if (atSpan == null) return Task.FromResult<QuickInfoItem?>(null);
+        if (atSpan != null)
+        {
+            string word = atSpan.Value.GetText();
 
-        string word = atSpan.Value.GetText();
+            var parsed = SQuiLParser.Parse(snapshot.GetText());
+            var variable = parsed.Variables.FirstOrDefault(v =>
+                string.Equals(v.RawName, word, StringComparison.OrdinalIgnoreCase));
+
+            var trackingSpan = snapshot.CreateTrackingSpan(atSpan.Value, SpanTrackingMode.EdgeInclusive);
+
+            object content = variable == null
+                ? BuildUnknownContent(word)
+                : BuildVariableContent(variable);
+
+            return Task.FromResult<QuickInfoItem?>(new QuickInfoItem(trackingSpan, content));
+        }
+
+        return GetColumnLinkRoleQuickInfoItemAsync(snapshot, triggerPoint.Value.Position);
+    }
+
+    /// <summary>
+    /// Hover for a bare table-column identifier (no <c>@</c> prefix) that
+    /// plays a role in the nested-object PK/FK-by-convention graph — see
+    /// <see cref="SQuiLLinter.DescribeColumnLinkRole"/>. Columns that play no
+    /// link role fall through to null, leaving hover completely unchanged
+    /// (graceful degradation — a no-links file shows no link text at all).
+    /// Ported to hoverProvider.ts's <c>provideColumnLinkRoleHover</c> — change
+    /// one side, change all three.
+    /// </summary>
+    private static Task<QuickInfoItem?> GetColumnLinkRoleQuickInfoItemAsync(ITextSnapshot snapshot, int position)
+    {
+        var identSpan = TryGetIdentifierSpan(snapshot, position);
+        if (identSpan == null) return Task.FromResult<QuickInfoItem?>(null);
+
+        var line = snapshot.GetLineFromPosition(identSpan.Value.Start.Position);
+        int character = identSpan.Value.Start.Position - line.Start.Position;
 
         var parsed = SQuiLParser.Parse(snapshot.GetText());
-        var variable = parsed.Variables.FirstOrDefault(v =>
-            string.Equals(v.RawName, word, StringComparison.OrdinalIgnoreCase));
+        string? roleText = SQuiLLinter.DescribeColumnLinkRole(parsed, line.LineNumber, character);
+        if (roleText == null) return Task.FromResult<QuickInfoItem?>(null);
 
-        var trackingSpan = snapshot.CreateTrackingSpan(atSpan.Value, SpanTrackingMode.EdgeInclusive);
-
-        object content = variable == null
-            ? BuildUnknownContent(word)
-            : BuildVariableContent(variable);
+        var trackingSpan = snapshot.CreateTrackingSpan(identSpan.Value, SpanTrackingMode.EdgeInclusive);
+        var content = new ClassifiedTextElement(
+            new ClassifiedTextRun(PredefinedClassificationTypeNames.Comment, roleText));
 
         return Task.FromResult<QuickInfoItem?>(new QuickInfoItem(trackingSpan, content));
     }
@@ -87,6 +118,26 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
     }
 
     private static bool IsIdentChar(char c) => c == '_' || char.IsLetterOrDigit(c);
+
+    /// <summary>
+    /// Returns the span of the bare identifier (no leading <c>@</c> required)
+    /// containing <paramref name="position"/>, or null if the position is not
+    /// on one. Used to resolve table-column-name hovers (nested-object link
+    /// roles), which never carry an <c>@</c> prefix.
+    /// </summary>
+    private static SnapshotSpan? TryGetIdentifierSpan(ITextSnapshot snapshot, int position)
+    {
+        if (position < 0 || position > snapshot.Length) return null;
+
+        int left = position;
+        while (left > 0 && IsIdentChar(snapshot[left - 1])) left--;
+
+        int right = position;
+        while (right < snapshot.Length && IsIdentChar(snapshot[right])) right++;
+
+        if (right <= left) return null;
+        return new SnapshotSpan(snapshot, left, right - left);
+    }
 
     // ── Content builders ──────────────────────────────────────────────────
 

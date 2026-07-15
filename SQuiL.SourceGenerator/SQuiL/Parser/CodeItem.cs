@@ -23,6 +23,10 @@ public record CodeItem(Token Identifier, Token Type)
 	/// </summary>
 	public string? DefaultValue { get; init; }
 
+	/// <summary><c>true</c> when this column was declared <c>Primary Key</c> — its name becomes
+	/// the table's relationship key for nested-object linking.</summary>
+	public bool IsPrimaryKey { get; init; }
+
 	/// <summary>
 	/// The C# default-value expression for this column (type-aware: decimal gets an
 	/// <c>m</c> suffix, dates/guids are parsed, strings are quoted), or <c>null</c> when

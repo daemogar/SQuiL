@@ -106,6 +106,8 @@ public enum TokenType
 	TYPE_IDENTITY = TYPE + 101,
 	/// <summary><c>default</c> value specifier.</summary>
 	TYPE_DEFAULT = TYPE + 102,
+	/// <summary><c>Primary Key</c> column constraint (marks the column as the table's key).</summary>
+	TYPE_PRIMARY_KEY = TYPE + 103,
 	// Symbols (4000–4999)
 	/// <summary>Base value for all symbol tokens.</summary>
 	SYMBOL = 4000,
