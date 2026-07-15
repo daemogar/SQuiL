@@ -12,9 +12,9 @@ namespace SQuiL.SsmsExtension.SuggestedActions;
 /// (the light-bulb / Ctrl+. menu) to every .squil buffer, offering the
 /// nested-object PK/link authoring aids (Task 16 — parity with the VS Code
 /// code-action provider).  Subscribes to the broader <c>SQL</c> content type
-/// (so SSMS's SQL Query Editor buffers get queried) and gates on file
+/// (so the host's SQL editor buffers get queried) and gates on file
 /// extension via <see cref="SQuiLContentTypeDefinition.IsSquilBuffer"/> so it
-/// never fires on non-.squil SQL buffers, keeping SSMS's own SQL commands
+/// never fires on non-.squil SQL buffers, keeping the host's own SQL commands
 /// untouched.
 /// </summary>
 [Export(typeof(ISuggestedActionsSourceProvider))]

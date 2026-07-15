@@ -47,8 +47,8 @@ internal static class SQuiLColours
     public static readonly Color Number    = Color.FromRgb(0xB5, 0xCE, 0xA8);
 
     // Task 16 — relationship key (linked Primary Key / foreign-key-by-convention
-    // column). Amber, distinct from every other SQuiL colour above, and bold +
-    // underlined so a linked column reads as "clickable/related" at a glance.
+    // column). Amber, distinct from every other SQuiL colour above, and bold
+    // so a linked column reads as "clickable/related" at a glance.
     public static readonly Color RelationshipKey = Color.FromRgb(0xFF, 0xCB, 0x6B);
 }
 

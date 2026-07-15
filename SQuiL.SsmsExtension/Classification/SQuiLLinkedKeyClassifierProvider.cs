@@ -9,11 +9,11 @@ namespace SQuiL.SsmsExtension.Classification;
 /// <summary>
 /// MEF-exported provider for <see cref="SQuiLLinkedKeyClassifier"/> (Task 16
 /// relationship-key coloring). A SECOND <see cref="IClassifierProvider"/> for
-/// the same <c>SQL</c> content type as <see cref="SQuiLClassifierProvider"/> —
-/// SSMS aggregates every classifier registered for a buffer's content type
-/// (the same mechanism that already layers our <see cref="SQuiLClassifier"/>
-/// on top of SSMS's own SQL classifier), so this rides alongside both without
-/// disturbing either.
+/// the same content type as <see cref="SQuiLClassifierProvider"/> — the host
+/// aggregates every classifier registered for a buffer's content type (the
+/// same mechanism that already layers our <see cref="SQuiLClassifier"/> on
+/// top of the host's own SQL classifier), so this rides alongside both
+/// without disturbing either.
 /// </summary>
 [Export(typeof(IClassifierProvider))]
 [ContentType(SQuiLContentTypeDefinition.SqlContentTypeName)]
