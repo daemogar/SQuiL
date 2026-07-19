@@ -929,13 +929,7 @@ public class SQuiLDataContext(
 		}
 
 		string TableDeclaration(CodeBlock block)
-		{
-			return $"""
-				Declare {block.DatabaseType.Original}(
-					{string.Join($",{writer.NewLine}\t", block.Properties.Select(p
-						=> $"[{p.Identifier.Value}] {p.Type.Original}{(p.IsNullable ? " Null" : "")}"))});
-				""";
-		}
+			=> Sql.TableVariableDeclaration(block, writer.NewLine);
 
 		void CommandParameters(
 			List<CodeBlock>? precomputedInputArgs = null,

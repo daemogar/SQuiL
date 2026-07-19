@@ -1,3 +1,5 @@
+using System.Linq;
+
 namespace SQuiL.Dialects;
 
 /// <summary>
@@ -15,4 +17,16 @@ public class SqlServerDialect
 
 	/// <summary>The T-SQL database directive that scopes the query to a catalog.</summary>
 	public string DatabaseDirective(string catalog) => $"Use [{catalog}];";
+
+	/// <summary>
+	/// The T-SQL table-variable declaration for an input/output table block, e.g.
+	/// <c>Declare @Params_X table([Col] int Null, ...);</c>. <paramref name="newLine"/> is the
+	/// emitter's active newline so the multi-column layout matches the surrounding output exactly.
+	/// </summary>
+	public string TableVariableDeclaration(SQuiL.SourceGenerator.Parser.CodeBlock block, string newLine)
+		=> $"""
+			Declare {block.DatabaseType.Original}(
+				{string.Join($",{newLine}\t", block.Properties.Select(p
+					=> $"[{p.Identifier.Value}] {p.Type.Original}{(p.IsNullable ? " Null" : "")}"))});
+			""";
 }
