@@ -42,8 +42,9 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 				{ Length: <= 20 } => request.CourseCode,
 				_ => throw new Exception(
 					"Request model data is larger then database size for the property [CourseCode].")
-			}),
-			CreateParameter("@Param_AsOfDate", System.Data.SqlDbType.Date, request.AsOfDate)
+			}, p => p.IsNullable = true),
+			CreateParameter("@Param_AsOfDate", System.Data.SqlDbType.Date, request.AsOfDate ?? (object)System.DBNull.Value
+			, p => p.IsNullable = true)
 		};
 		
 		command.CommandText = Query(parameters);
@@ -114,7 +115,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isCourses) errors.Add(new(51001, 12, 1, 116, "Courses", "Expected return table `Courses`"));
+		if (!isCourses) errors.Add(new(51001, 12, 1, 117, "Courses", "Expected return table `Courses`"));
 		
 		if(errors.Count == 0)
 			return new(response);

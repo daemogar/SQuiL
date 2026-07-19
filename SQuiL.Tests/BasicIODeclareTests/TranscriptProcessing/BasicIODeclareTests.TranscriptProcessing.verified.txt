@@ -27,13 +27,13 @@
       }
     },
     {
-      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_INT, Offset = {scrubbed}, Value = ReferenceID, Original = @Param_ReferenceID int }, Name = ReferenceID, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_INT, Offset = {scrubbed}, Value = ReferenceID, Original = @Param_ReferenceID int }, Name = ReferenceID, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_INT, Offset = {scrubbed}, Value = ReferenceID, Original = @Param_ReferenceID int }, Name = ReferenceID, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
+        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_INT, Offset = {scrubbed}, Value = ReferenceID, Original = @Param_ReferenceID int }, Name = ReferenceID, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -281,19 +281,6 @@
         Id: SP0000,
         Title: Development Data,
         MessageFormat: TYPE_INT => ,
-        Category: Logger,
-        DefaultSeverity: Warning,
-        IsEnabledByDefault: true
-      }
-    },
-    {
-      Message: LITERAL_NOT_NULL => ,
-      Severity: Warning,
-      WarningLevel: 1,
-      Descriptor: {
-        Id: SP0000,
-        Title: Development Data,
-        MessageFormat: LITERAL_NOT_NULL => ,
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true

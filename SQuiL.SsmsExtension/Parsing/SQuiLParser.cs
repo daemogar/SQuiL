@@ -323,13 +323,19 @@ public static class SQuiLParser
             }
         }
 
-        // Scalar nullability marker — derived from the type string.
+        // Scalar nullability — derived from the `= null` initializer, with the
+        // standalone marker still read (for now) from the type-only portion.
         // Table variables have per-column nullability; guard with isTable.
+        int eqIndex = typeStr.IndexOf('=');
+        string typeOnly = eqIndex >= 0 ? typeStr.Substring(0, eqIndex) : typeStr;
+        string initializer = eqIndex >= 0 ? typeStr.Substring(eqIndex + 1).Trim() : "";
+
+        bool nullFromInitializer = !isTable && Regex.IsMatch(initializer, @"^null\b", RegexOptions.IgnoreCase);
         bool isNull    = !isTable
-                      && Regex.IsMatch(typeStr, @"\bnull\b",     RegexOptions.IgnoreCase)
-                      && !Regex.IsMatch(typeStr, @"\bnot\s+null\b", RegexOptions.IgnoreCase);
+                      && Regex.IsMatch(typeOnly, @"\bnull\b",     RegexOptions.IgnoreCase)
+                      && !Regex.IsMatch(typeOnly, @"\bnot\s+null\b", RegexOptions.IgnoreCase);
         bool isNotNull = !isTable
-                      && Regex.IsMatch(typeStr, @"\bnot\s+null\b", RegexOptions.IgnoreCase);
+                      && Regex.IsMatch(typeOnly, @"\bnot\s+null\b", RegexOptions.IgnoreCase);
         string? scalarMarker = isTable ? null : isNull ? "NULL" : isNotNull ? "NOT NULL" : null;
 
         result.Variables.Add(new SQuiLVariable
@@ -339,7 +345,7 @@ public static class SQuiLParser
             Name              = name,
             SqlType           = isTable ? "TABLE" : typeStr.TrimEnd(';').Trim(),
             Columns           = columns,
-            Nullable          = scalarMarker == "NULL",
+            Nullable          = nullFromInitializer || scalarMarker == "NULL",
             NullabilityMarker = scalarMarker,
             Line              = lineNum,
             Character         = Math.Max(0, varStart),

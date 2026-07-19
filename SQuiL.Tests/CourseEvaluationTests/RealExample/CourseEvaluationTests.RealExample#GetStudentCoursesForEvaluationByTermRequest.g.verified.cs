@@ -11,9 +11,9 @@ public partial record GetStudentCoursesForEvaluationByTermRequest
 	
 	public string PersonID { get; set; }
 	
-	public string CourseCode { get; set; }
+	public string? CourseCode { get; set; }
 	
-	public System.DateOnly AsOfDate { get; set; }
+	public System.DateOnly? AsOfDate { get; set; }
 	
 	public System.Collections.Generic.List<TermTable>? Terms { get; set; } = [];
 	

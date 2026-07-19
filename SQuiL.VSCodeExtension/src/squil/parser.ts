@@ -636,8 +636,13 @@ function parseVariable(
     }
   }
 
-  const scalarNull = !isTable && /\bnull\b/i.test(typeStr) && !/\bnot\s+null\b/i.test(typeStr);
-  const scalarNotNull = !isTable && /\bnot\s+null\b/i.test(typeStr);
+  const eqIndex = typeStr.search(/=\s*/);
+  const typeOnly = eqIndex >= 0 ? typeStr.slice(0, eqIndex) : typeStr;
+  const initializer = eqIndex >= 0 ? typeStr.slice(eqIndex).replace(/^=\s*/, '') : '';
+
+  const nullFromInitializer = !isTable && /^null\b/i.test(initializer);
+  const scalarNull = !isTable && /\bnull\b/i.test(typeOnly) && !/\bnot\s+null\b/i.test(typeOnly);
+  const scalarNotNull = !isTable && /\bnot\s+null\b/i.test(typeOnly);
   const scalarMarker: 'NULL' | 'NOT NULL' | undefined = isTable ? undefined :
     (scalarNull ? 'NULL' : scalarNotNull ? 'NOT NULL' : undefined);
 
@@ -647,8 +652,8 @@ function parseVariable(
     name,
     sqlType: isTable ? 'TABLE' : typeStr.replace(/;$/, '').trim(),
     columns,
-    nullable: scalarMarker === 'NULL',
-    nullabilityMarker: scalarMarker,
+    nullable: nullFromInitializer || scalarMarker === 'NULL',
+    nullabilityMarker: scalarMarker,   // retained; a later task turns its presence into SP0037
     line: lineNum,
     character: varStart >= 0 ? varStart : 0,
   });

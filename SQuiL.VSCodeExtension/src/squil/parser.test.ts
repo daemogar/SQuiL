@@ -39,7 +39,7 @@ test('column nullable only with explicit NULL; scalar marker captured', () => {
   const r = parseSQuiL([
     'Declare @Params_X table(A int, B varchar(50) null, C varchar(50) not null);',
     'Declare @Param_S int;',
-    'Declare @Param_SN int null;',
+    'Declare @Param_SN int = null;',
     'Use Db;', 'Select 1;',
   ].join('\n'));
   const x = r.variables.find(v => v.name === 'X')!;
@@ -47,7 +47,20 @@ test('column nullable only with explicit NULL; scalar marker captured', () => {
   assert.deepStrictEqual(x.columns!.map(c => c.nullabilityMarker), [undefined, 'NULL', 'NOT NULL']);
   assert.strictEqual(x.nullabilityMarker, undefined, 'table var must not inherit nullabilityMarker from column text');
   assert.strictEqual(r.variables.find(v => v.name === 'S')!.nullabilityMarker, undefined);
-  assert.strictEqual(r.variables.find(v => v.name === 'SN')!.nullabilityMarker, 'NULL');
+  assert.strictEqual(r.variables.find(v => v.name === 'S')!.nullable, false);
+  assert.strictEqual(r.variables.find(v => v.name === 'SN')!.nullable, true, '= null initializer drives scalar nullability');
+});
+
+// Task (scalar-nullability-null-initializer): `= null` initializer — not a
+// standalone marker — is what drives scalar nullability now.
+test('scalar = null initializer is nullable', () => {
+  const vars = parseSQuiL('Declare @Param_X int = null;\nUse Db;\nSelect 1;').variables;
+  const x = vars.find(v => v.name === 'X')!;
+  assert.strictEqual(x.nullable, true);
+});
+test('bare scalar is non-nullable', () => {
+  const vars = parseSQuiL('Declare @Param_X int;\nUse Db;\nSelect 1;').variables;
+  assert.strictEqual(vars.find(v => v.name === 'X')!.nullable, false);
 });
 
 // Task 8: PRIMARY KEY column constraint parity with the generator — parsed

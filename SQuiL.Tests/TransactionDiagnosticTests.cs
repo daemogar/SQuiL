@@ -105,7 +105,7 @@ public class TransactionDiagnosticTests
 			""";
 		var sql = $$"""
 			--Name: {{name}}
-			Declare @Param_Id int not null;
+			Declare @Param_Id int;
 			Use [Database];
 			Update [Documents] Set Status = 'Done' Where Id = @Param_Id;
 			""";

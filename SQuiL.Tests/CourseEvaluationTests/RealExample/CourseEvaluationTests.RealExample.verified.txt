@@ -456,13 +456,13 @@
       }
     },
     {
-      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATE, Offset = {scrubbed}, Value = , Original = @Param_AsOfDate date }, Name = AsOfDate, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATE, Offset = {scrubbed}, Value = , Original = @Param_AsOfDate date }, Name = AsOfDate, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = True, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties =  },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATE, Offset = {scrubbed}, Value = , Original = @Param_AsOfDate date }, Name = AsOfDate, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
+        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATE, Offset = {scrubbed}, Value = , Original = @Param_AsOfDate date }, Name = AsOfDate, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = True, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
@@ -794,26 +794,26 @@
       }
     },
     {
-      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_STRING, Offset = {scrubbed}, Value = 20, Original = @Param_CourseCode varchar(20) }, Name = CourseCode, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , IsNullable = False, Size = 20, IsSpecialDeclaration = False, Properties =  },
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_STRING, Offset = {scrubbed}, Value = 20, Original = @Param_CourseCode varchar(20) }, Name = CourseCode, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = True, IsNullable = True, Size = 20, IsSpecialDeclaration = False, Properties =  },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_STRING, Offset = {scrubbed}, Value = 20, Original = @Param_CourseCode varchar(20) }, Name = CourseCode, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , IsNullable = False, Size = 20, IsSpecialDeclaration = False, Properties =  },
+        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_STRING, Offset = {scrubbed}, Value = 20, Original = @Param_CourseCode varchar(20) }, Name = CourseCode, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = True, IsNullable = True, Size = 20, IsSpecialDeclaration = False, Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
     },
     {
-      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATE, Offset = {scrubbed}, Value = , Original = @Param_AsOfDate date }, Name = AsOfDate, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATE, Offset = {scrubbed}, Value = , Original = @Param_AsOfDate date }, Name = AsOfDate, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = True, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties =  },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATE, Offset = {scrubbed}, Value = , Original = @Param_AsOfDate date }, Name = AsOfDate, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
+        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATE, Offset = {scrubbed}, Value = , Original = @Param_AsOfDate date }, Name = AsOfDate, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = True, IsNullable = True, Size = , IsSpecialDeclaration = False, Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
