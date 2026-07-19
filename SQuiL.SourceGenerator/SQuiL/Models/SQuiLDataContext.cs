@@ -306,6 +306,7 @@ public class SQuiLDataContext(
 									string Query(List<DbParameter> parameters) => $"""
 									"""");
 					QueryDeclareStatements();
+					// "{builder.InitialCatalog}" is deliberately the literal placeholder text (braces included), not a generator-time value: it is emitted verbatim into the generated data-context and resolved at THAT code's own runtime by its own `SqlConnectionStringBuilder builder` (see line ~138), not by this method's `StringBuilder builder`.
 					var databaseDirective = Sql.DatabaseDirective("{builder.InitialCatalog}");
 					writer.Block($$""""
 									{{databaseDirective}}
