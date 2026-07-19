@@ -194,7 +194,7 @@ public class FileGenerator(
 				}
 			}
 
-			generation.Context = new(@namespace, classname, method, setting, blocks, enabled, debugRollback, keyGraph, inputGraph);
+			generation.Context = new(@namespace, classname, method, setting, blocks, enabled, debugRollback, keyGraph, inputGraph, new SQuiL.Dialects.SqlServerDialect());
 
 			Generations.Add(generation);
 

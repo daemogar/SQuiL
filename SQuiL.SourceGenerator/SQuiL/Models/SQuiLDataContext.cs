@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.Data.SqlClient;
 
+using SQuiL.Dialects;
 using SQuiL.Generator;
 using SQuiL.SourceGenerator.Parser;
 using SQuiL.Tokenizer;
@@ -29,7 +30,8 @@ public class SQuiLDataContext(
 		bool Enabled = false,
 		bool DebugRollback = true,
 		SQuiLKeyGraph? Graph = null,
-		SQuiLKeyGraph? InputGraph = null)
+		SQuiLKeyGraph? InputGraph = null,
+		SqlServerDialect? Dialect = null)
 {
 	/// <summary>
 	/// Resolved key graph for this query's OUTPUT blocks (Task 4, nested objects). A default
@@ -45,6 +47,13 @@ public class SQuiLDataContext(
 	/// per-table <c>input&lt;Name&gt;</c> emission byte-for-byte.
 	/// </summary>
 	private SQuiLKeyGraph EffectiveInputGraph { get; } = InputGraph ?? SQuiLKeyGraph.Build([], "");
+
+	/// <summary>
+	/// The SQL dialect this data context targets (Phase 1: SQL Server only). Coalesced to a
+	/// default <see cref="SqlServerDialect"/> instance so every existing call site that omits
+	/// <c>Dialect</c> keeps today's emitted output byte-for-byte.
+	/// </summary>
+	private SqlServerDialect Sql { get; } = Dialect ?? new SqlServerDialect();
 
 	/// <summary>
 	/// Generates the full C# source for the data-context partial class.
@@ -80,7 +89,7 @@ public class SQuiLDataContext(
 
 		writer.WriteLine($$"""
 			{{SourceGeneratorHelper.FileHeader}}
-			using Microsoft.Data.SqlClient;
+			{{Sql.ProviderUsingDirective()}}
 
 			using System;
 			using System.Collections.Generic;
@@ -241,7 +250,7 @@ public class SQuiLDataContext(
 								EmitFlatReader();
 							else
 								EmitNestedReader();
-						}, new IndentedTextWriterBlock("catch(SqlException e)", () =>
+						}, new IndentedTextWriterBlock($"catch({Sql.ProviderExceptionType()} e)", () =>
 						{
 							writer.WriteLine("errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));");
 						}));
