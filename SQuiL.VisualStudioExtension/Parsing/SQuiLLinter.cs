@@ -72,6 +72,7 @@ internal static class SQuiLLinter
         LintCardinalityCollision(text, diagnostics);
         LintUnmatchedSelect(text, diagnostics);
         LintTimestampInput(text, diagnostics);
+        LintScalarNullMarker(text, diagnostics);
         LintKeyGraph(text, diagnostics);
         if (squilFilePath is not null)
         {
@@ -260,6 +261,40 @@ internal static class SQuiLLinter
                     Code      = "SP0032",
                 });
             }
+        }
+    }
+
+    // ── Scalar standalone null/not null marker detection (SP0037) ────────────
+    //
+    // A standalone `null`/`not null` marker on a scalar Declare is invalid T-SQL —
+    // Declare doesn't support nullability modifiers. Use an `= null` initializer
+    // to make the scalar nullable instead. Table/object column markers are
+    // unaffected (out of scope).
+    //
+    // Port of SQuiLScalarMarkerValidator.cs (source generator) — change one,
+    // change all three (+ TS).
+
+    internal static void LintScalarNullMarker(string sql, List<SQuiLDiagnostic> diagnostics)
+    {
+        var parsed = SQuiLParser.Parse(sql);
+
+        foreach (var v in parsed.Variables)
+        {
+            if (v.NullabilityMarker is null) continue;
+
+            int startChar = v.NullabilityMarkerCharacter ?? v.Character;
+            int length = v.NullabilityMarkerLength ?? v.RawName.Length;
+
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message   = $"`{v.RawName}` has a `null`/`not null` marker, which is invalid T-SQL on a scalar Declare. " +
+                            "Use `= null` to make it nullable, or remove the marker for non-nullable.",
+                Line      = v.Line,
+                StartChar = startChar,
+                EndChar   = startChar + length,
+                Severity  = DiagnosticSeverity.Error,
+                Code      = "SP0037",
+            });
         }
     }
 

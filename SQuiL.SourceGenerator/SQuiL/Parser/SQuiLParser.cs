@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 
 using SQuiL.Generator;
 using SQuiL.Models;
@@ -184,8 +184,9 @@ public class SQuiLParser(List<Token> Tokens)
 					var type = Expect(TokenType.TYPE);
 
 					bool? nullableMarker = null;
-					if (Current.Type == TokenType.LITERAL_NULL) { nullableMarker = true; Consume(); }
-					else if (Current.Type == TokenType.LITERAL_NOT_NULL) { nullableMarker = false; Consume(); }
+					bool hasScalarMarker = false;
+					if (Current.Type == TokenType.LITERAL_NULL) { nullableMarker = true; hasScalarMarker = true; Consume(); }
+					else if (Current.Type == TokenType.LITERAL_NOT_NULL) { nullableMarker = false; hasScalarMarker = true; Consume(); }
 
 					if (Current.Type != TokenType.SYMBOL_EQUAL)
 					{
@@ -198,7 +199,8 @@ public class SQuiLParser(List<Token> Tokens)
 						{
 							Size = type.Value,
 							IsSpecialDeclaration = variable.IsSpecialDeclaration,
-							IsNullableMarker = nullableMarker
+							IsNullableMarker = nullableMarker,
+							HasScalarNullabilityMarker = hasScalarMarker
 						});
 
 						return;
@@ -230,7 +232,8 @@ public class SQuiLParser(List<Token> Tokens)
 					{
 						Size = type.Value,
 						IsSpecialDeclaration = variable.IsSpecialDeclaration,
-						IsNullableMarker = initializerIsNull ? true : nullableMarker
+						IsNullableMarker = initializerIsNull ? true : nullableMarker,
+						HasScalarNullabilityMarker = hasScalarMarker
 					});
 				}
 

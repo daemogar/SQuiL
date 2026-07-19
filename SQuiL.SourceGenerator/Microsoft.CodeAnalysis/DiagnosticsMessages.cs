@@ -310,6 +310,19 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0037 — a standalone <c>null</c>/<c>not null</c> marker on a scalar Declare is invalid
+	/// T-SQL. Use an <c>= null</c> initializer to make the scalar nullable, or remove the marker
+	/// for non-nullable (the default).
+	/// </summary>
+	public static void ReportScalarNullabilityMarker(this SourceProductionContext context, string filename,
+		SQuiL.SourceGenerator.Parser.SQuiLScalarMarkerValidator.Finding finding)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0037",
+			"Scalar Nullability Marker Not Allowed",
+			$"{filename}: `{finding.Name}` (line {finding.Line}) has a `null`/`not null` marker, which is invalid T-SQL on a scalar Declare. Use `= null` to make it nullable, or remove the marker for non-nullable."));
+	}
+
+	/// <summary>
 	/// SP0023 — A <c>[SQuiLQuery]</c> (or a <c>[SQuiLQueryTransaction]</c> with <c>enabled:false</c>)
 	/// wraps a body that contains a persistent real-table mutation (UPDATE/INSERT/DELETE/MERGE/EXEC/…).
 	/// Consider switching to <c>[SQuiLQueryTransaction]</c> so the mutation is wrapped in a transaction.

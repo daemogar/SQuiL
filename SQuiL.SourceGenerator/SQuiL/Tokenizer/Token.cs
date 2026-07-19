@@ -134,6 +134,10 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_DATETIMEOFFSET => DateTimeOffset.TryParse(defaultValue, out var dto) ? $"System.DateTimeOffset.Parse(\"{dto:yyyy-MM-dd HH:mm:ss.fffffff zzz}\", System.Globalization.CultureInfo.InvariantCulture)" : defaultValue,
 		TokenType.TYPE_GUID => Guid.TryParse(defaultValue, out var identifier) ? $"System.Guid.Parse(\"{identifier}\")" : defaultValue,
 		TokenType.TYPE_XML => defaultValue is null ? null : $"\"{defaultValue}\"",
+		// Binary-family scalars only ever have a null default (byte[] has no literal
+		// syntax) — an `= null` initializer relies on the property's own `?` nullability,
+		// so no C# initializer expression is emitted here.
+		TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY or TokenType.TYPE_IMAGE or TokenType.TYPE_TIMESTAMP => null,
 		TokenType.TYPE_OBJECT when tableType is not null => tableType(),
 		TokenType.TYPE_TABLE when tableType is not null => tableType(),
 		_ => throw new Exception($"Invalid database type `{Type}`")

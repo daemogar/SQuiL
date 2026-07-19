@@ -28,6 +28,13 @@ public record CodeBlock(CodeType CodeType, Token DatabaseType, string Name, stri
 	/// <summary>Explicit nullability marker on the declare: true=<c>null</c>, false=<c>not null</c>, null=unmarked.</summary>
 	public bool? IsNullableMarker { get; init; }
 
+	/// <summary>
+	/// <c>true</c> when a scalar declare carried a standalone <c>null</c>/<c>not null</c> marker
+	/// (rather than an <c>= null</c> initializer). Standalone markers are invalid T-SQL on a
+	/// scalar Declare — SP0037 flags them at build time. Never set for the <c>= null</c> path.
+	/// </summary>
+	public bool HasScalarNullabilityMarker { get; init; }
+
 	/// <summary><c>true</c> when the generated C# property should be nullable —
 	/// non-nullable UNLESS an explicit <c>null</c> marker is present (unified rule).</summary>
 	public bool IsNullable => IsNullableMarker == true;
