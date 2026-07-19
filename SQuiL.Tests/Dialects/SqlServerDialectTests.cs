@@ -17,4 +17,12 @@ public class SqlServerDialectTests
 	[Fact]
 	public void DatabaseDirective_EmitsUseStatement()
 		=> Assert.Equal("Use [MyDb];", _dialect.DatabaseDirective("MyDb"));
+
+	[Fact]
+	public void VarCharType_IsQualified()
+		=> Assert.Equal("System.Data.SqlDbType.VarChar", _dialect.VarCharType());
+
+	[Fact]
+	public void BitType_IsQualified()
+		=> Assert.Equal("System.Data.SqlDbType.Bit", _dialect.BitType());
 }

@@ -38,4 +38,10 @@ public class SqlServerDialect
 
 	/// <summary>The <c>System.Data.SqlDbType.*</c> parameter-type expression for a block (delegates to the type map).</summary>
 	public string ParamTypeExpr(SQuiL.SourceGenerator.Parser.CodeBlock block) => block.SqlDbType();
+
+	/// <summary>The fully-qualified variable-length-string parameter type (used for @EnvironmentName).</summary>
+	public string VarCharType() => "System.Data.SqlDbType.VarChar";
+
+	/// <summary>The fully-qualified boolean parameter type (used for @Debug / @SuppressDebug).</summary>
+	public string BitType() => "System.Data.SqlDbType.Bit";
 }

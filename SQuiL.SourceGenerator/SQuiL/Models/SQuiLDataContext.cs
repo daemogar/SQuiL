@@ -969,7 +969,7 @@ public class SQuiLDataContext(
 			if (hasEnvironmentName)
 			{
 				Comma();
-				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.EnvironmentName}}", System.Data.SqlDbType.VarChar, {{SQuiLGenerator.EnvironmentName}}.Length, {{SQuiLGenerator.EnvironmentName}})""");
+				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.EnvironmentName}}", {{Sql.VarCharType()}}, {{SQuiLGenerator.EnvironmentName}}.Length, {{SQuiLGenerator.EnvironmentName}})""");
 			}
 
 			if (hasDebug)
@@ -983,13 +983,13 @@ public class SQuiLDataContext(
 						? $$"""!request.SuppressDebug && (request.Debug || {{SQuiLGenerator.EnvironmentName}} != "Production")"""
 						: $"request.Debug || {SQuiLGenerator.EnvironmentName} != \"Production\"");
 				Comma();
-				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit, {{debugValue}})""");
+				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.Debug}}", {{Sql.BitType()}}, {{debugValue}})""");
 			}
 
 			if (hasSuppressDebug)
 			{
 				Comma();
-				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.SuppressDebug}}", System.Data.SqlDbType.Bit, request.SuppressDebug)""");
+				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.SuppressDebug}}", {{Sql.BitType()}}, request.SuppressDebug)""");
 			}
 
 			if (asOfDate is not null)
