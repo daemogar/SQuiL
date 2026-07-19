@@ -411,7 +411,7 @@ public class SQuiLDataContext(
 									// DateTime.MinValue instead of null. The explicit nullable type
 									// forces the null. (TODO #19)
 									writer.Write($"""reader.IsDBNull(reader.GetOrdinal("{item.Identifier.Value}")) ? default({item.CSharpType()}) : """);
-								writer.Write($"""{item.DataReader()}(reader.GetOrdinal("{item.Identifier.Value}"))""");
+								writer.Write($"""{Sql.ReaderAccessor(item)}(reader.GetOrdinal("{item.Identifier.Value}"))""");
 								comma = ",";
 							}
 							writer.Indent--;
@@ -435,7 +435,7 @@ public class SQuiLDataContext(
 								isNullable = $"""throw new NullReferenceException("{exception}")""";
 							}
 
-							writer.WriteLine($"response.{block.Name} = !reader.IsDBNull(0) ? {block.DataReader()}(0) : {isNullable};");
+							writer.WriteLine($"response.{block.Name} = !reader.IsDBNull(0) ? {Sql.ReaderAccessor(block)}(0) : {isNullable};");
 						}
 						writer.WriteLine("break;");
 					});
@@ -470,7 +470,7 @@ public class SQuiLDataContext(
 						// above: a bare default! yields 0/MinValue for NULL value-type
 						// columns because `var` + best-common-type discard the null. (TODO #19)
 						defaultCondition = $"reader.IsDBNull(index{item.Identifier.Value}) ? default({item.CSharpType()}) : ";
-					writer.WriteLine($"""var value{item.Identifier.Value} = {defaultCondition}{item.DataReader()}(index{item.Identifier.Value});""");
+					writer.WriteLine($"""var value{item.Identifier.Value} = {defaultCondition}{Sql.ReaderAccessor(item)}(index{item.Identifier.Value});""");
 				}
 
 				writer.WriteLine();
@@ -674,7 +674,7 @@ public class SQuiLDataContext(
 							isNullable = $"""throw new NullReferenceException("{exception}")""";
 						}
 
-						writer.WriteLine($"response.{block.Name} = !reader.IsDBNull(0) ? {block.DataReader()}(0) : {isNullable};");
+						writer.WriteLine($"response.{block.Name} = !reader.IsDBNull(0) ? {Sql.ReaderAccessor(block)}(0) : {isNullable};");
 						writer.WriteLine("break;");
 					});
 				}
@@ -995,7 +995,7 @@ public class SQuiLDataContext(
 			if (asOfDate is not null)
 			{
 				Comma();
-				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.AsOfDate}}", {{asOfDate.SqlDbType()}}, request.AsOfDate ?? {{AsOfDateNowExpression(asOfDate)}})""");
+				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.AsOfDate}}", {{Sql.ParamTypeExpr(asOfDate)}}, request.AsOfDate ?? {{AsOfDateNowExpression(asOfDate)}})""");
 			}
 
 			foreach (var parameter in inputArgs)
@@ -1006,7 +1006,7 @@ public class SQuiLDataContext(
 					continue;
 
 				Comma();
-				writer.Write($$"""CreateParameter("@Param_{{parameter.Name}}", {{parameter.SqlDbType()}}, """);
+				writer.Write($$"""CreateParameter("@Param_{{parameter.Name}}", {{Sql.ParamTypeExpr(parameter)}}, """);
 
 				WriteValue();
 

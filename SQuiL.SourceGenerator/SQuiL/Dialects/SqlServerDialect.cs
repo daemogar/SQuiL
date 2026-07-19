@@ -29,4 +29,13 @@ public class SqlServerDialect
 				{string.Join($",{newLine}\t", block.Properties.Select(p
 					=> $"[{p.Identifier.Value}] {p.Type.Original}{(p.IsNullable ? " Null" : "")}"))});
 			""";
+
+	/// <summary>The <c>reader.GetXxx</c> accessor fragment for a column (delegates to the type map).</summary>
+	public string ReaderAccessor(SQuiL.SourceGenerator.Parser.CodeItem item) => item.DataReader();
+
+	/// <summary>The <c>reader.GetXxx</c> accessor fragment for a scalar block (delegates to the type map).</summary>
+	public string ReaderAccessor(SQuiL.SourceGenerator.Parser.CodeBlock block) => block.DataReader();
+
+	/// <summary>The <c>System.Data.SqlDbType.*</c> parameter-type expression for a block (delegates to the type map).</summary>
+	public string ParamTypeExpr(SQuiL.SourceGenerator.Parser.CodeBlock block) => block.SqlDbType();
 }
