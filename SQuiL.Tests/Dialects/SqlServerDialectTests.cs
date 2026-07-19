@@ -25,4 +25,12 @@ public class SqlServerDialectTests
 	[Fact]
 	public void BitType_IsQualified()
 		=> Assert.Equal("System.Data.SqlDbType.Bit", _dialect.BitType());
+
+	[Fact]
+	public void ShredParamName_ListIsPlural()
+	{
+		var block = SqlServerDialectTestHelper.ParseSingleInputBlock(
+			"Declare @Params_People table(PersonID int Primary Key, Name varchar(50)); Use [Db]; Select 1;");
+		Assert.Equal("@__json_Params_People", _dialect.ShredParamName(block));
+	}
 }

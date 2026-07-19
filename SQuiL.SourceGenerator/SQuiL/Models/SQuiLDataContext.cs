@@ -842,7 +842,7 @@ public class SQuiLDataContext(
 							writer.WriteLine();
 						}
 
-						writer.WriteLine($"""AddJsonParameter(parameters, "{SQuiLShred.JsonParamName(CodeBlock)}", __{CodeBlock.Name});""");
+						writer.WriteLine($"""AddJsonParameter(parameters, "{Sql.ShredParamName(CodeBlock)}", __{CodeBlock.Name});""");
 					}
 					else if (CodeBlock.IsTable)
 					{
@@ -862,7 +862,7 @@ public class SQuiLDataContext(
 							writer.WriteLine();
 						}
 
-						writer.WriteLine($"""AddJsonParameter(parameters, "{SQuiLShred.JsonParamName(CodeBlock)}", request.{CodeBlock.Name});""");
+						writer.WriteLine($"""AddJsonParameter(parameters, "{Sql.ShredParamName(CodeBlock)}", request.{CodeBlock.Name});""");
 					}
 					else if (CodeBlock.IsObject)
 					{
@@ -876,7 +876,7 @@ public class SQuiLDataContext(
 						EmitStringLengthGuards(CodeBlock, $"request.{CodeBlock.Name}");
 						if (CodeBlock.Properties.Any(IsSizedString)) writer.WriteLine();
 
-						writer.WriteLine($$"""AddJsonParameter(parameters, "{{SQuiLShred.JsonParamName(CodeBlock)}}", new[] { request.{{CodeBlock.Name}} });""");
+						writer.WriteLine($$"""AddJsonParameter(parameters, "{{Sql.ShredParamName(CodeBlock)}}", new[] { request.{{CodeBlock.Name}} });""");
 					}
 
 					// Emit `return """ <shred sql> """;` through Block — exactly how the
@@ -887,7 +887,7 @@ public class SQuiLDataContext(
 					// (all row data lives in the JSON parameter), nothing to interpolate.
 					writer.WriteLine();
 					writer.Block("return \"\"\"");
-					writer.Block(SQuiLShred.ShredSql(CodeBlock));
+					writer.Block(Sql.ShredStatement(CodeBlock));
 					writer.Block("\"\"\";");
 				});
 			}
@@ -1065,68 +1065,5 @@ public class SQuiLDataContext(
 		string F(IEnumerable<string> lines)
 			=> string.Join($"{newline}{newline}{tabs}", lines);
 		*/
-	}
-}
-
-/// <summary>
-/// Dialect-specific helpers for the JSON/OPENJSON param-sharding feature (TODO #1).
-/// Generates the SQL-Server OPENJSON shred statement for a table or object input block.
-/// A future <c>ISqlDialect</c> seam (TODO #6) will substitute the dialect-appropriate
-/// equivalent (e.g. <c>json_to_recordset</c> for PostgreSQL).
-/// </summary>
-public static class SQuiLShred
-{
-	/// <summary>
-	/// Returns the JSON parameter name for the given input block:
-	/// <c>@__json_Params_&lt;Name&gt;</c> for a table, <c>@__json_Param_&lt;Name&gt;</c> for an object.
-	/// </summary>
-	public static string JsonParamName(CodeBlock block)
-		=> $"@__json_Param{(block.IsTable ? "s" : "")}_{block.Name}";
-
-	/// <summary>
-	/// Builds the full <c>Insert Into … Select … From OpenJson(…) With (…);</c> shred statement
-	/// for the given input block. Binary columns are captured as <c>nvarchar(max)</c> in the
-	/// WITH clause and converted with <c>CONVERT(varbinary(N), col, 2)</c> in the SELECT.
-	/// </summary>
-	public static string ShredSql(CodeBlock block)
-	{
-		var varName = $"@Param{(block.IsTable ? "s" : "")}_{block.Name}";
-		var cols = block.Properties;
-
-		var insertList = string.Join(", ", cols.Select(p => $"[{p.Identifier.Value}]"));
-		var selectList = string.Join(", ", cols.Select(SelectColumn));
-		var withList = string.Join($",\n\t", cols.Select(WithColumn));
-
-		// Normalize to \n so `writer.Block` (which splits on \n) strips the raw literal
-		// cleanly on every platform — the source-file EOL of this raw literal is CRLF on
-		// a Windows checkout, which would otherwise leave stray \r inside the emitted SQL.
-		return $"""
-			Insert Into {varName}({insertList})
-			Select {selectList}
-			From OpenJson({JsonParamName(block)})
-			With (
-				{withList});
-			""".Replace("\r\n", "\n");
-
-		static string SelectColumn(CodeItem p)
-			=> IsBinary(p)
-				? $"Convert(varbinary({BinarySize(p)}), [{p.Identifier.Value}], 2)"
-				: $"[{p.Identifier.Value}]";
-
-		static string WithColumn(CodeItem p)
-		{
-			var path = $"'$.{p.Identifier.Value}'";
-			return IsBinary(p)
-				? $"[{p.Identifier.Value}] nvarchar(max) {path}"
-				: $"[{p.Identifier.Value}] {p.Type.Original} {path}";
-		}
-
-		static bool IsBinary(CodeItem p)
-			=> p.Type.Type is TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY or TokenType.TYPE_IMAGE;
-
-		static string BinarySize(CodeItem p)
-			=> p.Type.Value is null || p.Type.Value.Equals("max", StringComparison.OrdinalIgnoreCase)
-				? "max"
-				: p.Type.Value;
 	}
 }
