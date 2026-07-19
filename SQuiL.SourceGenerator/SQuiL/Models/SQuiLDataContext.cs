@@ -306,9 +306,10 @@ public class SQuiLDataContext(
 									string Query(List<DbParameter> parameters) => $"""
 									"""");
 					QueryDeclareStatements();
+					var databaseDirective = Sql.DatabaseDirective("{builder.InitialCatalog}");
 					writer.Block($$""""
-									Use [{builder.InitialCatalog}];
-							
+									{{databaseDirective}}
+
 									{{query}}
 									""";
 									"""");

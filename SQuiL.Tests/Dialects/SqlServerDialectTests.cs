@@ -13,4 +13,8 @@ public class SqlServerDialectTests
 	[Fact]
 	public void ProviderExceptionType_IsSqlException()
 		=> Assert.Equal("SqlException", _dialect.ProviderExceptionType());
+
+	[Fact]
+	public void DatabaseDirective_EmitsUseStatement()
+		=> Assert.Equal("Use [MyDb];", _dialect.DatabaseDirective("MyDb"));
 }

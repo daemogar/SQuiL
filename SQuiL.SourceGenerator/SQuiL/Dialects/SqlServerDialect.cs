@@ -12,4 +12,7 @@ public class SqlServerDialect
 
 	/// <summary>The provider exception type caught in the generated execute/read try-blocks.</summary>
 	public string ProviderExceptionType() => "SqlException";
+
+	/// <summary>The T-SQL database directive that scopes the query to a catalog.</summary>
+	public string DatabaseDirective(string catalog) => $"Use [{catalog}];";
 }
