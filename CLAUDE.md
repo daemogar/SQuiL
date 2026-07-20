@@ -206,8 +206,10 @@ SQuiL/
     - DI: a `services.AddSQuiL()` extension (namespace
       `Microsoft.Extensions.DependencyInjection`) IS generated and registers
       the context as a singleton.
-    - authoring features that exist: unified nullability rule (marker-driven,
-      non-nullable by default; SP0010 editor-only Hint for unmarked declares),
+    - authoring features that exist: unified nullability rule (scalars via
+      `= null` initializer, table columns via `null`/`not null` marker,
+      non-nullable by default; SP0010 editor-only Hint for unmarked declares;
+      SP0037 build error for an invalid scalar `null`/`not null` marker),
       table-column defaults (any-position hybrid record),
       `datetimeoffset`→`DateTimeOffset` + the SQL→C# type map,
       undeclared-variable validation (SP0013) and special-placement (SP0016).
@@ -289,9 +291,11 @@ SQuiL/
   - **Diagnostic IDs:** assign the lowest FREE id, **reusing ids that were
     retired and are no longer referenced** (Paul's ruling 2026-06-19). Currently
     taken: SP0000–SP0021. **SP0010 is now TAKEN** — it is the editor-only
-    nullability-hint diagnostic ("no null/not null marker — generated C# is
-    non-nullable; add `not null` to confirm, or `null` to make it nullable"). It
-    is editor-only; it is NOT emitted by the source generator at build time.
+    nullability-hint diagnostic. For scalars: "No `= null` — generated C# is
+    non-nullable; add `= null` to make it nullable." For table columns
+    (unchanged): "no null/not null marker — generated C# is non-nullable; add
+    `not null` to confirm, or `null` to make it nullable." It is editor-only;
+    it is NOT emitted by the source generator at build time.
     **SP0020 is now TAKEN** — editor-only Hint when two differently-named table
     variables share an identical column signature ("similar shape — consider
     naming them the same to share one record"). NOT a build/generator diagnostic.
@@ -352,7 +356,15 @@ SQuiL/
     `DiagnosticsMessages.ReportUnsupportedKeyType`, and the editor mirrors
     `lintUnsupportedInputKeyType`/`lintKeyGraph` (`parser.ts`, VS Code) and
     `LintUnsupportedInputKeyType` (`SQuiLLinter.cs`, SSMS + Visual Studio).
-    Next free: **SP0037**. (Verify an id is truly unreferenced with a repo-wide grep
+    **SP0037 is now TAKEN** — build error (generator) + editor squiggle (all 3
+    editors, Error): a scalar `Declare` carries a `null` / `not null` marker,
+    which is invalid T-SQL on a scalar (only `= null` / `= value` initializers
+    are legal). Use `= null` for nullable, or remove the marker. Table-column
+    markers are unaffected. See `SQuiLScalarMarkerValidator.cs` +
+    `DiagnosticsMessages.ReportScalarNullabilityMarker`, and the editor
+    mirrors (`lintScalarNullMarker` in `parser.ts`; `LintScalarNullMarker` in
+    both `SQuiLLinter.cs`).
+    Next free: **SP0038**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
   - Signature: `[SQuiLQueryTransaction(QueryFiles type, string setting = "SQuiLDatabase", bool enabled = true, bool debugRollback = true)]`
@@ -593,24 +605,42 @@ Declaring **any** constructor (primary or ordinary) on the class opts out — th
 
 ### Nullability rule (unified — applies to both scalars and table columns)
 
-**One rule:** a column or scalar is non-nullable UNLESS its `Declare` carries an
-explicit `null` marker. Reference types (`string`, `byte[]`) are **never**
-auto-`?`. An explicit `null` wins even alongside a default value.
+**One rule, two mechanisms:** a column or scalar is non-nullable UNLESS opted
+into nullable. Reference types (`string`, `byte[]`) are **never** auto-`?`.
+**Scalars use `= null`; table columns use markers.** A scalar `Declare` cannot
+carry a `null`/`not null` clause (invalid T-SQL) — express nullability with an
+`= null` initializer. A scalar cannot be both nullable and carry a non-null
+default (the old `int null = 5` combo is gone — declaring a scalar `null` or
+`not null` marker is now build error **SP0037**). Table-variable COLUMNS keep
+the valid-T-SQL `null` / `not null` markers (`table(Col int null)` / `not
+null`); an explicit `null` marker on a column wins even alongside a default
+value.
+
+**Scalars:**
 
 | Declaration | C# type |
 |---|---|
-| `@Param_X int` (no marker) | `int X { get; set; }` (non-nullable) |
-| `@Param_X int null` | `int? X { get; set; }` (nullable) |
-| `@Param_X int not null` | `int X { get; set; }` (non-nullable) |
-| `@Param_X int = 5` (default, no marker) | `int X { get; set; } = 5` (non-nullable) |
-| `@Param_X int null = 5` (null marker + default) | `int? X { get; set; } = 5` (nullable wins) |
-| `@Param_X varchar(10)` (ref type, no marker) | `string X { get; set; }` (never auto-`?`) |
-| `@Param_X varchar(10) null` | `string? X { get; set; }` (nullable) |
+| `@Param_X int` (no `= null`) | `int X { get; set; }` (non-nullable, required) |
+| `@Param_X int = null` | `int? X { get; set; }` (nullable, no initializer) |
+| `@Param_X int = 5` (default) | `int X { get; set; } = 5` (non-nullable) |
+| `@Param_Name varchar(10)` (ref type) | `string Name { get; set; }` (never auto-`?`) |
+| `@Param_Name varchar(10) = null` | `string? Name { get; set; }` (nullable) |
 | `@Param_X varbinary(max)` | `byte[] X { get; set; }` (never auto-`?`) |
-| `@Param_X varbinary(max) null` | `byte[]? X { get; set; }` (nullable) |
+| `@Param_X varbinary(max) = null` | `byte[]? X { get; set; }` (nullable) |
 
-The same rule applies to table columns in `@Param_/@Params_/…` and
-`@Return_/…@Returns_` table declarations.
+**Table columns** (unchanged — `null`/`not null` markers, valid T-SQL in a
+`table(...)` column list):
+
+| Declaration | C# type |
+|---|---|
+| `table(X int)` (no marker) | `int X` (non-nullable) |
+| `table(X int null)` | `int? X` (nullable) |
+| `table(X int not null)` | `int X` (non-nullable) |
+| `table(X int null = 5)` (null marker + default) | `int? X = 5` (nullable wins) |
+
+The non-nullable-by-default *rule* is shared between scalars and table
+columns — only the *syntax* used to opt into nullable differs: scalars use an
+`= null` initializer, table columns use `null`/`not null` markers.
 
 **List and object result-set types:**
 - `@Returns_X table(...)` → `List<XTable>? X { get; set; }` on `*Response`
@@ -621,11 +651,16 @@ The same rule applies to table columns in `@Param_/@Params_/…` and
 - `@Return_X table(...)` → `XObject? X { get; set; } = default!` on `*Response`.
   Null when absent/0-row, the object when exactly 1 row; 2+ rows throws.
 
-**Editor-only hint — SP0010:** every unmarked column/scalar (no `null` or
-`not null` in the declare) gets a low-severity nudge: "No null/not null marker —
-generated C# is non-nullable …; add `not null` to confirm, or `null` to make it
-nullable." VS Code uses Hint severity; the C# extensions use Info (their enum
-has no Hint). SP0010 is **editor-only — NOT a build/generator diagnostic**.
+**Editor-only hint — SP0010:**
+- **Scalars:** every unmarked scalar (no `= null`) gets a low-severity nudge:
+  "No `= null` — generated C# is non-nullable `<csType> <name>`. Add `= null`
+  to make it nullable."
+- **Table columns (unchanged):** every unmarked column (no `null` or `not
+  null` in the declare) gets: "No null/not null marker — generated C# is
+  non-nullable …; add `not null` to confirm, or `null` to make it nullable."
+
+VS Code uses Hint severity; the C# extensions use Info (their enum has no
+Hint). SP0010 is **editor-only — NOT a build/generator diagnostic**.
 
 ### Table-column defaults (any position — hybrid record)
 
@@ -802,14 +837,16 @@ See `SQuiL.Tests/NestedObjects/ThreeLevelInputNesting/`,
 object children, and the SP0036 error path respectively).
 
 **SP0010 is TAKEN** (since the nullability-unification feature) — it is the
-editor-only Hint that fires on any unmarked column or scalar declare (no `null`
-or `not null`). It is NOT a build/generator diagnostic. SP0023–SP0029 taken by
+editor-only Hint that fires on any unmarked column/scalar declare. For
+scalars: no `= null` initializer. For table columns (unchanged): no `null` or
+`not null` marker. It is NOT a build/generator diagnostic. SP0023–SP0029 taken by
 the DML-transactions feature; SP0030/SP0031 taken by the shape-detection
 feature; SP0032 taken by the timestamp-as-input check; SP0033/SP0034 taken by
 the nested-objects key-graph diagnostics (ambiguous/cycle, both OUTPUT and
 INPUT graphs); SP0035 taken by the editor-only orphaned-PK hint (both graphs);
 SP0036 taken by the nested-INPUT unsupported-key-type check (see Diagnostic
-IDs above). Next free id: **SP0037**.
+IDs above); SP0037 taken by the scalar-nullability-marker check (a scalar
+`null`/`not null` marker is invalid — use `= null`). Next free id: **SP0038**.
 
 ## Special Handling
 
