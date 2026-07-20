@@ -321,12 +321,18 @@ red", check for exactly this — one package present, the other missing.
 ### Selecting a dialect — `[SQuiLDialect]`
 
 `[SQuiLDialect(SQuiLDialect.SqlServer)]` on a data-context class is optional
-and picks which provider that context targets. Precedence when resolving a
-context: an explicit `[SQuiLDialect(...)]` wins; otherwise, the single
-provider package actually referenced by the compilation; otherwise SQL Server
-is the default. Today `SqlServer` is the only member of the `SQuiLDialect`
-enum, so this mostly matters as forward-compatible documentation until more
-providers ship — but it's always safe to write explicitly.
+and picks which provider that context targets. Resolution today (Phase 3A,
+`DialectRegistry.Resolve`): an explicit `[SQuiLDialect(...)]` wins; otherwise
+SQL Server is the default — Phase 3A ships only the SqlServer provider, so
+there's nothing else to fall back to. Inferring the dialect from "the single
+provider package actually referenced by the compilation" is a planned
+**Phase 3B** enhancement (once a second provider exists), not implemented
+yet. `DialectRegistry.IsProviderReferenced`/`GetTypeByMetadataName` don't
+drive selection either — they run after the dialect is resolved, purely to
+power the **SP0038** missing-provider diagnostic. Today `SqlServer` is the
+only member of the `SQuiLDialect` enum, so writing the attribute mostly
+matters as forward-compatible documentation until more providers ship — but
+it's always safe to write explicitly.
 
 ```csharp
 [SQuiLDialect(SQuiLDialect.SqlServer)]

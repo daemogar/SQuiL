@@ -365,8 +365,8 @@ SQuiL/
     mirrors (`lintScalarNullMarker` in `parser.ts`; `LintScalarNullMarker` in
     both `SQuiLLinter.cs`).
     **SP0038 is now TAKEN** — build error (generator): a data context resolves
-    to a dialect (explicit `[SQuiLDialect]`, single referenced provider, or the
-    SqlServer default) whose provider runtime base type (e.g.
+    to a dialect (explicit `[SQuiLDialect]`, or the SqlServer default — see
+    "Dialect selection" below) whose provider runtime base type (e.g.
     `SQuiL.SqlServerDataContext`) is not referenced by the compilation — the
     consumer referenced `SQuiL.Core` but not the matching provider package
     (`SQuiL.SqlServer`, etc.). See `DialectRegistry.IsProviderReferenced` +
@@ -645,13 +645,23 @@ seam (see "Error handling" below). Generated data contexts inherit the
 
 **Dialect selection — `[SQuiLDialect(SQuiLDialect.SqlServer)]`:** optional,
 class-level attribute (`SQuiL.Core`) that picks which provider a data context
-targets. Precedence when the generator resolves a context's dialect:
+targets. `DialectRegistry.Resolve` (shipped, Phase 3A) implements just two
+steps:
 1. An explicit `[SQuiLDialect(...)]` on the class wins.
-2. Otherwise, the single provider package actually referenced by the
-   compilation (`DialectRegistry.IsProviderReferenced`, probed via
-   `compilation.GetTypeByMetadataName` against each dialect's
-   `ProviderMetadataName`).
-3. Otherwise, `SQuiLDialect.SqlServer` (dialect 0) is the default.
+2. Otherwise, `SQuiLDialect.SqlServer` (dialect 0) is the default — Phase 3A
+   ships only the SqlServer provider, so there's nothing else to fall back to.
+
+Inferring the dialect from "the single provider package actually referenced
+by the compilation" is a **Phase 3B** enhancement (once a second provider
+exists to infer between) — it is not implemented yet; `Resolve` has a comment
+marking where that scan will go. Don't describe it as current behavior.
+
+`DialectRegistry.IsProviderReferenced` (probed via `compilation.
+GetTypeByMetadataName` against each dialect's `ProviderMetadataName`) plays no
+part in dialect *selection* — it runs afterward, against the already-resolved
+dialect, purely to power the **SP0038** missing-provider diagnostic (checking
+that the resolved dialect's runtime base class is actually referenced by the
+compilation).
 
 `SQuiLDialect` (enum) currently has one member, `SqlServer`; `DialectRegistry`
 (`SQuiL.SourceGenerator/SQuiL/Dialects/DialectRegistry.cs`) maps a dialect to

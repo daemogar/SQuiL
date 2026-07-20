@@ -60,7 +60,7 @@ generation.
 
 By default a data context targets SQL Server. Add
 `[SQuiLDialect(SQuiLDialect.SqlServer)]` to a context class to make that
-explicit, or to pick a different provider once more ship.
+explicit, or to pick a different provider once more than one ships.
 
 Mark your query files as `AdditionalFiles` so the generator can see them:
 
