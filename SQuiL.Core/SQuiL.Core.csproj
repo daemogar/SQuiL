@@ -40,9 +40,11 @@
 
 	<!-- The param-sharding JSON helpers (SQuiLJson, SQuiLBinaryJsonConverter) are
 	     internal implementation details behind the AddJsonParameter seam; the test
-	     project exercises them directly. -->
+	     project exercises them directly, and SQuiL.SqlServer's AddJsonParameter
+	     (moved from this project) calls SQuiLJson.Serialize. -->
 	<ItemGroup>
 		<InternalsVisibleTo Include="SQuiL.Tests" />
+		<InternalsVisibleTo Include="SQuiL.SqlServer" />
 	</ItemGroup>
 
 </Project>

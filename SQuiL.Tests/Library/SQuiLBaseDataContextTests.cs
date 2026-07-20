@@ -8,7 +8,7 @@ using SQuiL;
 using System.Data;
 using System.Data.Common;
 
-internal class SQuiLBaseDataContextTestDouble(IConfiguration config) : SQuiLBaseDataContext(config)
+internal class SQuiLBaseDataContextTestDouble(IConfiguration config) : SqlServerDataContext(config)
 {
 	public string EnvironmentNameValue => EnvironmentName;
 
