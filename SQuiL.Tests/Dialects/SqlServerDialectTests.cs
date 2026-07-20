@@ -7,8 +7,8 @@ public class SqlServerDialectTests
 	private readonly SqlServerDialect _dialect = new();
 
 	[Fact]
-	public void ProviderUsingDirective_IsSqlClient()
-		=> Assert.Equal("using Microsoft.Data.SqlClient;", _dialect.ProviderUsingDirective());
+	public void UsingDirectives_IsSqlClientSingleton()
+		=> Assert.Equal(new[] { "using Microsoft.Data.SqlClient;" }, _dialect.UsingDirectives());
 
 	[Fact]
 	public void ProviderExceptionType_IsSqlException()

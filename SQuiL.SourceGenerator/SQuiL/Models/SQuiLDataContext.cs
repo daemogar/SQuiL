@@ -31,7 +31,7 @@ public class SQuiLDataContext(
 		bool DebugRollback = true,
 		SQuiLKeyGraph? Graph = null,
 		SQuiLKeyGraph? InputGraph = null,
-		SqlServerDialect? Dialect = null)
+		ISqlDialect? Dialect = null)
 {
 	/// <summary>
 	/// Resolved key graph for this query's OUTPUT blocks (Task 4, nested objects). A default
@@ -53,7 +53,7 @@ public class SQuiLDataContext(
 	/// default <see cref="SqlServerDialect"/> instance so every existing call site that omits
 	/// <c>Dialect</c> keeps today's emitted output byte-for-byte.
 	/// </summary>
-	private SqlServerDialect Sql { get; } = Dialect ?? new SqlServerDialect();
+	private ISqlDialect Sql { get; } = Dialect ?? new SqlServerDialect();
 
 	/// <summary>
 	/// Generates the full C# source for the data-context partial class.
@@ -87,9 +87,10 @@ public class SQuiLDataContext(
 				: TableDeclaration(p)))
 			.ToList();
 
+		var providerUsings = string.Join(writer.NewLine, Sql.UsingDirectives());
 		writer.WriteLine($$"""
 			{{SourceGeneratorHelper.FileHeader}}
-			{{Sql.ProviderUsingDirective()}}
+			{{providerUsings}}
 
 			using System;
 			using System.Collections.Generic;
