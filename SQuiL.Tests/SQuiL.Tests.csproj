@@ -38,6 +38,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\SQuiL.Core\SQuiL.Core.csproj" />
+		<ProjectReference Include="..\SQuiL.SqlServer\SQuiL.SqlServer.csproj" />
 		<ProjectReference Include="..\SQuiL.SourceGenerator\SQuiL.SourceGenerator.csproj" />
 		<ProjectReference Include="..\tools\GuideRenderer\GuideRenderer.csproj" />
 	</ItemGroup>
