@@ -536,12 +536,30 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			}
 
 			var explicitDialect = GetExplicitDialect(definition.Class);
+			var dialectId = explicitDialect ?? 0;
 			var dialect = SQuiL.Dialects.DialectRegistry.Resolve(explicitDialect, compilation);
 
 			if (missingDataClient)
 				continue;
 
 			contexts.Add($"{@namespace}.{classname}");
+
+			// SP0038: the context resolved to a dialect (e.g. SqlServer) whose provider runtime
+			// base type isn't referenced by the compilation — the consumer referenced SQuiL.Core
+			// but not the matching provider package. Report the friendly diagnostic and skip ALL
+			// of this context's generated files (constructor AND the per-query data-context file,
+			// which independently re-declares the same `: {RuntimeBaseType()}` base class) so the
+			// consumer sees only SP0038, not a "type not found" cascade from the unresolved type.
+			var providerReferenced = SQuiL.Dialects.DialectRegistry.IsProviderReferenced(dialectId, compilation);
+			if (!providerReferenced)
+			{
+				context.ReportMissingProvider(
+					classname,
+					SQuiL.Dialects.DialectRegistry.DialectName(dialectId),
+					SQuiL.Dialects.DialectRegistry.ProviderPackageId(dialectId),
+					definition.Class.GetLocation());
+				continue;
+			}
 
 			var symbol = compilation
 				.GetSemanticModel(definition.Class.SyntaxTree)

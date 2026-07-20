@@ -412,6 +412,22 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0038 — A data context resolves to a dialect whose provider runtime base type (e.g.
+	/// <c>SQuiL.SqlServerDataContext</c>) is not referenced by the compilation — the consumer
+	/// referenced <c>SQuiL.Core</c> but not the matching provider package (<c>SQuiL.SqlServer</c>,
+	/// etc.). Reported instead of letting the missing base type surface as a cryptic
+	/// "type not found" error; the context's constructor/base-class file is skipped so only
+	/// SP0038 shows up (no cascade).
+	/// </summary>
+	public static void ReportMissingProvider(
+		this SourceProductionContext context, string contextName, string dialectName, string packageId, Location? location = default)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0038", "SQuiL Provider Package Not Referenced",
+			$"Data context '{contextName}' targets the {dialectName} dialect, but its provider package is not referenced. " +
+			$"Add a PackageReference to '{packageId}'.", location));
+	}
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

@@ -1,0 +1,28 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+
+[SQuiLQueryAttribute(QueryFiles.Sample)]
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+public partial class SampleDataContext(IConfiguration Configuration) : SqlServerDataContext(Configuration)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+{
+^
+}
+^
+*/
+ : (5,0)-(8,1),
+      Message: Data context 'SampleDataContext' targets the SqlServer dialect, but its provider package is not referenced. Add a PackageReference to 'SQuiL.SqlServer'.,
+      Severity: Error,
+      Descriptor: {
+        Id: SP0038,
+        Title: SQuiL Provider Package Not Referenced,
+        MessageFormat: Data context 'SampleDataContext' targets the SqlServer dialect, but its provider package is not referenced. Add a PackageReference to 'SQuiL.SqlServer'.,
+        Category: Design,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

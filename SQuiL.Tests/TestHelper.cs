@@ -46,6 +46,15 @@ public static class TestHelper
 			""";
 	}
 
+	/// <summary>
+	/// Thin single-name wrapper around <see cref="TestHeaderPublic"/>: builds the standard
+	/// <c>[SQuiLQuery(QueryFiles.&lt;queryName&gt;)]</c> partial data-context class scaffold
+	/// (<c>&lt;queryName&gt;DataContext(IConfiguration) : SqlServerDataContext(...)</c>) keyed
+	/// off a single query name, for tests that don't need multiple attributes/callers.
+	/// </summary>
+	public static string BuildSource(string queryName)
+		=> TestHeaderPublic([queryName], name: queryName);
+
 	/// <param name="compileCheck">Pass false ONLY for tests whose user sources
 	/// are deliberately invalid C#, or that pin a known not-yet-fixed
 	/// generator codegen bug (say which in a comment at the call site).</param>
@@ -55,15 +64,41 @@ public static class TestHelper
 		bool compileCheck = true,
 		[CallerMemberName] string name = default!,
 		[CallerFilePath] string path = default!)
+		=> VerifyCore(sources, files, includeProvider: true, compileCheck, name, path);
+
+	/// <summary>
+	/// Identical to <see cref="Verify"/> EXCEPT the compilation does NOT reference
+	/// <c>SQuiL.SqlServer</c> (the provider assembly) — so <c>DialectRegistry.IsProviderReferenced</c>
+	/// returns false and the generator reports SP0038 instead of emitting a context constructor.
+	/// Always pass <c>compileCheck: false</c> — the generated output is intentionally incomplete
+	/// (the constructor/base-class file is skipped) and won't compile.
+	/// </summary>
+	public static Task VerifyWithoutProvider(
+		IEnumerable<string> sources,
+		IEnumerable<string> files,
+		bool compileCheck = false,
+		[CallerMemberName] string name = default!,
+		[CallerFilePath] string path = default!)
+		=> VerifyCore(sources, files, includeProvider: false, compileCheck, name, path);
+
+	static Task VerifyCore(
+		IEnumerable<string> sources,
+		IEnumerable<string> files,
+		bool includeProvider,
+		bool compileCheck,
+		string name,
+		string path)
 	{
 		var syntaxTrees = sources.Select(p => CSharpSyntaxTree.ParseText(p));
 
-		IEnumerable<MetadataReference> metareferences = [
+		List<MetadataReference> metareferences = [
 			MetadataReference.CreateFromFile(typeof(SqlConnection).Assembly.Location),
-			MetadataReference.CreateFromFile(typeof(SqlServerDataContext).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(IServiceCollection).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(IConfiguration).Assembly.Location)
 		];
+
+		if (includeProvider)
+			metareferences.Add(MetadataReference.CreateFromFile(typeof(SqlServerDataContext).Assembly.Location));
 
 		var additionalFiles = files
 			.Select(p => (AdditionalText)(p.StartsWith("--Name:")

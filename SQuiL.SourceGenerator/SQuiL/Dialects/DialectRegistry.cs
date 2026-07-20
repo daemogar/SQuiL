@@ -23,6 +23,13 @@ public static class DialectRegistry
 		_ => "SQuiL.SqlServer",
 	};
 
+	/// <summary>Friendly dialect name (matches the <c>SQuiLDialect</c> enum member) for diagnostic messages.</summary>
+	public static string DialectName(int dialect) => dialect switch
+	{
+		0 /* SqlServer */ => "SqlServer",
+		_ => "SqlServer",
+	};
+
 	static ISqlDialect Factory(int dialect) => dialect switch
 	{
 		0 /* SqlServer */ => new SqlServerDialect(),
