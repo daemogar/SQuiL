@@ -16,7 +16,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class EmbeddedObjectChildDataContext : SQuiLBaseDataContext
+partial class EmbeddedObjectChildDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<EmbeddedObjectChildResponse>> ProcessEmbeddedObjectChildAsync(
 		EmbeddedObjectChildRequest request,

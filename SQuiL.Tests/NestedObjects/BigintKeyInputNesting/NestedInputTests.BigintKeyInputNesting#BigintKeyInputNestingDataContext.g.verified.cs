@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class BigintKeyInputNestingDataContext : SQuiLBaseDataContext
+partial class BigintKeyInputNestingDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessBigintKeyInputNestingAsync(
 		BigintKeyInputNestingRequest request,

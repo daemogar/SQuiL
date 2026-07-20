@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class EmptyNamespaceOverrideEmitsTopLevelDataContext : SQuiLBaseDataContext
+partial class EmptyNamespaceOverrideEmitsTopLevelDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<EmptyNamespaceOverrideEmitsTopLevelResponse>> ProcessEmptyNamespaceOverrideEmitsTopLevelAsync(
 		EmptyNamespaceOverrideEmitsTopLevelRequest request,

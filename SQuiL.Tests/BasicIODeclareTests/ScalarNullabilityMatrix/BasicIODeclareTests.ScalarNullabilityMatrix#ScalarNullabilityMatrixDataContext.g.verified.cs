@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ScalarNullabilityMatrixDataContext : SQuiLBaseDataContext
+partial class ScalarNullabilityMatrixDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<ScalarNullabilityMatrixResponse>> ProcessScalarNullabilityMatrixAsync(
 		ScalarNullabilityMatrixRequest request,

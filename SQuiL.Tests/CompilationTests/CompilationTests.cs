@@ -50,7 +50,7 @@ public class CompilationTests : BaseTest
 			namespace TestCase;
 
 			[SQuiLQueryAttribute(QueryFiles.GeneratedCodeCompilesWithoutImplicitUsings)]
-			public partial class GeneratedCodeCompilesWithoutImplicitUsingsDataContext(IConfiguration Configuration) : SQuiLBaseDataContext(Configuration)
+			public partial class GeneratedCodeCompilesWithoutImplicitUsingsDataContext(IConfiguration Configuration) : SqlServerDataContext(Configuration)
 			{
 			}
 			""";

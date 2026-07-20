@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ZeroConfigDataContext : SQuiLBaseDataContext
+partial class ZeroConfigDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<ZeroConfigResponse>> ProcessZeroConfigAsync(
 		ZeroConfigRequest request,

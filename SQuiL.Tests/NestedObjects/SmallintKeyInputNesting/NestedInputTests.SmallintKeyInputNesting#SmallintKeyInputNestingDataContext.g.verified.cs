@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class SmallintKeyInputNestingDataContext : SQuiLBaseDataContext
+partial class SmallintKeyInputNestingDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessSmallintKeyInputNestingAsync(
 		SmallintKeyInputNestingRequest request,

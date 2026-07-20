@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class BinaryListUsesHexConvertDataContext : SQuiLBaseDataContext
+partial class BinaryListUsesHexConvertDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessBinaryListUsesHexConvertAsync(
 		BinaryListUsesHexConvertRequest request,

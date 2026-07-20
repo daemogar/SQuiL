@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ScalarReturnRoutesBySingleColumnShapeDataContext : SQuiLBaseDataContext
+partial class ScalarReturnRoutesBySingleColumnShapeDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<ScalarReturnRoutesBySingleColumnShapeResponse>> ProcessScalarReturnRoutesBySingleColumnShapeAsync(
 		ScalarReturnRoutesBySingleColumnShapeRequest request,

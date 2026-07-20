@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class IntegerTypesMapToLongShortByteDataContext : SQuiLBaseDataContext
+partial class IntegerTypesMapToLongShortByteDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessIntegerTypesMapToLongShortByteAsync(
 		IntegerTypesMapToLongShortByteRequest request,

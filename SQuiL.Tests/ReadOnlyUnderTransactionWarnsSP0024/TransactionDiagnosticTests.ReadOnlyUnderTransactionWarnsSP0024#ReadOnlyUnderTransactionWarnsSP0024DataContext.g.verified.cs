@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ReadOnlyUnderTransactionWarnsSP0024DataContext : SQuiLBaseDataContext
+partial class ReadOnlyUnderTransactionWarnsSP0024DataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<ReadOnlyUnderTransactionWarnsSP0024Response>> ProcessReadOnlyUnderTransactionWarnsSP0024Async(
 		ReadOnlyUnderTransactionWarnsSP0024Request request,

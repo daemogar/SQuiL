@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TimestampInputParamIsErrorDataContext : SQuiLBaseDataContext
+partial class TimestampInputParamIsErrorDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessTimestampInputParamIsErrorAsync(
 		TimestampInputParamIsErrorRequest request,

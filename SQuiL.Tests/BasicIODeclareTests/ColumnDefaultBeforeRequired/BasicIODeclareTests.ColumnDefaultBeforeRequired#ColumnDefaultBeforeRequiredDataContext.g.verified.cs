@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ColumnDefaultBeforeRequiredDataContext : SQuiLBaseDataContext
+partial class ColumnDefaultBeforeRequiredDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessColumnDefaultBeforeRequiredAsync(
 		ColumnDefaultBeforeRequiredRequest request,

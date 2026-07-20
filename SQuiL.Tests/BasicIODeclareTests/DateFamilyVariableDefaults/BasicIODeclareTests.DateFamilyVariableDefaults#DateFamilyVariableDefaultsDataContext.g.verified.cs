@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class DateFamilyVariableDefaultsDataContext : SQuiLBaseDataContext
+partial class DateFamilyVariableDefaultsDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessDateFamilyVariableDefaultsAsync(
 		DateFamilyVariableDefaultsRequest request,

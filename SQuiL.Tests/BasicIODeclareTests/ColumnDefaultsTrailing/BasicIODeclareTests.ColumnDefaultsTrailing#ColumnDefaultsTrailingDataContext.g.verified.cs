@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ColumnDefaultsTrailingDataContext : SQuiLBaseDataContext
+partial class ColumnDefaultsTrailingDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessColumnDefaultsTrailingAsync(
 		ColumnDefaultsTrailingRequest request,

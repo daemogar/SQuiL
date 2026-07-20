@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class DateTypeVariableDataContext : SQuiLBaseDataContext
+partial class DateTypeVariableDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<DateTypeVariableResponse>> ProcessDateTypeVariableAsync(
 		DateTypeVariableRequest request,

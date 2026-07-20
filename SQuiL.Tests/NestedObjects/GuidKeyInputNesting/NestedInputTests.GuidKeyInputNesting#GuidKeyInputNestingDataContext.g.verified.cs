@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class GuidKeyInputNestingDataContext : SQuiLBaseDataContext
+partial class GuidKeyInputNestingDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessGuidKeyInputNestingAsync(
 		GuidKeyInputNestingRequest request,

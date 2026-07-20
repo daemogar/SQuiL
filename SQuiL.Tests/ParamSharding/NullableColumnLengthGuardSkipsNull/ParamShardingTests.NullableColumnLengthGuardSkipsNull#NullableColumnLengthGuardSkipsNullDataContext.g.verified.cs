@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class NullableColumnLengthGuardSkipsNullDataContext : SQuiLBaseDataContext
+partial class NullableColumnLengthGuardSkipsNullDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessNullableColumnLengthGuardSkipsNullAsync(
 		NullableColumnLengthGuardSkipsNullRequest request,

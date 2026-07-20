@@ -16,7 +16,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ThreeLevelListNestingDataContext : SQuiLBaseDataContext
+partial class ThreeLevelListNestingDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<ThreeLevelListNestingResponse>> ProcessThreeLevelListNestingAsync(
 		ThreeLevelListNestingRequest request,

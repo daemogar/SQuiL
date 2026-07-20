@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class DebugRollbackWithSuppressDebugDataContext : SQuiLBaseDataContext
+partial class DebugRollbackWithSuppressDebugDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<DebugRollbackWithSuppressDebugResponse>> ProcessDebugRollbackWithSuppressDebugAsync(
 		DebugRollbackWithSuppressDebugRequest request,

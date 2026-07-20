@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TwoQueryDataContextDataContext : SQuiLBaseDataContext
+partial class TwoQueryDataContextDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessTwoQueryDataContext1Async(
 		TwoQueryDataContext1Request request,

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class DebugRollbackHoistsDebugAndGatesCommitDataContext : SQuiLBaseDataContext
+partial class DebugRollbackHoistsDebugAndGatesCommitDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<DebugRollbackHoistsDebugAndGatesCommitResponse>> ProcessDebugRollbackHoistsDebugAndGatesCommitAsync(
 		DebugRollbackHoistsDebugAndGatesCommitRequest request,

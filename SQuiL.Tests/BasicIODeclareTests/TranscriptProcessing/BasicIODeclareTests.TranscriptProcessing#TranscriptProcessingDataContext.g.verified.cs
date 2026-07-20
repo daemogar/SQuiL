@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TranscriptProcessingDataContext : SQuiLBaseDataContext
+partial class TranscriptProcessingDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessTranscriptProcessingAsync(
 		TranscriptProcessingRequest request,

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class UndeclaredReferenceFailsBuildDataContext : SQuiLBaseDataContext
+partial class UndeclaredReferenceFailsBuildDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<UndeclaredReferenceFailsBuildResponse>> ProcessUndeclaredReferenceFailsBuildAsync(
 		UndeclaredReferenceFailsBuildRequest request,

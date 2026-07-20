@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ReturnTableColumnDefaultDataContext : SQuiLBaseDataContext
+partial class ReturnTableColumnDefaultDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<ReturnTableColumnDefaultResponse>> ProcessReturnTableColumnDefaultAsync(
 		ReturnTableColumnDefaultRequest request,

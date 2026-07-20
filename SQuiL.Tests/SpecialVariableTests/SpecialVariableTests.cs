@@ -18,7 +18,7 @@ public class SpecialVariableTests
 			namespace TestCase;
 
 			[{{QueryAttributeName}}(QueryFiles.AsOf)]
-			public partial class AsOfDataContext(IConfiguration Configuration) : {{BaseDataContextClassName}}(Configuration)
+			public partial class AsOfDataContext(IConfiguration Configuration) : SqlServerDataContext(Configuration)
 			{
 			}
 			"""], ["""
@@ -44,7 +44,7 @@ public class SpecialVariableTests
 			namespace TestCase;
 
 			[{{QueryAttributeName}}(QueryFiles.SuppressOnly)]
-			public partial class SuppressOnlyDataContext(IConfiguration Configuration) : {{BaseDataContextClassName}}(Configuration)
+			public partial class SuppressOnlyDataContext(IConfiguration Configuration) : SqlServerDataContext(Configuration)
 			{
 			}
 			"""], ["""

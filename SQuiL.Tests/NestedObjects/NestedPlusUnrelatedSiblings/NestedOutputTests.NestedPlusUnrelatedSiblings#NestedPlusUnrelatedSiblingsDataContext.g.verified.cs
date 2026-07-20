@@ -16,7 +16,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class NestedPlusUnrelatedSiblingsDataContext : SQuiLBaseDataContext
+partial class NestedPlusUnrelatedSiblingsDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<NestedPlusUnrelatedSiblingsResponse>> ProcessNestedPlusUnrelatedSiblingsAsync(
 		NestedPlusUnrelatedSiblingsRequest request,

@@ -8,7 +8,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class EnabledTransactionWrapsReaderPathDataContext : SQuiLBaseDataContext
+partial class EnabledTransactionWrapsReaderPathDataContext : SqlServerDataContext
 {
     public EnabledTransactionWrapsReaderPathDataContext(IConfiguration Configuration) : base(Configuration) { }
 }

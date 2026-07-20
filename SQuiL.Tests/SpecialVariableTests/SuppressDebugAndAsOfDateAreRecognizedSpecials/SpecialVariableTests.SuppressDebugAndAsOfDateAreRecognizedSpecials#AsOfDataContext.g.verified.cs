@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class AsOfDataContext : SQuiLBaseDataContext
+partial class AsOfDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<AsOfResponse>> ProcessAsOfAsync(
 		AsOfRequest request,

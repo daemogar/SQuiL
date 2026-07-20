@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class BinaryDataParameterDataContext : SQuiLBaseDataContext
+partial class BinaryDataParameterDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<BinaryDataParameterResponse>> ProcessBinaryDataParameterAsync(
 		BinaryDataParameterRequest request,

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class SharedTableDataContext : SQuiLBaseDataContext
+partial class SharedTableDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<SharedTable1Response>> ProcessSharedTable1Async(
 		SharedTable1Request request,

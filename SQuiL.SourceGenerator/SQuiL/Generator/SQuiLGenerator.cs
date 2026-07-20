@@ -503,6 +503,41 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				&& ReadBoolArg(list, "enabled", 2, true);
 			var debugRollback = ReadBoolArg(list, "debugRollback", 3, true);
 
+			// Reads the optional [SQuiLDialect(...)] attribute on the same class, resolving
+			// its constructor argument as a compile-time constant (so an enum member reference
+			// like `SQuiLDialect.SqlServer` is evaluated correctly regardless of how it's
+			// written), then resolves the dialect: explicit choice wins, otherwise the single
+			// referenced provider, otherwise SQL Server. [SQuiLDialect] itself is not emitted by
+			// this generator — it ships in the SQuiL.Core runtime package.
+			int? GetExplicitDialect(ClassDeclarationSyntax classSyntax)
+			{
+				var semanticModel = compilation.GetSemanticModel(classSyntax.SyntaxTree);
+
+				foreach (var attributeList in classSyntax.AttributeLists)
+					foreach (var attribute in attributeList.Attributes)
+					{
+						var symbolInfo = semanticModel.GetSymbolInfo(attribute);
+						if ((symbolInfo.Symbol ?? symbolInfo.CandidateSymbols.FirstOrDefault()) is not IMethodSymbol ctorSymbol)
+							continue;
+
+						if (!ctorSymbol.ContainingType.ToDisplayString().Equals(NamespacedDialectAttributeValue))
+							continue;
+
+						var arg = attribute.ArgumentList?.Arguments.FirstOrDefault();
+						if (arg is null)
+							continue;
+
+						var constant = semanticModel.GetConstantValue(arg.Expression);
+						if (constant.HasValue && constant.Value is not null)
+							return Convert.ToInt32(constant.Value);
+					}
+
+				return null;
+			}
+
+			var explicitDialect = GetExplicitDialect(definition.Class);
+			var dialect = SQuiL.Dialects.DialectRegistry.Resolve(explicitDialect, compilation);
+
 			if (missingDataClient)
 				continue;
 
@@ -516,11 +551,11 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				&& emittedConstructors.Add(symbol.ToDisplayString())
 				&& !symbol.InstanceConstructors.Any(p => !p.IsImplicitlyDeclared))
 			{
-				EmitConstructor(@namespace, classname);
+				EmitConstructor(@namespace, classname, dialect.RuntimeBaseType());
 			}
 
 			var generation = generator
-				.Create(@namespace, classname, method, setting, text, records, recordNamespace, enabled, debugRollback);
+				.Create(@namespace, classname, method, setting, text, records, recordNamespace, enabled, debugRollback, dialect);
 
 			if (generation is not null)
 				generation.FilePath = file.Path;
@@ -584,7 +619,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			context.AddSource($"{NamespaceName}Extensions.g.cs", SourceText.From(text.ToString(), Encoding.UTF8));
 		}
 
-		void EmitConstructor(string @namespace, string classname)
+		void EmitConstructor(string @namespace, string classname, string baseType)
 		{
 			StringWriter text = new();
 			IndentedTextWriter writer = new(text);
@@ -596,7 +631,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 				namespace {{@namespace}};
 
-				partial class {{classname}} : {{BaseDataContextClassName}}
+				partial class {{classname}} : {{baseType}}
 				""",
 				() => writer.WriteLine($"public {classname}(IConfiguration Configuration) : base(Configuration) {{ }}"));
 

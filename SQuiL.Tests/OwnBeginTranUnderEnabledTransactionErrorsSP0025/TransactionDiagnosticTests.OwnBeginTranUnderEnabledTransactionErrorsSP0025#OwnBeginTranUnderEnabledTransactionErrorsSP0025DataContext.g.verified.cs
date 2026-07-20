@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class OwnBeginTranUnderEnabledTransactionErrorsSP0025DataContext : SQuiLBaseDataContext
+partial class OwnBeginTranUnderEnabledTransactionErrorsSP0025DataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessOwnBeginTranUnderEnabledTransactionErrorsSP0025Async(
 		OwnBeginTranUnderEnabledTransactionErrorsSP0025Request request,

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class Input2VariableDataContext : SQuiLBaseDataContext
+partial class Input2VariableDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessInput2VariableAsync(
 		Input2VariableRequest request,

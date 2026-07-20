@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class LargeListUsesSingleJsonParameterDataContext : SQuiLBaseDataContext
+partial class LargeListUsesSingleJsonParameterDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessLargeListUsesSingleJsonParameterAsync(
 		LargeListUsesSingleJsonParameterRequest request,

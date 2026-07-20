@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class SameNameTableAndObjectInOneFileCollidesDataContext : SQuiLBaseDataContext
+partial class SameNameTableAndObjectInOneFileCollidesDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<SameNameTableAndObjectInOneFileCollidesResponse>> ProcessSameNameTableAndObjectInOneFileCollidesAsync(
 		SameNameTableAndObjectInOneFileCollidesRequest request,

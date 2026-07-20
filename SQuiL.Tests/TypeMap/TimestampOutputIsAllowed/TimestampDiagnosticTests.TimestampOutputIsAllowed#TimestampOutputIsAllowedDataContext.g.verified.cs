@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TimestampOutputIsAllowedDataContext : SQuiLBaseDataContext
+partial class TimestampOutputIsAllowedDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<TimestampOutputIsAllowedResponse>> ProcessTimestampOutputIsAllowedAsync(
 		TimestampOutputIsAllowedRequest request,

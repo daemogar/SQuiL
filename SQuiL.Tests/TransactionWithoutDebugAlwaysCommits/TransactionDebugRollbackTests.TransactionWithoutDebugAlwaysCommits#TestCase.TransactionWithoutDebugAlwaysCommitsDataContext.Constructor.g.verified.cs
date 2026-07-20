@@ -8,7 +8,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TransactionWithoutDebugAlwaysCommitsDataContext : SQuiLBaseDataContext
+partial class TransactionWithoutDebugAlwaysCommitsDataContext : SqlServerDataContext
 {
     public TransactionWithoutDebugAlwaysCommitsDataContext(IConfiguration Configuration) : base(Configuration) { }
 }

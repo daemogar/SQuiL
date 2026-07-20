@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class XmlAndSmallDateTimeMapToStringAndDateTimeDataContext : SQuiLBaseDataContext
+partial class XmlAndSmallDateTimeMapToStringAndDateTimeDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessXmlAndSmallDateTimeMapToStringAndDateTimeAsync(
 		XmlAndSmallDateTimeMapToStringAndDateTimeRequest request,

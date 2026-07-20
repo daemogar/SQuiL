@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ReturnErrorTableEmitsNormallyDataContext : SQuiLBaseDataContext
+partial class ReturnErrorTableEmitsNormallyDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<ReturnErrorTableEmitsNormallyResponse>> ProcessReturnErrorTableEmitsNormallyAsync(
 		ReturnErrorTableEmitsNormallyRequest request,

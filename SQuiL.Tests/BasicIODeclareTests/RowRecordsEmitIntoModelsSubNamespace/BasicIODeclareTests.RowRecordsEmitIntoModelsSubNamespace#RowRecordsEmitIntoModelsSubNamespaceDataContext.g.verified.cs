@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class RowRecordsEmitIntoModelsSubNamespaceDataContext : SQuiLBaseDataContext
+partial class RowRecordsEmitIntoModelsSubNamespaceDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<RowRecordsEmitIntoModelsSubNamespaceResponse>> ProcessRowRecordsEmitIntoModelsSubNamespaceAsync(
 		RowRecordsEmitIntoModelsSubNamespaceRequest request,

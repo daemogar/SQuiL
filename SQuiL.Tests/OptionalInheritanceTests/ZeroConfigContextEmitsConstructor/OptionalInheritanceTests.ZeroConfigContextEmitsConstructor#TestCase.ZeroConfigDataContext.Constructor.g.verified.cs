@@ -8,7 +8,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ZeroConfigDataContext : SQuiLBaseDataContext
+partial class ZeroConfigDataContext : SqlServerDataContext
 {
     public ZeroConfigDataContext(IConfiguration Configuration) : base(Configuration) { }
 }

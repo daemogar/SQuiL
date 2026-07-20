@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class RealMapsToFloatDataContext : SQuiLBaseDataContext
+partial class RealMapsToFloatDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<RealMapsToFloatResponse>> ProcessRealMapsToFloatAsync(
 		RealMapsToFloatRequest request,

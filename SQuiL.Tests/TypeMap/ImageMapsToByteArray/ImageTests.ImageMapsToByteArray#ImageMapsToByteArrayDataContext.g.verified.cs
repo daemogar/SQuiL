@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ImageMapsToByteArrayDataContext : SQuiLBaseDataContext
+partial class ImageMapsToByteArrayDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessImageMapsToByteArrayAsync(
 		ImageMapsToByteArrayRequest request,

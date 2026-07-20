@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class DoubleNumberTestDataContext : SQuiLBaseDataContext
+partial class DoubleNumberTestDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<DoubleNumberTestResponse>> ProcessDoubleNumberTestAsync(
 		DoubleNumberTestRequest request,

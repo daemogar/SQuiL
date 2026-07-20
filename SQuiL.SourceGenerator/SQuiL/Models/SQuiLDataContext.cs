@@ -116,7 +116,7 @@ public class SQuiLDataContext(
 
 		void Process()
 		{
-			writer.Block($$"""partial class {{ClassName}} : {{SourceGeneratorHelper.BaseDataContextClassName}}""", () =>
+			writer.Block($$"""partial class {{ClassName}} : {{Sql.RuntimeBaseType()}}""", () =>
 			{
 				var errorReturnType = true;
 				var returnType = generation.Response.ModelName;

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class DebugRollbackFalseAlwaysCommitsDataContext : SQuiLBaseDataContext
+partial class DebugRollbackFalseAlwaysCommitsDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<DebugRollbackFalseAlwaysCommitsResponse>> ProcessDebugRollbackFalseAlwaysCommitsAsync(
 		DebugRollbackFalseAlwaysCommitsRequest request,

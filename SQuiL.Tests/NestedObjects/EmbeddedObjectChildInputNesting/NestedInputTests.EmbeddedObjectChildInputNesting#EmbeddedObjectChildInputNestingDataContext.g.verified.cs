@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class EmbeddedObjectChildInputNestingDataContext : SQuiLBaseDataContext
+partial class EmbeddedObjectChildInputNestingDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessEmbeddedObjectChildInputNestingAsync(
 		EmbeddedObjectChildInputNestingRequest request,

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class SameNameTableAndObjectAcrossFilesShareOneRecordDataContext : SQuiLBaseDataContext
+partial class SameNameTableAndObjectAcrossFilesShareOneRecordDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<SameNameAcrossFilesListResponse>> ProcessSameNameAcrossFilesListAsync(
 		SameNameAcrossFilesListRequest request,

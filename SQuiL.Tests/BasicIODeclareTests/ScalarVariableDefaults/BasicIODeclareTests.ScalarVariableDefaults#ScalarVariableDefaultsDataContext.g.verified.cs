@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ScalarVariableDefaultsDataContext : SQuiLBaseDataContext
+partial class ScalarVariableDefaultsDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessScalarVariableDefaultsAsync(
 		ScalarVariableDefaultsRequest request,

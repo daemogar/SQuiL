@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class DecimalPrecisionScaleTestDataContext : SQuiLBaseDataContext
+partial class DecimalPrecisionScaleTestDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<DecimalPrecisionScaleTestResponse>> ProcessDecimalPrecisionScaleTestAsync(
 		DecimalPrecisionScaleTestRequest request,

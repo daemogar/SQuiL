@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class SingleObjectUsesOneElementArrayDataContext : SQuiLBaseDataContext
+partial class SingleObjectUsesOneElementArrayDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessSingleObjectUsesOneElementArrayAsync(
 		SingleObjectUsesOneElementArrayRequest request,

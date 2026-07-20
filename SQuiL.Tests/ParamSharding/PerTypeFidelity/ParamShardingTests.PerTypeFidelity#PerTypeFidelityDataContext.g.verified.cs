@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class PerTypeFidelityDataContext : SQuiLBaseDataContext
+partial class PerTypeFidelityDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessPerTypeFidelityAsync(
 		PerTypeFidelityRequest request,

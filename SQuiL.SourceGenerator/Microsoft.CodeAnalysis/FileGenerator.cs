@@ -53,8 +53,9 @@ public class FileGenerator(
 	/// <param name="setting">The connection-string configuration key.</param>
 	/// <param name="text">The SQL source text to parse.</param>
 	/// <param name="records">All partial record declarations visible in the current compilation.</param>
+	/// <param name="dialect">The resolved dialect for this data context (selects the runtime base class and emitted SQL). Defaults to SQL Server when omitted.</param>
 	/// <returns>The new <see cref="SQuiLFileGeneration"/>, or <c>null</c> if parsing failed.</returns>
-	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records, string recordNamespace = "", bool enabled = false, bool debugRollback = true)
+	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records, string recordNamespace = "", bool enabled = false, bool debugRollback = true, SQuiL.Dialects.ISqlDialect? dialect = null)
 	{
 		try
 		{
@@ -194,7 +195,7 @@ public class FileGenerator(
 				}
 			}
 
-			generation.Context = new(@namespace, classname, method, setting, blocks, enabled, debugRollback, keyGraph, inputGraph, new SQuiL.Dialects.SqlServerDialect());
+			generation.Context = new(@namespace, classname, method, setting, blocks, enabled, debugRollback, keyGraph, inputGraph, dialect ?? new SQuiL.Dialects.SqlServerDialect());
 
 			Generations.Add(generation);
 

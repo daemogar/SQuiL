@@ -8,7 +8,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class EnabledTransactionWrapsNonQueryPathDataContext : SQuiLBaseDataContext
+partial class EnabledTransactionWrapsNonQueryPathDataContext : SqlServerDataContext
 {
     public EnabledTransactionWrapsNonQueryPathDataContext(IConfiguration Configuration) : base(Configuration) { }
 }

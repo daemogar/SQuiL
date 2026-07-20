@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ImageColumnUsesHexConvertDataContext : SQuiLBaseDataContext
+partial class ImageColumnUsesHexConvertDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessImageColumnUsesHexConvertAsync(
 		ImageColumnUsesHexConvertRequest request,

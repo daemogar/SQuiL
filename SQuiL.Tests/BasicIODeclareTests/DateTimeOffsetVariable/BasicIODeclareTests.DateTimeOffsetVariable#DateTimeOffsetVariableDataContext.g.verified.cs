@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class DateTimeOffsetVariableDataContext : SQuiLBaseDataContext
+partial class DateTimeOffsetVariableDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<DateTimeOffsetVariableResponse>> ProcessDateTimeOffsetVariableAsync(
 		DateTimeOffsetVariableRequest request,

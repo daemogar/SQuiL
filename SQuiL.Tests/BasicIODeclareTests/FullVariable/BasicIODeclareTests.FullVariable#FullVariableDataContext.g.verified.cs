@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class FullVariableDataContext : SQuiLBaseDataContext
+partial class FullVariableDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<FullVariableResponse>> ProcessFullVariableAsync(
 		FullVariableRequest request,

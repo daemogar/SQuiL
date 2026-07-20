@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class C : SQuiLBaseDataContext
+partial class C : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessQAsync(
 		QRequest request,

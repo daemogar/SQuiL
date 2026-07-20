@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class SameFileShapeMismatchPersonTableDataContext : SQuiLBaseDataContext
+partial class SameFileShapeMismatchPersonTableDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<SameFileShapeMismatchPersonTableResponse>> ProcessSameFileShapeMismatchPersonTableAsync(
 		SameFileShapeMismatchPersonTableRequest request,

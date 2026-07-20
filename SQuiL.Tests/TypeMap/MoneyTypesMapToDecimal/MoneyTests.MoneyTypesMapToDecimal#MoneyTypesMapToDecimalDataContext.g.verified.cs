@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class MoneyTypesMapToDecimalDataContext : SQuiLBaseDataContext
+partial class MoneyTypesMapToDecimalDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessMoneyTypesMapToDecimalAsync(
 		MoneyTypesMapToDecimalRequest request,

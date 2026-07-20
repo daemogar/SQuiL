@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class LengthOnlyDifferenceStillCollidesSP0030DataContext : SQuiLBaseDataContext
+partial class LengthOnlyDifferenceStillCollidesSP0030DataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<LengthOnlyDifferenceStillCollidesSP0030Response>> ProcessLengthOnlyDifferenceStillCollidesSP0030Async(
 		LengthOnlyDifferenceStillCollidesSP0030Request request,

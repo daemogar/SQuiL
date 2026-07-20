@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class IdenticalOutputSignaturesCollideSP0030DataContext : SQuiLBaseDataContext
+partial class IdenticalOutputSignaturesCollideSP0030DataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<IdenticalOutputSignaturesCollideSP0030Response>> ProcessIdenticalOutputSignaturesCollideSP0030Async(
 		IdenticalOutputSignaturesCollideSP0030Request request,

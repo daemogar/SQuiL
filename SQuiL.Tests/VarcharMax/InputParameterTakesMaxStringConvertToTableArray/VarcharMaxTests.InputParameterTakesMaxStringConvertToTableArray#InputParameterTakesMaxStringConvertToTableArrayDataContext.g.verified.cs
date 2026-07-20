@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class InputParameterTakesMaxStringConvertToTableArrayDataContext : SQuiLBaseDataContext
+partial class InputParameterTakesMaxStringConvertToTableArrayDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessInputParameterTakesMaxStringConvertToTableArrayAsync(
 		InputParameterTakesMaxStringConvertToTableArrayRequest request,

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
+partial class TwoQueriesWithSameReferenceDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessTwoQueriesWithSameReference2Async(
 		TwoQueriesWithSameReference2Request request,

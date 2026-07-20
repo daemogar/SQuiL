@@ -8,7 +8,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class MutationUnderPlainQueryWarnsSP0023DataContext : SQuiLBaseDataContext
+partial class MutationUnderPlainQueryWarnsSP0023DataContext : SqlServerDataContext
 {
     public MutationUnderPlainQueryWarnsSP0023DataContext(IConfiguration Configuration) : base(Configuration) { }
 }

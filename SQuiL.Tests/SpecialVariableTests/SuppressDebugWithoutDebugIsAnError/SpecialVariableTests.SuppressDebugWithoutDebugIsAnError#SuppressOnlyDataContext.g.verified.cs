@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class SuppressOnlyDataContext : SQuiLBaseDataContext
+partial class SuppressOnlyDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<SuppressOnlyResponse>> ProcessSuppressOnlyAsync(
 		SuppressOnlyRequest request,

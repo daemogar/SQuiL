@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class PrimaryKeysNoLinksInputDataContext : SQuiLBaseDataContext
+partial class PrimaryKeysNoLinksInputDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessPrimaryKeysNoLinksInputAsync(
 		PrimaryKeysNoLinksInputRequest request,

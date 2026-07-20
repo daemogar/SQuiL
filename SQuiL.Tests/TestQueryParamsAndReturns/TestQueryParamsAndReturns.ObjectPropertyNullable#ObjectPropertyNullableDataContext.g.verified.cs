@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TestQueryParamsAndReturnsDataContext : SQuiLBaseDataContext
+partial class TestQueryParamsAndReturnsDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<ObjectPropertyNullableResponse>> ProcessObjectPropertyNullableAsync(
 		ObjectPropertyNullableRequest request,

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class SpecialVariablePlacementIsEnforcedDataContext : SQuiLBaseDataContext
+partial class SpecialVariablePlacementIsEnforcedDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<SpecialVariablePlacementIsEnforcedResponse>> ProcessSpecialVariablePlacementIsEnforcedAsync(
 		SpecialVariablePlacementIsEnforcedRequest request,

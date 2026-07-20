@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class PositionalDebugRollbackFalse_AlwaysCommitsDataContext : SQuiLBaseDataContext
+partial class PositionalDebugRollbackFalse_AlwaysCommitsDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<PositionalDebugRollbackFalse_AlwaysCommitsResponse>> ProcessPositionalDebugRollbackFalse_AlwaysCommitsAsync(
 		PositionalDebugRollbackFalse_AlwaysCommitsRequest request,

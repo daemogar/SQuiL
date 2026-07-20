@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TransactionWithoutDebugAlwaysCommitsDataContext : SQuiLBaseDataContext
+partial class TransactionWithoutDebugAlwaysCommitsDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<TransactionWithoutDebugAlwaysCommitsResponse>> ProcessTransactionWithoutDebugAlwaysCommitsAsync(
 		TransactionWithoutDebugAlwaysCommitsRequest request,

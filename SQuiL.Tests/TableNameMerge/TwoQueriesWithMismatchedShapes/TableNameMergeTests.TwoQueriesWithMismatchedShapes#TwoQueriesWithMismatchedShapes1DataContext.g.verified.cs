@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TwoQueriesWithMismatchedShapesDataContext : SQuiLBaseDataContext
+partial class TwoQueriesWithMismatchedShapesDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<TwoQueriesWithMismatchedShapes1Response>> ProcessTwoQueriesWithMismatchedShapes1Async(
 		TwoQueriesWithMismatchedShapes1Request request,

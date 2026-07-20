@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class MappedTablesWithMismatchedShapesDataContext : SQuiLBaseDataContext
+partial class MappedTablesWithMismatchedShapesDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<MappedTablesWithMismatchedShapes2Response>> ProcessMappedTablesWithMismatchedShapes2Async(
 		MappedTablesWithMismatchedShapes2Request request,

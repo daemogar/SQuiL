@@ -36,7 +36,7 @@ public class CourseEvaluationTests
 				[SQuiLQuery(QueryFiles.GetStudentParticipationAndSectionOverrides, "DataRepository")]
 				[SQuiLQuery(QueryFiles.GetSectionDetails, "Warehouse")]
 				[SQuiLQuery(QueryFiles.GetQuestionsForEvaluation, "DataRepository")]
-				public partial class CourseEvaluationDataContext(IConfiguration Configuration) : SQuiLBaseDataContext(Configuration)
+				public partial class CourseEvaluationDataContext(IConfiguration Configuration) : SqlServerDataContext(Configuration)
 				{
 				}
 				

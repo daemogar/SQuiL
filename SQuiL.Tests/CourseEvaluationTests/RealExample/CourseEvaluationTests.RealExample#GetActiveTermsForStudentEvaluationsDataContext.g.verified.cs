@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace CourseEvaluation.Application.Data;
 
-partial class CourseEvaluationDataContext : SQuiLBaseDataContext
+partial class CourseEvaluationDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<GetActiveTermsForStudentEvaluationsResponse>> ProcessGetActiveTermsForStudentEvaluationsAsync(
 		GetActiveTermsForStudentEvaluationsRequest request,

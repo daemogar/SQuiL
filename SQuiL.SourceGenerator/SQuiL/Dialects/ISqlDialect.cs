@@ -45,4 +45,7 @@ public interface ISqlDialect
 
 	/// <summary>The input-shred statement for an input block.</summary>
 	string ShredStatement(CodeBlock block);
+
+	/// <summary>The runtime provider base-class name generated data contexts inherit (e.g. <c>SqlServerDataContext</c>).</summary>
+	string RuntimeBaseType();
 }

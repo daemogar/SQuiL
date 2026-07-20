@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TwoContextsWithConflictingNamespaceDataContext : SQuiLBaseDataContext
+partial class TwoContextsWithConflictingNamespaceDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<TwoContextsWithConflictingNamespace1Response>> ProcessTwoContextsWithConflictingNamespace1Async(
 		TwoContextsWithConflictingNamespace1Request request,

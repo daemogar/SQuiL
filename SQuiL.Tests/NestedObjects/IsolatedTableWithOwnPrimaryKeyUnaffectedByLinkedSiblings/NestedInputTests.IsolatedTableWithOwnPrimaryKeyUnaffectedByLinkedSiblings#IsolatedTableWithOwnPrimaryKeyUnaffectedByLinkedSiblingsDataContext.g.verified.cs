@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class IsolatedTableWithOwnPrimaryKeyUnaffectedByLinkedSiblingsDataContext : SQuiLBaseDataContext
+partial class IsolatedTableWithOwnPrimaryKeyUnaffectedByLinkedSiblingsDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessIsolatedTableWithOwnPrimaryKeyUnaffectedByLinkedSiblingsAsync(
 		IsolatedTableWithOwnPrimaryKeyUnaffectedByLinkedSiblingsRequest request,

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class GuidNonNullDefaultCompilesDataContext : SQuiLBaseDataContext
+partial class GuidNonNullDefaultCompilesDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessGuidNonNullDefaultCompilesAsync(
 		GuidNonNullDefaultCompilesRequest request,

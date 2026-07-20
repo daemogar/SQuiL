@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TypeKeywordAsColumnNameDataContext : SQuiLBaseDataContext
+partial class TypeKeywordAsColumnNameDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<TypeKeywordAsColumnNameResponse>> ProcessTypeKeywordAsColumnNameAsync(
 		TypeKeywordAsColumnNameRequest request,

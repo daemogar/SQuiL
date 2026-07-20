@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class VarcharMaxColumnEmitsNoLengthGuardDataContext : SQuiLBaseDataContext
+partial class VarcharMaxColumnEmitsNoLengthGuardDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessVarcharMaxColumnEmitsNoLengthGuardAsync(
 		VarcharMaxColumnEmitsNoLengthGuardRequest request,

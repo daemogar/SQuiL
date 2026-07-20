@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class PrimaryCtorDataContext : SQuiLBaseDataContext
+partial class PrimaryCtorDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<PrimaryCtorResponse>> ProcessPrimaryCtorAsync(
 		PrimaryCtorRequest request,

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class MultiLineCommentInHeaderDataContext : SQuiLBaseDataContext
+partial class MultiLineCommentInHeaderDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessMultiLineCommentInHeaderAsync(
 		MultiLineCommentInHeaderRequest request,

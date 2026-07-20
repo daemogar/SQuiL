@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class PositionalEnabledFalse_NoTransactionInjectedDataContext : SQuiLBaseDataContext
+partial class PositionalEnabledFalse_NoTransactionInjectedDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<PositionalEnabledFalse_NoTransactionInjectedResponse>> ProcessPositionalEnabledFalse_NoTransactionInjectedAsync(
 		PositionalEnabledFalse_NoTransactionInjectedRequest request,

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class CustomTableVariableDataContext : SQuiLBaseDataContext
+partial class CustomTableVariableDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<CustomTableVariableResponse>> ProcessCustomTableVariableAsync(
 		CustomTableVariableRequest request,

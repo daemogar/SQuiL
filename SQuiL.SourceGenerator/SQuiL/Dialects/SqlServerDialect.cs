@@ -100,4 +100,7 @@ public class SqlServerDialect : ISqlDialect
 				? "max"
 				: p.Type.Value;
 	}
+
+	/// <summary>The SQL Server provider runtime base-class name generated data contexts inherit.</summary>
+	public string RuntimeBaseType() => "SqlServerDataContext";
 }

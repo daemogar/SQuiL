@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class EnabledTransactionWrapsReaderPathDataContext : SQuiLBaseDataContext
+partial class EnabledTransactionWrapsReaderPathDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<EnabledTransactionWrapsReaderPathResponse>> ProcessEnabledTransactionWrapsReaderPathAsync(
 		EnabledTransactionWrapsReaderPathRequest request,

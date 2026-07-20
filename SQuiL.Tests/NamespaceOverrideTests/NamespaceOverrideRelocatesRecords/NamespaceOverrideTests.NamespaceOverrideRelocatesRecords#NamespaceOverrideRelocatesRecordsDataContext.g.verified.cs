@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class NamespaceOverrideRelocatesRecordsDataContext : SQuiLBaseDataContext
+partial class NamespaceOverrideRelocatesRecordsDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<NamespaceOverrideRelocatesRecordsResponse>> ProcessNamespaceOverrideRelocatesRecordsAsync(
 		NamespaceOverrideRelocatesRecordsRequest request,

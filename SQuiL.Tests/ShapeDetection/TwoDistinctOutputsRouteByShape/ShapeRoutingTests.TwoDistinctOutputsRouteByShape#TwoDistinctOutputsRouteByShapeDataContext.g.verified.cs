@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TwoDistinctOutputsRouteByShapeDataContext : SQuiLBaseDataContext
+partial class TwoDistinctOutputsRouteByShapeDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<TwoDistinctOutputsRouteByShapeResponse>> ProcessTwoDistinctOutputsRouteByShapeAsync(
 		TwoDistinctOutputsRouteByShapeRequest request,

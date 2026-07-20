@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class LeafOwnPrimaryKeyInputNestingDataContext : SQuiLBaseDataContext
+partial class LeafOwnPrimaryKeyInputNestingDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessLeafOwnPrimaryKeyInputNestingAsync(
 		LeafOwnPrimaryKeyInputNestingRequest request,

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class NotPrefixedColumnNamesDataContext : SQuiLBaseDataContext
+partial class NotPrefixedColumnNamesDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<NotPrefixedColumnNamesResponse>> ProcessNotPrefixedColumnNamesAsync(
 		NotPrefixedColumnNamesRequest request,

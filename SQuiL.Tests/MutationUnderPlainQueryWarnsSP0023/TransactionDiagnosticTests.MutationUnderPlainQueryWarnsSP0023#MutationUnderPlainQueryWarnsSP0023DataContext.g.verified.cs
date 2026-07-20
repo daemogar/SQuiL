@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class MutationUnderPlainQueryWarnsSP0023DataContext : SQuiLBaseDataContext
+partial class MutationUnderPlainQueryWarnsSP0023DataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessMutationUnderPlainQueryWarnsSP0023Async(
 		MutationUnderPlainQueryWarnsSP0023Request request,

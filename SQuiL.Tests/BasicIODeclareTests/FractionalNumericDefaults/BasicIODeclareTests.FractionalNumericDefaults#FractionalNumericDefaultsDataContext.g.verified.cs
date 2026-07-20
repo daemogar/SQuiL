@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class FractionalNumericDefaultsDataContext : SQuiLBaseDataContext
+partial class FractionalNumericDefaultsDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessFractionalNumericDefaultsAsync(
 		FractionalNumericDefaultsRequest request,

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TransactionAttributeIsEmittedAndContextCompilesDataContext : SQuiLBaseDataContext
+partial class TransactionAttributeIsEmittedAndContextCompilesDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessTransactionAttributeIsEmittedAndContextCompilesAsync(
 		TransactionAttributeIsEmittedAndContextCompilesRequest request,

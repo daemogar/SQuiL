@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class AllColumnsDefaultedDataContext : SQuiLBaseDataContext
+partial class AllColumnsDefaultedDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<AllColumnsDefaultedResponse>> ProcessAllColumnsDefaultedAsync(
 		AllColumnsDefaultedRequest request,
