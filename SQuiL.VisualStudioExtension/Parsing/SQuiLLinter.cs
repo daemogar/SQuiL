@@ -1217,13 +1217,13 @@ internal static class SQuiLLinter
                 }
             }
             else if ((v.Role == VariableRole.Param || v.Role == VariableRole.Return)
-                     && v.NullabilityMarker is null)
+                     && !v.Nullable && v.NullabilityMarker is null)
             {
                 string csType = SqlTypeMap.SqlToCSharp(v.SqlType);
                 diagnostics.Add(new SQuiLDiagnostic
                 {
-                    Message   = $"No `null`/`not null` marker — generated C# is non-nullable `{csType} {v.Name}`. "
-                              + $"Add `not null` to confirm, or `null` to make it nullable.",
+                    Message   = $"No `= null` — generated C# is non-nullable `{csType} {v.Name}`. "
+                              + $"Add `= null` to make it nullable.",
                     Line      = v.Line,
                     StartChar = v.Character,
                     EndChar   = v.Character + v.Name.Length,
