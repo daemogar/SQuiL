@@ -5,8 +5,9 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<LangVersion>latest</LangVersion>
+		<AssemblyName>SQuiL.Core</AssemblyName>
 		<RootNamespace>SQuiL</RootNamespace>
-		<PackageId>SQuiL</PackageId>
+		<PackageId>SQuiL.Core</PackageId>
 		<Authors>Dæmogar</Authors>
 		<Description>Runtime library for SQuiL — attributes, base classes, and types used by SQuiL-generated code.</Description>
 		<PackageTags>.NET dotnet core library reusable generic server serverside SQL ORM</PackageTags>

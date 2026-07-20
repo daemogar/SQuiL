@@ -14,7 +14,7 @@
 		<File Path=".github/workflows/build.yml" />
 		<File Path=".github/workflows/publish.yml" />
 	</Folder>
-	<Project Path="SQuiL.Library/SQuiL.Library.csproj" />
+	<Project Path="SQuiL.Core/SQuiL.Core.csproj" />
 	<Project Path="SQuiL.Simple/SQuiL.Application.csproj" />
 	<Project Path="SQuiL.SourceGenerator/SQuiL.SourceGenerator.csproj" />
 	<Project Path="SQuiL.SsmsExtension/SQuiL.SsmsExtension.csproj" />

@@ -51,7 +51,7 @@
 	lib/netstandard2.0 entry below.
 	-->
 	<ItemGroup>
-		<ProjectReference Include="..\SQuiL.Library\SQuiL.Library.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+		<ProjectReference Include="..\SQuiL.Core\SQuiL.Core.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -63,6 +63,6 @@
 		<None Remove="bin\Debug\netstandard2.0\\SQuiL.SourceGenerator.pdb" />
 		<None Include="$(OutputPath)\$(AssemblyName).pdb" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 		<!-- Pack the library DLL into lib/ so a single NuGet provides both generator and runtime types -->
-		<None Include="..\SQuiL.Library\bin\$(Configuration)\netstandard2.0\SQuiL.Library.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
+		<None Include="..\SQuiL.Core\bin\$(Configuration)\netstandard2.0\SQuiL.Core.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
 	</ItemGroup>
 </Project>
