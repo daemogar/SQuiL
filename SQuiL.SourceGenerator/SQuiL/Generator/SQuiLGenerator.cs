@@ -515,9 +515,11 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			// Reads the optional [SQuiLDialect(...)] attribute on the same class, resolving
 			// its constructor argument as a compile-time constant (so an enum member reference
 			// like `SQuiLDialect.SqlServer` is evaluated correctly regardless of how it's
-			// written), then resolves the dialect: explicit choice wins, otherwise the single
-			// referenced provider, otherwise SQL Server. [SQuiLDialect] itself is not emitted by
-			// this generator — it ships in the SQuiL.Core runtime package.
+			// written). Returns the explicit dialect value, or null when the attribute is
+			// absent — in which case DialectRegistry.Resolve defaults to SQL Server (Phase 3A
+			// ships only the SqlServer provider; single-referenced-provider inference is a
+			// Phase 3B addition). [SQuiLDialect] itself is not emitted by this generator — it
+			// ships in the SQuiL.Core runtime package.
 			int? GetExplicitDialect(ClassDeclarationSyntax classSyntax)
 			{
 				var semanticModel = compilation.GetSemanticModel(classSyntax.SyntaxTree);
