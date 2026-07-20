@@ -27,8 +27,16 @@ jobs:
     - name: Restore Dependencies
       run: dotnet restore
       
-    - name: Build Generator
-      run: dotnet build --no-restore -c Release "./SQuiL.SourceGenerator/SQuiL.SourceGenerator.csproj"
+    # Build only the packable projects here (NOT the whole SQuiL.slnx — that
+    # solution also carries the SSMS/Visual Studio VSIX extensions, which are
+    # net472 VSSDK projects that `dotnet build` cannot build on this
+    # ubuntu-latest runner). SQuiL.Core references SQuiL.SourceGenerator
+    # (ReferenceOutputAssembly=false) purely for build ordering, so building
+    # Core also builds the generator DLL it packs.
+    - name: Build Packable Projects
+      run: |
+        dotnet build --no-restore -c Release "./SQuiL.Core/SQuiL.Core.csproj"
+        dotnet build --no-restore -c Release "./SQuiL.SqlServer/SQuiL.SqlServer.csproj"
 
     - name: Build Tests
       run: dotnet build --no-restore "./SQuiL.Tests/SQuiL.Tests.csproj"
