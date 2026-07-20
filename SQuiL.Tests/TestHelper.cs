@@ -64,7 +64,7 @@ public static class TestHelper
 		bool compileCheck = true,
 		[CallerMemberName] string name = default!,
 		[CallerFilePath] string path = default!)
-		=> VerifyCore(sources, files, includeProvider: true, compileCheck, name, path);
+		=> VerifyCore(sources, files, includeProvider: true, includeSqlClient: true, compileCheck, name, path);
 
 	/// <summary>
 	/// Identical to <see cref="Verify"/> EXCEPT the compilation does NOT reference
@@ -73,18 +73,26 @@ public static class TestHelper
 	/// Always pass <c>compileCheck: false</c> — the generated output is intentionally incomplete
 	/// (the constructor/base-class file is skipped) and won't compile.
 	/// </summary>
+	/// <param name="includeSqlClient">
+	/// Pass <c>false</c> to ALSO drop <c>Microsoft.Data.SqlClient</c> from the compilation — the
+	/// "Core-only" consumer scenario (references SQuiL.Core but neither SqlClient nor the provider
+	/// package). Used to prove SP0038 wins over SP0007 when both are absent. Defaults to
+	/// <c>true</c> (SqlClient present, only the provider assembly missing).
+	/// </param>
 	public static Task VerifyWithoutProvider(
 		IEnumerable<string> sources,
 		IEnumerable<string> files,
 		bool compileCheck = false,
+		bool includeSqlClient = true,
 		[CallerMemberName] string name = default!,
 		[CallerFilePath] string path = default!)
-		=> VerifyCore(sources, files, includeProvider: false, compileCheck, name, path);
+		=> VerifyCore(sources, files, includeProvider: false, includeSqlClient, compileCheck, name, path);
 
 	static Task VerifyCore(
 		IEnumerable<string> sources,
 		IEnumerable<string> files,
 		bool includeProvider,
+		bool includeSqlClient,
 		bool compileCheck,
 		string name,
 		string path)
@@ -92,10 +100,12 @@ public static class TestHelper
 		var syntaxTrees = sources.Select(p => CSharpSyntaxTree.ParseText(p));
 
 		List<MetadataReference> metareferences = [
-			MetadataReference.CreateFromFile(typeof(SqlConnection).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(IServiceCollection).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(IConfiguration).Assembly.Location)
 		];
+
+		if (includeSqlClient)
+			metareferences.Add(MetadataReference.CreateFromFile(typeof(SqlConnection).Assembly.Location));
 
 		if (includeProvider)
 			metareferences.Add(MetadataReference.CreateFromFile(typeof(SqlServerDataContext).Assembly.Location));

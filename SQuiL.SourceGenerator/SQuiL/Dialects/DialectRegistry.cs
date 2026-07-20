@@ -41,8 +41,10 @@ public static class DialectRegistry
 		=> compilation.GetTypeByMetadataName(ProviderMetadataName(dialect)) is not null;
 
 	/// <summary>
-	/// Resolves the dialect for a data-context class: an explicit choice wins; otherwise the single
-	/// referenced provider; otherwise SQL Server (dialect 0). Returns the generator-side dialect object.
+	/// Resolves the dialect for a data-context class: an explicit choice wins; otherwise SQL Server
+	/// (dialect 0) is the default. Returns the generator-side dialect object. Phase 3A ships only the
+	/// SqlServer provider, so there is no "single referenced provider" inference yet — that scan is
+	/// deferred to Phase 3B, when a second provider (e.g. Sqlite) is registered.
 	/// </summary>
 	public static ISqlDialect Resolve(int? explicitDialect, Compilation compilation)
 	{

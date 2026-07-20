@@ -332,7 +332,16 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			context.ReportNoMicrosoftExtensionsConfigurationDll();
 
 		var missingDataClient = !dependencies.Any(p => p?.DataSqlClient == true);
-		if (missingDataClient)
+
+		// SP0038 subsumes SP0007 when the resolved dialect's provider package isn't referenced:
+		// telling the consumer to add SQuiL.SqlServer is correct and sufficient (SqlClient ships
+		// transitively with it), so don't ALSO surface the less-actionable "add
+		// Microsoft.Data.SqlClient" message in that case — a Core-only consumer (neither SqlClient
+		// nor the provider referenced) would otherwise see both, with SP0007 not actually fixing
+		// their build. Phase 3A ships a single provider (SqlServer), so "is the provider referenced"
+		// is dialect-invariant across every context in this compilation; revisit this hoist if
+		// Phase 3B's multi-provider registry ever makes it vary per class.
+		if (missingDataClient && SQuiL.Dialects.DialectRegistry.IsProviderReferenced(0, compilation))
 			context.ReportNoMicrosoftDataSqlClientDll();
 
 		GenerateQueryFilesEnum(context, files);
@@ -539,20 +548,23 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			var dialectId = explicitDialect ?? 0;
 			var dialect = SQuiL.Dialects.DialectRegistry.Resolve(explicitDialect, compilation);
 
-			if (missingDataClient)
-				continue;
-
-			contexts.Add($"{@namespace}.{classname}");
-
 			// SP0038: the context resolved to a dialect (e.g. SqlServer) whose provider runtime
 			// base type isn't referenced by the compilation — the consumer referenced SQuiL.Core
-			// but not the matching provider package. Report the friendly diagnostic and skip ALL
-			// of this context's generated files (constructor AND the per-query data-context file,
-			// which independently re-declares the same `: {RuntimeBaseType()}` base class) so the
-			// consumer sees only SP0038, not a "type not found" cascade from the unresolved type.
+			// but not the matching provider package. This check MUST run (and win) BEFORE the
+			// missingDataClient/SP0007 guard below: a consumer who references Core but not the
+			// provider package has NO Microsoft.Data.SqlClient in the compilation either (SQuiL.Core
+			// has no dependency on it), so missingDataClient would otherwise also be true and the
+			// SP0007 continue below would mask SP0038 behind the less-actionable "add
+			// Microsoft.Data.SqlClient" message. Telling them to add the provider package is the
+			// correct, sufficient fix — SqlClient ships transitively with SQuiL.SqlServer. Report the
+			// friendly diagnostic and skip ALL of this context's generated files (constructor AND the
+			// per-query data-context file, which independently re-declares the same
+			// `: {RuntimeBaseType()}` base class) so the consumer sees only SP0038, not a
+			// "type not found" cascade from the unresolved type.
 			var providerReferenced = SQuiL.Dialects.DialectRegistry.IsProviderReferenced(dialectId, compilation);
 			if (!providerReferenced)
 			{
+				contexts.Add($"{@namespace}.{classname}");
 				context.ReportMissingProvider(
 					classname,
 					SQuiL.Dialects.DialectRegistry.DialectName(dialectId),
@@ -560,6 +572,11 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					definition.Class.GetLocation());
 				continue;
 			}
+
+			if (missingDataClient)
+				continue;
+
+			contexts.Add($"{@namespace}.{classname}");
 
 			var symbol = compilation
 				.GetSemanticModel(definition.Class.SyntaxTree)

@@ -4,7 +4,9 @@ using System;
 
 /// <summary>
 /// Optional. Declares which <see cref="SQuiLDialect"/> a data-context class targets.
-/// When absent, the generator uses the single referenced provider, or SQL Server by default.
+/// When present, the generator uses the declared dialect; when absent, it defaults to SQL Server.
+/// (Phase 3A ships only the SqlServer provider — inferring a dialect from the single referenced
+/// provider package is deferred to a later multi-provider phase.)
 /// </summary>
 /// <param name="Dialect">The dialect this data context targets.</param>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
