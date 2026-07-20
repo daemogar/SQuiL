@@ -20,7 +20,7 @@ jobs:
       uses: actions/checkout@v7.0.0
       
     - name: Setup .NET 10
-      uses: actions/setup-dotnet@v5.4.0
+      uses: actions/setup-dotnet@v6.0.0
       with:
         dotnet-version: 10.0.x
         
@@ -44,7 +44,7 @@ jobs:
     # `vsce package` runs vscode:prepublish (sync-shared + tsc), so this single
     # step covers both compilation and packaging.
     - name: Setup Node
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: 24.x
 
