@@ -33,7 +33,6 @@
 	also be added to SQuiL.SourceGenerator.csproj to flow through to consumers.
 	-->
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Data.SqlClient" />
 		<PackageReference Include="Microsoft.Extensions.Configuration" />
 		<PackageReference Include="System.Text.Json" />
 	</ItemGroup>
