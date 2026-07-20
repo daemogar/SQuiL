@@ -99,6 +99,16 @@ test('hint message format is exact', () => {
   assert.strictEqual(hints.length, 1);
   assert.strictEqual(
     hints[0].message,
-    'No `null`/`not null` marker — generated C# is non-nullable `string Name`. Add `not null` to confirm, or `null` to make it nullable.',
+    'No `= null` — generated C# is non-nullable `string Name`. Add `= null` to make it nullable.',
   );
+});
+
+test('no hint for scalar made nullable via = null initializer', () => {
+  const hints = collectHints([
+    'Declare @Param_Name varchar(100) = null;',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n'));
+
+  assert.strictEqual(hints.length, 0);
 });

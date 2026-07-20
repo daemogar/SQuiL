@@ -184,8 +184,9 @@ public class SQuiLParser(List<Token> Tokens)
 					var type = Expect(TokenType.TYPE);
 
 					bool? nullableMarker = null;
-					if (Current.Type == TokenType.LITERAL_NULL) { nullableMarker = true; Consume(); }
-					else if (Current.Type == TokenType.LITERAL_NOT_NULL) { nullableMarker = false; Consume(); }
+					bool hasScalarMarker = false;
+					if (Current.Type == TokenType.LITERAL_NULL) { nullableMarker = true; hasScalarMarker = true; Consume(); }
+					else if (Current.Type == TokenType.LITERAL_NOT_NULL) { nullableMarker = false; hasScalarMarker = true; Consume(); }
 
 					if (Current.Type != TokenType.SYMBOL_EQUAL)
 					{
@@ -198,7 +199,8 @@ public class SQuiLParser(List<Token> Tokens)
 						{
 							Size = type.Value,
 							IsSpecialDeclaration = variable.IsSpecialDeclaration,
-							IsNullableMarker = nullableMarker
+							IsNullableMarker = nullableMarker,
+							HasScalarNullabilityMarker = hasScalarMarker
 						});
 
 						return;
@@ -206,10 +208,11 @@ public class SQuiLParser(List<Token> Tokens)
 
 					Consume();
 
+					var initializerIsNull = Current.Type == TokenType.LITERAL_NULL;
+
 					string? defaultValue = Current.Type switch
 					{
-						TokenType.LITERAL_NULL => default,
-						TokenType.LITERAL_NOT_NULL => default,
+						TokenType.LITERAL_NULL => default,          // = null → nullable, no C# default
 						TokenType.LITERAL_STRING => Current.Value,
 						TokenType.LITERAL_NUMBER => Current.Value,
 						TokenType.TYPE_FUNCTIONS => Current.Value switch
@@ -229,7 +232,8 @@ public class SQuiLParser(List<Token> Tokens)
 					{
 						Size = type.Value,
 						IsSpecialDeclaration = variable.IsSpecialDeclaration,
-						IsNullableMarker = nullableMarker
+						IsNullableMarker = initializerIsNull ? true : nullableMarker,
+						HasScalarNullabilityMarker = hasScalarMarker
 					});
 				}
 

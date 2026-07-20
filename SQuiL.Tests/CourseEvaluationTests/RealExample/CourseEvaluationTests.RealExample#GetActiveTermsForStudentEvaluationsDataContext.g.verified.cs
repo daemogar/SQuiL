@@ -28,7 +28,8 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		
 		List<DbParameter> parameters = new()
 		{
-			CreateParameter("@Param_AsOfDate", System.Data.SqlDbType.Date, request.AsOfDate)
+			CreateParameter("@Param_AsOfDate", System.Data.SqlDbType.Date, request.AsOfDate ?? (object)System.DBNull.Value
+			, p => p.IsNullable = true)
 		};
 		
 		command.CommandText = Query(parameters);
@@ -78,7 +79,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
 		}
 		
-		if (!isTerms) errors.Add(new(51001, 12, 1, 80, "Terms", "Expected return table `Terms`"));
+		if (!isTerms) errors.Add(new(51001, 12, 1, 81, "Terms", "Expected return table `Terms`"));
 		
 		if(errors.Count == 0)
 			return new(response);

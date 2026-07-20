@@ -52,6 +52,11 @@ export interface SQuiLVariable {
   nullable?: boolean;
   /** Explicit nullability keyword from the scalar declaration, if present. */
   nullabilityMarker?: 'NULL' | 'NOT NULL';
+  /** 0-based source character of the nullability marker keyword itself (same line as `line`),
+   *  when `nullabilityMarker` is set — lets SP0037 squiggle the exact keyword. */
+  nullabilityMarkerCharacter?: number;
+  /** Length of the marker keyword text as written ("NULL" or "NOT NULL"), for the squiggle range. */
+  nullabilityMarkerLength?: number;
   line: number;
   character: number;
 }
@@ -197,6 +202,11 @@ export function parseSQuiL(text: string): SQuiLParseResult {
 
   // SP0032: timestamp/rowversion is server-generated and read-only; forbidden as an input.
   for (const d of lintTimestampInput(result)) {
+    result.diagnostics.push(d);
+  }
+
+  // SP0037: a standalone null/not null marker on a scalar Declare is invalid T-SQL.
+  for (const d of lintScalarNullMarker(result)) {
     result.diagnostics.push(d);
   }
 
@@ -494,6 +504,36 @@ export function lintTimestampInput(result: SQuiLParseResult): SQuiLDiagnostic[] 
   return diagnostics;
 }
 
+/** SP0037 — a standalone `null`/`not null` marker on a scalar Declare is invalid T-SQL
+ *  (Declare doesn't support nullability modifiers). Use an `= null` initializer to make
+ *  the scalar nullable instead — table/object column markers are unaffected (out of scope).
+ *  Same rule as SQuiLScalarMarkerValidator.cs (generator) and LintScalarNullMarker in
+ *  SQuiLLinter.cs (SSMS + Visual Studio) — change one, change all.
+ */
+export function lintScalarNullMarker(result: SQuiLParseResult): SQuiLDiagnostic[] {
+  const diagnostics: SQuiLDiagnostic[] = [];
+
+  for (const v of result.variables) {
+    if (!v.nullabilityMarker) continue;
+
+    const startChar = v.nullabilityMarkerCharacter ?? v.character;
+    const length = v.nullabilityMarkerLength ?? v.rawName.length;
+
+    diagnostics.push({
+      message:
+        `\`${v.rawName}\` has a \`null\`/\`not null\` marker, which is invalid T-SQL on a scalar Declare. ` +
+        `Use \`= null\` to make it nullable, or remove the marker for non-nullable.`,
+      line: v.line,
+      startChar,
+      endChar: startChar + length,
+      severity: 'error',
+      code: 'SP0037',
+    });
+  }
+
+  return diagnostics;
+}
+
 /** SP0030 — within a single file, detect OUTPUT table variables (returns / return-table)
  *  that have DISTINCT names but IDENTICAL canonical shape keys (same column names, order,
  *  and C# types — length/precision does NOT differentiate).  When two or more outputs
@@ -636,10 +676,29 @@ function parseVariable(
     }
   }
 
-  const scalarNull = !isTable && /\bnull\b/i.test(typeStr) && !/\bnot\s+null\b/i.test(typeStr);
-  const scalarNotNull = !isTable && /\bnot\s+null\b/i.test(typeStr);
+  const eqIndex = typeStr.search(/=\s*/);
+  const typeOnly = eqIndex >= 0 ? typeStr.slice(0, eqIndex) : typeStr;
+  const initializer = eqIndex >= 0 ? typeStr.slice(eqIndex).replace(/^=\s*/, '') : '';
+
+  const nullFromInitializer = !isTable && /^null\b/i.test(initializer);
+  const scalarNull = !isTable && /\bnull\b/i.test(typeOnly) && !/\bnot\s+null\b/i.test(typeOnly);
+  const scalarNotNull = !isTable && /\bnot\s+null\b/i.test(typeOnly);
   const scalarMarker: 'NULL' | 'NOT NULL' | undefined = isTable ? undefined :
     (scalarNull ? 'NULL' : scalarNotNull ? 'NOT NULL' : undefined);
+
+  // Locate the marker keyword itself (for SP0037's squiggle range) by searching the raw
+  // line starting just after the variable name — scalar DECLAREs are always single-line.
+  let nullabilityMarkerCharacter: number | undefined;
+  let nullabilityMarkerLength: number | undefined;
+  if (scalarMarker) {
+    const searchFrom = varStart >= 0 ? varStart + rawName.length : 0;
+    const markerRegex = scalarMarker === 'NOT NULL' ? /\bnot\s+null\b/i : /\bnull\b/i;
+    const match = fullLine.slice(searchFrom).match(markerRegex);
+    if (match && match.index !== undefined) {
+      nullabilityMarkerCharacter = searchFrom + match.index;
+      nullabilityMarkerLength = match[0].length;
+    }
+  }
 
   result.variables.push({
     role,
@@ -647,8 +706,10 @@ function parseVariable(
     name,
     sqlType: isTable ? 'TABLE' : typeStr.replace(/;$/, '').trim(),
     columns,
-    nullable: scalarMarker === 'NULL',
-    nullabilityMarker: scalarMarker,
+    nullable: nullFromInitializer || scalarMarker === 'NULL',
+    nullabilityMarker: scalarMarker,   // SP0037 flags any standalone marker as invalid T-SQL
+    nullabilityMarkerCharacter,
+    nullabilityMarkerLength,
     line: lineNum,
     character: varStart >= 0 ? varStart : 0,
   });

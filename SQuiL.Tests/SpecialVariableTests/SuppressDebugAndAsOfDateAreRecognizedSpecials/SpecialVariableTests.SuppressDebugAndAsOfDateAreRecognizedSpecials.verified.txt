@@ -1,78 +1,78 @@
 ﻿{
   Diagnostics: [
     {
-      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = {scrubbed}, Value = , Original = @Debug bit }, Name = Debug, DefaultValue = 1, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = {scrubbed}, Value = , Original = @Debug bit }, Name = Debug, DefaultValue = 1, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = {scrubbed}, Value = , Original = @Debug bit }, Name = Debug, DefaultValue = 1, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
+        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = {scrubbed}, Value = , Original = @Debug bit }, Name = Debug, DefaultValue = 1, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
     },
     {
-      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = {scrubbed}, Value = , Original = @SuppressDebug bit }, Name = SuppressDebug, DefaultValue = 0, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = {scrubbed}, Value = , Original = @SuppressDebug bit }, Name = SuppressDebug, DefaultValue = 0, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = {scrubbed}, Value = , Original = @SuppressDebug bit }, Name = SuppressDebug, DefaultValue = 0, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
+        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_BOOLEAN, Offset = {scrubbed}, Value = , Original = @SuppressDebug bit }, Name = SuppressDebug, DefaultValue = 0, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
     },
     {
-      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATE, Offset = {scrubbed}, Value = , Original = @AsOfDate date }, Name = AsOfDate, DefaultValue = 2008-10-01, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
+      Message: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATE, Offset = {scrubbed}, Value = , Original = @AsOfDate date }, Name = AsOfDate, DefaultValue = 2008-10-01, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATE, Offset = {scrubbed}, Value = , Original = @AsOfDate date }, Name = AsOfDate, DefaultValue = 2008-10-01, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
+        MessageFormat: CodeBlock { CodeType = INPUT_ARGUMENT, DatabaseType = Token { Type = TYPE_DATE, Offset = {scrubbed}, Value = , Original = @AsOfDate date }, Name = AsOfDate, DefaultValue = 2008-10-01, IsObject = False, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = True, Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
     },
     {
-      Message: CodeBlock { CodeType = OUTPUT_VARIABLE, DatabaseType = Token { Type = TYPE_INT, Offset = {scrubbed}, Value = Count, Original = @Return_Count int }, Name = Count, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
+      Message: CodeBlock { CodeType = OUTPUT_VARIABLE, DatabaseType = Token { Type = TYPE_INT, Offset = {scrubbed}, Value = Count, Original = @Return_Count int }, Name = Count, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = OUTPUT_VARIABLE, DatabaseType = Token { Type = TYPE_INT, Offset = {scrubbed}, Value = Count, Original = @Return_Count int }, Name = Count, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
+        MessageFormat: CodeBlock { CodeType = OUTPUT_VARIABLE, DatabaseType = Token { Type = TYPE_INT, Offset = {scrubbed}, Value = Count, Original = @Return_Count int }, Name = Count, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
     },
     {
-      Message: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = {scrubbed}, Value = MyDatabase, Original = MyDatabase }, Name = MyDatabase, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
+      Message: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = {scrubbed}, Value = MyDatabase, Original = MyDatabase }, Name = MyDatabase, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = {scrubbed}, Value = MyDatabase, Original = MyDatabase }, Name = MyDatabase, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
+        MessageFormat: CodeBlock { CodeType = USING, DatabaseType = Token { Type = IDENTIFIER, Offset = {scrubbed}, Value = MyDatabase, Original = MyDatabase }, Name = MyDatabase, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
     },
     {
-      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = {scrubbed}, Value = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count;, Original = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count; }, Name = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count;, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
+      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = {scrubbed}, Value = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count;, Original = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count; }, Name = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count;, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
       Severity: Warning,
       WarningLevel: 1,
       Descriptor: {
         Id: SP0000,
         Title: Development Data,
-        MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = {scrubbed}, Value = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count;, Original = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count; }, Name = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count;, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
+        MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = {scrubbed}, Value = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count;, Original = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count; }, Name = Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate); Select @Return_Count;, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
         Category: Logger,
         DefaultSeverity: Warning,
         IsEnabledByDefault: true

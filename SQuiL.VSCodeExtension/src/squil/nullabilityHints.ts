@@ -48,13 +48,13 @@ export function nullabilityHints(parsed: SQuiLParseResult): NullabilityHint[] {
           });
         }
       }
-    } else if (SCALAR_HINT_ROLES.has(v.role) && v.nullabilityMarker === undefined) {
+    } else if (SCALAR_HINT_ROLES.has(v.role) && !v.nullable && v.nullabilityMarker === undefined) {
       const csType = sqlToCSharp(v.sqlType);
       hints.push({
         code: 'SP0010',
         message:
-          `No \`null\`/\`not null\` marker — generated C# is non-nullable \`${csType} ${v.name}\`. ` +
-          `Add \`not null\` to confirm, or \`null\` to make it nullable.`,
+          `No \`= null\` — generated C# is non-nullable \`${csType} ${v.name}\`. ` +
+          `Add \`= null\` to make it nullable.`,
         line: v.line,
         character: v.character,
         length: v.name.length,

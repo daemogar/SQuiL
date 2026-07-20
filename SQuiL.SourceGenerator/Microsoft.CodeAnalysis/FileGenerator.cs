@@ -87,6 +87,10 @@ public class FileGenerator(
 			foreach (var finding in SQuiLTimestampInputValidator.Detect(blocks, sql))
 				Context.ReportTimestampInput(method, finding);
 
+			// Scalar standalone null/not null marker validation (SP0037)
+			foreach (var finding in SQuiLScalarMarkerValidator.Detect(blocks, sql))
+				Context.ReportScalarNullabilityMarker(method, finding);
+
 			if (ShowDebugMessages)
 			{
 				foreach (var code in blocks)

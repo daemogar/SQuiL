@@ -64,6 +64,12 @@ public sealed class SQuiLVariable
     public bool Nullable { get; set; } = false;
     /// <summary>"NULL", "NOT NULL", or null when unspecified.  Always null for TABLE variables (nullability is per-column).</summary>
     public string? NullabilityMarker { get; set; }
+    /// <summary>0-based source character of the nullability marker keyword itself (same line as
+    /// <see cref="Line"/>), when <see cref="NullabilityMarker"/> is set — lets SP0037 squiggle the
+    /// exact keyword.</summary>
+    public int? NullabilityMarkerCharacter { get; set; }
+    /// <summary>Length of the marker keyword text as written ("NULL" or "NOT NULL"), for the squiggle range.</summary>
+    public int? NullabilityMarkerLength { get; set; }
     public int Line { get; set; }
     public int Character { get; set; }
 }
@@ -323,14 +329,37 @@ public static class SQuiLParser
             }
         }
 
-        // Scalar nullability marker — derived from the type string.
+        // Scalar nullability — derived from the `= null` initializer, with the
+        // standalone marker still read (for now) from the type-only portion.
         // Table variables have per-column nullability; guard with isTable.
+        int eqIndex = typeStr.IndexOf('=');
+        string typeOnly = eqIndex >= 0 ? typeStr.Substring(0, eqIndex) : typeStr;
+        string initializer = eqIndex >= 0 ? typeStr.Substring(eqIndex + 1).Trim() : "";
+
+        bool nullFromInitializer = !isTable && Regex.IsMatch(initializer, @"^null\b", RegexOptions.IgnoreCase);
         bool isNull    = !isTable
-                      && Regex.IsMatch(typeStr, @"\bnull\b",     RegexOptions.IgnoreCase)
-                      && !Regex.IsMatch(typeStr, @"\bnot\s+null\b", RegexOptions.IgnoreCase);
+                      && Regex.IsMatch(typeOnly, @"\bnull\b",     RegexOptions.IgnoreCase)
+                      && !Regex.IsMatch(typeOnly, @"\bnot\s+null\b", RegexOptions.IgnoreCase);
         bool isNotNull = !isTable
-                      && Regex.IsMatch(typeStr, @"\bnot\s+null\b", RegexOptions.IgnoreCase);
+                      && Regex.IsMatch(typeOnly, @"\bnot\s+null\b", RegexOptions.IgnoreCase);
         string? scalarMarker = isTable ? null : isNull ? "NULL" : isNotNull ? "NOT NULL" : null;
+
+        // Locate the marker keyword itself (for SP0037's squiggle range) by searching the raw
+        // line starting just after the variable name — scalar DECLAREs are always single-line.
+        int? nullabilityMarkerCharacter = null;
+        int? nullabilityMarkerLength = null;
+        if (scalarMarker is not null)
+        {
+            int searchFrom = varStart >= 0 ? varStart + rawName.Length : 0;
+            string rest = fullLine.Substring(Math.Min(searchFrom, fullLine.Length));
+            var markerPattern = scalarMarker == "NOT NULL" ? @"\bnot\s+null\b" : @"\bnull\b";
+            var match = Regex.Match(rest, markerPattern, RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                nullabilityMarkerCharacter = searchFrom + match.Index;
+                nullabilityMarkerLength = match.Length;
+            }
+        }
 
         result.Variables.Add(new SQuiLVariable
         {
@@ -339,8 +368,10 @@ public static class SQuiLParser
             Name              = name,
             SqlType           = isTable ? "TABLE" : typeStr.TrimEnd(';').Trim(),
             Columns           = columns,
-            Nullable          = scalarMarker == "NULL",
+            Nullable          = nullFromInitializer || scalarMarker == "NULL",
             NullabilityMarker = scalarMarker,
+            NullabilityMarkerCharacter = nullabilityMarkerCharacter,
+            NullabilityMarkerLength    = nullabilityMarkerLength,
             Line              = lineNum,
             Character         = Math.Max(0, varStart),
         });

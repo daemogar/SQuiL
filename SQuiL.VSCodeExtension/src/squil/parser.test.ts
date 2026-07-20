@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
-import { parseSQuiL, lintCardinalityCollision, lintShapeCollision, lintUnmatchedSelect, lintTimestampInput } from './parser';
+import { parseSQuiL, lintCardinalityCollision, lintShapeCollision, lintUnmatchedSelect, lintTimestampInput, lintScalarNullMarker } from './parser';
 import { shapeHints } from './shapeHints';
 
 // Recognition parity with the generator's SQuiLParser: bare @SuppressDebug and
@@ -39,7 +39,7 @@ test('column nullable only with explicit NULL; scalar marker captured', () => {
   const r = parseSQuiL([
     'Declare @Params_X table(A int, B varchar(50) null, C varchar(50) not null);',
     'Declare @Param_S int;',
-    'Declare @Param_SN int null;',
+    'Declare @Param_SN int = null;',
     'Use Db;', 'Select 1;',
   ].join('\n'));
   const x = r.variables.find(v => v.name === 'X')!;
@@ -47,7 +47,20 @@ test('column nullable only with explicit NULL; scalar marker captured', () => {
   assert.deepStrictEqual(x.columns!.map(c => c.nullabilityMarker), [undefined, 'NULL', 'NOT NULL']);
   assert.strictEqual(x.nullabilityMarker, undefined, 'table var must not inherit nullabilityMarker from column text');
   assert.strictEqual(r.variables.find(v => v.name === 'S')!.nullabilityMarker, undefined);
-  assert.strictEqual(r.variables.find(v => v.name === 'SN')!.nullabilityMarker, 'NULL');
+  assert.strictEqual(r.variables.find(v => v.name === 'S')!.nullable, false);
+  assert.strictEqual(r.variables.find(v => v.name === 'SN')!.nullable, true, '= null initializer drives scalar nullability');
+});
+
+// Task (scalar-nullability-null-initializer): `= null` initializer — not a
+// standalone marker — is what drives scalar nullability now.
+test('scalar = null initializer is nullable', () => {
+  const vars = parseSQuiL('Declare @Param_X int = null;\nUse Db;\nSelect 1;').variables;
+  const x = vars.find(v => v.name === 'X')!;
+  assert.strictEqual(x.nullable, true);
+});
+test('bare scalar is non-nullable', () => {
+  const vars = parseSQuiL('Declare @Param_X int;\nUse Db;\nSelect 1;').variables;
+  assert.strictEqual(vars.find(v => v.name === 'X')!.nullable, false);
 });
 
 // Task 8: PRIMARY KEY column constraint parity with the generator — parsed
@@ -335,6 +348,62 @@ test('SP0032 (input table column) — squiggle range is multi-line-precise (colu
   assert.strictEqual(d!.line, verLine, 'diagnostic line should be the column\'s own line, not the declare line');
   assert.strictEqual(d!.startChar, expectedStart, 'startChar should point at the column name on its own line');
   assert.strictEqual(d!.endChar, expectedStart + 'Ver'.length, 'endChar should cover only the column name');
+});
+
+// SP0037: a standalone null/not null marker on a scalar Declare is invalid T-SQL.
+test('SP0037 fires on a standalone null marker', () => {
+  const diags = lintScalarNullMarker(parseSQuiL([
+    'Declare @Param_X int null;',
+    'Declare @Return_Count int;',
+    'Use MyDb;',
+    'Select @Return_Count = 1;',
+  ].join('\n')));
+  const d = diags.find(x => x.code === 'SP0037');
+  assert.ok(d, 'standalone null marker flagged');
+  assert.strictEqual(d!.severity, 'error');
+});
+
+test('SP0037 fires on a standalone not null marker', () => {
+  const diags = lintScalarNullMarker(parseSQuiL([
+    'Declare @Param_X int not null;',
+    'Declare @Return_Count int;',
+    'Use MyDb;',
+    'Select @Return_Count = 1;',
+  ].join('\n')));
+  const d = diags.find(x => x.code === 'SP0037');
+  assert.ok(d, 'standalone not null marker flagged');
+  assert.strictEqual(d!.severity, 'error');
+});
+
+test('SP0037 stays silent on an = null initializer', () => {
+  const diags = lintScalarNullMarker(parseSQuiL([
+    'Declare @Param_X int = null;',
+    'Declare @Return_Count int;',
+    'Use MyDb;',
+    'Select @Return_Count = 1;',
+  ].join('\n')));
+  assert.strictEqual(diags.filter(d => d.code === 'SP0037').length, 0);
+});
+
+test('SP0037 squiggle range covers only the marker keyword', () => {
+  const line = 'Declare @Param_X int not null;';
+  const text = [line, 'Use Db;', 'Select 1;'].join('\n');
+  const diags = lintScalarNullMarker(parseSQuiL(text));
+  const d = diags.find(x => x.code === 'SP0037');
+  assert.ok(d, 'not null marker flagged');
+  const expectedStart = line.indexOf('not null');
+  assert.strictEqual(d!.line, 0);
+  assert.strictEqual(d!.startChar, expectedStart, 'startChar should point at the marker keyword, not the variable');
+  assert.strictEqual(d!.endChar, expectedStart + 'not null'.length, 'endChar should cover only the marker keyword');
+});
+
+test('SP0037 does not fire on table-column null/not null markers', () => {
+  const diags = lintScalarNullMarker(parseSQuiL([
+    'Declare @Params_Rows table(RowID int, Name varchar(50) null);',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n')));
+  assert.strictEqual(diags.filter(d => d.code === 'SP0037').length, 0);
 });
 
 // ── SP0033 / SP0034: nested-object key-graph errors (editor squiggle parity

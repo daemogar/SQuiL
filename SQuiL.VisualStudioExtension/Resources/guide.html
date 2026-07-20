@@ -185,6 +185,7 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
     <li><a href="#file-structure">File Structure</a></li>
     <li><a href="#naming-conventions">Variable Naming Conventions</a></li>
     <li><a href="#variable-rules">Variable Rules</a></li>
+    <li><a href="#nullability">Nullability</a></li>
     <li><a href="#type-reference">SQL Type → C# Type Reference</a></li>
     <li><a href="#result-sets">Result Sets — Authoring Styles</a></li>
     <li><a href="#examples">Examples</a></li>
@@ -330,6 +331,44 @@ editor and at build time:</p>
 
 <p>Variables declared in the body (after <code>Use</code>) are ordinary T-SQL locals — they need no
 SQuiL prefix, but they still must be declared before they are referenced.</p>
+
+<!-- ──────────────────── Nullability ──────────────────────────────────── -->
+<h2 id="nullability">Nullability</h2>
+<p>A scalar or table column is <strong>non-nullable by default</strong>. Scalars and table columns opt into
+nullable using different syntax — only one of the two is valid T-SQL for a scalar:</p>
+
+<ul>
+  <li><strong>Scalars opt in with an <code>= null</code> initializer.</strong> <code class="par">@Param_X</code>&nbsp;<code class="tp">int</code>&nbsp;<code>= null;</code>
+    declares a nullable <code>int?</code>. A bare <code class="par">@Param_X</code>&nbsp;<code class="tp">int</code>;
+    (no initializer) is non-nullable and required; <code class="par">@Param_X</code>&nbsp;<code class="tp">int</code>&nbsp;<code>= 5;</code>
+    is non-nullable with a default. A scalar cannot be both nullable and carry a non-null default. Putting a
+    <code>null</code>/<code>not null</code> marker on a scalar <code>Declare</code> is invalid T-SQL and fails the
+    build with diagnostic <code>SP0037</code> (squiggled as an error in all three editors) — use <code>= null</code>
+    instead, or remove the marker.</li>
+  <li><strong>Table columns opt in with a <code>null</code>/<code>not null</code> marker</strong> — unchanged, and
+    valid T-SQL inside a <code>table(...)</code> column list: <code>table(Col int null)</code> /
+    <code>table(Col int not null)</code>. An explicit <code>null</code> marker wins even alongside a default value.</li>
+  <li>Reference types (<code>string</code>, <code>byte[]</code>) are <strong>never</strong> auto-<code>?</code> — they
+    need the same opt-in as any other type.</li>
+</ul>
+
+<table>
+  <tr><th>Declaration</th><th>C# type</th></tr>
+  <tr><td><code class="par">@Param_X</code> <code class="tp">int</code>;</td><td><code>int X { get; set; }</code> (non-nullable, required)</td></tr>
+  <tr><td><code class="par">@Param_X</code> <code class="tp">int</code> = <span class="kw">null</span>;</td><td><code>int? X { get; set; }</code> (nullable)</td></tr>
+  <tr><td><code class="par">@Param_X</code> <code class="tp">int</code> = 5;</td><td><code>int X { get; set; } = 5</code> (non-nullable, default)</td></tr>
+  <tr><td><code class="par">@Param_Name</code> <code class="tp">varchar(10)</code>;</td><td><code>string Name { get; set; }</code> (never auto-<code>?</code>)</td></tr>
+  <tr><td><code class="par">@Param_Name</code> <code class="tp">varchar(10)</code> = <span class="kw">null</span>;</td><td><code>string? Name { get; set; }</code> (nullable)</td></tr>
+  <tr><td><code>table(Col int)</code></td><td><code>int Col</code> (non-nullable)</td></tr>
+  <tr><td><code>table(Col int null)</code></td><td><code>int? Col</code> (nullable)</td></tr>
+  <tr><td><code>table(Col int not null)</code></td><td><code>int Col</code> (non-nullable)</td></tr>
+</table>
+
+<p style="font-size:0.85em; opacity:0.75;">Editor-only hint <code>SP0010</code> nudges every unmarked declare: for
+scalars, "No <code>= null</code> — generated C# is non-nullable; add <code>= null</code> to make it nullable." For
+table columns the wording is unchanged: "No null/not null marker — generated C# is non-nullable …; add
+<code>not null</code> to confirm, or <code>null</code> to make it nullable." <code>SP0010</code> is a hint only — it
+is never emitted by the build.</p>
 
 <!-- ──────────────────── SQL → C# Type Map ────────────────────────────── -->
 <h2 id="type-reference">SQL Type → C# Type Reference</h2>

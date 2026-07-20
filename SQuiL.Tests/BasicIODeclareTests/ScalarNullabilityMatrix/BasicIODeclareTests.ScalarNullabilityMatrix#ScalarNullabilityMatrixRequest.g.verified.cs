@@ -15,5 +15,5 @@ public partial record ScalarNullabilityMatrixRequest
 	
 	public int Defaulted { get; set; } = 5;
 	
-	public int? NullAndDefault { get; set; } = 5;
+	public int? Nullable2 { get; set; }
 }

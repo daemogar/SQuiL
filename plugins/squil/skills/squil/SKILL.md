@@ -57,21 +57,30 @@ A scalar uses a primitive declared type (`int`, `varchar(10)`, `datetime`, `bit`
 
 The declared SQL type maps to a C# type: `int`/`bigint`/`smallint`/`tinyint` → the matching integer type, `bit` → `bool`, `varchar`/`nvarchar`/`char`/`text`/`xml` → `string`, `decimal(p,s)`/`numeric(p,s)` → `decimal` (precision and scale are preserved), `money`/`smallmoney` → `decimal`, `float` → `double`, `real` → `float`, `date` → `System.DateOnly`, `time` → `System.TimeOnly`, `datetime`/`datetime2`/`smalldatetime` → `System.DateTime`, `datetimeoffset` → `System.DateTimeOffset`, `uniqueidentifier` → `System.Guid`, `varbinary`/`binary`/`image` → `byte[]`, `timestamp`/`rowversion` → `byte[]` (output only — declaring one as an input parameter is build error **SP0032**, since the database assigns the value).
 
-**Nullability — the one rule:** a column or scalar is non-nullable UNLESS its `Declare` carries an explicit `null` marker. Reference types (`string`, `byte[]`) are **never** auto-`?`. An explicit `null` wins even alongside a default value.
+**Nullability — the one rule, two mechanisms:** a column or scalar is non-nullable UNLESS opted into nullable. Reference types (`string`, `byte[]`) are **never** auto-`?`. **Scalars opt in with an `= null` initializer; table columns opt in with a `null`/`not null` marker** — a scalar `Declare` cannot carry a `null`/`not null` clause (invalid T-SQL); doing so is build error **SP0037**. A scalar cannot be both nullable and carry a non-null default (the old `int null = 5` combo is gone).
+
+**Scalars:**
 
 | Declaration | C# type |
 |---|---|
-| `@Param_X int` (no marker) | `int X { get; set; }` |
-| `@Param_X int null` | `int? X { get; set; }` |
-| `@Param_X int not null` | `int X { get; set; }` |
-| `@Param_X int = 5` (default, no marker) | `int X { get; set; } = 5` |
-| `@Param_X int null = 5` (null + default) | `int? X { get; set; } = 5` |
-| `@Param_X varchar(10)` (ref type, no marker) | `string X { get; set; }` |
-| `@Param_X varchar(10) null` | `string? X { get; set; }` |
+| `@Param_X int` (no `= null`) | `int X { get; set; }` |
+| `@Param_X int = null` | `int? X { get; set; }` |
+| `@Param_X int = 5` (default) | `int X { get; set; } = 5` |
+| `@Param_X varchar(10)` (ref type) | `string X { get; set; }` |
+| `@Param_X varchar(10) = null` | `string? X { get; set; }` |
 | `@Param_X varbinary(max)` | `byte[] X { get; set; }` |
-| `@Param_X varbinary(max) null` | `byte[]? X { get; set; }` |
+| `@Param_X varbinary(max) = null` | `byte[]? X { get; set; }` |
 
-The same rule applies to table columns in `table(...)` declarations.
+**Table columns** (unchanged — `null`/`not null` markers, valid T-SQL inside `table(...)`):
+
+| Declaration | C# type |
+|---|---|
+| `table(X int)` (no marker) | `int X` |
+| `table(X int null)` | `int? X` |
+| `table(X int not null)` | `int X` |
+| `table(X int null = 5)` (null marker + default) | `int? X = 5` |
+
+The non-nullable-by-default rule is shared between scalars and table columns — only the opt-in syntax differs.
 
 A table column may carry a SQL `default` in **any** position. The generator produces a **hybrid record**: non-defaulted columns become positional constructor parameters (SQL relative order preserved), and defaulted columns become `{ get; init; } = <value>` properties. For example:
 
@@ -267,6 +276,7 @@ public partial record Shipment(int ShipmentID, int OrderID, string Carrier);
 - **Two tables both carrying a column that matches the same `Primary Key` name.** A nested-object child must resolve to exactly one parent — an ambiguous match is build error **SP0033**. Rename one of the colliding columns.
 - **A `Primary Key`/foreign-key chain that loops back on itself.** Nested objects require a tree, not a cycle; a self-referencing or circular link chain is build error **SP0034**.
 - **A nested-input link column typed as something other than an integer or `uniqueidentifier`.** SQuiL synthesizes nested-input join keys itself, but only for integer-family (`int`/`bigint`/`smallint`) or `uniqueidentifier` columns — anything else (e.g. `varchar`) is build error **SP0036**. Change the link column's type.
+- **Putting a `null`/`not null` marker on a scalar `Declare`.** That syntax is only valid on table columns — a scalar is invalid T-SQL with it. Build error **SP0037**. Use `= null` for a nullable scalar (or remove the marker for non-nullable).
 
 ---
 

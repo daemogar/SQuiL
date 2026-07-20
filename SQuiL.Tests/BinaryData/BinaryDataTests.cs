@@ -18,7 +18,7 @@ public class BinaryDataTests : BaseTest
 			"""], ["""
 			--Name: Q
 			Declare @Param_Blob varbinary(max);
-			Declare @Param_BlobNull varbinary(max) null;
+			Declare @Param_BlobNull varbinary(max) = null;
 			Use MyDb;
 			Select 1;
 			"""]);

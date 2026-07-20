@@ -231,7 +231,7 @@ public class BasicIODeclareTests
 
 			Declare @Param_IncludeCompletedTranscripts bit = 0;
 
-			Declare @Param_ReferenceID int Not Null;
+			Declare @Param_ReferenceID int;
 			Declare @Param_IssueDate datetime;
 			
 			Declare @Param_Student table(
@@ -357,10 +357,26 @@ public class BasicIODeclareTests
 		return TestHelper.Verify([TestHeader([name])], [$$"""
 			--Name: {{name}}
 			Declare @Param_Required int;
-			Declare @Param_Nullable int null;
-			Declare @Param_NotNull int not null;
+			Declare @Param_Nullable int = null;
+			Declare @Param_NotNull int;
 			Declare @Param_Defaulted int = 5;
-			Declare @Param_NullAndDefault int null = 5;
+			Declare @Param_Nullable2 int = null;
+			Declare @Return_Count int;
+			Use MyDb;
+			Select @Return_Count = 1;
+			"""]);
+	}
+
+	[Fact]
+	public Task ScalarNullInitializerIsNullable()
+	{
+		var name = nameof(ScalarNullInitializerIsNullable);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Param_Required int;
+			Declare @Param_Nullable int = null;
+			Declare @Param_Name varchar(50) = null;
+			Declare @Param_Defaulted int = 5;
 			Declare @Return_Count int;
 			Use MyDb;
 			Select @Return_Count = 1;
