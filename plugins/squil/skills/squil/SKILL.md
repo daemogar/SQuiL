@@ -1,6 +1,6 @@
 ---
 name: squil
-description: Use this skill whenever the user is working with SQuiL — the C# source generator at https://github.com/daemogar/SQuiL that turns .squil/.sql query files into strongly-typed C# data contexts. Trigger on any mention of SQuiL or any .squil file; on SQuiLBaseDataContext, SQuiLResultType, [SQuiLQuery], [SQuiLTable], SQuiLException, SQuiLAggregateException, AddSQuiL, Process…Async; on .sql files paired with a C# project that uses AdditionalFiles for queries; on the @-prefix naming conventions (@Param_, @Params_, @Return_, @Returns_, @Debug, @SuppressDebug, @AsOfDate, @EnvironmentName); or whenever the user asks to author SQuiL query files, set up a .csproj for SQuiL, register a SQuiL data context, or write wrappers around generated Process…Async methods. Trigger even when the user does not say "SQuiL" by name — if their .csproj references SQuiL.SourceGenerator or SQuiL.Library, this skill applies. Prefer this skill over generic "C# / SQL" guidance for any project that uses SQuiL.
+description: Use this skill whenever the user is working with SQuiL — the C# source generator at https://github.com/daemogar/SQuiL that turns .squil/.sql query files into strongly-typed C# data contexts. Trigger on any mention of SQuiL or any .squil file; on SQuiLBaseDataContext, SQuiLResultType, [SQuiLQuery], [SQuiLTable], SQuiLException, SQuiLAggregateException, AddSQuiL, Process…Async; on .sql files paired with a C# project that uses AdditionalFiles for queries; on the @-prefix naming conventions (@Param_, @Params_, @Return_, @Returns_, @Debug, @SuppressDebug, @AsOfDate, @EnvironmentName); or whenever the user asks to author SQuiL query files, set up a .csproj for SQuiL, register a SQuiL data context, or write wrappers around generated Process…Async methods. Trigger even when the user does not say "SQuiL" by name — if their .csproj references SQuiL.Core or SQuiL.SqlServer, this skill applies. Prefer this skill over generic "C# / SQL" guidance for any project that uses SQuiL.
 ---
 
 # SQuiL skill
@@ -277,14 +277,67 @@ public partial record Shipment(int ShipmentID, int OrderID, string Carrier);
 - **A `Primary Key`/foreign-key chain that loops back on itself.** Nested objects require a tree, not a cycle; a self-referencing or circular link chain is build error **SP0034**.
 - **A nested-input link column typed as something other than an integer or `uniqueidentifier`.** SQuiL synthesizes nested-input join keys itself, but only for integer-family (`int`/`bigint`/`smallint`) or `uniqueidentifier` columns — anything else (e.g. `varchar`) is build error **SP0036**. Change the link column's type.
 - **Putting a `null`/`not null` marker on a scalar `Declare`.** That syntax is only valid on table columns — a scalar is invalid T-SQL with it. Build error **SP0037**. Use `= null` for a nullable scalar (or remove the marker for non-nullable).
+- **Referencing `SQuiL.Core` without the matching provider package.** A data context resolves to a dialect (explicitly via `[SQuiLDialect]`, or SqlServer by default) whose runtime base class (`SqlServerDataContext`) isn't referenced by the compilation — build error **SP0038**. Add the provider package (`SQuiL.SqlServer`) alongside `SQuiL.Core`.
 
 ---
 
 ## 2. Wiring up a `.csproj`
 
-A consuming project needs three things: `AdditionalFiles` so the generator sees the query files, a reference to the source generator marked as an analyzer, and a project/package reference to `SQuiL.Library` for the runtime base classes.
+A consuming project needs three things: `AdditionalFiles` so the generator sees the query files, a reference to the SQuiL analyzer/generator, and a reference to a provider runtime for the base data-context class the generated code inherits.
 
-### Reference template
+### NuGet reference (the normal path)
+
+```xml
+<ItemGroup>
+    <PackageReference Include="SQuiL.Core" Version="*" />
+    <PackageReference Include="SQuiL.SqlServer" Version="*" />
+</ItemGroup>
+```
+
+Reference **both** packages — this is the two-things-you-need model, same
+shape as EF Core's provider packages:
+
+- `SQuiL.Core` carries the generator (packed into `analyzers/dotnet/cs`, so a
+  plain `PackageReference` is all it takes to activate it) plus the
+  provider-neutral runtime types: `SQuiLResultType`, `SQuiLError`,
+  `SQuiLException`, `SQuiLAggregateException`, `SQuiLBaseDataContext`, and the
+  `[SQuiLQuery]`/`[SQuiLTable]`/`[SQuiLQueryTransaction]`/`[SQuiLDialect]`
+  attributes.
+- `SQuiL.SqlServer` carries the SQL Server provider: `SqlServerDataContext`
+  (the class generated contexts actually inherit) and the
+  `Microsoft.Data.SqlClient` plumbing it uses.
+
+**Both are required, not either/or.** NuGet does not flow a package's
+analyzer through a transitive dependency — only a *direct* `PackageReference`
+activates it. So referencing `SQuiL.SqlServer` alone pulls in `SQuiL.Core`'s
+runtime DLL (a normal transitive package reference) but **not** its analyzer,
+and the generator never runs. Referencing `SQuiL.Core` alone gives you
+generation but no runtime base class to inherit — the generated
+`Constructor.g.cs` file references a type (`SqlServerDataContext`) that isn't
+in the compilation, which is build error **SP0038** ("SQuiL Provider Package
+Not Referenced"). If a user reports SP0038 or "every `[SQuiLQuery]` lights up
+red", check for exactly this — one package present, the other missing.
+
+### Selecting a dialect — `[SQuiLDialect]`
+
+`[SQuiLDialect(SQuiLDialect.SqlServer)]` on a data-context class is optional
+and picks which provider that context targets. Precedence when resolving a
+context: an explicit `[SQuiLDialect(...)]` wins; otherwise, the single
+provider package actually referenced by the compilation; otherwise SQL Server
+is the default. Today `SqlServer` is the only member of the `SQuiLDialect`
+enum, so this mostly matters as forward-compatible documentation until more
+providers ship — but it's always safe to write explicitly.
+
+```csharp
+[SQuiLDialect(SQuiLDialect.SqlServer)]
+[SQuiLQuery(QueryFiles.GetUserName)]
+public partial class UserDataContext { }
+```
+
+### Reference template — building SQuiL from source
+
+If the user is working inside the SQuiL repo itself (not consuming it via
+NuGet), use `ProjectReference`s instead:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -305,13 +358,17 @@ A consuming project needs three things: `AdditionalFiles` so the generator sees 
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.7" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SQuiL.Library\SQuiL.Library.csproj" />
+    <ProjectReference Include="..\SQuiL.Core\SQuiL.Core.csproj" />
+    <ProjectReference Include="..\SQuiL.SqlServer\SQuiL.SqlServer.csproj" />
+    <!-- Only needed if SQuiL.Core's ProjectReference to the generator isn't
+         already resolving as an analyzer in this build setup; SQuiL.Simple
+         and SQuiL.Tests in the SQuiL repo show both patterns. -->
     <ProjectReference Include="..\SQuiL.SourceGenerator\SQuiL.SourceGenerator.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
@@ -322,11 +379,9 @@ A consuming project needs three things: `AdditionalFiles` so the generator sees 
 
 The `OutputItemType="Analyzer"` and `ReferenceOutputAssembly="false"` attributes on the source-generator reference are not optional. Without them MSBuild treats the generator as a regular runtime dependency, the generation never runs, and every `[SQuiLQuery]` lights up red because nothing was emitted.
 
-If the user installs SQuiL from NuGet rather than building from source, replace the two `ProjectReference` lines with `PackageReference` entries (one for `SQuiL.Library`, one for the analyzer package). The analyzer package must also carry the analyzer attributes — that follows the standard analyzer NuGet convention.
-
 ### Connection strings and environment
 
-`SQuiLBaseDataContext` reads connection strings from `IConfiguration` with the standard `ConnectionStrings:<Name>` key. Each `[SQuiLQuery(..., setting: "Name")]` attribute names which connection-string key that query uses, so the project's configuration needs at least one connection string per distinct `setting:` value used in the data context.
+The provider runtime base class (`SqlServerDataContext` for the SQL Server provider) reads connection strings from `IConfiguration` with the standard `ConnectionStrings:<Name>` key. Each `[SQuiLQuery(..., setting: "Name")]` attribute names which connection-string key that query uses, so the project's configuration needs at least one connection string per distinct `setting:` value used in the data context. (Environment resolution, below, lives on the provider-neutral `SQuiLBaseDataContext` instead — every provider shares it.)
 
 ```csharp
 ConfigurationBuilder builder = new();
@@ -381,7 +436,8 @@ namespace MyProject;
 [SQuiLQueryTransaction(QueryFiles.QueriesUpsertDocument, setting: "ExampleOne")]
 public partial class MyDataContext { }
 
-// SQuiL auto-supplies : SQuiLBaseDataContext and an IConfiguration constructor
+// SQuiL auto-supplies the resolved dialect's runtime base (: SqlServerDataContext
+// by default — see "Selecting a dialect" above) and an IConfiguration constructor
 // when no constructor is declared. Declare any constructor to opt out
 // (it must chain : base(configuration)).
 
@@ -594,16 +650,25 @@ else
 }
 ```
 
-`SQuiL.Library` provides three related types:
+`SQuiL.Core` provides three related types (provider-neutral — they don't
+depend on `SQuiL.SqlServer` or any other provider):
 
-- `SQuiLError` — the per-error record (SQL error number, severity, state, line, procedure, message); this is what `errors` holds.
-- `SQuiLException` — wraps a single `SQuiLError`; build one with `error.AsSQuiLException()`.
+- `SQuiLError` — the per-error record (SQL error number, severity, state, line, procedure, message); this is what `errors` holds. Call `error.AsDbException()` to get the underlying `System.Data.Common.DbException?` the provider raised (e.g. a `SqlException` for the SQL Server provider), if one was captured.
+- `SQuiLException` — wraps a single `SQuiLError`; build one with `error.AsSQuiLException()`. It is itself a `DbException`.
 - `SQuiLAggregateException` — wraps an `IReadOnlyList<SQuiLError>`; `new SQuiLAggregateException(errors)`.
 
 The generated code **does not throw** these — it returns the errors in the
 result. Whether to throw (`SQuiLException`/`SQuiLAggregateException`), return a
 default, or surface a domain-specific outcome is the wrapper's decision, made
 where there's enough context to know what an error from *this* query means.
+
+**Naming note:** the accessor used to be `AsSqlException()` (returning
+`Microsoft.Data.SqlClient.SqlException?`); it is now `AsDbException()`
+(returning `System.Data.Common.DbException?`) — part of neutralizing the
+error surface so `SQuiL.Core` has no SQL-Server-specific types. If the user's
+code (or an older answer) references `AsSqlException()`, point them at
+`AsDbException()` instead; downcast to `SqlException` only if they specifically
+need SQL-Server-only members and know the provider in use.
 
 ---
 

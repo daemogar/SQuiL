@@ -30,19 +30,37 @@ your-query.squil  ──▶  SQuiL source generator  ──▶  strongly-typed C
 ## Requirements
 
 - .NET SDK 10.0 or later to build a consuming project.
-- The generator and runtime library target `netstandard2.0`, so generated code
-  runs anywhere `Microsoft.Data.SqlClient` is supported.
-- SQL Server is the current target database (multi-database support is on the
-  roadmap).
+- The generator and runtime libraries target `netstandard2.0`, so generated
+  code runs anywhere the provider package's ADO.NET client is supported.
+- `SQuiL.SqlServer` is the only provider that ships today; multi-database
+  support adds providers behind the same `ISqlDialect` seam (see
+  `[SQuiLDialect]` below).
 
 ## Install
 
 ```bash
-dotnet add package SQuiL.SourceGenerator
+dotnet add package SQuiL.Core
+dotnet add package SQuiL.SqlServer
 ```
 
-The `SQuiL.SourceGenerator` package bundles both the generator and the
-`SQuiL.Library` runtime types, so it is the only reference you need.
+Reference **both** packages:
+
+- `SQuiL.Core` — the source generator (packed as a NuGet analyzer) plus the
+  provider-neutral runtime types (`SQuiLResultType`, `SQuiLError`,
+  `SQuiLBaseDataContext`, the `[SQuiLQuery]`/`[SQuiLTable]`/`[SQuiLDialect]`
+  attributes).
+- `SQuiL.SqlServer` — the SQL Server provider: `SqlServerDataContext` and the
+  `Microsoft.Data.SqlClient` plumbing generated code executes against.
+
+Both are required because NuGet does **not** flow a package's analyzer through
+a transitive dependency — only a *direct* `PackageReference` activates it (the
+same reason EF Core's provider packages require the main package alongside
+them). Referencing `SQuiL.SqlServer` alone gets you the runtime but no code
+generation.
+
+By default a data context targets SQL Server. Add
+`[SQuiLDialect(SQuiLDialect.SqlServer)]` to a context class to make that
+explicit, or to pick a different provider once more ship.
 
 Mark your query files as `AdditionalFiles` so the generator can see them:
 
@@ -74,7 +92,9 @@ public partial class MyDataContext { }
 
 SQuiL generates `GetUserRequest`, `GetUserResponse`, the
 `MyDataContext.GetUser(…)` method, and an `AddSQuiL…()` extension for DI.
-It also auto-supplies `: SQuiLBaseDataContext` and an `IConfiguration` constructor
+It also auto-supplies a base-class inheritance — the resolved dialect's
+runtime base (`SqlServerDataContext` by default, itself derived from the
+provider-neutral `SQuiLBaseDataContext`) — and an `IConfiguration` constructor
 (into a generated `Constructor.g.cs` file) when the class declares no constructor
 of its own — declaring any constructor opts out (it must chain `: base(configuration)`).
 The connection string is read from `IConfiguration` (default name

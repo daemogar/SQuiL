@@ -364,7 +364,15 @@ SQuiL/
     `DiagnosticsMessages.ReportScalarNullabilityMarker`, and the editor
     mirrors (`lintScalarNullMarker` in `parser.ts`; `LintScalarNullMarker` in
     both `SQuiLLinter.cs`).
-    Next free: **SP0038**. (Verify an id is truly unreferenced with a repo-wide grep
+    **SP0038 is now TAKEN** — build error (generator): a data context resolves
+    to a dialect (explicit `[SQuiLDialect]`, single referenced provider, or the
+    SqlServer default) whose provider runtime base type (e.g.
+    `SQuiL.SqlServerDataContext`) is not referenced by the compilation — the
+    consumer referenced `SQuiL.Core` but not the matching provider package
+    (`SQuiL.SqlServer`, etc.). See `DialectRegistry.IsProviderReferenced` +
+    `DiagnosticsMessages.ReportMissingProvider`; the offending context's
+    constructor/base-class file is skipped so only SP0038 shows (no cascade).
+    Next free: **SP0039**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
   - Signature: `[SQuiLQueryTransaction(QueryFiles type, string setting = "SQuiLDatabase", bool enabled = true, bool debugRollback = true)]`
@@ -495,7 +503,7 @@ For a SQL file `MyQuery.sql`, the generator creates:
 
 - **SQuiLDefinition** (`SQuiL/Generator/SQuiLDefinition.cs`): Represents a class with `[SQuiLQuery]` or `[SQuiLTable]` attributes
 - **SQuiLDataContext** (`SQuiL/Models/SQuiLDataContext.cs`): Model representing a data context with its queries
-- **SQuiLBaseDataContext**: Base class for all generated data contexts (provides connection/parameter helpers)
+- **SQuiLBaseDataContext** (`SQuiL.Core`): provider-neutral base class (environment resolution only). Each provider supplies its own runtime base — **SqlServerDataContext** (`SQuiL.SqlServer`) `: SQuiLBaseDataContext` adds the connection/parameter helpers and the `CreateError` seam — which generated data contexts actually inherit; see "Optional inheritance + dialect selection" below.
 - **CodeBlock/CodeItem** (`SQuiL/Parser/`): Intermediate representation of parsed SQL
 - **SQuiLTableMap**: Tracks custom table type mappings from `[SQuiLTable]` attributes
 
@@ -536,24 +544,58 @@ Select @Return_Count;
 
 ## Dependencies
 
-Required NuGet packages:
-- `Microsoft.CodeAnalysis.CSharp` (4.12.0) - Roslyn APIs for source generation
-- `Microsoft.Data.SqlClient` (6.0.1) - SQL Server connectivity
-- `Microsoft.Extensions.Configuration` - Configuration/connection string handling
-- `Microsoft.Extensions.DependencyInjection` - DI support
+Required NuGet packages, split by which package now carries them:
+- `SQuiL.Core` (generator + provider-neutral runtime): `Microsoft.CodeAnalysis.CSharp`
+  (build-only, via the `SQuiL.SourceGenerator` project it packs) - Roslyn APIs
+  for source generation; `Microsoft.Extensions.Configuration` - connection-string
+  lookup; `System.Text.Json` - the param-sharding JSON shred (`SQuiLJson`).
+- `SQuiL.SqlServer` (SQL Server provider, depends on `SQuiL.Core`):
+  `Microsoft.Data.SqlClient` - SQL Server connectivity.
+- `Microsoft.Extensions.DependencyInjection` - DI support (consumer-side, for
+  the generated `AddSQuiL()` extension's registration).
 
-### Package structure (single-package distribution)
+### Package structure (`SQuiL.Core` + `SQuiL.SqlServer` split)
 
-The `SQuiL.SourceGenerator` NuGet bundles both the generator DLL (into
-`analyzers/dotnet/cs`) **and** the `SQuiL.Library.dll` runtime assembly (into
-`lib/netstandard2.0`). Because the library DLL is embedded rather than pulled
-in via a NuGet dependency, its transitive `PackageReference`s are **not**
-resolved for consumers automatically.
+**Phase 3A (multi-DB via `ISqlDialect`) retired the single-package
+`SQuiL.SourceGenerator` NuGet.** The distribution is now two packages:
 
-**Rule:** any `PackageReference` added to `SQuiL.Library.csproj` that is needed
-at consumer runtime (e.g. `Microsoft.Extensions.Configuration`) must be mirrored
-in `SQuiL.SourceGenerator.csproj` so it flows through to the consumer. Keep
-the two dependency lists in sync.
+- **`SQuiL.Core`** — packs the generator DLL (built from the
+  `SQuiL.SourceGenerator` project) into `analyzers/dotnet/cs`, **and** its own
+  runtime DLL (`IncludeBuildOutput`, the SDK default) into
+  `lib/netstandard2.0` — the provider-neutral attributes, `SQuiLBaseDataContext`,
+  `SQuiLResultType`, `SQuiLError`/`SQuiLException`/`SQuiLAggregateException`,
+  and `SQuiLDialect`/`SQuiLDialectAttribute`.
+- **`SQuiL.SqlServer`** — packs `SqlServerDataContext` and the
+  `Microsoft.Data.SqlClient` plumbing. References `SQuiL.Core` via a packable
+  `ProjectReference` (no `PrivateAssets="all"`), so installing `SQuiL.SqlServer`
+  alone pulls `SQuiL.Core`'s **runtime DLL** in transitively like any normal
+  NuGet dependency.
+
+**What does *not* flow transitively: the analyzer.** NuGet only activates a
+package's `analyzers/` content for a project that *directly*
+`PackageReference`s that package — a transitive dependency's analyzer is
+never loaded (verified empirically 2026-07-20 against `SQuiL.Core` and, as a
+sanity check, against `Microsoft.Extensions.Logging` → `Logging.Abstractions`'
+`LoggerMessage` generator, so this is general NuGet/SDK behavior, not
+SQuiL-specific). **Consequence: consumers must reference `SQuiL.Core` directly
+in addition to `SQuiL.SqlServer`** — same pattern as EF Core's provider
+packages requiring the main package alongside them. A project with only
+`SQuiL.SqlServer` referenced compiles and runs, but the generator never fires
+(no `Process…Async` methods materialize) because its analyzer was never
+activated.
+
+**Runtime deps are now normal NuGet dependencies — no manual mirroring.**
+Every `PackageReference` on `SQuiL.Core.csproj` / `SQuiL.SqlServer.csproj` is a
+real `<dependency>` in the packed nuspec and flows to consumers through the
+ordinary NuGet dependency graph. (The old rule — "mirror any runtime
+`PackageReference` from `SQuiL.Library.csproj` into `SQuiL.SourceGenerator.csproj`
+by hand, because the library DLL was embedded rather than referenced" — no
+longer applies; there is no more embedded-library packaging in this repo.)
+The one thing that still needs care is the analyzer DLL itself
+(`SQuiL.SourceGenerator.dll`/`.pdb`), which `SQuiL.Core.csproj` still packs
+manually into `analyzers/dotnet/cs` via `<None Pack="true" PackagePath="...">`
+entries, because analyzer content is never a `PackageReference`-driven
+transitive dependency by design.
 
 Test dependencies:
 - `xunit` - Test framework
@@ -590,18 +632,59 @@ The `[SQuiLQuery]` attribute accepts an optional `setting` parameter to specify 
 public partial class MyDataContext { }
 ```
 
-### Optional inheritance (`SQuiLBaseDataContext`)
+### Optional inheritance + dialect selection (`[SQuiLDialect]`, runtime base split)
 
-Inheriting `SQuiLBaseDataContext` explicitly is **not required**. When the context class declares no constructor of its own, the generator emits a `<Ctx>.Constructor.g.cs` file that supplies:
+**Runtime base split (Phase 3A, multi-DB via `ISqlDialect`):** `SQuiLBaseDataContext`
+(`SQuiL.Core`) is now provider-neutral — it holds only `EnvironmentName`
+resolution. Each provider package supplies its own runtime base class that
+inherits from it and adds the ADO.NET plumbing: `SqlServerDataContext`
+(`SQuiL.SqlServer`) `: SQuiLBaseDataContext` carries `ConnectionStringBuilder`,
+`CreateConnection`, parameter construction, and the `CreateError(SqlException)`
+seam (see "Error handling" below). Generated data contexts inherit the
+*provider's* base class, not `SQuiLBaseDataContext` directly.
+
+**Dialect selection — `[SQuiLDialect(SQuiLDialect.SqlServer)]`:** optional,
+class-level attribute (`SQuiL.Core`) that picks which provider a data context
+targets. Precedence when the generator resolves a context's dialect:
+1. An explicit `[SQuiLDialect(...)]` on the class wins.
+2. Otherwise, the single provider package actually referenced by the
+   compilation (`DialectRegistry.IsProviderReferenced`, probed via
+   `compilation.GetTypeByMetadataName` against each dialect's
+   `ProviderMetadataName`).
+3. Otherwise, `SQuiLDialect.SqlServer` (dialect 0) is the default.
+
+`SQuiLDialect` (enum) currently has one member, `SqlServer`; `DialectRegistry`
+(`SQuiL.SourceGenerator/SQuiL/Dialects/DialectRegistry.cs`) maps a dialect to
+its generator-side `ISqlDialect` (`SqlServerDialect`), its `RuntimeBaseType()`
+(`"SqlServerDataContext"`), and its NuGet package id (`"SQuiL.SqlServer"`) —
+Phase 3B adds SQLite here. If the resolved dialect's runtime base type isn't
+referenced by the compilation, the generator reports **SP0038** instead of
+letting a missing-base-type error surface as a cryptic "type not found"
+(the context's constructor/base-class file is skipped so only SP0038 shows).
+
+Inheriting the provider base class explicitly is **not required**. When the context class declares no constructor of its own, the generator emits a `<Ctx>.Constructor.g.cs` file that supplies:
 
 ```csharp
-public partial class MyDataContext : SQuiLBaseDataContext
+public partial class MyDataContext : SqlServerDataContext
 {
     public MyDataContext(IConfiguration Configuration) : base(Configuration) { }
 }
 ```
 
-Declaring **any** constructor (primary or ordinary) on the class opts out — the generator skips the constructor file, and the hand-written constructor must chain `: base(configuration)`. The class must still be `partial` (diagnostic **SP0006**). The explicit form — `public partial class MyDataContext(IConfiguration Configuration) : SQuiLBaseDataContext(Configuration) { }` — is still valid and compiles unchanged (backward-compatible). **SP0010** was freed by this change, then went through the trailing-only column-default error and a free-pool stint, and is now **TAKEN by the editor-only nullability hint** (see Diagnostic IDs / Nullability rule below).
+Declaring **any** constructor (primary or ordinary) on the class opts out — the generator skips the constructor file, and the hand-written constructor must chain `: base(configuration)`. The class must still be `partial` (diagnostic **SP0006**). The explicit form — `public partial class MyDataContext(IConfiguration Configuration) : SqlServerDataContext(Configuration) { }` — is still valid and compiles unchanged (backward-compatible). **SP0010** was freed by this change, then went through the trailing-only column-default error and a free-pool stint, and is now **TAKEN by the editor-only nullability hint** (see Diagnostic IDs / Nullability rule below).
+
+### Error types now provider-neutral (`SQuiLError`/`SQuiLException` → `DbException`)
+
+`SQuiLError`/`SQuiLException` (`SQuiL.Core`) used to expose a
+`Microsoft.Data.SqlClient.SqlException` directly (`AsSqlException()`). They
+now expose the ADO.NET-standard `System.Data.Common.DbException?` instead —
+`SQuiLError.AsDbException()` (renamed from `AsSqlException()`); `SQuiLException`
+is itself a `DbException` and exposes the same value via its `Exception`
+property. Each provider's `CreateError` seam (e.g.
+`SqlServerDataContext.CreateError(SqlException e)`) builds the provider-neutral
+`SQuiLError` and attaches the concrete exception via the internal
+`SQuiLError.WithException(DbException?)`, so `SQuiL.Core` never references a
+provider-specific exception type. `SQuiLAggregateException` is unchanged.
 
 ### Nullability rule (unified — applies to both scalars and table columns)
 
@@ -846,7 +929,8 @@ the nested-objects key-graph diagnostics (ambiguous/cycle, both OUTPUT and
 INPUT graphs); SP0035 taken by the editor-only orphaned-PK hint (both graphs);
 SP0036 taken by the nested-INPUT unsupported-key-type check (see Diagnostic
 IDs above); SP0037 taken by the scalar-nullability-marker check (a scalar
-`null`/`not null` marker is invalid — use `= null`). Next free id: **SP0038**.
+`null`/`not null` marker is invalid — use `= null`); SP0038 taken by the
+multi-DB missing-provider-package check. Next free id: **SP0039**.
 
 ## Special Handling
 

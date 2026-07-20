@@ -758,7 +758,13 @@ and re-running it replaces the existing block in place. <strong>Existing blocks 
 <!-- ──────────────────── Project Setup ────────────────────────────────── -->
 <h2 id="project-setup">Project Setup</h2>
 <h3>1. NuGet reference</h3>
-<pre><code>&lt;<span class="cs-cls">PackageReference</span> <span class="cs-pn">Include</span>=<span class="str">"SQuiL.SourceGenerator"</span> <span class="cs-pn">Version</span>=<span class="str">"*"</span> /&gt;</code></pre>
+<pre><code>&lt;<span class="cs-cls">PackageReference</span> <span class="cs-pn">Include</span>=<span class="str">"SQuiL.Core"</span> <span class="cs-pn">Version</span>=<span class="str">"*"</span> /&gt;
+&lt;<span class="cs-cls">PackageReference</span> <span class="cs-pn">Include</span>=<span class="str">"SQuiL.SqlServer"</span> <span class="cs-pn">Version</span>=<span class="str">"*"</span> /&gt;</code></pre>
+<p>Reference <strong>both</strong> packages: <code>SQuiL.Core</code> carries the generator (as a NuGet analyzer)
+plus the provider-neutral runtime types; <code>SQuiL.SqlServer</code> carries the SQL Server provider
+(<code>SqlServerDataContext</code> and the <code>Microsoft.Data.SqlClient</code> plumbing). NuGet does not
+activate a package's analyzer through a transitive dependency, so referencing <code>SQuiL.SqlServer</code>
+alone gets you the runtime but not code generation — both references are required.</p>
 
 <h3>2. Register your <code>.squil</code> files as <code>AdditionalFiles</code></h3>
 <p>SQuiL discovers queries via MSBuild's <code>AdditionalFiles</code> item. The simplest pattern picks up every <code>.squil</code> file anywhere in the project — the file's relative path becomes the entry in the generated <code>QueryFiles</code> enum:</p>
@@ -779,8 +785,9 @@ and re-running it replaces the existing block in place. <strong>Existing blocks 
 
 <h3>3. Declare the data context (<code>[SQuiLQuery]</code>)</h3>
 <p>Your data context is a <code>partial class</code> decorated with one <code>[SQuiLQuery]</code> attribute per <code>.squil</code> file
-it owns. Inheriting <code>SQuiLBaseDataContext</code> explicitly is <strong>not required</strong> — SQuiL supplies the base
-type and an <code>IConfiguration</code> constructor automatically when the class declares no constructor of its own.
+it owns. Inheriting the provider base class explicitly is <strong>not required</strong> — SQuiL supplies the base
+type (<code>SqlServerDataContext</code> by default; override with <code>[SQuiLDialect(SQuiLDialect.SqlServer)]</code>)
+and an <code>IConfiguration</code> constructor automatically when the class declares no constructor of its own.
 Declaring any constructor (primary or ordinary) opts out; that constructor must then chain <code>: base(configuration)</code>.</p>
 
 <pre><code><span class="cs-kw">using</span> <span class="cs-cls">SQuiL</span>;
