@@ -12,8 +12,8 @@ public class SQuiLErrorAndExceptionTests
 		=> Assert.Equal("Violation of UNIQUE KEY constraint", Error().AsException().Message);
 
 	[Fact]
-	public void AsSqlExceptionIsNullWhenRecordConstructed()
-		=> Assert.Null(Error().AsSqlException());
+	public void AsDbExceptionIsNullWhenRecordConstructed()
+		=> Assert.Null(Error().AsDbException());
 
 	[Fact]
 	public void SQuiLExceptionMirrorsErrorFields()

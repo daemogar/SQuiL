@@ -1,7 +1,5 @@
 namespace SQuiL;
 
-using Microsoft.Data.SqlClient;
-
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
@@ -28,8 +26,8 @@ public sealed class SQuiLException : DbException
 	/// <summary>The original SQL error record that produced this exception.</summary>
 	private SQuiLError Error { get; }
 
-	/// <inheritdoc cref="SQuiLError.AsSqlException"/>
-	public SqlException? Exception => Error.AsSqlException();
+	/// <inheritdoc cref="SQuiLError.AsDbException"/>
+	public DbException? Exception => Error.AsDbException();
 
 	/// <inheritdoc/>
 	public override Exception GetBaseException() => this;

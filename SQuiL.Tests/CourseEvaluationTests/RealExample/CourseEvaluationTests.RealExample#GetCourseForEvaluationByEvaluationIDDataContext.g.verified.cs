@@ -100,7 +100,7 @@ partial class CourseEvaluationDataContext : SqlServerDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isSectionID) errors.Add(new(51001, 12, 1, 105, "SectionID", "Expected return scaler `SectionID`"));

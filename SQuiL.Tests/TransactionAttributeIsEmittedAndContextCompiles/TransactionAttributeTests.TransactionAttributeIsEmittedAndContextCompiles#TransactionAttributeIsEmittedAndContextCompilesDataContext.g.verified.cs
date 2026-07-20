@@ -45,10 +45,10 @@ partial class TransactionAttributeIsEmittedAndContextCompilesDataContext : SqlSe
 			transaction.Commit();
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
 			transaction.Rollback();
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

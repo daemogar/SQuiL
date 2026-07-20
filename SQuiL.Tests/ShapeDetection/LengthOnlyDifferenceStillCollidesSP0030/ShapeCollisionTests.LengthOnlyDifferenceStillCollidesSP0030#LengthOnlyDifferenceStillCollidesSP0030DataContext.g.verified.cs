@@ -94,7 +94,7 @@ partial class LengthOnlyDifferenceStillCollidesSP0030DataContext : SqlServerData
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isA) errors.Add(new(51001, 12, 1, 99, "A", "Expected return table `A`"));

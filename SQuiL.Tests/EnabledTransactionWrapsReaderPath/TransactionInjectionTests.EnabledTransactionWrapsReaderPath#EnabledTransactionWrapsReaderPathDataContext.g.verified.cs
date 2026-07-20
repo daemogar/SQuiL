@@ -71,7 +71,7 @@ partial class EnabledTransactionWrapsReaderPathDataContext : SqlServerDataContex
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isCount) errors.Add(new(51001, 12, 1, 76, "Count", "Expected return scaler `Count`"));

@@ -228,10 +228,10 @@ public class SQuiLDataContext(
 							else
 								WriteReturn(generation.Response.ModelName, "");
 						});
-						writer.Block("catch(Microsoft.Data.SqlClient.SqlException e)", () =>
+						writer.Block($"catch({Sql.ProviderExceptionType()} e)", () =>
 						{
 							if (Enabled) writer.WriteLine("transaction.Rollback();");
-							WriteReturn("SQuiLError", "e");
+							writer.WriteLine($"return new {returnType}(CreateError(e));");
 						});
 
 						void WriteReturn(string model, string parameter)
@@ -253,7 +253,7 @@ public class SQuiLDataContext(
 								EmitNestedReader();
 						}, new IndentedTextWriterBlock($"catch({Sql.ProviderExceptionType()} e)", () =>
 						{
-							writer.WriteLine("errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));");
+							writer.WriteLine("errors.Add(CreateError(e));");
 						}));
 
 						writer.WriteLine();

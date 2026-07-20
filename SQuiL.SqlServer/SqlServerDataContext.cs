@@ -99,4 +99,9 @@ public abstract partial class SqlServerDataContext(IConfiguration Configuration)
 		parameters.Add(parameter);
 		return parameter;
 	}
+
+	/// <summary>Builds a provider-neutral <see cref="SQuiLError"/> from a SQL Server exception, preserving the ADO.NET error fields.</summary>
+	/// <param name="e">The SQL Server exception raised during query execution.</param>
+	protected SQuiLError CreateError(SqlException e)
+		=> new SQuiLError(e.Number, e.Class, e.State, e.LineNumber, e.Procedure, e.Message).WithException(e);
 }

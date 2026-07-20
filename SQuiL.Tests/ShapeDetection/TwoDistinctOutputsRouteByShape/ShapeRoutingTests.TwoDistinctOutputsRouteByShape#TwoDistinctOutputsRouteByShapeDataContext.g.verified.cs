@@ -100,7 +100,7 @@ partial class TwoDistinctOutputsRouteByShapeDataContext : SqlServerDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isPeople) errors.Add(new(51001, 12, 1, 105, "People", "Expected return table `People`"));

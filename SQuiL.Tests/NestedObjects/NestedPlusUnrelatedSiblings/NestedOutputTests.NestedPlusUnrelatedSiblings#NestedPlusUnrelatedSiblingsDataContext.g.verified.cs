@@ -182,7 +182,7 @@ partial class NestedPlusUnrelatedSiblingsDataContext : SqlServerDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isTotal) errors.Add(new(51001, 12, 1, 187, "Total", "Expected return scaler `Total`"));

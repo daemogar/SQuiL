@@ -67,7 +67,7 @@ partial class TimestampOutputIsAllowedDataContext : SqlServerDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isVersion) errors.Add(new(51001, 12, 1, 72, "Version", "Expected return scaler `Version`"));

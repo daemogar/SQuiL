@@ -69,7 +69,7 @@ partial class DateTimeOffsetVariableDataContext : SqlServerDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isModifiedAt) errors.Add(new(51001, 12, 1, 74, "ModifiedAt", "Expected return scaler `ModifiedAt`"));

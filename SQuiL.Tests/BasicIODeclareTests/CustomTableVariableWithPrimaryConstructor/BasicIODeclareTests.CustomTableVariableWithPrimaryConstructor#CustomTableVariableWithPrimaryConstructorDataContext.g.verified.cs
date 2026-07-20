@@ -80,7 +80,7 @@ partial class CustomTableVariableWithPrimaryConstructorDataContext : SqlServerDa
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isTable) errors.Add(new(51001, 12, 1, 85, "Table", "Expected return table `Table`"));
