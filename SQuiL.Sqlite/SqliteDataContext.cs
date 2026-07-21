@@ -15,11 +15,15 @@ using System.Data.Common;
 public abstract partial class SqliteDataContext(IConfiguration configuration)
 	: SQuiLBaseDataContext(configuration)
 {
-	/// <summary>Resolves the connection string for the named setting.</summary>
-	protected string ResolveConnectionString(string settingName)
-		=> Configuration.GetConnectionString(settingName)
+	/// <summary>
+	/// Builds a <see cref="SqliteConnectionStringBuilder"/> from the named connection string in configuration.
+	/// </summary>
+	/// <param name="settingName">The connection string name under <c>ConnectionStrings</c> in configuration.</param>
+	/// <exception cref="InvalidOperationException">Thrown when no matching connection string is found.</exception>
+	protected SqliteConnectionStringBuilder ConnectionStringBuilder(string settingName)
+		=> new(Configuration.GetConnectionString(settingName)
 			?? throw new InvalidOperationException(
-				$"No connection string named '{settingName}' was found in configuration.");
+				$"No connection string named '{settingName}' was found in configuration."));
 
 	/// <summary>Creates (does not open) a SQLite connection.</summary>
 	protected virtual DbConnection CreateConnection(string connectionString)

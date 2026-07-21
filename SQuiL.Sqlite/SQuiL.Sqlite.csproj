@@ -20,7 +20,6 @@
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
 		<Copyright>Copyright © 2021–2026 Dæmogar</Copyright>
-		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -28,9 +27,22 @@
 		<None Include="..\LICENSE.txt" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
+	<!--
+	Do NOT set PrivateAssets="all" on this ProjectReference — SQuiL.Core is a
+	packable project (PackageId set), so packing this project converts the
+	reference into a REAL NuGet <dependency id="SQuiL.Core"> on the consumer
+	side (default NuGet SDK behavior for a ProjectReference to a packable
+	project), so installing SQuiL.Sqlite alone still pulls in SQuiL.Core's
+	runtime DLL. NOTE (verified empirically, 2026-07-20): NuGet does NOT flow
+	analyzers/ package content through a transitive dependency — only a
+	DIRECT PackageReference activates a package's analyzers (confirmed against
+	Microsoft.Extensions.Logging → Logging.Abstractions' LoggerMessage
+	generator too, so this is a general NuGet/SDK behavior, not specific to
+	our packaging). Consumers who want SQuiL codegen must reference SQuiL.Core
+	directly IN ADDITION to SQuiL.Sqlite — same pattern as EF Core's
+	provider packages requiring the main package alongside them.
+	-->
 	<ItemGroup>
-		<!-- No PrivateAssets: SQuiL.Core is a real transitive dependency of this provider.
-		     Analyzers do NOT flow transitively, so consumers still reference SQuiL.Core directly. -->
 		<ProjectReference Include="..\SQuiL.Core\SQuiL.Core.csproj" />
 	</ItemGroup>
 
