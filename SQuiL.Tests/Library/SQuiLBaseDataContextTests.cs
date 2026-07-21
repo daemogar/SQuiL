@@ -100,9 +100,9 @@ public class SQuiLBaseDataContextTests
 	[InlineData("time", "System.TimeOnly")]
 	[InlineData("float", "double")]
 	public void NormalizeType_MapsProviderNameToCanonicalToken(string provider, string expected)
-		=> Assert.Equal(expected, SQuiLBaseDataContext.NormalizeTypeForTest(provider));
+		=> Assert.Equal(expected, Context().NormalizeTypeForTest(provider));
 
 	[Fact]
 	public void NormalizeType_UnknownTypePassesThroughLowercased()
-		=> Assert.Equal("hierarchyid", SQuiLBaseDataContext.NormalizeTypeForTest("HierarchyID"));
+		=> Assert.Equal("hierarchyid", Context().NormalizeTypeForTest("HierarchyID"));
 }

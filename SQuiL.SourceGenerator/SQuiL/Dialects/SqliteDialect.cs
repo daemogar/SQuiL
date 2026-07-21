@@ -19,12 +19,42 @@ public class SqliteDialect : ISqlDialect
 
 	public string TableVariableDeclaration(SQuiL.SourceGenerator.Parser.CodeBlock block, string newLine)
 		=> throw new NotImplementedException("SqliteDialect.TableVariableDeclaration — Task 5");
+
+	/// <summary>The <c>reader.GetXxx</c> accessor fragment for a table/object column. Computed
+	/// directly from the token type — does NOT delegate to <c>Token.DataReader()</c>, which is
+	/// SQL-Server-shaped (e.g. <c>GetGuid</c>, unavailable on Microsoft.Data.Sqlite's reader).</summary>
 	public string ReaderAccessor(SQuiL.SourceGenerator.Parser.CodeItem item)
-		=> throw new NotImplementedException("SqliteDialect.ReaderAccessor(item) — Task 4");
+		=> "reader." + SqliteReader(item.Type.Type);
+
+	/// <summary>The <c>reader.GetXxx</c> accessor fragment for a scalar block. See <see cref="ReaderAccessor(SQuiL.SourceGenerator.Parser.CodeItem)"/>.</summary>
 	public string ReaderAccessor(SQuiL.SourceGenerator.Parser.CodeBlock block)
-		=> throw new NotImplementedException("SqliteDialect.ReaderAccessor(block) — Task 4");
-	public string ParamTypeExpr(SQuiL.SourceGenerator.Parser.CodeBlock block)
-		=> throw new NotImplementedException("SqliteDialect.ParamTypeExpr — Task 4");
+		=> "reader." + SqliteReader(block.DatabaseType.Type);
+
+	static string SqliteReader(SQuiL.Tokenizer.TokenType type) => type switch
+	{
+		SQuiL.Tokenizer.TokenType.TYPE_BIGINT => "GetInt64",
+		SQuiL.Tokenizer.TokenType.TYPE_STRING => "GetString",
+		SQuiL.Tokenizer.TokenType.TYPE_DOUBLE => "GetDouble",
+		SQuiL.Tokenizer.TokenType.TYPE_VARBINARY => "GetFieldValue<byte[]>",
+		SQuiL.Tokenizer.TokenType.TYPE_DECIMAL => "GetDecimal",
+		SQuiL.Tokenizer.TokenType.TYPE_BOOLEAN => "GetBoolean",
+		SQuiL.Tokenizer.TokenType.TYPE_DATETIME => "GetFieldValue<System.DateTime>",
+		SQuiL.Tokenizer.TokenType.TYPE_GUID => "GetFieldValue<System.Guid>",
+		_ => "GetValue",
+	};
+
+	/// <summary>The <c>Microsoft.Data.Sqlite.SqliteType.*</c> parameter-type expression for a
+	/// block, computed directly from the token type (SQLite has only four bind types).</summary>
+	public string ParamTypeExpr(SQuiL.SourceGenerator.Parser.CodeBlock block) => SqliteParam(block.DatabaseType.Type);
+
+	static string SqliteParam(SQuiL.Tokenizer.TokenType type) => "Microsoft.Data.Sqlite.SqliteType." + (type switch
+	{
+		SQuiL.Tokenizer.TokenType.TYPE_BIGINT or SQuiL.Tokenizer.TokenType.TYPE_BOOLEAN => "Integer",
+		SQuiL.Tokenizer.TokenType.TYPE_DOUBLE => "Real",
+		SQuiL.Tokenizer.TokenType.TYPE_VARBINARY => "Blob",
+		_ => "Text", // TEXT, DECIMAL, DATETIME, GUID all bind as TEXT
+	});
+
 	public string ShredParamName(SQuiL.SourceGenerator.Parser.CodeBlock block)
 		=> throw new NotImplementedException("SqliteDialect.ShredParamName — Task 6");
 	public string ShredStatement(SQuiL.SourceGenerator.Parser.CodeBlock block)

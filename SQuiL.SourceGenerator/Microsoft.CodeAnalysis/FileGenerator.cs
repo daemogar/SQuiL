@@ -88,7 +88,7 @@ public class FileGenerator(
 					Context.ReportUndeclaredVariable(method, finding);
 			}
 
-			var tokens = SQuiLTokenizer.GetTokens(sql);
+			var tokens = SQuiLTokenizer.GetTokens(sql, dialect);
 			var blocks = SQuiLParser.ParseTokens(tokens);
 
 			foreach (var finding in SQuiLCardinalityValidator.Detect(blocks, sql))

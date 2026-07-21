@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 
+using SQuiL.SsmsExtension.Parsing;
+
 namespace SQuiL.SsmsExtension.Completion;
 
 /// <summary>
@@ -57,6 +59,21 @@ internal static class SQuiLCompletionData
         "decimal(18, 2)", "decimal(18, 4)",
         "char(1)", "char(10)",
     };
+
+    /// <summary>
+    /// SQLite's type vocabulary — offered instead of <see cref="SqlTypes"/> when
+    /// the owning .csproj resolves to <see cref="EditorDialect.Sqlite"/>.
+    /// Mirrors <c>SQLITE_TYPES</c> in <c>completionProvider.ts</c>.
+    /// </summary>
+    public static readonly string[] SqliteTypes =
+    {
+        "integer", "text", "real", "blob", "numeric", "decimal",
+        "boolean", "date", "datetime", "guid", "uniqueidentifier",
+    };
+
+    /// <summary>Selects <see cref="SqlTypes"/> or <see cref="SqliteTypes"/> for the given dialect.</summary>
+    public static string[] TypesFor(EditorDialect dialect)
+        => dialect == EditorDialect.Sqlite ? SqliteTypes : SqlTypes;
 
     public static readonly string[] TableHints =
     {

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
-import { resolveContext } from './contextResolver';
+import { resolveContext, resolveProjectDialect } from './contextResolver';
 
 // ─── In-memory fake filesystem helpers ─────────────────────────────────────
 
@@ -382,4 +382,37 @@ test('block-commented attribute is not counted', () => {
 
   assert.strictEqual(r.found, false, 'block-commented attribute must not be counted');
   assert.strictEqual(r.matchCount, 0);
+});
+
+// ─── Dialect discovery ──────────────────────────────────────────────────────
+
+test('resolveProjectDialect returns sqlite for a project referencing SQuiL.Sqlite', () => {
+  const files: Record<string, string> = {
+    '/proj/Queries/Q.squil': '/* sql */',
+    '/proj/proj.csproj':
+      '<Project><ItemGroup><PackageReference Include="SQuiL.Sqlite" Version="1.0.0" /></ItemGroup></Project>',
+  };
+
+  const dialect = resolveProjectDialect('/proj/Queries/Q.squil', makeReadFile(files), makeListDir(files));
+  assert.strictEqual(dialect, 'sqlite');
+});
+
+test('resolveProjectDialect returns sqlserver for a project referencing SQuiL.SqlServer', () => {
+  const files: Record<string, string> = {
+    '/proj/Queries/Q.squil': '/* sql */',
+    '/proj/proj.csproj':
+      '<Project><ItemGroup><PackageReference Include="SQuiL.SqlServer" Version="1.0.0" /></ItemGroup></Project>',
+  };
+
+  const dialect = resolveProjectDialect('/proj/Queries/Q.squil', makeReadFile(files), makeListDir(files));
+  assert.strictEqual(dialect, 'sqlserver');
+});
+
+test('resolveProjectDialect defaults to sqlserver when no .csproj is found', () => {
+  const files: Record<string, string> = {
+    '/proj/Queries/Q.squil': '/* sql */',
+  };
+
+  const dialect = resolveProjectDialect('/proj/Queries/Q.squil', makeReadFile(files), makeListDir(files));
+  assert.strictEqual(dialect, 'sqlserver');
 });

@@ -198,6 +198,53 @@ internal static class SQuiLContextResolver
         return null;
     }
 
+    // ── Dialect discovery ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Resolve the SQuiL dialect (<see cref="EditorDialect.Sqlite"/> |
+    /// <see cref="EditorDialect.SqlServer"/>) for the given <c>.squil</c> file
+    /// using the real filesystem.
+    /// </summary>
+    public static EditorDialect ResolveDialect(string squilPath)
+        => ResolveDialect(squilPath,
+            p => { try { return File.ReadAllText(p); } catch { return null; } },
+            d => { try { return Directory.GetFileSystemEntries(d); } catch { return Array.Empty<string>(); } });
+
+    /// <summary>
+    /// Resolve the SQuiL dialect for a given <c>.squil</c> file, by locating
+    /// its owning .csproj (via <see cref="FindCsprojDir"/>) and inspecting its
+    /// <c>&lt;PackageReference&gt;</c>s (via <see cref="SQuiLDialect.ResolveDialect"/>).
+    /// Defaults to <see cref="EditorDialect.SqlServer"/> when no .csproj is
+    /// found, or when the .csproj can't be read.
+    /// </summary>
+    public static EditorDialect ResolveDialect(
+        string squilPath,
+        Func<string, string?> readFile,
+        Func<string, string[]> listDir)
+    {
+        string? csprojDir = FindCsprojDir(squilPath, listDir);
+        if (csprojDir is null) return EditorDialect.SqlServer;
+
+        string[] entries;
+        try { entries = listDir(csprojDir); } catch { entries = Array.Empty<string>(); }
+
+        string? csprojPath = null;
+        foreach (string e in entries)
+        {
+            if (Path.GetFileName(e).EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            {
+                csprojPath = e;
+                break;
+            }
+        }
+        if (csprojPath is null) return EditorDialect.SqlServer;
+
+        string? csprojText;
+        try { csprojText = readFile(csprojPath); } catch { csprojText = null; }
+
+        return SQuiLDialect.ResolveDialect(csprojText);
+    }
+
     // ── .cs file scanner ─────────────────────────────────────────────────
 
     private static void ScanDir(

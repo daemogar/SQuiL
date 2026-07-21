@@ -1,5 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 
+using SQuiL.Dialects;
+
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -11,9 +13,19 @@ namespace SQuiL.Tokenizer;
 /// into <see cref="SQuiL.SourceGenerator.Parser.CodeBlock"/>s.
 /// </summary>
 /// <param name="Text">The raw SQL source text to tokenize.</param>
-public class SQuiLTokenizer(string Text)
+/// <param name="Dialect">
+/// The dialect whose type vocabulary governs ambiguous/dialect-specific type keywords
+/// (e.g. SQLite's <c>INTEGER</c>/<c>BLOB</c>/<c>BOOLEAN</c>/<c>GUID</c>, and SQLite's
+/// <c>REAL</c>/<c>DATE</c> mapping to <c>double</c>/<c>DateTime</c> instead of SQL Server's
+/// <c>float</c>/<c>DateOnly</c>). Defaults to <see cref="SqlServerDialect"/> so every
+/// existing call site (and the internal <c>USE</c>-statement sub-tokenizer, which never
+/// tokenizes types) is unaffected.
+/// </param>
+public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 {
 	private string Text { get; } = Text;
+
+	private ISqlDialect Dialect { get; } = Dialect ?? new SqlServerDialect();
 
 	/// <summary>Matches SQL keywords that drive the parse: <c>DECLARE</c>, <c>SET</c>, <c>USE</c>, etc.</summary>
 	private static Regex KeywordRegex { get; } = new(
@@ -30,6 +42,15 @@ public class SQuiLTokenizer(string Text)
 	/// </summary>
 	private static Regex TypeRegex { get; } = new(
 		"""^((bit|int|real|float|double|uniqueidentifier|date(?!time)|time|datetime(2|offset|)|smalldatetime|xml|n?text|bigint|smallint|tinyint|smallmoney|money|image|timestamp|rowversion)\b|(decimal|numeric)(\s*\(\s*\d+\s*(,\s*\d+\s*)?\)|\b)|identity(\s*\(\s*\d+\s*,\s*\d+\s*\)|\b)|n?(var)?char\s*\(\s*(\d+|max)\s*\)|table\s*\(|default\s+(\d+(\.\d+)?|'.*?')|varbinary\s*\(\s*max\s*\)|binary\s*\(\s*\d+\s*\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+
+	/// <summary>
+	/// Matches SQLite-only bare type keywords that have no T-SQL equivalent spelling and so are
+	/// absent from <see cref="TypeRegex"/> (kept dialect-scoped so SQL Server tokenization is
+	/// byte-for-byte unaffected): <c>INTEGER</c>, <c>BLOB</c>, <c>BOOLEAN</c>, <c>GUID</c>.
+	/// Attempted only when <see cref="Dialect"/> is <see cref="SqliteDialect"/>.
+	/// </summary>
+	private static Regex SqliteTypeRegex { get; } = new(
+		"""^(integer|blob|boolean|guid)\b""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
 	/// <summary>Matches built-in SQL function calls such as <c>GETDATE()</c>.</summary>
 	private static Regex FunctionRegex { get; } = new(
@@ -74,9 +95,13 @@ public class SQuiLTokenizer(string Text)
 
 	private List<Token>? Tokens { get; set; }
 
-	/// <summary>Static entry point: tokenizes <paramref name="text"/> and returns the token list.</summary>
+	/// <summary>Static entry point: tokenizes <paramref name="text"/> under the SQL Server dialect and returns the token list.</summary>
 	public static List<Token> GetTokens(string text)
-		=> new SQuiLTokenizer(text).GetTokens();
+		=> GetTokens(text, new SqlServerDialect());
+
+	/// <summary>Static entry point: tokenizes <paramref name="text"/> under <paramref name="dialect"/> and returns the token list.</summary>
+	public static List<Token> GetTokens(string text, ISqlDialect dialect)
+		=> new SQuiLTokenizer(text, dialect).GetTokens();
 
 	/// <summary>
 	/// Tokenizes the SQL source text, stopping at the <c>USE</c> statement boundary where the
@@ -323,7 +348,10 @@ public class SQuiLTokenizer(string Text)
 				case "smallmoney":
 					return T(TokenType.TYPE_SMALLMONEY, p.Value);
 				case "real":
-					return T(TokenType.TYPE_FLOAT, "real");
+					// SQLite's REAL is an 8-byte IEEE float (C# double); T-SQL's real is 4-byte (C# float).
+					return Dialect is SqliteDialect
+						? T(TokenType.TYPE_DOUBLE, "real")
+						: T(TokenType.TYPE_FLOAT, "real");
 				case "double" or "float":
 					return T(TokenType.TYPE_DOUBLE, "float");
 				case "decimal" or "numeric":
@@ -354,7 +382,11 @@ public class SQuiLTokenizer(string Text)
 				case "ntext":
 					return T(TokenType.TYPE_STRING, p.Value, p.Value);
 				case "date":
-					return T(TokenType.TYPE_DATE, p.Value);
+					// SQLite has no dedicated DATE storage class; it stores date values as TEXT
+					// alongside DATETIME, so both map to the same TokenType under this dialect.
+					return Dialect is SqliteDialect
+						? T(TokenType.TYPE_DATETIME, p.Value)
+						: T(TokenType.TYPE_DATE, p.Value);
 				case "time":
 					return T(TokenType.TYPE_TIME, p.Value);
 				case "datetime":
@@ -393,7 +425,23 @@ public class SQuiLTokenizer(string Text)
 				}
 				return text.ToString().ToLower();
 			}
-		});
+		}) || (Dialect is SqliteDialect && Try(SqliteTypeRegex, p =>
+		{
+			// SQLite-only bare keywords with no T-SQL equivalent spelling — see SqliteTypeRegex.
+			switch (p.Value.ToLower())
+			{
+				case "integer":
+					return T(TokenType.TYPE_BIGINT, p.Value);
+				case "blob":
+					return T(TokenType.TYPE_VARBINARY, p.Value, "max");
+				case "boolean":
+					return T(TokenType.TYPE_BOOLEAN, p.Value);
+				case "guid":
+					return T(TokenType.TYPE_GUID, p.Value);
+				default:
+					return $"Invalid Type: `{p.Value}`";
+			}
+		}));
 
 		bool Keyword() => Try(KeywordRegex, p =>
 		{

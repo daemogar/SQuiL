@@ -1,17 +1,26 @@
 namespace SQuiL.Tests.ShapeDetection;
 
+using Microsoft.Extensions.Configuration;
+
+using SQuiL.Dialects;
 using SQuiL.Models;
 using SQuiL.SourceGenerator.Parser;
 using SQuiL.Tokenizer;
+
 using Xunit;
 
 /// <summary>
 /// Guards parity between the build-time shape key (SQuiLShapeKey / Token.CSharpType) and the
-/// runtime shape key (SQuiLBaseDataContext.NormalizeType). They live in separate switch tables;
-/// a future desync would silently break result-set routing at runtime.
+/// runtime shape key (each provider's <c>NormalizeType</c> override). They live in separate
+/// switch tables; a future desync would silently break result-set routing at runtime.
 /// </summary>
 public class KeyParityTests
 {
+    // Minimal concrete contexts so the protected, virtually-dispatched NormalizeType override
+    // for each provider can be reached from a test (mirrors SqliteCreateErrorTests.TestContext).
+    private sealed class SqlServerProbe() : SqlServerDataContext(new ConfigurationBuilder().Build());
+    private sealed class SqliteProbe() : SqliteDataContext(new ConfigurationBuilder().Build());
+
     /// <summary>
     /// Parse a single-column table declare, extract the build-time canonical token via ShapeKeyOf,
     /// compare against NormalizeType for the matching SQL Server provider type name.
@@ -29,10 +38,43 @@ public class KeyParityTests
         Assert.True(colonIdx >= 0, $"ShapeKeyOf returned unexpected format: '{shapeKey}'");
         var buildToken = shapeKey.Substring(colonIdx + 1);
 
-        var runtimeToken = SQuiLBaseDataContext.NormalizeTypeForTest(providerTypeName);
+        var runtimeToken = new SqlServerProbe().NormalizeTypeForTest(providerTypeName);
 
         Assert.Equal(buildToken, runtimeToken);
     }
+
+    /// <summary>
+    /// SQLite counterpart of <see cref="AssertParity"/>: tokenizes <paramref name="sqlType"/> under
+    /// <see cref="SqliteDialect"/> (so SQLite-only keywords like INTEGER/BLOB/BOOLEAN/GUID resolve),
+    /// extracts the build-time canonical routing token via the dialect-aware ShapeKeyOf overload,
+    /// and compares against SqliteDataContext.NormalizeType for the matching provider type name.
+    /// </summary>
+    private static void AssertParitySqlite(string sqlType, string providerTypeName)
+    {
+        var dialect = new SqliteDialect();
+        var tokens = SQuiLTokenizer.GetTokens($"Declare @Returns_T table(C {sqlType});\nUse [Db];\nSelect 1;", dialect);
+        var blocks = SQuiLParser.ParseTokens(tokens);
+        var block = blocks.Find(b => b.IsTable || b.IsObject);
+        Assert.NotNull(block);
+
+        var shapeKey = SQuiLShapeKey.ShapeKeyOf(block, dialect);
+        var colonIdx = shapeKey.IndexOf(':');
+        Assert.True(colonIdx >= 0, $"ShapeKeyOf returned unexpected format: '{shapeKey}'");
+        var buildToken = shapeKey.Substring(colonIdx + 1);
+
+        var runtimeToken = new SqliteProbe().NormalizeTypeForTest(providerTypeName);
+
+        Assert.Equal(buildToken, runtimeToken);
+    }
+
+    [Fact] public void Sqlite_Parity_Integer() => AssertParitySqlite("INTEGER", "INTEGER");
+    [Fact] public void Sqlite_Parity_Text()    => AssertParitySqlite("TEXT", "TEXT");
+    [Fact] public void Sqlite_Parity_Real()    => AssertParitySqlite("REAL", "REAL");
+    [Fact] public void Sqlite_Parity_Blob()    => AssertParitySqlite("BLOB", "BLOB");
+    [Fact] public void Sqlite_Parity_Numeric() => AssertParitySqlite("NUMERIC", "NUMERIC");
+    [Fact] public void Sqlite_Parity_Boolean() => AssertParitySqlite("BOOLEAN", "INTEGER");
+    [Fact] public void Sqlite_Parity_Datetime()=> AssertParitySqlite("DATETIME", "TEXT");
+    [Fact] public void Sqlite_Parity_Guid()    => AssertParitySqlite("GUID", "TEXT");
 
     [Fact] public void Parity_Bit() => AssertParity("bit", "bit");
     [Fact] public void Parity_Int() => AssertParity("int", "int");

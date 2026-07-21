@@ -1,6 +1,19 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { parseSQuiL, SQuiLVariable, describeRole } from '../squil/parser';
 import { describeColumnLinkRole } from '../squil/linkRoleHints';
+import { EditorDialect } from '../squil/dialect';
+import { resolveProjectDialect } from '../squil/contextResolver';
+
+// ─── Real-filesystem resolver callbacks (mirrors previewProvider.ts) ──────
+
+function fsReadFile(p: string): string | undefined {
+  try { return fs.readFileSync(p, 'utf-8'); } catch { return undefined; }
+}
+
+function fsListDir(d: string): string[] {
+  try { return fs.readdirSync(d).map(String); } catch { return []; }
+}
 
 // ─── SQL → C# quick-reference (duplicated from previewGenerator for independence) ──
 
@@ -16,15 +29,23 @@ const SQL_CS: Record<string, string> = {
   uniqueidentifier: 'Guid', varbinary: 'byte[]', varchar: 'string', xml: 'string',
 };
 
-function sqlToCSharp(sqlType: string): string {
+/** SQLite's type vocabulary overlays SQL_CS for keys whose CLR mapping differs by dialect. */
+const SQLITE_CS: Record<string, string> = {
+  integer: 'long', text: 'string', real: 'double', blob: 'byte[]',
+  numeric: 'decimal', boolean: 'bool', date: 'DateTime', datetime: 'DateTime',
+  guid: 'Guid', uniqueidentifier: 'Guid',
+};
+
+function sqlToCSharp(sqlType: string, dialect: EditorDialect = 'sqlserver'): string {
   const base = sqlType.toLowerCase().replace(/\s*\(.*\)/, '').trim();
+  if (dialect === 'sqlite' && base in SQLITE_CS) return SQLITE_CS[base];
   return SQL_CS[base] ?? 'object';
 }
 
-function getCSharpType(v: SQuiLVariable): string {
+function getCSharpType(v: SQuiLVariable, dialect: EditorDialect = 'sqlserver'): string {
   if (v.role === 'params' || v.role === 'returns') return `IEnumerable<${v.name}>`;
   if (v.role === 'param-table' || v.role === 'return-table') return v.name;
-  return sqlToCSharp(v.sqlType);
+  return sqlToCSharp(v.sqlType, dialect);
 }
 
 function recordTypeName(v: SQuiLVariable): string {
@@ -43,6 +64,8 @@ export class SQuiLHoverProvider implements vscode.HoverProvider {
 
     const word = document.getText(wordRange);
     if (!word.startsWith('@')) return undefined;
+
+    const dialect = resolveProjectDialect(document.uri.fsPath, fsReadFile, fsListDir);
 
     const parsed = parseSQuiL(document.getText());
     const variable = parsed.variables.find(
@@ -77,7 +100,7 @@ export class SQuiLHoverProvider implements vscode.HoverProvider {
       const asOfType = variable.sqlType.split(/[\s=]/)[0];
       md.appendMarkdown(`| | |\n|---|---|\n`);
       md.appendMarkdown(`| **SQL type** | \`${variable.sqlType}\` |\n`);
-      md.appendMarkdown(`| **C# type** | \`${sqlToCSharp(asOfType)}?\` |\n`);
+      md.appendMarkdown(`| **C# type** | \`${sqlToCSharp(asOfType, dialect)}?\` |\n`);
       md.appendMarkdown(`| **C# name** | \`${variable.name}\` |\n`);
       md.appendMarkdown(`| **Generated in** | \`*Request\` record (nullable) |\n`);
       md.appendMarkdown(
@@ -92,7 +115,7 @@ export class SQuiLHoverProvider implements vscode.HoverProvider {
     if (!isSpecial) {
       md.appendMarkdown(`| | |\n|---|---|\n`);
       md.appendMarkdown(`| **SQL type** | \`${variable.sqlType}\` |\n`);
-      md.appendMarkdown(`| **C# type** | \`${getCSharpType(variable)}\` |\n`);
+      md.appendMarkdown(`| **C# type** | \`${getCSharpType(variable, dialect)}\` |\n`);
       md.appendMarkdown(`| **C# name** | \`${variable.name}\` |\n`);
       md.appendMarkdown(`| **Generated in** | `);
 
@@ -106,7 +129,7 @@ export class SQuiLHoverProvider implements vscode.HoverProvider {
         md.appendMarkdown(`\n**Columns** → \`${recordTypeName(variable)}\` record:\n\n`);
         md.appendCodeblock(
           variable.columns
-            .map(c => `${sqlToCSharp(c.sqlType)}${c.nullable ? '?' : ''} ${c.name}`)
+            .map(c => `${sqlToCSharp(c.sqlType, dialect)}${c.nullable ? '?' : ''} ${c.name}`)
             .join('\n'),
           'csharp',
         );

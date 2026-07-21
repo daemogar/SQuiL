@@ -56,4 +56,20 @@ public abstract partial class SqliteDataContext(IConfiguration configuration)
 	protected SQuiLError CreateError(SqliteException e)
 		=> new SQuiLError(e.SqliteErrorCode, 0, e.SqliteExtendedErrorCode, 0, string.Empty, e.Message)
 			.WithException(e);
+
+	/// <summary>
+	/// SQLite dialect: provider type name (one of SQLite's five storage-class affinities,
+	/// as reported by <c>DbDataReader.GetDataTypeName</c>) -> canonical C# type token.
+	/// MUST stay in parity with the build-time key SQuiLShapeKey.ShapeKeyOf computes for
+	/// SQLite-dialect blocks (see SQuiL.Tests.ShapeDetection.KeyParityTests).
+	/// </summary>
+	protected override string NormalizeType(string providerTypeName) => providerTypeName.ToLowerInvariant() switch
+	{
+		"integer" => "long",
+		"text" => "string",
+		"real" => "double",
+		"blob" => "byte[]",
+		"numeric" => "decimal",
+		var other => other,
+	};
 }

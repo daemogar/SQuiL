@@ -280,3 +280,52 @@ test('preview stays flat on INPUT side when Primary Keys exist but no column lin
   assert.ok(requestSection.includes('Alpha>? Alpha { get; set; } = [];'), 'Alpha stays a flat Request member (with the usual input-list = [])');
   assert.ok(requestSection.includes('Beta>? Beta { get; set; } = [];'), 'Beta stays a flat Request member (with the usual input-list = [])');
 });
+
+// ─── Dialect-aware type mapping (Task 4: SQLite) ───────────────────────────
+
+test('sqlserver dialect (default) maps a bare INTEGER-spelled type through the fallback (object), unaffected by SQLite overlay', () => {
+  const parsed = parseSQuiL([
+    '--Name: SqlServerDefault',
+    'Declare @Param_X INTEGER;',
+    'Use Db;',
+    'Select @Param_X;',
+  ].join('\n'));
+
+  const out = generateCSharpPreview(parsed, parsed.queryName ?? 'Query');
+  assert.ok(out.includes('public object X { get; set; }'), 'INTEGER is not a T-SQL type, so sqlserver dialect falls back to object');
+});
+
+test('sqlite dialect maps INTEGER/REAL/BLOB/BOOLEAN/GUID scalars to their SQLite CLR types', () => {
+  const parsed = parseSQuiL([
+    '--Name: SqliteScalars',
+    'Declare @Param_A INTEGER;',
+    'Declare @Param_B REAL;',
+    'Declare @Param_C BLOB;',
+    'Declare @Param_D BOOLEAN;',
+    'Declare @Param_E GUID;',
+    'Use Db;',
+    'Select @Param_A;',
+  ].join('\n'));
+
+  const out = generateCSharpPreview(parsed, parsed.queryName ?? 'Query', undefined, false, true, 'sqlite');
+  assert.ok(out.includes('public long A { get; set; }'), 'INTEGER -> long under sqlite');
+  assert.ok(out.includes('public double B { get; set; }'), 'REAL -> double under sqlite');
+  assert.ok(out.includes('public byte[] C { get; set; }'), 'BLOB -> byte[] under sqlite');
+  assert.ok(out.includes('public bool D { get; set; }'), 'BOOLEAN -> bool under sqlite');
+  assert.ok(out.includes('public Guid E { get; set; }'), 'GUID -> Guid under sqlite');
+});
+
+test('sqlite dialect maps table-column types the same as scalars', () => {
+  const parsed = parseSQuiL([
+    '--Name: SqliteTable',
+    'Declare @Returns_Rows table(RowID INTEGER Primary Key, Amount REAL, Note TEXT);',
+    'Use Db;',
+    'Insert Into @Returns_Rows Select RowID, Amount, Note From T;',
+    'Select * From @Returns_Rows;',
+  ].join('\n'));
+
+  const out = generateCSharpPreview(parsed, parsed.queryName ?? 'Query', undefined, false, true, 'sqlite');
+  assert.ok(out.includes('long RowID'), 'RowID column INTEGER -> long under sqlite');
+  assert.ok(out.includes('double Amount'), 'Amount column REAL -> double under sqlite');
+  assert.ok(out.includes('string Note'), 'Note column TEXT -> string under sqlite');
+});

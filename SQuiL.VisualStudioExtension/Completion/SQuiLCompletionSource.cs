@@ -212,19 +212,29 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
         }
     }
 
-    private void AddSqlTypes(List<EditorCompletion> list)
+    private void AddSqlTypes(List<EditorCompletion> list) => AddSqlTypes(list, EditorDialect.SqlServer);
+
+    /// <summary>
+    /// Dialect-gated overload: offers <see cref="SQuiLCompletionData.SqliteTypes"/>
+    /// instead of <see cref="SQuiLCompletionData.SqlTypes"/> when the owning
+    /// .csproj resolves to <see cref="EditorDialect.Sqlite"/>. Mirrors
+    /// <c>typeCompletions(dialect)</c> in <c>completionProvider.ts</c>.
+    /// </summary>
+    private void AddSqlTypes(List<EditorCompletion> list, EditorDialect dialect)
     {
         var glyph = _provider.GlyphService.GetGlyph(
             StandardGlyphGroup.GlyphGroupValueType, StandardGlyphItem.GlyphItemPublic);
 
-        foreach (string t in SQuiLCompletionData.SqlTypes)
+        string description = dialect == EditorDialect.Sqlite ? "SQLite type" : "SQL type";
+
+        foreach (string t in SQuiLCompletionData.TypesFor(dialect))
         {
             list.Add(new EditorCompletion(
                 displayText:        t,
                 insertionText:      t,
-                description:        "SQL type",
+                description:        description,
                 iconSource:         glyph,
-                iconAutomationText: "SQL type"));
+                iconAutomationText: description));
         }
 
         list.Add(new EditorCompletion(

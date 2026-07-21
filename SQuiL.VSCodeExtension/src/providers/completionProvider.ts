@@ -1,6 +1,19 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { parseSQuiL, describeRole } from '../squil/parser';
 import { sampleDataExists } from '../squil/sampleDataGenerator';
+import { EditorDialect } from '../squil/dialect';
+import { resolveProjectDialect } from '../squil/contextResolver';
+
+// ─── Real-filesystem resolver callbacks (mirrors previewProvider.ts) ──────
+
+function fsReadFile(p: string): string | undefined {
+  try { return fs.readFileSync(p, 'utf-8'); } catch { return undefined; }
+}
+
+function fsListDir(d: string): string[] {
+  try { return fs.readdirSync(d).map(String); } catch { return []; }
+}
 
 // ─── PascalCase keyword / type lists ──────────────────────────────────────
 
@@ -38,6 +51,12 @@ const SQL_TYPES = [
   'nvarchar(50)', 'nvarchar(100)', 'nvarchar(255)', 'nvarchar(max)',
   'decimal(18, 2)', 'decimal(18, 4)',
   'char(1)', 'char(10)',
+];
+
+/** SQLite's type vocabulary — offered instead of SQL_TYPES when the owning .csproj resolves to the SQLite dialect. */
+const SQLITE_TYPES = [
+  'integer', 'text', 'real', 'blob', 'numeric', 'decimal',
+  'boolean', 'date', 'datetime', 'guid', 'uniqueidentifier',
 ];
 
 const TABLE_HINTS = ['NoLock', 'ReadPast', 'UpdLock', 'RowLock', 'TabLock'];
@@ -198,6 +217,7 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
     const textBefore = lineText.substring(0, position.character);
     const textAfter = lineText.substring(position.character);
     const inHeader = isInHeader(document, position);
+    const dialect = resolveProjectDialect(document.uri.fsPath, fsReadFile, fsListDir);
 
     // If the cursor is inside an existing @word token (i.e., word chars
     // continue past the cursor), suppress completions so editing the
@@ -219,7 +239,7 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
       }
       // `Declare @var ` → SQL type completions
       if (/DECLARE\s+@\w+\s+$/i.test(textBefore)) {
-        return this.typeCompletions();
+        return this.typeCompletions(dialect);
       }
       return this.sqlKeywordCompletions(textBefore);
     }
@@ -243,7 +263,7 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
 
     // After "Declare @var " or "AS " → SQL types
     if (/DECLARE\s+@\w+\s+$/i.test(textBefore) || /\bAS\s+$/i.test(textBefore)) {
-      return this.typeCompletions();
+      return this.typeCompletions(dialect);
     }
 
     // Table hints
@@ -408,10 +428,11 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
 
   // ── SQL type completions ───────────────────────────────────────────
 
-  private typeCompletions(): vscode.CompletionItem[] {
-    const items = SQL_TYPES.map(t => {
+  private typeCompletions(dialect: EditorDialect = 'sqlserver'): vscode.CompletionItem[] {
+    const types = dialect === 'sqlite' ? SQLITE_TYPES : SQL_TYPES;
+    const items = types.map(t => {
       const item = new vscode.CompletionItem(t, vscode.CompletionItemKind.TypeParameter);
-      item.detail = 'SQL type';
+      item.detail = dialect === 'sqlite' ? 'SQLite type' : 'SQL type';
       return item;
     });
 

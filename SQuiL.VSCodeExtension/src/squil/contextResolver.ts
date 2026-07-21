@@ -24,6 +24,8 @@
  *       change one side, change all.
  */
 
+import { EditorDialect, resolveDialect } from './dialect';
+
 // ─── Public interface ─────────────────────────────────────────────────────
 
 export interface ResolvedContext {
@@ -180,6 +182,31 @@ function findCsprojDir(
   }
 
   return undefined;
+}
+
+// ─── Dialect discovery ─────────────────────────────────────────────────────
+
+/**
+ * Resolve the SQuiL dialect (`'sqlite'` | `'sqlserver'`) for a given .squil
+ * file, by locating its owning .csproj (via {@link findCsprojDir}) and
+ * inspecting its `<PackageReference>`s (via {@link resolveDialect}).
+ * Defaults to `'sqlserver'` when no .csproj is found, or when the .csproj
+ * can't be read.
+ */
+export function resolveProjectDialect(
+  squilPath: string,
+  readFile: (p: string) => string | undefined,
+  listDir: (d: string) => string[],
+): EditorDialect {
+  const csprojDir = findCsprojDir(squilPath, readFile, listDir);
+  if (csprojDir === undefined) return 'sqlserver';
+
+  const entries = listDir(csprojDir);
+  const csprojName = entries.find(e => e.toLowerCase().endsWith('.csproj'));
+  if (!csprojName) return 'sqlserver';
+
+  const csprojText = readFile(`${csprojDir}/${csprojName}`);
+  return resolveDialect(csprojText);
 }
 
 function parentDir(p: string): string {

@@ -8,9 +8,12 @@ public abstract partial class SQuiLBaseDataContext
 	/// <summary>
 	/// Computes the ordered signature key of the reader's current result set:
 	/// columns joined by '|', each "name:canonicalType", names lower-cased.
-	/// MUST match the build-time key from SQuiLShapeKey.ShapeKeyOf.
+	/// MUST match the build-time key from SQuiLShapeKey.ShapeKeyOf. Dispatches to the
+	/// provider subclass's <see cref="NormalizeType"/> override, so the emitted
+	/// (unqualified) <c>ShapeKey(reader)</c> call resolves to the correct provider's
+	/// type map without the generator needing to pass a dialect argument.
 	/// </summary>
-	protected static string ShapeKey(DbDataReader reader)
+	protected string ShapeKey(DbDataReader reader)
 	{
 		var sb = new StringBuilder();
 		for (var i = 0; i < reader.FieldCount; i++)
@@ -24,30 +27,13 @@ public abstract partial class SQuiLBaseDataContext
 	}
 
 	/// <summary>
-	/// SQL Server dialect: provider type name -> canonical C# type token (matching
-	/// Token.CSharpType). Length/precision ignored. Unknown types pass through
-	/// lower-cased so they simply fail to match any declared output (clean skip).
-	/// This is the dialect seam for TODO #6 (other providers add their own map).
+	/// Provider type name -> canonical C# type token (matching Token.CSharpType).
+	/// Length/precision ignored. Unknown types pass through lower-cased so they simply
+	/// fail to match any declared output (clean skip). Neutral base passthrough; every
+	/// provider (<c>SqlServerDataContext</c>, <c>SqliteDataContext</c>, ...) overrides this
+	/// with its own map. This is the dialect seam for TODO #6 / Phase 3B.
 	/// </summary>
-	internal static string NormalizeType(string providerTypeName) => providerTypeName.ToLowerInvariant() switch
-	{
-		"bit" => "bool",
-		"int" => "int",
-		"bigint" => "long",
-		"smallint" => "short",
-		"tinyint" => "byte",
-		"decimal" or "numeric" or "money" or "smallmoney" => "decimal",
-		"varchar" or "nvarchar" or "char" or "nchar" or "text" or "ntext" or "xml" => "string",
-		"date" => "System.DateOnly",
-		"time" => "System.TimeOnly",
-		"datetime" or "datetime2" or "smalldatetime" => "System.DateTime",
-		"datetimeoffset" => "System.DateTimeOffset",
-		"uniqueidentifier" => "System.Guid",
-		"binary" or "varbinary" or "image" or "timestamp" or "rowversion" => "byte[]",
-		"real" => "float",
-		"float" => "double",
-		var other => other,
-	};
+	protected virtual string NormalizeType(string providerTypeName) => providerTypeName.ToLowerInvariant();
 
-	internal static string NormalizeTypeForTest(string providerTypeName) => NormalizeType(providerTypeName);
+	internal string NormalizeTypeForTest(string providerTypeName) => NormalizeType(providerTypeName);
 }

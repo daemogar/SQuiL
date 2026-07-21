@@ -104,4 +104,31 @@ public abstract partial class SqlServerDataContext(IConfiguration configuration)
 	/// <param name="e">The SQL Server exception raised during query execution.</param>
 	protected SQuiLError CreateError(SqlException e)
 		=> new SQuiLError(e.Number, e.Class, e.State, e.LineNumber, e.Procedure, e.Message).WithException(e);
+
+	/// <summary>
+	/// SQL Server dialect: provider type name -> canonical C# type token (matching
+	/// Token.CSharpType). Length/precision ignored. Unknown types pass through
+	/// lower-cased so they simply fail to match any declared output (clean skip).
+	/// MUST stay in parity with the build-time key from SQuiLShapeKey.ShapeKeyOf
+	/// (see SQuiL.Tests.ShapeDetection.KeyParityTests).
+	/// </summary>
+	protected override string NormalizeType(string providerTypeName) => providerTypeName.ToLowerInvariant() switch
+	{
+		"bit" => "bool",
+		"int" => "int",
+		"bigint" => "long",
+		"smallint" => "short",
+		"tinyint" => "byte",
+		"decimal" or "numeric" or "money" or "smallmoney" => "decimal",
+		"varchar" or "nvarchar" or "char" or "nchar" or "text" or "ntext" or "xml" => "string",
+		"date" => "System.DateOnly",
+		"time" => "System.TimeOnly",
+		"datetime" or "datetime2" or "smalldatetime" => "System.DateTime",
+		"datetimeoffset" => "System.DateTimeOffset",
+		"uniqueidentifier" => "System.Guid",
+		"binary" or "varbinary" or "image" or "timestamp" or "rowversion" => "byte[]",
+		"real" => "float",
+		"float" => "double",
+		var other => other,
+	};
 }
