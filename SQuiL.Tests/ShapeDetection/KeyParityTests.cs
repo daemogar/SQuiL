@@ -99,4 +99,28 @@ public class KeyParityTests
     [Fact] public void Parity_Xml() => AssertParity("xml", "xml");
     [Fact] public void Parity_Image() => AssertParity("image", "image");
     [Fact] public void Parity_Timestamp() => AssertParity("timestamp", "timestamp");
+
+    /// <summary>
+    /// Zero-churn identity guard for the generator's dialect-aware emission (Task 4 follow-up
+    /// fix): <c>ShapeKeyOf(block, new SqlServerDialect())</c> MUST be byte-identical to
+    /// <c>ShapeKeyOf(block)</c> for SQL Server, since SQuiLDataContext.cs now always calls the
+    /// dialect-aware overload for switch-case labels (both the flat and nested emission paths).
+    /// If this test ever fails, every SQL-Server `*DataContext.g.verified.cs` snapshot's switch
+    /// labels would silently change — see RoutingType in SQuiLShapeKey.cs, which must return
+    /// `p.CSharpType()` (identical to the non-dialect overload) for any non-SQLite dialect.
+    /// </summary>
+    [Fact]
+    public void ShapeKeyOf_SqlServerDialect_MatchesPlainOverload_MultiColumn()
+    {
+        var tokens = SQuiLTokenizer.GetTokens(
+            "Declare @Returns_People table(PersonID int, Name varchar(100), IsActive bit, Created datetime, RowGuid uniqueidentifier, Amount decimal(18,2) null);\nUse [Db];\nSelect 1;");
+        var blocks = SQuiLParser.ParseTokens(tokens);
+        var block = blocks.Find(b => b.IsTable || b.IsObject);
+        Assert.NotNull(block);
+
+        var plain = SQuiLShapeKey.ShapeKeyOf(block!);
+        var dialectAware = SQuiLShapeKey.ShapeKeyOf(block!, new SqlServerDialect());
+
+        Assert.Equal(plain, dialectAware);
+    }
 }

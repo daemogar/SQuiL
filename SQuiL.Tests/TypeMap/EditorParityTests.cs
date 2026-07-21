@@ -34,6 +34,11 @@ public class EditorParityTests
     // declaration so the two dialect maps (SQL Server `Map` vs SQLite `SqliteMap`, added in Task 4 —
     // see squil skill / project_todo_multidb_dialect.md) can be checked against their own canonical
     // matrix instead of colliding in one blanket regex pass over the whole file.
+    // Fragile-if-extended: the brace-depth scan below assumes `dictionaryName` is the ONLY thing
+    // between the opening `{` it finds and the matching closing `{`, and that no dictionary VALUE
+    // contains a literal '{' or '}' character — fine for today's two flat SQL→C# maps, but a third
+    // dictionary or a value with braces in it would need a smarter scan (e.g. skip over string
+    // literals) rather than a plain character count.
     private static string ExtractDictionaryBody(string text, string dictionaryName)
     {
         var m = Regex.Match(text, $@"\b{dictionaryName}\s*=\s*new[^{{]*\{{", RegexOptions.Singleline);

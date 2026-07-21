@@ -85,9 +85,13 @@ internal sealed class PreviewGeneratedCSharpCommand
         string queryName = parsed.QueryName ?? Path.GetFileNameWithoutExtension(fullPath);
 
         // Resolve [SQuiLQuery]/[SQuiLQueryTransaction] context from disk so the
-        // preview shows the correct transaction scaffold.
+        // preview shows the correct transaction scaffold, and the dialect (SQL
+        // Server vs SQLite) from the owning .csproj's PackageReferences so the
+        // preview's SQL→C# type mapping matches what the generator would emit —
+        // mirrors previewProvider.ts's `resolveProjectDialect(document.uri.fsPath, ...)`.
         var ctx = SQuiL.SsmsExtension.Parsing.SQuiLContextResolver.Resolve(fullPath);
-        string preview = SQuiLPreviewGenerator.Generate(parsed, queryName, enabled: ctx.Enabled, debugRollback: ctx.DebugRollback);
+        var dialect = SQuiL.SsmsExtension.Parsing.SQuiLContextResolver.ResolveDialect(fullPath);
+        string preview = SQuiLPreviewGenerator.Generate(parsed, queryName, enabled: ctx.Enabled, debugRollback: ctx.DebugRollback, dialect: dialect);
 
         string tempPath = Path.Combine(
             Path.GetTempPath(),

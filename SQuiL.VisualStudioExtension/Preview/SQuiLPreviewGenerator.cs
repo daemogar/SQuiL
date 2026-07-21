@@ -24,7 +24,7 @@ internal static class SQuiLPreviewGenerator
     /// </summary>
     private static string RecordTypeName(SQuiLVariable v) => v.Name;
 
-    private static string GetPropertyType(SQuiLVariable v, string? modelsNs = null)
+    private static string GetPropertyType(SQuiLVariable v, string? modelsNs = null, EditorDialect dialect = EditorDialect.SqlServer)
     {
         if (v.Role is VariableRole.Params or VariableRole.Returns)
         {
@@ -38,7 +38,7 @@ internal static class SQuiLPreviewGenerator
         }
 
         // Scalars: nullable only when explicitly marked NULL in the SQL declaration.
-        string cs = SqlTypeMap.SqlToCSharp(v.SqlType);
+        string cs = SqlTypeMap.SqlToCSharp(v.SqlType, dialect);
         return v.Nullable ? $"{cs}?" : cs;
     }
 
@@ -110,7 +110,7 @@ internal static class SQuiLPreviewGenerator
         return graph;
     }
 
-    public static string Generate(SQuiLParseResult parsed, string queryName, string ns = "YourNamespace", bool enabled = false, bool debugRollback = true)
+    public static string Generate(SQuiLParseResult parsed, string queryName, string ns = "YourNamespace", bool enabled = false, bool debugRollback = true, EditorDialect dialect = EditorDialect.SqlServer)
     {
         string db = parsed.Database ?? "/* database */";
         var lines = new List<string>();
@@ -163,14 +163,14 @@ internal static class SQuiLPreviewGenerator
         // appear at the top level — an input child collapses into its parent record as
         // a member instead (mirrors the Response nesting below). ──────────────────────
         lines.Add("// ── Request ─────────────────────────────────────────────");
-        EmitModelRecord(lines, $"{queryName}Request", requestVars, isResponse: false, parsed.Variables, modelsNs);
+        EmitModelRecord(lines, $"{queryName}Request", requestVars, isResponse: false, parsed.Variables, modelsNs, dialect);
 
         // ── Response record (only nesting ROOTS appear at the top level — a
         // child collapses into its parent record as a member instead) ──────
         if (returnVars.Count > 0)
         {
             lines.Add("// ── Response ────────────────────────────────────────────");
-            EmitModelRecord(lines, $"{queryName}Response", responseVars, isResponse: true, modelsNs: modelsNs);
+            EmitModelRecord(lines, $"{queryName}Response", responseVars, isResponse: true, modelsNs: modelsNs, dialect: dialect);
         }
 
         // ── Data context ────────────────────────────────────────────────
@@ -233,7 +233,7 @@ internal static class SQuiLPreviewGenerator
             lines.Add($"namespace {modelsNs};");
             lines.Add("");
             foreach (var v in tableVars)
-                EmitTableRecord(lines, RecordTypeName(v), v, modelsNs, ChildrenOf(v));
+                EmitTableRecord(lines, RecordTypeName(v), v, modelsNs, ChildrenOf(v), dialect);
         }
 
         return string.Join("\r\n", lines);
@@ -260,13 +260,13 @@ internal static class SQuiLPreviewGenerator
 
     private static void EmitTableRecord(
         List<string> lines, string typeName, SQuiLVariable v,
-        string? modelsNs = null, List<SQuiLVariable>? children = null)
+        string? modelsNs = null, List<SQuiLVariable>? children = null, EditorDialect dialect = EditorDialect.SqlServer)
     {
         if (v.Columns is null || v.Columns.Count == 0) return;
 
         string CsType(TableColumn col)
         {
-            string cs = SqlTypeMap.SqlToCSharp(col.SqlType);
+            string cs = SqlTypeMap.SqlToCSharp(col.SqlType, dialect);
             bool nullable = col.Nullable;
             return nullable ? cs + "?" : cs;
         }
@@ -299,7 +299,7 @@ internal static class SQuiLPreviewGenerator
             foreach (var child in children!)
             {
                 string initializer = child.Role == VariableRole.Params ? " = [];" : "";
-                lines.Add($"    public {GetPropertyType(child, modelsNs)} {child.Name} {{ get; set; }}{initializer}");
+                lines.Add($"    public {GetPropertyType(child, modelsNs, dialect)} {child.Name} {{ get; set; }}{initializer}");
             }
         lines.Add("}");
         lines.Add("");
@@ -322,7 +322,7 @@ internal static class SQuiLPreviewGenerator
 
     private static void EmitModelRecord(
         List<string> lines, string typeName, List<SQuiLVariable> vars, bool isResponse,
-        IReadOnlyList<SQuiLVariable>? allVars = null, string? modelsNs = null)
+        IReadOnlyList<SQuiLVariable>? allVars = null, string? modelsNs = null, EditorDialect dialect = EditorDialect.SqlServer)
     {
         lines.Add($"public partial record {typeName}");
         lines.Add("{");
@@ -347,7 +347,7 @@ internal static class SQuiLPreviewGenerator
                 // adds), matching the generator which maps the bare declared type.
                 // AsOfDate is always nullable on *Request.
                 string asOfType = asOfDate.SqlType.Split(new[] { ' ', '=' }, 2)[0];
-                lines.Add($"    public {SqlTypeMap.SqlToCSharp(asOfType)}? AsOfDate {{ get; set; }}");
+                lines.Add($"    public {SqlTypeMap.SqlToCSharp(asOfType, dialect)}? AsOfDate {{ get; set; }}");
             }
 
             if ((hasDebug || hasSuppressDebug || asOfDate != null) && vars.Count > 0) lines.Add("");
@@ -355,7 +355,7 @@ internal static class SQuiLPreviewGenerator
 
         foreach (var v in vars)
         {
-            string type = GetPropertyType(v, modelsNs);
+            string type = GetPropertyType(v, modelsNs, dialect);
             string initializer = (!isResponse && IsCollection(v)) ? " = []" : "";
             lines.Add($"    public {type} {v.Name} {{ get; set; }}{initializer};");
         }

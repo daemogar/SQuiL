@@ -56,7 +56,7 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
 
             object content = variable == null
                 ? BuildUnknownContent(word)
-                : BuildVariableContent(variable);
+                : BuildVariableContent(variable, ResolveDialect(_buffer));
 
             return Task.FromResult<QuickInfoItem?>(new QuickInfoItem(trackingSpan, content));
         }
@@ -120,6 +120,21 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
     private static bool IsIdentChar(char c) => c == '_' || char.IsLetterOrDigit(c);
 
     /// <summary>
+    /// Resolve the SQuiL editor dialect (SQL Server vs SQLite) for the buffer's on-disk
+    /// file, using the same <c>ITextDocument</c> lookup as <c>SQuiLErrorTagger</c> and
+    /// <c>SQuiLContextResolver.ResolveDialect</c> (.csproj PackageReference discovery).
+    /// Falls back to <see cref="EditorDialect.SqlServer"/> when the buffer has no
+    /// on-disk path (e.g. an unsaved/preview buffer) — mirrors hoverProvider.ts's
+    /// <c>resolveProjectDialect(document.uri.fsPath, ...)</c> call.
+    /// </summary>
+    private static EditorDialect ResolveDialect(ITextBuffer buffer)
+    {
+        if (buffer.Properties.TryGetProperty(typeof(ITextDocument), out ITextDocument doc) && doc.FilePath is { Length: > 0 } path)
+            return SQuiLContextResolver.ResolveDialect(path);
+        return EditorDialect.SqlServer;
+    }
+
+    /// <summary>
     /// Returns the span of the bare identifier (no leading <c>@</c> required)
     /// containing <paramref name="position"/>, or null if the position is not
     /// on one. Used to resolve table-column-name hovers (nested-object link
@@ -161,7 +176,7 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
         return new ContainerElement(ContainerElementStyle.Stacked, header, hint);
     }
 
-    private static ContainerElement BuildVariableContent(SQuiLVariable v)
+    private static ContainerElement BuildVariableContent(SQuiLVariable v, EditorDialect dialect)
     {
         var header = new ClassifiedTextElement(
             new ClassifiedTextRun(PredefinedClassificationTypeNames.Identifier, v.RawName),
@@ -179,7 +194,7 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
             var asOfDetails = new ClassifiedTextElement(
                 Field("SQL type",     v.SqlType),
                 NewLine,
-                Field("C# type",      $"{SqlTypeMap.SqlToCSharp(asOfType)}?"),
+                Field("C# type",      $"{SqlTypeMap.SqlToCSharp(asOfType, dialect)}?"),
                 NewLine,
                 Field("C# name",      v.Name),
                 NewLine,
@@ -209,7 +224,7 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
             return new ContainerElement(ContainerElementStyle.Stacked, header, note);
         }
 
-        string csType = SqlTypeMap.GetCSharpType(v);
+        string csType = SqlTypeMap.GetCSharpType(v, dialect);
         string generatedIn = v.Role is VariableRole.Param or VariableRole.Params or VariableRole.ParamTable
             ? "*Request"
             : "*Response";
@@ -233,7 +248,7 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
             sb.AppendLine($"Columns → {recordTypeName} record:");
             foreach (var col in v.Columns)
             {
-                string colCs = SqlTypeMap.SqlToCSharp(col.SqlType);
+                string colCs = SqlTypeMap.SqlToCSharp(col.SqlType, dialect);
                 bool nullable = col.Nullable;
                 string suffix = nullable ? "?" : "";
                 sb.AppendLine($"  {colCs}{suffix} {col.Name}");

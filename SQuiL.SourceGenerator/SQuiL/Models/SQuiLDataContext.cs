@@ -375,7 +375,7 @@ public class SQuiLDataContext(
 					// injected sentinel column. A scalar's key is its single aliased column
 					// (name = the scalar's base name); a table/object's key is its ordered columns.
 					var shapeKey = (block.IsTable || block.IsObject)
-						? SQuiLShapeKey.ShapeKeyOf(block)
+						? SQuiLShapeKey.ShapeKeyOf(block, Sql)
 						: SQuiLShapeKey.ScalarKeyOf(block.Name, block.CSharpType(block.Name));
 
 					writer.Block($"""case "{shapeKey}":""", () =>
@@ -651,7 +651,7 @@ public class SQuiLDataContext(
 
 				if (block.IsTable || block.IsObject)
 				{
-					var shapeKey = SQuiLShapeKey.ShapeKeyOf(block);
+					var shapeKey = SQuiLShapeKey.ShapeKeyOf(block, Sql);
 					writer.Block($"""case "{shapeKey}":""", () =>
 					{
 						writer.WriteLine($"is{block.Name} = true;");

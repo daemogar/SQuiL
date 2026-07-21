@@ -95,7 +95,7 @@ public class FileGenerator(
 				Context.ReportCardinalityCollision(method, finding);
 
 			// Shape collision validation (SP0030)
-			foreach (var finding in SQuiLShapeCollisionValidator.Detect(blocks, sql))
+			foreach (var finding in SQuiLShapeCollisionValidator.Detect(blocks, sql, dialect))
 				Context.ReportShapeCollision(method, finding);
 
 			// Timestamp-input validation (SP0032)

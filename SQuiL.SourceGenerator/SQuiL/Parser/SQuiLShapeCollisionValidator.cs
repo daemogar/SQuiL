@@ -1,5 +1,6 @@
 namespace SQuiL.SourceGenerator.Parser;
 
+using SQuiL.Dialects;
 using SQuiL.Models;
 
 using System.Collections.Generic;
@@ -14,7 +15,14 @@ public static class SQuiLShapeCollisionValidator
 {
     public sealed record Finding(string Name, string OtherName, bool IsOutput, bool IsTable, int Line, int OtherLine, bool IsWinner);
 
-    public static List<Finding> Detect(IEnumerable<CodeBlock> blocks, string sql)
+    /// <param name="dialect">
+    /// The resolved dialect for this query file, so collision grouping uses the same
+    /// dialect-coarsened routing tokens as runtime (<see cref="SQuiLShapeKey.ShapeKeyOf(CodeBlock, ISqlDialect)"/>) —
+    /// two SQLite outputs that only differ by a type collapsed to the same storage-class
+    /// affinity (e.g. BOOLEAN vs INTEGER) are a real runtime collision even though their
+    /// declared C# types differ.
+    /// </param>
+    public static List<Finding> Detect(IEnumerable<CodeBlock> blocks, string sql, ISqlDialect dialect)
     {
         // Only OUTPUT table/object blocks route by shape (inputs are JSON params).
         var outputs = new List<CodeBlock>();
@@ -29,7 +37,7 @@ public static class SQuiLShapeCollisionValidator
         var groups = new Dictionary<string, List<CodeBlock>>();
         foreach (var block in outputs)
         {
-            var key = SQuiLShapeKey.ShapeKeyOf(block);
+            var key = SQuiLShapeKey.ShapeKeyOf(block, dialect);
             if (!groups.TryGetValue(key, out var list)) groups[key] = list = [];
             list.Add(block);
         }
