@@ -516,10 +516,11 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			// its constructor argument as a compile-time constant (so an enum member reference
 			// like `SQuiLDialect.SqlServer` is evaluated correctly regardless of how it's
 			// written). Returns the explicit dialect value, or null when the attribute is
-			// absent — in which case DialectRegistry.Resolve defaults to SQL Server (Phase 3A
-			// ships only the SqlServer provider; single-referenced-provider inference is a
-			// Phase 3B addition). [SQuiLDialect] itself is not emitted by this generator — it
-			// ships in the SQuiL.Core runtime package.
+			// absent — in which case DialectRegistry.ResolveId infers the dialect from the single
+			// referenced provider package, defaulting to SQL Server when none is referenced (SP0038
+			// fires later if that default's provider is absent) and reporting SP0039 when 2+
+			// providers are referenced with no explicit choice. [SQuiLDialect] itself is not emitted
+			// by this generator — it ships in the SQuiL.Core runtime package.
 			int? GetExplicitDialect(ClassDeclarationSyntax classSyntax)
 			{
 				var semanticModel = compilation.GetSemanticModel(classSyntax.SyntaxTree);
@@ -547,22 +548,31 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			}
 
 			var explicitDialect = GetExplicitDialect(definition.Class);
-			var dialectId = explicitDialect ?? 0;
-			var dialect = SQuiL.Dialects.DialectRegistry.Resolve(explicitDialect, compilation);
+			var dialectId = SQuiL.Dialects.DialectRegistry.ResolveId(explicitDialect, compilation);
+
+			// SP0039: 2+ dialect provider packages are referenced and no [SQuiLDialect] attribute
+			// disambiguates which one this context targets. There's no dialect to resolve
+			// `dialect.RuntimeBaseType()` against, so skip this context entirely (no Create call —
+			// unlike the SP0038 case below, there's no single resolved dialect whose structural
+			// diagnostics would even make sense to run).
+			if (dialectId == SQuiL.Dialects.DialectRegistry.Ambiguous)
+			{
+				context.ReportAmbiguousDialect(classname, definition.Class.GetLocation());
+				continue;
+			}
+
+			var dialect = SQuiL.Dialects.DialectRegistry.Factory(dialectId);
 
 			// SP0038: the context resolved to a dialect (e.g. SqlServer) whose provider runtime
 			// base type isn't referenced by the compilation — the consumer referenced SQuiL.Core
-			// but not the matching provider package. This check MUST run (and win) BEFORE the
-			// missingDataClient/SP0007 guard below: a consumer who references Core but not the
-			// provider package has NO Microsoft.Data.SqlClient in the compilation either (SQuiL.Core
-			// has no dependency on it), so missingDataClient would otherwise also be true and the
-			// SP0007 continue below would mask SP0038 behind the less-actionable "add
-			// Microsoft.Data.SqlClient" message. Telling them to add the provider package is the
-			// correct, sufficient fix — SqlClient ships transitively with SQuiL.SqlServer. Report the
-			// friendly diagnostic and skip ALL of this context's generated files (constructor AND the
-			// per-query data-context file, which independently re-declares the same
-			// `: {RuntimeBaseType()}` base class) so the consumer sees only SP0038, not a
-			// "type not found" cascade from the unresolved type.
+			// but not the matching provider package. Report the friendly diagnostic here, but do
+			// NOT `continue` before generator.Create runs below: Create's structural-diagnostic
+			// pass (SP0033/SP0034/SP0036/SP0037, mutation-scan warnings, etc.) must still surface
+			// for this context instead of being silently masked just because the provider package
+			// is missing. Only the source EMISSION is suppressed — the constructor is never emitted
+			// (guarded by the `providerReferenced` check further down, since `: {RuntimeBaseType()}`
+			// would otherwise be an unresolved base type), and the queued generation is removed from
+			// the batch below so GenerateCode() never calls AddSource for it.
 			var providerReferenced = SQuiL.Dialects.DialectRegistry.IsProviderReferenced(dialectId, compilation);
 			if (!providerReferenced)
 			{
@@ -572,27 +582,38 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					SQuiL.Dialects.DialectRegistry.DialectName(dialectId),
 					SQuiL.Dialects.DialectRegistry.ProviderPackageId(dialectId),
 					definition.Class.GetLocation());
-				continue;
 			}
 
 			if (missingDataClient)
 				continue;
 
-			contexts.Add($"{@namespace}.{classname}");
-
-			var symbol = compilation
-				.GetSemanticModel(definition.Class.SyntaxTree)
-				.GetDeclaredSymbol(definition.Class);
-
-			if (symbol is not null
-				&& emittedConstructors.Add(symbol.ToDisplayString())
-				&& !symbol.InstanceConstructors.Any(p => !p.IsImplicitlyDeclared))
+			if (providerReferenced)
 			{
-				EmitConstructor(@namespace, classname, dialect.RuntimeBaseType());
+				contexts.Add($"{@namespace}.{classname}");
+
+				var symbol = compilation
+					.GetSemanticModel(definition.Class.SyntaxTree)
+					.GetDeclaredSymbol(definition.Class);
+
+				if (symbol is not null
+					&& emittedConstructors.Add(symbol.ToDisplayString())
+					&& !symbol.InstanceConstructors.Any(p => !p.IsImplicitlyDeclared))
+				{
+					EmitConstructor(@namespace, classname, dialect.RuntimeBaseType());
+				}
 			}
 
 			var generation = generator
 				.Create(@namespace, classname, method, setting, text, records, recordNamespace, enabled, debugRollback, dialect);
+
+			if (!providerReferenced)
+			{
+				// Structural diagnostics from Create() have already been reported above; drop the
+				// queued generation so GenerateCode()'s later AddSource pass skips it entirely.
+				if (generation is not null)
+					generator.Generations.Remove(generation);
+				continue;
+			}
 
 			if (generation is not null)
 				generation.FilePath = file.Path;

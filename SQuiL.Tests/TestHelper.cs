@@ -161,4 +161,68 @@ public static class TestHelper
 
 		return Verifier.Verify(driver, settings);
 	}
+
+	/// <summary>
+	/// Runs the generator over a single source/query pair with an explicit choice of which
+	/// provider assemblies (<c>SQuiL.SqlServer</c> / <c>SQuiL.Sqlite</c>) are referenced, and
+	/// returns the raw generator-run diagnostics — for tests that assert on dialect
+	/// resolution/ambiguity (SP0038/SP0039) rather than on generated-source snapshots.
+	/// <c>Microsoft.Data.SqlClient</c> is always referenced (these tests are not exercising the
+	/// SP0007 "missing data client" path).
+	/// </summary>
+	public static ImmutableArray<Diagnostic> RunForDiagnostics(
+		IEnumerable<string> sources,
+		IEnumerable<string> files,
+		bool includeSqlServer,
+		bool includeSqlite)
+	{
+		var syntaxTrees = sources.Select(p => CSharpSyntaxTree.ParseText(p));
+
+		List<MetadataReference> metareferences = [
+			MetadataReference.CreateFromFile(typeof(IServiceCollection).Assembly.Location),
+			MetadataReference.CreateFromFile(typeof(IConfiguration).Assembly.Location),
+			MetadataReference.CreateFromFile(typeof(SqlConnection).Assembly.Location),
+		];
+
+		if (includeSqlServer)
+			metareferences.Add(MetadataReference.CreateFromFile(typeof(SqlServerDataContext).Assembly.Location));
+
+		if (includeSqlite)
+			metareferences.Add(MetadataReference.CreateFromFile(typeof(SqliteDataContext).Assembly.Location));
+
+		var additionalFiles = files
+			.Select(p => (AdditionalText)(p.StartsWith("--Name:")
+				? new AdditionalQuery(p)
+				: new AdditionalFile(p)))
+			.ToImmutableArray();
+
+		var compilation = CSharpCompilation.Create(
+				assemblyName: "Tests",
+				references: metareferences,
+				syntaxTrees: syntaxTrees);
+
+		var generator = new SQuiLGenerator(true);
+
+		var driver = CSharpGeneratorDriver.Create(generator);
+
+		driver = (CSharpGeneratorDriver)driver.AddAdditionalTexts(additionalFiles);
+		driver = (CSharpGeneratorDriver)driver.RunGenerators(compilation);
+
+		return driver.GetRunResult().Diagnostics;
+	}
+
+	/// <summary>
+	/// Both <c>SQuiL.SqlServer</c> and <c>SQuiL.Sqlite</c> are referenced with no
+	/// <c>[SQuiLDialect]</c> attribute on the data context — dialect resolution is ambiguous
+	/// (SP0039).
+	/// </summary>
+	public static ImmutableArray<Diagnostic> RunWithBothProviders(string source, string query)
+		=> RunForDiagnostics([source], [query], includeSqlServer: true, includeSqlite: true);
+
+	/// <summary>
+	/// Only <c>SQuiL.Sqlite</c> is referenced with no <c>[SQuiLDialect]</c> attribute — the single
+	/// referenced provider is inferred as the dialect (no SP0038, no SP0039).
+	/// </summary>
+	public static ImmutableArray<Diagnostic> RunWithSqliteProviderOnly(string source, string query)
+		=> RunForDiagnostics([source], [query], includeSqlServer: false, includeSqlite: true);
 }

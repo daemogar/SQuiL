@@ -428,6 +428,20 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0039 — 2+ SQuiL provider packages (e.g. <c>SQuiL.SqlServer</c> and <c>SQuiL.Sqlite</c>) are
+	/// referenced by the compilation and this data context declares no <c>[SQuiLDialect]</c>
+	/// attribute, so the generator cannot infer which dialect it targets. Reported instead of
+	/// silently guessing; the context's code generation is skipped entirely.
+	/// </summary>
+	public static void ReportAmbiguousDialect(
+		this SourceProductionContext context, string className, Location location)
+		=> context.ReportDiagnostic(CreateDiagnostic(
+			DiagnosticSeverity.Error, "SP0039", "Ambiguous SQuiL Dialect",
+			$"'{className}' references more than one SQuiL provider package. Add [SQuiLDialect(...)] "
+			+ "to choose the dialect (e.g. SQuiLDialect.Sqlite or SQuiLDialect.SqlServer).",
+			location));
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

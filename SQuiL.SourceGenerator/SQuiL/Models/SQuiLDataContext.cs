@@ -21,17 +21,22 @@ namespace SQuiL.Models;
 /// <param name="Method">The query method name (SQL file name without extension).</param>
 /// <param name="Setting">The connection-string configuration key passed to <c>ConnectionStringBuilder</c>.</param>
 /// <param name="Blocks">All parsed code blocks from the SQL file (USE, DECLARE, BODY).</param>
+// `Dialect` must be required (no `?? new SqlServerDialect()` coalesce, per the Phase 3A deferred
+// cleanup); since it's the last parameter and C# requires optional parameters to precede required
+// ones in a primary-constructor declaration, `Graph`/`InputGraph` also drop their defaults here —
+// the sole call site (FileGenerator.cs) already supplies every argument positionally, so this is
+// behavior-neutral.
 public class SQuiLDataContext(
 		string NameSpace,
 		string ClassName,
 		string Method,
 		string Setting,
 		List<CodeBlock> Blocks,
-		bool Enabled = false,
-		bool DebugRollback = true,
-		SQuiLKeyGraph? Graph = null,
-		SQuiLKeyGraph? InputGraph = null,
-		ISqlDialect? Dialect = null)
+		bool Enabled,
+		bool DebugRollback,
+		SQuiLKeyGraph? Graph,
+		SQuiLKeyGraph? InputGraph,
+		ISqlDialect Dialect)
 {
 	/// <summary>
 	/// Resolved key graph for this query's OUTPUT blocks (Task 4, nested objects). A default
@@ -49,11 +54,11 @@ public class SQuiLDataContext(
 	private SQuiLKeyGraph EffectiveInputGraph { get; } = InputGraph ?? SQuiLKeyGraph.Build([], "");
 
 	/// <summary>
-	/// The SQL dialect this data context targets (Phase 1: SQL Server only). Coalesced to a
-	/// default <see cref="SqlServerDialect"/> instance so every existing call site that omits
-	/// <c>Dialect</c> keeps today's emitted output byte-for-byte.
+	/// The SQL dialect this data context targets — resolved by the generator (explicit
+	/// <c>[SQuiLDialect]</c>, else the single referenced provider, else SQL Server) and passed in
+	/// as a required constructor argument; see <see cref="SQuiL.Dialects.DialectRegistry"/>.
 	/// </summary>
-	private ISqlDialect Sql { get; } = Dialect ?? new SqlServerDialect();
+	private ISqlDialect Sql { get; } = Dialect;
 
 	/// <summary>
 	/// Generates the full C# source for the data-context partial class.
