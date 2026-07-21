@@ -54,12 +54,22 @@ public class FileGenerator(
 	/// <param name="text">The SQL source text to parse.</param>
 	/// <param name="records">All partial record declarations visible in the current compilation.</param>
 	/// <param name="dialect">The resolved dialect for this data context (selects the runtime base class and emitted SQL).</param>
+	/// <param name="registerTables">
+	/// <c>false</c> for a missing-provider (SP0038) context: its structural diagnostics
+	/// (SP0033/SP0034/SP0036/SP0037, mutation-scan warnings, etc.) still run and its
+	/// <see cref="SQuiLFileGeneration"/> is still built and queued, but its table-shaped
+	/// declarations must not register into the shared <see cref="TableMap"/> — the caller
+	/// (<c>SQuiLGenerator.cs</c>) already drops the queued generation from <see cref="Generations"/>
+	/// before <see cref="GenerateCode"/> runs, so this context's own emission is suppressed
+	/// separately; this flag closes the remaining gap where its tables would otherwise still
+	/// leak into (and could poison) a valid sibling context's shared table emission.
+	/// </param>
 	/// <returns>The new <see cref="SQuiLFileGeneration"/>, or <c>null</c> if parsing failed.</returns>
 	// `dialect` must be required (no `= null`, per the Phase 3A deferred cleanup); since it's the
 	// last parameter and C# requires optional parameters to precede required ones in a declaration
 	// list, recordNamespace/enabled/debugRollback also drop their defaults here — the sole call site
 	// (SQuiLGenerator.cs) already supplies every argument positionally, so this is behavior-neutral.
-	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records, string recordNamespace, bool enabled, bool debugRollback, SQuiL.Dialects.ISqlDialect dialect)
+	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records, string recordNamespace, bool enabled, bool debugRollback, SQuiL.Dialects.ISqlDialect dialect, bool registerTables)
 	{
 		try
 		{
@@ -157,7 +167,7 @@ public class FileGenerator(
 				return default;
 			}
 
-			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, recordNamespace, method, blocks, TableMap, records, sql, keyGraph, inputGraph);
+			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, recordNamespace, method, blocks, TableMap, records, sql, keyGraph, inputGraph, registerTables);
 
 			foreach (var property in generation.Request.Properties.Union(generation.Response.Properties))
 				if (property is SQuiLTable table)

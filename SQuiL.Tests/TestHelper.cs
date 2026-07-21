@@ -220,6 +220,62 @@ public static class TestHelper
 		=> RunForDiagnostics([source], [query], includeSqlServer: true, includeSqlite: true);
 
 	/// <summary>
+	/// Same shape as <see cref="RunForDiagnostics"/>, but additionally references
+	/// <c>SQuiL.Core</c> (needed for source strings that write <c>[SQuiLDialect(SQuiLDialect...)]</c>
+	/// explicitly) and returns the FULL <see cref="GeneratorDriverRunResult"/> — diagnostics AND
+	/// generated source trees — for tests that need to assert on both, e.g. proving a
+	/// missing-provider (SP0038) context's table doesn't leak into a sibling context's shared
+	/// <c>SQuiLTableMap</c> emission.
+	/// </summary>
+	public static GeneratorDriverRunResult RunForDiagnosticsAndSources(
+		IEnumerable<string> sources,
+		IEnumerable<string> files,
+		bool includeSqlServer,
+		bool includeSqlite)
+	{
+		var syntaxTrees = sources.Select(p => CSharpSyntaxTree.ParseText(p));
+
+		// Unlike RunForDiagnostics/VerifyCore, this helper needs FULL semantic binding to succeed
+		// (resolving [SQuiLDialect(SQuiLDialect...)] attribute usages via SemanticModel.GetSymbolInfo),
+		// so — like CompilationAssert.GeneratedCodeCompiles — it must include the BCL reference set;
+		// without it, attribute/constant binding silently comes back empty (no diagnostics, just no
+		// symbol) rather than throwing.
+		List<MetadataReference> metareferences = [
+			.. Basic.Reference.Assemblies.Net100.References.All,
+			MetadataReference.CreateFromFile(typeof(IServiceCollection).Assembly.Location),
+			MetadataReference.CreateFromFile(typeof(IConfiguration).Assembly.Location),
+			MetadataReference.CreateFromFile(typeof(SqlConnection).Assembly.Location),
+			MetadataReference.CreateFromFile(typeof(SQuiLDialectAttribute).Assembly.Location),
+		];
+
+		if (includeSqlServer)
+			metareferences.Add(MetadataReference.CreateFromFile(typeof(SqlServerDataContext).Assembly.Location));
+
+		if (includeSqlite)
+			metareferences.Add(MetadataReference.CreateFromFile(typeof(SqliteDataContext).Assembly.Location));
+
+		var additionalFiles = files
+			.Select(p => (AdditionalText)(p.StartsWith("--Name:")
+				? new AdditionalQuery(p)
+				: new AdditionalFile(p)))
+			.ToImmutableArray();
+
+		var compilation = CSharpCompilation.Create(
+				assemblyName: "Tests",
+				references: metareferences,
+				syntaxTrees: syntaxTrees);
+
+		var generator = new SQuiLGenerator(true);
+
+		var driver = CSharpGeneratorDriver.Create(generator);
+
+		driver = (CSharpGeneratorDriver)driver.AddAdditionalTexts(additionalFiles);
+		driver = (CSharpGeneratorDriver)driver.RunGenerators(compilation);
+
+		return driver.GetRunResult();
+	}
+
+	/// <summary>
 	/// Only <c>SQuiL.Sqlite</c> is referenced with no <c>[SQuiLDialect]</c> attribute — the single
 	/// referenced provider is inferred as the dialect (no SP0038, no SP0039).
 	/// </summary>

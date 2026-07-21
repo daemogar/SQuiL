@@ -39,10 +39,11 @@ public class SQuiLDataContext(
 		ISqlDialect Dialect)
 {
 	/// <summary>
-	/// Resolved key graph for this query's OUTPUT blocks (Task 4, nested objects). A default
-	/// parameter value must be a compile-time constant, so <paramref name="Graph"/> defaults to
-	/// <c>null</c> here and is coalesced to an empty (no-links) graph — every existing call site
-	/// that omits <c>Graph</c> keeps today's flat reader behavior byte-for-byte.
+	/// Resolved key graph for this query's OUTPUT blocks (Task 4, nested objects). <paramref
+	/// name="Graph"/> has no default value (it is a required constructor parameter, per the Phase
+	/// 3A deferred cleanup), but callers may still explicitly pass <c>null</c> for a query with no
+	/// nested-object links; the coalesce here maps that <c>null</c> to an empty (no-links) graph so
+	/// every such call site keeps today's flat reader behavior byte-for-byte.
 	/// </summary>
 	private SQuiLKeyGraph EffectiveGraph { get; } = Graph ?? SQuiLKeyGraph.Build([], "");
 

@@ -603,8 +603,13 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				}
 			}
 
+			// registerTables: false for a missing-provider context (providerReferenced == false) —
+			// its structural diagnostics still run below, but its table-shaped declarations must not
+			// register into the shared TableMap (Critical fix: previously they always did, so a
+			// missing-provider context's table shape could poison a valid sibling context with a
+			// false-positive SP0017/SP0021, even though its own source emission was already gated).
 			var generation = generator
-				.Create(@namespace, classname, method, setting, text, records, recordNamespace, enabled, debugRollback, dialect);
+				.Create(@namespace, classname, method, setting, text, records, recordNamespace, enabled, debugRollback, dialect, providerReferenced);
 
 			if (!providerReferenced)
 			{
