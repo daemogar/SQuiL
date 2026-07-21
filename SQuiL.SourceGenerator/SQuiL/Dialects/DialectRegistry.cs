@@ -12,6 +12,7 @@ public static class DialectRegistry
 	static string ProviderMetadataNameCore(int dialect) => dialect switch
 	{
 		0 /* SqlServer */ => "SQuiL.SqlServerDataContext",
+		1 /* Sqlite    */ => "SQuiL.SqliteDataContext",
 		_ => "SQuiL.SqlServerDataContext",
 	};
 
@@ -20,6 +21,7 @@ public static class DialectRegistry
 	public static string ProviderPackageId(int dialect) => dialect switch
 	{
 		0 /* SqlServer */ => "SQuiL.SqlServer",
+		1 /* Sqlite    */ => "SQuiL.Sqlite",
 		_ => "SQuiL.SqlServer",
 	};
 
@@ -27,12 +29,14 @@ public static class DialectRegistry
 	public static string DialectName(int dialect) => dialect switch
 	{
 		0 /* SqlServer */ => "SqlServer",
+		1 /* Sqlite    */ => "Sqlite",
 		_ => "SqlServer",
 	};
 
 	static ISqlDialect Factory(int dialect) => dialect switch
 	{
 		0 /* SqlServer */ => new SqlServerDialect(),
+		1 /* Sqlite    */ => new SqliteDialect(),
 		_ => new SqlServerDialect(),
 	};
 

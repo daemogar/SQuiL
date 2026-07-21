@@ -42,4 +42,14 @@ public class DialectRegistryTests
 	{
 		Assert.False(DialectRegistry.IsProviderReferenced((int)SQuiLDialect.SqlServer, CompilationWithoutProvider()));
 	}
+
+	[Fact]
+	public void Resolve_explicit_sqlite_returns_sqlite_dialect()
+	{
+		var compilation = CompilationWithoutProvider();
+		var dialect = DialectRegistry.Resolve((int)SQuiLDialect.Sqlite, compilation);
+		Assert.Equal("SqliteDataContext", dialect.RuntimeBaseType());
+		Assert.Equal("SQuiL.Sqlite", DialectRegistry.ProviderPackageId((int)SQuiLDialect.Sqlite));
+		Assert.Equal("Sqlite", DialectRegistry.DialectName((int)SQuiLDialect.Sqlite));
+	}
 }
