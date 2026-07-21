@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>latest</LangVersion>
+		<RootNamespace>SQuiL</RootNamespace>
+		<AssemblyName>SQuiL.Sqlite</AssemblyName>
+		<PackageId>SQuiL.Sqlite</PackageId>
+		<Authors>Dæmogar</Authors>
+		<Description>SQLite provider for SQuiL, the SQL-to-C# source generator. Requires SQuiL.Core.</Description>
+		<PackageTags>.NET dotnet core library reusable generic server serverside SQL ORM SQLite</PackageTags>
+		<PackageProjectUrl>https://github.com/daemogar/SQuiL</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/daemogar/SQuiL</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+		<Copyright>Copyright © 2021–2026 Dæmogar</Copyright>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\README.md" Pack="true" PackagePath="\" />
+		<None Include="..\LICENSE.txt" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- No PrivateAssets: SQuiL.Core is a real transitive dependency of this provider.
+		     Analyzers do NOT flow transitively, so consumers still reference SQuiL.Core directly. -->
+		<ProjectReference Include="..\SQuiL.Core\SQuiL.Core.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Data.Sqlite" />
+	</ItemGroup>
+
+</Project>

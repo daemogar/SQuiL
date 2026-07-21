@@ -4,5 +4,8 @@ namespace SQuiL;
 public enum SQuiLDialect
 {
 	/// <summary>Microsoft SQL Server (provider package <c>SQuiL.SqlServer</c>). The default.</summary>
-	SqlServer
+	SqlServer,
+
+	/// <summary>SQLite (provider package <c>SQuiL.Sqlite</c>).</summary>
+	Sqlite
 }

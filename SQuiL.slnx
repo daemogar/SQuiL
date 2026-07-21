@@ -16,6 +16,7 @@
 	</Folder>
 	<Project Path="SQuiL.Core/SQuiL.Core.csproj" />
 	<Project Path="SQuiL.SqlServer/SQuiL.SqlServer.csproj" />
+	<Project Path="SQuiL.Sqlite/SQuiL.Sqlite.csproj" />
 	<Project Path="SQuiL.Simple/SQuiL.Application.csproj" />
 	<Project Path="SQuiL.SourceGenerator/SQuiL.SourceGenerator.csproj" />
 	<Project Path="SQuiL.SsmsExtension/SQuiL.SsmsExtension.csproj" />

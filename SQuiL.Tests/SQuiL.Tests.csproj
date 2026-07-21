@@ -17,6 +17,7 @@
 		<PackageReference Include="Basic.Reference.Assemblies.Net100" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.Data.Sqlite" />
 		<PackageReference Include="Microsoft.Data.SqlClient" />
 		<PackageReference Include="Microsoft.Extensions.Configuration" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" />
@@ -39,6 +40,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\SQuiL.Core\SQuiL.Core.csproj" />
 		<ProjectReference Include="..\SQuiL.SqlServer\SQuiL.SqlServer.csproj" />
+		<ProjectReference Include="..\SQuiL.Sqlite\SQuiL.Sqlite.csproj" />
 		<ProjectReference Include="..\SQuiL.SourceGenerator\SQuiL.SourceGenerator.csproj" />
 		<ProjectReference Include="..\tools\GuideRenderer\GuideRenderer.csproj" />
 	</ItemGroup>
