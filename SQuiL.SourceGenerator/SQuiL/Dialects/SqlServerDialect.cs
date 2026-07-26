@@ -30,6 +30,10 @@ public class SqlServerDialect : ISqlDialect
 					=> $"[{p.Identifier.Value}] {p.Type.Original}{(p.IsNullable ? " Null" : "")}"))});
 			""";
 
+	/// <summary>The T-SQL scalar variable declaration, e.g. <c>Declare @Return_Total int;</c>.</summary>
+	public string ScalarVariableDeclaration(SQuiL.SourceGenerator.Parser.CodeBlock block, string newLine)
+		=> $"Declare {block.DatabaseType.Original};";
+
 	/// <summary>The <c>reader.GetXxx</c> accessor fragment for a column (delegates to the type map).</summary>
 	public string ReaderAccessor(SQuiL.SourceGenerator.Parser.CodeItem item) => item.DataReader();
 

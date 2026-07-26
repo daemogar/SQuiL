@@ -55,6 +55,29 @@ public static class TestHelper
 	public static string BuildSource(string queryName)
 		=> TestHeaderPublic([queryName], name: queryName);
 
+	/// <summary>
+	/// SQLite counterpart to <see cref="TestHeaderPublic"/>: emits an explicit
+	/// <c>[SQuiLDialect(SQuiLDialect.Sqlite)]</c>-decorated partial data-context class extending
+	/// <c>SqliteDataContext</c> for each of <paramref name="names"/>, for tests exercising the
+	/// SQLite header model (Task 5) via <see cref="VerifySqlite"/>.
+	/// </summary>
+	public static string TestHeaderSqlite(IEnumerable<string> names)
+		=> $$"""
+			using Microsoft.Extensions.Configuration;
+			using {{NamespaceName}};
+
+			namespace TestCase;
+
+			{{string.Join("", names.Select(p => $$"""
+				[{{DialectAttributeName}}(SQuiLDialect.Sqlite)]
+				[{{QueryAttributeName}}(QueryFiles.{{p}})]
+				public partial class {{p}}DataContext(IConfiguration Configuration) : SqliteDataContext(Configuration)
+				{
+				}
+
+				"""))}}
+			""";
+
 	/// <param name="compileCheck">Pass false ONLY for tests whose user sources
 	/// are deliberately invalid C#, or that pin a known not-yet-fixed
 	/// generator codegen bug (say which in a comment at the call site).</param>
@@ -88,6 +111,21 @@ public static class TestHelper
 		[CallerFilePath] string path = default!)
 		=> VerifyCore(sources, files, includeProvider: false, includeSqlClient, compileCheck, name, path);
 
+	/// <summary>
+	/// SQLite counterpart to <see cref="Verify"/>: the compilation references <c>SQuiL.Sqlite</c>
+	/// (+ <c>Microsoft.Data.Sqlite</c> itself) instead of <c>SQuiL.SqlServer</c>, and the Tier-0
+	/// compile-check (see <see cref="CompilationAssert.GeneratedCodeCompiles"/>) is told to swap
+	/// in the same pair — so a query targeting <c>[SQuiLDialect(SQuiLDialect.Sqlite)]</c> (see
+	/// <see cref="TestHeaderSqlite"/>) both generates AND Tier-0-compiles correctly.
+	/// </summary>
+	public static Task VerifySqlite(
+		IEnumerable<string> sources,
+		IEnumerable<string> files,
+		bool compileCheck = true,
+		[CallerMemberName] string name = default!,
+		[CallerFilePath] string path = default!)
+		=> VerifyCore(sources, files, includeProvider: false, includeSqlClient: true, compileCheck, name, path, includeSqlite: true);
+
 	static Task VerifyCore(
 		IEnumerable<string> sources,
 		IEnumerable<string> files,
@@ -95,7 +133,8 @@ public static class TestHelper
 		bool includeSqlClient,
 		bool compileCheck,
 		string name,
-		string path)
+		string path,
+		bool includeSqlite = false)
 	{
 		var syntaxTrees = sources.Select(p => CSharpSyntaxTree.ParseText(p));
 
@@ -109,6 +148,12 @@ public static class TestHelper
 
 		if (includeProvider)
 			metareferences.Add(MetadataReference.CreateFromFile(typeof(SqlServerDataContext).Assembly.Location));
+
+		if (includeSqlite)
+		{
+			metareferences.Add(MetadataReference.CreateFromFile(typeof(SqliteDataContext).Assembly.Location));
+			metareferences.Add(MetadataReference.CreateFromFile(typeof(Microsoft.Data.Sqlite.SqliteConnection).Assembly.Location));
+		}
 
 		var additionalFiles = files
 			.Select(p => (AdditionalText)(p.StartsWith("--Name:")
@@ -133,7 +178,7 @@ public static class TestHelper
 		// exempt — their (possibly partial) output is asserted via snapshots.
 		if (compileCheck
 			&& !driver.GetRunResult().Diagnostics.Any(p => p.Severity == DiagnosticSeverity.Error))
-			CompilationAssert.GeneratedCodeCompiles(sources, files);
+			CompilationAssert.GeneratedCodeCompiles(sources, files, includeSqlite: includeSqlite);
 
 		VerifySettings settings = default!;
 		if (path is not null)

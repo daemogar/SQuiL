@@ -320,7 +320,8 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
     position: vscode.Position,
     typed: string,
   ): vscode.CompletionItem[] {
-    const parsed = parseSQuiL(document.getText());
+    const dialect = resolveProjectDialect(document.uri.fsPath, fsReadFile, fsListDir);
+    const parsed = parseSQuiL(document.getText(), dialect);
     const replaceRange = new vscode.Range(
       position.translate(0, -typed.length),
       position,
@@ -365,7 +366,8 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
     position: vscode.Position,
     typed: string,
   ): vscode.CompletionItem[] {
-    const parsed = parseSQuiL(document.getText());
+    const dialect = resolveProjectDialect(document.uri.fsPath, fsReadFile, fsListDir);
+    const parsed = parseSQuiL(document.getText(), dialect);
 
     // The immediately-previous variable (last one before cursor line)
     const varsAbove = parsed.variables.filter(v => v.line < position.line);

@@ -89,7 +89,7 @@ public class FileGenerator(
 			}
 
 			var tokens = SQuiLTokenizer.GetTokens(sql, dialect);
-			var blocks = SQuiLParser.ParseTokens(tokens);
+			var blocks = SQuiLParser.ParseTokens(tokens, dialect);
 
 			foreach (var finding in SQuiLCardinalityValidator.Detect(blocks, sql))
 				Context.ReportCardinalityCollision(method, finding);

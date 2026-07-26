@@ -41,7 +41,8 @@ public static class CompilationAssert
 	public static void GeneratedCodeCompiles(
 		IEnumerable<string> sources,
 		IEnumerable<string> files,
-		bool injectImplicitUsings = true)
+		bool injectImplicitUsings = true,
+		bool includeSqlite = false)
 	{
 		var syntaxTrees = sources
 			.Append(injectImplicitUsings ? ImplicitUsings : string.Empty)
@@ -50,12 +51,23 @@ public static class CompilationAssert
 		IEnumerable<MetadataReference> references = [
 			.. Net100.References.All,
 			MetadataReference.CreateFromFile(typeof(SQuiLBaseDataContext).Assembly.Location),
-			MetadataReference.CreateFromFile(typeof(SqlServerDataContext).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(SqlConnection).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(IConfiguration).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(ConfigurationBuilder).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(IServiceCollection).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(ServiceCollection).Assembly.Location),
+			// SwapS the provider assembly pair based on which dialect this generated output
+			// targets: a SqlServer-targeted context's generated code names SqlServerDataContext
+			// and never Microsoft.Data.Sqlite (and vice versa) — referencing BOTH provider
+			// packages unconditionally would make dialect resolution ambiguous (SP0039) for
+			// every existing (no [SQuiLDialect] attribute) SqlServer test, so this stays a
+			// switch, not an addition.
+			includeSqlite
+				? MetadataReference.CreateFromFile(typeof(SqliteDataContext).Assembly.Location)
+				: MetadataReference.CreateFromFile(typeof(SqlServerDataContext).Assembly.Location),
+			.. includeSqlite
+				? [MetadataReference.CreateFromFile(typeof(Microsoft.Data.Sqlite.SqliteConnection).Assembly.Location)]
+				: Array.Empty<MetadataReference>(),
 		];
 
 		var additionalFiles = files

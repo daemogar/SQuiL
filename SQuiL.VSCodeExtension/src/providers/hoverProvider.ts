@@ -67,7 +67,7 @@ export class SQuiLHoverProvider implements vscode.HoverProvider {
 
     const dialect = resolveProjectDialect(document.uri.fsPath, fsReadFile, fsListDir);
 
-    const parsed = parseSQuiL(document.getText());
+    const parsed = parseSQuiL(document.getText(), dialect);
     const variable = parsed.variables.find(
       v => v.rawName.toUpperCase() === word.toUpperCase(),
     );
@@ -155,7 +155,8 @@ export class SQuiLHoverProvider implements vscode.HoverProvider {
     const wordRange = document.getWordRangeAtPosition(position);
     if (!wordRange) return undefined;
 
-    const parsed = parseSQuiL(document.getText());
+    const dialect = resolveProjectDialect(document.uri.fsPath, fsReadFile, fsListDir);
+    const parsed = parseSQuiL(document.getText(), dialect);
     const text = describeColumnLinkRole(parsed, wordRange.start.line, wordRange.start.character);
     if (!text) return undefined;
 

@@ -9,17 +9,16 @@ namespace SQuiL.Tests.Dialects;
 // Mirrors SqlServerDialectTestHelper.cs, but tokenizes under SqliteDialect so SQLite-only type
 // keywords (INTEGER/BLOB/BOOLEAN/GUID) and dialect-gated ones (REAL/DATE) resolve correctly.
 //
-// NOTE (Task 4/5 ordering — see task-4-brief.md): real SQLite `.squil` files use `Create Temp
-// Table` headers (Task 5's parser work), not T-SQL `Declare`. Until Task 5 lands, this helper
-// parses the ordinary `Declare`-form block instead, purely to exercise the tokenizer's SQLite
-// type recognition under test here — switch to Create-Temp-Table parsing once Task 5 ships.
+// Parses the real SQLite header form — `Create Temp Table <Prefix>_<Name> (...)` (Task 5) —
+// not T-SQL `Declare`/`Use`. Passes the dialect through to SQuiLParser.ParseTokens as well as
+// the tokenizer, since the SQLite single-column-object-collapses-to-scalar rule lives there.
 internal static class SqliteDialectTestHelper
 {
-	/// <summary>Parses SQL and returns the first scalar INPUT block (<c>@Param_&lt;name&gt;</c>).</summary>
+	/// <summary>Parses SQL and returns the first scalar INPUT block (<c>Param_&lt;name&gt;</c>).</summary>
 	public static CodeBlock ParseSingleInputScalar(string sql)
 	{
 		var dialect = new SqliteDialect();
-		var blocks = SQuiLParser.ParseTokens(SQuiLTokenizer.GetTokens(sql, dialect));
+		var blocks = SQuiLParser.ParseTokens(SQuiLTokenizer.GetTokens(sql, dialect), dialect);
 		return blocks.First(b => b.CodeType == CodeType.INPUT_ARGUMENT);
 	}
 
@@ -27,7 +26,7 @@ internal static class SqliteDialectTestHelper
 	public static CodeBlock ParseSingleInputBlock(string sql)
 	{
 		var dialect = new SqliteDialect();
-		var blocks = SQuiLParser.ParseTokens(SQuiLTokenizer.GetTokens(sql, dialect));
+		var blocks = SQuiLParser.ParseTokens(SQuiLTokenizer.GetTokens(sql, dialect), dialect);
 		return blocks.First(b => (b.CodeType & CodeType.INPUT) == CodeType.INPUT
 			&& b.CodeType != CodeType.INPUT_ARGUMENT);
 	}

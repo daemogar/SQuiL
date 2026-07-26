@@ -115,9 +115,33 @@ public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 		Tokens = [];
 
 		var token = default(Token);
+
+		// SQLite header model (Task 5) — see SqliteCreateTempTable/SqliteParamTableDmlStatement/
+		// SqliteBodyBoundary below. `sqliteDepth` tracks whether we're inside an open Create-Temp-
+		// Table column list (depth 1) or between statements (depth 0); the three boundary checks
+		// only ever run at depth 0. `sqliteParamTableNames` remembers every Param/Params-prefixed
+		// temp-table name declared so far, so a later bare-name DML statement can be recognized as
+		// sample-data population of an INPUT table (dropped) vs. real body logic (e.g. populating an
+		// OUTPUT table — never dropped).
+		var sqliteDepth = 0;
+		HashSet<string> sqliteParamTableNames = new(StringComparer.OrdinalIgnoreCase);
+
 		while (Index < Text.Length)
 		{
 			WhileWhiteSpace();
+
+			if (Dialect is SqliteDialect && sqliteDepth == 0)
+			{
+				if (SqliteCreateTempTable())
+				{
+					sqliteDepth++;
+					continue;
+				}
+				if (SqliteParamTableDmlStatement())
+					continue;
+				if (SqliteBodyBoundary())
+					break;
+			}
 
 			if (UseStatement())
 				break;
@@ -129,7 +153,14 @@ public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 			if (CanBeType() && Type())
 				continue;
 			if (Symbol())
+			{
+				// Close the Create-Temp-Table column-list scope opened by SqliteCreateTempTable's
+				// synthetic SYMBOL_LPREN, so the NEXT statement is re-examined as a header
+				// declaration/DML/body boundary instead of being tokenized as more columns.
+				if (sqliteDepth > 0 && Tokens.Count > 0 && Tokens[^1].Type == TokenType.SYMBOL_RPREN)
+					sqliteDepth--;
 				continue;
+			}
 			if (Function())
 				continue;
 			if (Literal())
@@ -583,6 +614,143 @@ public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 						tokenizer.Increment();
 				}
 			}
+		}
+
+		// Matches a whole-word keyword case-insensitively at the current position (the next
+		// character must not itself be an identifier character, so `create` doesn't match a
+		// prefix of `createx`) and, on success, advances past it.
+		bool MatchWord(string word)
+		{
+			if (!Word.StartsWith(word, StringComparison.OrdinalIgnoreCase))
+				return false;
+			if (Word.Length > word.Length && IsWordChar(Word[word.Length]))
+				return false;
+			Increment(word.Length);
+			return true;
+		}
+
+		static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c == '_';
+
+		// Recognizes `Create Temp Table <Name> (` and emits the SAME token shape the T-SQL
+		// `Declare @<Name> table(` path produces — KEYWORD_DECLARE, VARIABLE, TYPE_TABLE,
+		// SYMBOL_LPREN — so SQuiLParser.ProcessDeclareStatement handles both dialects
+		// identically; the column list that follows is tokenized by the ordinary
+		// Type()/Identifier()/Symbol() loop, unchanged. Tracks every Param/Params-prefixed
+		// name declared so far for SqliteParamTableDmlStatement's sample-DML recognition.
+		bool SqliteCreateTempTable()
+		{
+			var save = (Index: _index, Line, Column);
+
+			if (!MatchWord("create")) return Restore();
+			WhileWhiteSpace();
+			if (!MatchWord("temp")) return Restore();
+			WhileWhiteSpace();
+			if (!MatchWord("table")) return Restore();
+			WhileWhiteSpace();
+
+			var nameMatch = IdentifierRegex.Match(Word);
+			if (!nameMatch.Success)
+				throw DE(Word.Length, "Expected a table name after `Create Temp Table`.");
+
+			var name = nameMatch.Value.TrimStart('[').TrimEnd(']');
+			var nameOffset = Index;
+			Increment(nameMatch.Value.Length);
+			WhileWhiteSpace();
+
+			if (Letter != '(')
+				throw DE(1, $"Expected `(` after table name `{name}`.");
+
+			var prefix = name.Split(['_'], 2)[0];
+			if (prefix.StartsWith("param", StringComparison.OrdinalIgnoreCase))
+				sqliteParamTableNames.Add(name);
+
+			Tokens.Add(new Token(TokenType.KEYWORD_DECLARE, save.Index, "Create Temp Table") { Original = "Create Temp Table" });
+			Tokens.Add(new Token(TokenType.VARIABLE, nameOffset, name) { Original = name });
+			Tokens.Add(new Token(TokenType.TYPE_TABLE, nameOffset, name));
+			Increment();
+			Tokens.Add(new Token(TokenType.SYMBOL_LPREN, nameOffset));
+
+			return true;
+
+			bool Restore()
+			{
+				(_index, Line, Column) = save;
+				return false;
+			}
+		}
+
+		// Recognizes a bare-name `Insert|Update|Delete <ParamTable> ...;` statement — the SQLite
+		// analog of the T-SQL `Insert Into @Var Values(...)` sample-data marker — and skips it
+		// verbatim (no tokens emitted at all) up to and including its terminating `;`. Only
+		// matches when <ParamTable> was already seen as a Param/Params-prefixed Create Temp
+		// Table declaration; a DML statement against any other table (an OUTPUT table, or an
+		// ordinary real table) is real body logic, not sample data, and is left completely
+		// untouched — the caller falls through to SqliteBodyBoundary().
+		bool SqliteParamTableDmlStatement()
+		{
+			var save = (Index: _index, Line, Column);
+
+			var isInsert = MatchWord("insert");
+			if (!isInsert && !MatchWord("update") && !MatchWord("delete"))
+				return false;
+
+			WhileWhiteSpace();
+
+			if (isInsert)
+			{
+				if (!MatchWord("into"))
+				{
+					(_index, Line, Column) = save;
+					return false;
+				}
+				WhileWhiteSpace();
+			}
+
+			var tableMatch = IdentifierRegex.Match(Word);
+			var tableName = tableMatch.Success ? tableMatch.Value.TrimStart('[').TrimEnd(']') : default;
+
+			if (tableName is null || !sqliteParamTableNames.Contains(tableName))
+			{
+				(_index, Line, Column) = save;
+				return false;
+			}
+
+			SkipToStatementEnd();
+			return true;
+
+			void SkipToStatementEnd()
+			{
+				while (Index < Text.Length)
+				{
+					if (Letter == '\'')
+					{
+						Increment();
+						while (Index < Text.Length && Letter != '\'')
+							Increment();
+						if (Index < Text.Length)
+							Increment();
+						continue;
+					}
+					if (Letter == ';')
+					{
+						Increment();
+						return;
+					}
+					Increment();
+				}
+			}
+		}
+
+		// Everything from here to end-of-text is the query body, captured verbatim as one
+		// opaque BODY token — mirrors UseStatement()'s tail capture. Reached only once
+		// SqliteCreateTempTable/SqliteParamTableDmlStatement have both failed to match the
+		// statement at the current position, so by construction this is always the FIRST
+		// statement that is neither a header declare nor a sample-DML population.
+		bool SqliteBodyBoundary()
+		{
+			var body = Word.Trim();
+			Tokens.Add(T(TokenType.BODY, body, body));
+			return true;
 		}
 
 		void WhileWhiteSpace()

@@ -72,8 +72,12 @@ public class SQuiLDataContext(
 		StringWriter text = new(builder);
 		IndentedTextWriter writer = new(text, "\t");
 
-		var database = Blocks.FirstOrDefault(p => p.CodeType == CodeType.USING)?.Name;
-		if (database is null)
+		// A USE statement is only required for dialects whose DatabaseDirective actually emits
+		// something (e.g. SQL Server's `Use [Db];`). SQLite has no such directive — its header
+		// is native `Create Temp Table` statements with no USING CodeBlock at all — so this
+		// check is skipped entirely for a dialect that returns "" regardless of catalog.
+		if (Sql.DatabaseDirective("SQuiL").Length > 0
+			&& !Blocks.Any(p => p.CodeType == CodeType.USING))
 			return new Exception("Missing USE statement.");
 
 		var query = Blocks.First(p => p.CodeType == CodeType.BODY)?.Name;
@@ -89,7 +93,7 @@ public class SQuiLDataContext(
 		var outputs = Blocks
 			.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT)
 			.Select(p => (CodeBlock: p, Query: p.CodeType == CodeType.OUTPUT_VARIABLE
-				? $"Declare {p.DatabaseType.Original};"
+				? Sql.ScalarVariableDeclaration(p, writer.NewLine)
 				: TableDeclaration(p)))
 			.ToList();
 

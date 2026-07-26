@@ -25,6 +25,15 @@ public interface ISqlDialect
 	/// <summary>The table-variable declaration for an input/output table block.</summary>
 	string TableVariableDeclaration(CodeBlock block, string newLine);
 
+	/// <summary>
+	/// The scalar output-variable declaration for an <c>OUTPUT_VARIABLE</c> block (e.g. T-SQL
+	/// <c>Declare @Return_Total int;</c>). SQL Server declares a bare scalar variable directly.
+	/// SQLite has no such syntax — a SQLite scalar is really a collapsed single-column
+	/// <c>Create Temp Table</c> declaration (see <c>SQuiLParser</c>'s Sqlite collapse branch), so
+	/// <see cref="SqliteDialect"/> reconstructs that statement instead.
+	/// </summary>
+	string ScalarVariableDeclaration(CodeBlock block, string newLine);
+
 	/// <summary>The <c>reader.GetXxx</c> accessor fragment for a column.</summary>
 	string ReaderAccessor(CodeItem item);
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace SQuiL.Dialects;
 
@@ -17,8 +18,54 @@ public class SqliteDialect : ISqlDialect
 	public string VarCharType() => "Microsoft.Data.Sqlite.SqliteType.Text";
 	public string BitType() => "Microsoft.Data.Sqlite.SqliteType.Integer";
 
+	/// <summary>
+	/// The native SQLite temp-table declaration for an input/output table/object block, e.g.
+	/// <c>Drop Table If Exists Returns_Person; Create Temp Table Returns_Person (PersonID INTEGER Not Null, ...);</c>.
+	/// The table is created under its ORIGINAL (unstripped) name (see
+	/// <see cref="SQuiL.SourceGenerator.Parser.CodeBlock.SqliteTableName"/>) so it matches the
+	/// verbatim body, which references the temp table by that full name.
+	/// The leading <c>Drop Table If Exists</c> makes re-running the same connection/session safe
+	/// (SQLite temp tables otherwise persist for the life of the connection, so a second
+	/// execution would fail with "table already exists"). <c>Primary Key</c>/<c>Not Null</c> are
+	/// native SQLite column constraints — no bracket-quoting is required (SQLite does not use
+	/// T-SQL's <c>[...]</c> delimited-identifier syntax), so column names are emitted bare.
+	/// </summary>
 	public string TableVariableDeclaration(SQuiL.SourceGenerator.Parser.CodeBlock block, string newLine)
-		=> throw new NotImplementedException("SqliteDialect.TableVariableDeclaration — Task 5");
+	{
+		var name = block.SqliteTableName ?? block.Name;
+		var cols = string.Join($",{newLine}\t", block.Properties.Select(p
+			=> $"{p.Identifier.Value} {p.Type.Original}{(p.IsNullable ? "" : " Not Null")}{(p.IsPrimaryKey ? " Primary Key" : "")}"));
+
+		return $"""
+			Drop Table If Exists {name};
+			Create Temp Table {name} (
+				{cols});
+			""".Replace("\r\n", "\n");
+	}
+
+	/// <summary>
+	/// The native SQLite scalar declaration. SQLite has no bare scalar-variable syntax (no T-SQL
+	/// <c>Declare @x int;</c>), so a scalar is reconstructed as a single-column
+	/// <c>Create Temp Table</c> — the inverse of <c>SQuiLParser</c>'s single-column-object collapse.
+	/// Uses <see cref="SQuiL.SourceGenerator.Parser.CodeBlock.SqliteScalarTableName"/> /
+	/// <see cref="SQuiL.SourceGenerator.Parser.CodeBlock.SqliteScalarColumn"/> (populated by the
+	/// collapse branch) to regenerate a physically-matching statement; falls back to the block's
+	/// own name/type if those are absent.
+	/// </summary>
+	public string ScalarVariableDeclaration(SQuiL.SourceGenerator.Parser.CodeBlock block, string newLine)
+	{
+		var name = block.SqliteScalarTableName ?? block.Name;
+		var col = block.SqliteScalarColumn;
+		var colDef = col is not null
+			? $"{col.Identifier.Value} {col.Type.Original}{(col.IsNullable ? "" : " Not Null")}{(col.IsPrimaryKey ? " Primary Key" : "")}"
+			: $"{block.Name} {block.DatabaseType.Original}";
+
+		return $"""
+			Drop Table If Exists {name};
+			Create Temp Table {name} (
+				{colDef});
+			""".Replace("\r\n", "\n");
+	}
 
 	/// <summary>The <c>reader.GetXxx</c> accessor fragment for a table/object column. Computed
 	/// directly from the token type — does NOT delegate to <c>Token.DataReader()</c>, which is

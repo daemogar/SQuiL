@@ -54,6 +54,43 @@ public record CodeBlock(CodeType CodeType, Token DatabaseType, string Name, stri
 	public List<CodeItem> Properties { get; } = default!;
 
 	/// <summary>
+	/// For a SQLite table/object block declared via <c>Create Temp Table</c>: the ORIGINAL
+	/// (unstripped) physical table name — e.g. <c>"Returns_Person"</c> for a block whose
+	/// <see cref="Name"/> is the stripped C#-model name <c>"Person"</c>. SQLite temp tables are
+	/// referenced verbatim by their full name in the (author-written, never-rewritten) body, so
+	/// <see cref="SQuiL.Dialects.SqliteDialect.TableVariableDeclaration"/> must recreate the table
+	/// under that exact name — the stripped <see cref="Name"/> would not match. <c>null</c> for
+	/// SQL Server blocks (whose full name is carried by <see cref="DatabaseType"/>'s <c>Original</c>).
+	/// </summary>
+	/// <remarks>
+	/// <c>internal</c> (not public) deliberately: a record's synthesized <c>ToString</c>/
+	/// <c>PrintMembers</c> prints only PUBLIC members, and several diagnostic-message snapshots
+	/// dump the full <c>CodeBlock.ToString()</c>. Keeping these three SQLite-only members internal
+	/// keeps that dump — and every existing SQL Server <c>.verified.*</c> snapshot — byte-identical.
+	/// </remarks>
+	internal string? SqliteTableName { get; init; }
+
+	/// <summary>
+	/// For a SQLite scalar block collapsed from a single-column <c>Create Temp Table</c>
+	/// declaration (see <c>SQuiLParser</c>'s Sqlite collapse branch): the ORIGINAL (unstripped)
+	/// table name, e.g. <c>"Return_Total"</c> for a block whose <see cref="Name"/> is the
+	/// stripped <c>"Total"</c>. SQLite has no bare scalar-declare syntax, so
+	/// <see cref="SQuiL.Dialects.SqliteDialect.ScalarVariableDeclaration"/> needs this to
+	/// regenerate a physically-matching <c>Create Temp Table</c> statement. <c>null</c> for
+	/// every other block (SQL Server scalars, and every table/object block, which already carry
+	/// their own full name via <see cref="DatabaseType"/>'s <c>Original</c>).
+	/// </summary>
+	internal string? SqliteScalarTableName { get; init; }
+
+	/// <summary>
+	/// For a SQLite scalar block collapsed from a single-column <c>Create Temp Table</c>
+	/// declaration: the original single column (identifier, type, nullability, default,
+	/// primary-key marker) that the collapse would otherwise discard. Paired with
+	/// <see cref="SqliteScalarTableName"/>; <c>null</c> for every other block.
+	/// </summary>
+	internal CodeItem? SqliteScalarColumn { get; init; }
+
+	/// <summary>
 	/// Convenience constructor that derives the block name and default value from the type token directly.
 	/// </summary>
 	public CodeBlock(CodeType CodeType, Token Token)

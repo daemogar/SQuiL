@@ -48,7 +48,8 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
         {
             string word = atSpan.Value.GetText();
 
-            var parsed = SQuiLParser.Parse(snapshot.GetText());
+            var dialect = ResolveDialect(_buffer);
+            var parsed = SQuiLParser.Parse(snapshot.GetText(), dialect);
             var variable = parsed.Variables.FirstOrDefault(v =>
                 string.Equals(v.RawName, word, StringComparison.OrdinalIgnoreCase));
 
@@ -56,7 +57,7 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
 
             object content = variable == null
                 ? BuildUnknownContent(word)
-                : BuildVariableContent(variable, ResolveDialect(_buffer));
+                : BuildVariableContent(variable, dialect);
 
             return Task.FromResult<QuickInfoItem?>(new QuickInfoItem(trackingSpan, content));
         }
@@ -81,7 +82,7 @@ internal sealed class SQuiLQuickInfoSource : IAsyncQuickInfoSource
         var line = snapshot.GetLineFromPosition(identSpan.Value.Start.Position);
         int character = identSpan.Value.Start.Position - line.Start.Position;
 
-        var parsed = SQuiLParser.Parse(snapshot.GetText());
+        var parsed = SQuiLParser.Parse(snapshot.GetText(), ResolveDialect(snapshot.TextBuffer));
         string? roleText = SQuiLLinter.DescribeColumnLinkRole(parsed, line.LineNumber, character);
         if (roleText == null) return Task.FromResult<QuickInfoItem?>(null);
 

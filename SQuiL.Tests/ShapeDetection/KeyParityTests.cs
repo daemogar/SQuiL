@@ -46,14 +46,15 @@ public class KeyParityTests
     /// <summary>
     /// SQLite counterpart of <see cref="AssertParity"/>: tokenizes <paramref name="sqlType"/> under
     /// <see cref="SqliteDialect"/> (so SQLite-only keywords like INTEGER/BLOB/BOOLEAN/GUID resolve),
-    /// extracts the build-time canonical routing token via the dialect-aware ShapeKeyOf overload,
-    /// and compares against SqliteDataContext.NormalizeType for the matching provider type name.
+    /// via the real Create-Temp-Table header (Task 5), extracts the build-time canonical routing
+    /// token via the dialect-aware ShapeKeyOf overload, and compares against
+    /// SqliteDataContext.NormalizeType for the matching provider type name.
     /// </summary>
     private static void AssertParitySqlite(string sqlType, string providerTypeName)
     {
         var dialect = new SqliteDialect();
-        var tokens = SQuiLTokenizer.GetTokens($"Declare @Returns_T table(C {sqlType});\nUse [Db];\nSelect 1;", dialect);
-        var blocks = SQuiLParser.ParseTokens(tokens);
+        var tokens = SQuiLTokenizer.GetTokens($"Create Temp Table Returns_T (C {sqlType});\nSelect 1;", dialect);
+        var blocks = SQuiLParser.ParseTokens(tokens, dialect);
         var block = blocks.Find(b => b.IsTable || b.IsObject);
         Assert.NotNull(block);
 

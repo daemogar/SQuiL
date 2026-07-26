@@ -7,8 +7,8 @@ namespace SQuiL.Tests.Dialects;
 /// <summary>
 /// Exercises SqliteDialect.ReaderAccessor/ParamTypeExpr for every SQLite type keyword, on both
 /// the scalar (CodeBlock) and table-column (CodeItem) overloads. See task-4-brief.md for the
-/// design's §4.4 mapping table and the Task 4/5 ordering note on why these parse via the
-/// ordinary Declare form instead of SQLite's real Create-Temp-Table header (Task 5).
+/// design's §4.4 mapping table. Parses via SQLite's real Create-Temp-Table header (Task 5) —
+/// a single-column `Param_`-prefixed declaration collapses to a scalar CodeBlock.
 /// </summary>
 public class SqliteTypeMapTests
 {
@@ -29,7 +29,7 @@ public class SqliteTypeMapTests
 	public void Scalar_reader_and_param(string sqlType, string expectedReader, string expectedParam)
 	{
 		var block = SqliteDialectTestHelper.ParseSingleInputScalar(
-			$"Declare @Param_X {sqlType}; Use [Db]; Select 1;");
+			$"Create Temp Table Param_X (Value {sqlType}); Select 1;");
 
 		Assert.Equal(expectedReader, _dialect.ReaderAccessor(block));
 		Assert.Equal(expectedParam, _dialect.ParamTypeExpr(block));
@@ -39,7 +39,7 @@ public class SqliteTypeMapTests
 	public void Integer_reader_and_param()
 	{
 		var block = SqliteDialectTestHelper.ParseSingleInputScalar(
-			"Declare @Param_X INTEGER; Use [Db]; Select 1;");
+			"Create Temp Table Param_X (Value INTEGER); Select 1;");
 		Assert.Equal("reader.GetInt64", _dialect.ReaderAccessor(block));
 		Assert.Equal("Microsoft.Data.Sqlite.SqliteType.Integer", _dialect.ParamTypeExpr(block));
 	}
@@ -48,7 +48,7 @@ public class SqliteTypeMapTests
 	public void TableColumn_ReaderAccessor_matches_scalar_mapping()
 	{
 		var block = SqliteDialectTestHelper.ParseSingleInputBlock(
-			"Declare @Params_Rows table(Value INTEGER); Use [Db]; Select 1;");
+			"Create Temp Table Params_Rows (Value INTEGER); Select 1;");
 		var column = Assert.Single(block.Properties);
 
 		Assert.Equal("reader.GetInt64", _dialect.ReaderAccessor(column));

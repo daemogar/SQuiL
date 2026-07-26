@@ -89,9 +89,18 @@ export interface SQuiLParseResult {
 import { validateVariables, findingMessage, findingSeverity } from './variableValidator';
 import { shapeKeyOf } from './shapeKey';
 import { buildKeyGraph, KeyGraphResult, OUTPUT_TABLE_ROLES, INPUT_TABLE_ROLES } from './keyGraph';
+import { EditorDialect } from './dialect';
 
-/** Parse a full SQuiL SQL file text into a structured result. */
-export function parseSQuiL(text: string): SQuiLParseResult {
+/**
+ * Parse a full SQuiL SQL file text into a structured result.
+ *
+ * When <c>dialect</c> is <c>'sqlite'</c> the header model is SQLite's native
+ * <c>Create Temp Table &lt;Prefix&gt;_&lt;Name&gt; (...)</c> form (direction/cardinality carried
+ * by the bare name, single-column singular collapsing to a scalar) instead of T-SQL
+ * <c>Declare @...</c> / <c>Use</c> — mirroring the generator's Task-5 header parsing.
+ * Defaults to <c>'sqlserver'</c> so every existing caller is unaffected.
+ */
+export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): SQuiLParseResult {
   const lines = text.split('\n');
   const result: SQuiLParseResult = {
     variables: [],
@@ -138,6 +147,33 @@ export function parseSQuiL(text: string): SQuiLParseResult {
       continue;
     }
 
+    // SQLite header model (Task 5): `Create Temp Table <Prefix>_<Name> ( ... )` is the
+    // declaration form (no `@`, no `Use`). Direction/cardinality come from the bare name,
+    // exactly as the `@`-prefixed T-SQL form. Body/sample-DML statements after the header
+    // simply match no declaration regex and are ignored here (the editor model only needs
+    // the declarations for hover/completion/diagnostics).
+    if (dialect === 'sqlite') {
+      const createMatch = trimmed.match(/^CREATE\s+TEMP\s+TABLE\s+(\w+)\s*\((.*)$/is);
+      if (createMatch) {
+        const tableName = createMatch[1];
+        // Collect the (possibly multi-line) column list until the paren depth returns to 0.
+        let inner = createMatch[2];
+        let depth = 1 + parenDepthDelta(inner);
+        let j = i + 1;
+        while (depth > 0 && j < lines.length) {
+          const seg = lines[j];
+          inner += '\n' + seg;
+          depth += parenDepthDelta(seg);
+          j++;
+        }
+        const closeIdx = inner.lastIndexOf(')');
+        const columnsInner = (closeIdx >= 0 ? inner.slice(0, closeIdx) : inner).trim();
+
+        parseSqliteCreateTable(tableName, columnsInner, i, rawLine, result, lines);
+        continue;
+      }
+    }
+
     // DECLARE statement — capture the variable name and everything after it
     // Handles multiline TABLE declarations by joining continuation if needed
     const declareMatch = trimmed.match(/^DECLARE\s+(@\w+)\s+([\s\S]*?)(?:;|$)/i);
@@ -166,8 +202,9 @@ export function parseSQuiL(text: string): SQuiLParseResult {
     }
   }
 
-  // Missing USE warning
-  if (useCount === 0) {
+  // Missing USE warning — SQLite has no USE statement (its header is Create Temp Table),
+  // so this T-SQL-only requirement must not fire for the SQLite dialect.
+  if (useCount === 0 && dialect !== 'sqlite') {
     result.diagnostics.push({
       message: 'No USE statement found. SQuiL requires a USE [DatabaseName]; statement.',
       line: 0,
@@ -592,6 +629,81 @@ export function lintShapeCollision(parsed: SQuiLParseResult): SQuiLDiagnostic[] 
 
 // ─── Internal helpers ──────────────────────────────────────────────────────
 
+/**
+ * SQLite header parser (Task 5): maps one `Create Temp Table <Prefix>_<Name> ( ... )`
+ * statement to the SAME `SQuiLVariable`/`TableColumn` model the T-SQL `Declare @...` path
+ * builds. Direction + cardinality come from the bare `<Prefix>_` (Params_/Param_/Returns_/
+ * Return_); a SINGULAR (Param_/Return_) declaration with exactly one column collapses to a
+ * scalar variable, mirroring the generator's single-column-object collapse.
+ */
+function parseSqliteCreateTable(
+  tableName: string,
+  columnsInner: string,
+  lineNum: number,
+  fullLine: string,
+  result: SQuiLParseResult,
+  allLines: string[],
+): void {
+  const nameStart = fullLine.indexOf(tableName);
+  const character = nameStart >= 0 ? nameStart : 0;
+
+  const underscore = tableName.indexOf('_');
+  const prefix = (underscore >= 0 ? tableName.slice(0, underscore) : tableName).toUpperCase();
+  const baseName = underscore >= 0 ? tableName.slice(underscore + 1) : tableName;
+
+  const columns = parseTableColumns(columnsInner);
+  const isPlural = prefix === 'PARAMS' || prefix === 'RETURNS';
+  const isInput = prefix === 'PARAM' || prefix === 'PARAMS';
+  const isOutput = prefix === 'RETURN' || prefix === 'RETURNS';
+
+  // Single-column SINGULAR declaration collapses to a scalar (Param_ -> param, Return_ -> return).
+  if (!isPlural && (isInput || isOutput) && columns.length === 1) {
+    const col = columns[0];
+    result.variables.push({
+      role: isInput ? 'param' : 'return',
+      rawName: tableName,
+      name: baseName,
+      sqlType: col.sqlType,
+      nullable: col.nullabilityMarker === 'NULL',
+      line: lineNum,
+      character,
+    });
+    return;
+  }
+
+  let role: VariableRole;
+  if (prefix === 'PARAMS') role = 'params';
+  else if (prefix === 'PARAM') role = 'param-table';
+  else if (prefix === 'RETURNS') role = 'returns';
+  else if (prefix === 'RETURN') role = 'return-table';
+  else role = 'unknown';
+
+  // Precise per-column source positions: scan from this line using the SQLite header open
+  // pattern (`Temp Table <name> (`) instead of the T-SQL `table(` pattern.
+  const colPositions = scanTableColumnPositions(allLines, lineNum, 0, /\bTEMP\s+TABLE\s+\w+\s*\(/i);
+  if (colPositions.length === columns.length) {
+    columns.forEach((col, idx) => {
+      col.line = colPositions[idx].line;
+      col.character = colPositions[idx].character;
+    });
+  } else {
+    for (const col of columns) {
+      col.line = lineNum;
+      col.character = character;
+    }
+  }
+
+  result.variables.push({
+    role,
+    rawName: tableName,
+    name: baseName,
+    sqlType: 'TABLE',
+    columns,
+    line: lineNum,
+    character,
+  });
+}
+
 function parseVariable(
   rawName: string,
   typeStr: string,
@@ -784,6 +896,7 @@ function scanTableColumnPositions(
   lines: string[],
   startLine: number,
   startChar: number,
+  open: RegExp = /\bTABLE\s*\(/i,
 ): { line: number; character: number }[] {
   const results: { line: number; character: number }[] = [];
 
@@ -806,7 +919,7 @@ function scanTableColumnPositions(
   }
 
   const text = flatChars.join('');
-  const openMatch = /\bTABLE\s*\(/i.exec(text);
+  const openMatch = open.exec(text);
   if (!openMatch) return results;
 
   const isNameChar = (c: string) => /[A-Za-z0-9_]/.test(c);

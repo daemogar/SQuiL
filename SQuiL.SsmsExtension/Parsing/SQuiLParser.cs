@@ -119,6 +119,17 @@ public static class SQuiLParser
         @"^TABLE\s*\(",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    // SQLite header model (Task 5): `Create Temp Table <Prefix>_<Name> ( ...` — the SQLite
+    // analog of a T-SQL `Declare @<Prefix>_<Name> table(...)`. Group 1 = the bare table name,
+    // group 2 = everything after the opening paren (column list, possibly spanning lines).
+    private static readonly Regex CreateTempTable = new(
+        @"^CREATE\s+TEMP\s+TABLE\s+(\w+)\s*\((.*)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+    private static readonly Regex SqliteTableOpenParen = new(
+        @"\bTEMP\s+TABLE\s+\w+\s*\(",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private static readonly Regex TableTypeFull = new(
         @"TABLE\s*\((.+)\)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
@@ -139,7 +150,7 @@ public static class SQuiLParser
     private static readonly Regex DefaultModifier = new(
         @"^DEFAULT\s+('[^']*'|\S+)\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    public static SQuiLParseResult Parse(string text)
+    public static SQuiLParseResult Parse(string text, EditorDialect dialect = EditorDialect.SqlServer)
     {
         var result = new SQuiLParseResult();
         var lines = text.Split('\n');
@@ -192,6 +203,36 @@ public static class SQuiLParser
                 continue;
             }
 
+            // SQLite header model (Task 5): `Create Temp Table <Prefix>_<Name> ( ... )` is the
+            // declaration form (no `@`, no `Use`). Direction/cardinality come from the bare name,
+            // exactly as the `@`-prefixed T-SQL form. Body/sample-DML statements after the header
+            // match no declaration regex and are simply ignored (the editor model only needs the
+            // declarations for hover/completion/diagnostics).
+            if (dialect == EditorDialect.Sqlite)
+            {
+                var createMatch = CreateTempTable.Match(trimmed);
+                if (createMatch.Success)
+                {
+                    string tableName = createMatch.Groups[1].Value;
+                    // Collect the (possibly multi-line) column list until the paren depth returns to 0.
+                    string inner = createMatch.Groups[2].Value;
+                    int depth = 1 + ParenDepthDelta(inner);
+                    int j = i + 1;
+                    while (depth > 0 && j < lines.Length)
+                    {
+                        var seg = lines[j];
+                        inner += "\n" + seg;
+                        depth += ParenDepthDelta(seg);
+                        j++;
+                    }
+                    int closeIdx = inner.LastIndexOf(')');
+                    string columnsInner = (closeIdx >= 0 ? inner.Substring(0, closeIdx) : inner).Trim();
+
+                    ParseSqliteCreateTable(tableName, columnsInner, i, rawLine, result, lines);
+                    continue;
+                }
+            }
+
             // DECLARE statement — capture the variable name and everything after it.
             // Handles multiline TABLE declarations by joining continuation if needed.
             var declareMatch = DeclareStatement.Match(trimmed);
@@ -225,7 +266,9 @@ public static class SQuiLParser
             }
         }
 
-        if (useCount == 0)
+        // SQLite has no USE statement (its header is Create Temp Table), so this T-SQL-only
+        // requirement must not fire for the SQLite dialect.
+        if (useCount == 0 && dialect != EditorDialect.Sqlite)
         {
             result.Diagnostics.Add(new SQuiLDiagnostic
             {
@@ -257,6 +300,86 @@ public static class SQuiLParser
     };
 
     // ── Internal helpers ────────────────────────────────────────────────
+
+    /// <summary>
+    /// SQLite header parser (Task 5): maps one <c>Create Temp Table &lt;Prefix&gt;_&lt;Name&gt; ( ... )</c>
+    /// statement to the SAME <see cref="SQuiLVariable"/>/<see cref="TableColumn"/> model the T-SQL
+    /// <c>Declare @...</c> path builds. Direction + cardinality come from the bare <c>&lt;Prefix&gt;_</c>
+    /// (Params_/Param_/Returns_/Return_); a SINGULAR (Param_/Return_) declaration with exactly one
+    /// column collapses to a scalar variable, mirroring the generator's single-column-object collapse.
+    /// Port of <c>parseSqliteCreateTable</c> in parser.ts — change one side, change all.
+    /// </summary>
+    private static void ParseSqliteCreateTable(
+        string tableName, string columnsInner, int lineNum, string fullLine, SQuiLParseResult result,
+        string[] allLines)
+    {
+        int nameStart = fullLine.IndexOf(tableName, StringComparison.Ordinal);
+        int character = nameStart >= 0 ? nameStart : 0;
+
+        int underscore = tableName.IndexOf('_');
+        string prefix = (underscore >= 0 ? tableName.Substring(0, underscore) : tableName).ToUpperInvariant();
+        string baseName = underscore >= 0 ? tableName.Substring(underscore + 1) : tableName;
+
+        var columns = ParseTableColumns(columnsInner);
+        bool isPlural = prefix == "PARAMS" || prefix == "RETURNS";
+        bool isInput = prefix == "PARAM" || prefix == "PARAMS";
+        bool isOutput = prefix == "RETURN" || prefix == "RETURNS";
+
+        // Single-column SINGULAR declaration collapses to a scalar (Param_ -> Param, Return_ -> Return).
+        if (!isPlural && (isInput || isOutput) && columns.Count == 1)
+        {
+            var col = columns[0];
+            result.Variables.Add(new SQuiLVariable
+            {
+                Role      = isInput ? VariableRole.Param : VariableRole.Return,
+                RawName   = tableName,
+                Name      = baseName,
+                SqlType   = col.SqlType,
+                Nullable  = col.NullabilityMarker == "NULL",
+                Line      = lineNum,
+                Character = character,
+            });
+            return;
+        }
+
+        VariableRole role =
+            prefix == "PARAMS"  ? VariableRole.Params :
+            prefix == "PARAM"   ? VariableRole.ParamTable :
+            prefix == "RETURNS" ? VariableRole.Returns :
+            prefix == "RETURN"  ? VariableRole.ReturnTable :
+                                  VariableRole.Unknown;
+
+        // Precise per-column source positions: scan from this line using the SQLite header open
+        // pattern (`Temp Table <name> (`) instead of the T-SQL `table(` pattern.
+        var colPositions = ScanTableColumnPositions(allLines, lineNum, 0, SqliteTableOpenParen);
+        if (colPositions.Count == columns.Count)
+        {
+            for (int ci = 0; ci < columns.Count; ci++)
+            {
+                columns[ci].Line = colPositions[ci].Line;
+                columns[ci].Character = colPositions[ci].Character;
+            }
+        }
+        else
+        {
+            foreach (var col in columns)
+            {
+                col.Line = lineNum;
+                col.Character = character;
+            }
+        }
+
+        result.Variables.Add(new SQuiLVariable
+        {
+            Role      = role,
+            RawName   = tableName,
+            Name      = baseName,
+            SqlType   = "TABLE",
+            Columns   = columns,
+            Line      = lineNum,
+            Character = character,
+        });
+    }
 
     private static void ParseVariable(
         string rawName, string typeStr, int lineNum, string fullLine, SQuiLParseResult result, bool afterUse,
@@ -470,7 +593,7 @@ public static class SQuiLParser
     /// commas are never mistaken for column separators (only depth==1 commas split columns).
     /// </summary>
     private static List<(int Line, int Character)> ScanTableColumnPositions(
-        string[] lines, int startLine, int startChar)
+        string[] lines, int startLine, int startChar, Regex? open = null)
     {
         var results = new List<(int Line, int Character)>();
 
@@ -496,7 +619,7 @@ public static class SQuiLParser
         }
 
         string text = flat.ToString();
-        var openMatch = TableOpenParen.Match(text);
+        var openMatch = (open ?? TableOpenParen).Match(text);
         if (!openMatch.Success) return results;
 
         int idx = openMatch.Index + openMatch.Length; // just past the opening '('

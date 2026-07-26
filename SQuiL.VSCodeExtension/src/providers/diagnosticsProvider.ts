@@ -5,7 +5,7 @@ import { nullabilityHints } from '../squil/nullabilityHints';
 import { shapeHints } from '../squil/shapeHints';
 import { transactionHints } from '../squil/transactionHints';
 import { nestedObjectHints } from '../squil/nestedObjectHints';
-import { resolveContext } from '../squil/contextResolver';
+import { resolveContext, resolveProjectDialect } from '../squil/contextResolver';
 import { scanMutations } from '../squil/mutationScanner';
 
 export class SQuiLDiagnosticsProvider {
@@ -20,7 +20,16 @@ export class SQuiLDiagnosticsProvider {
     if (document.languageId !== 'squil') return;
 
     const text = document.getText();
-    const parsed = parseSQuiL(text);
+    // Real-fs callbacks (diagnosticsProvider runs in the extension host with real disk
+    // access), used both for dialect discovery and the SP0027/SP0028 context resolver.
+    const fsReadFile = (p: string): string | undefined => {
+      try { return fs.readFileSync(p, 'utf-8'); } catch { return undefined; }
+    };
+    const fsListDir = (d: string): string[] => {
+      try { return fs.readdirSync(d).map(String); } catch { return []; }
+    };
+    const dialect = resolveProjectDialect(document.uri.fsPath, fsReadFile, fsListDir);
+    const parsed = parseSQuiL(text, dialect);
     const vsDiags: vscode.Diagnostic[] = [];
 
     for (const d of parsed.diagnostics) {
@@ -84,12 +93,6 @@ export class SQuiLDiagnosticsProvider {
     // We use real fs here (diagnosticsProvider runs in the extension host with
     // real disk access). The resolver is injected with real-fs callbacks.
     const squilPath = document.uri.fsPath;
-    const fsReadFile = (p: string): string | undefined => {
-      try { return fs.readFileSync(p, 'utf-8'); } catch { return undefined; }
-    };
-    const fsListDir = (d: string): string[] => {
-      try { return fs.readdirSync(d).map(String); } catch { return []; }
-    };
     const ctx = resolveContext(squilPath, fsReadFile, fsListDir);
     if (!ctx.found) {
       const range0 = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));

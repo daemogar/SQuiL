@@ -81,16 +81,19 @@ internal sealed class PreviewGeneratedCSharpCommand
             return;
         }
 
-        var parsed = SQuiLParser.Parse(bufferText);
+        // Resolve the dialect (SQL Server vs SQLite) from the owning .csproj's
+        // PackageReferences BEFORE parsing, so the parser recognizes the SQLite
+        // `Create Temp Table` header form when appropriate — mirrors
+        // previewProvider.ts's `parseSQuiL(text, resolveProjectDialect(...))`.
+        var dialect = SQuiL.VisualStudioExtension.Parsing.SQuiLContextResolver.ResolveDialect(fullPath);
+        var parsed = SQuiLParser.Parse(bufferText, dialect);
         string queryName = parsed.QueryName ?? Path.GetFileNameWithoutExtension(fullPath);
 
         // Resolve [SQuiLQuery]/[SQuiLQueryTransaction] context from disk so the
-        // preview shows the correct transaction scaffold, and the dialect (SQL
-        // Server vs SQLite) from the owning .csproj's PackageReferences so the
-        // preview's SQL→C# type mapping matches what the generator would emit —
-        // mirrors previewProvider.ts's `resolveProjectDialect(document.uri.fsPath, ...)`.
+        // preview shows the correct transaction scaffold; the dialect (resolved
+        // above) makes the preview's SQL→C# type mapping match what the generator
+        // would emit.
         var ctx = SQuiL.VisualStudioExtension.Parsing.SQuiLContextResolver.Resolve(fullPath);
-        var dialect = SQuiL.VisualStudioExtension.Parsing.SQuiLContextResolver.ResolveDialect(fullPath);
         string preview = SQuiLPreviewGenerator.Generate(parsed, queryName, enabled: ctx.Enabled, debugRollback: ctx.DebugRollback, dialect: dialect);
 
         string tempPath = Path.Combine(
