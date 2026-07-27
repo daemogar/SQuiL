@@ -34,3 +34,7 @@ public partial class PeopleAndCountDataContext(IConfiguration Configuration) : S
 [SQuiLDialect(SQuiLDialect.Sqlite)]
 [SQuiLQuery(QueryFiles.MissingTable)]
 public partial class MissingTableDataContext(IConfiguration Configuration) : SqliteDataContext(Configuration);
+
+[SQuiLDialect(SQuiLDialect.Sqlite)]
+[SQuiLQuery(QueryFiles.TypedRouting)]
+public partial class TypedRoutingDataContext(IConfiguration Configuration) : SqliteDataContext(Configuration);

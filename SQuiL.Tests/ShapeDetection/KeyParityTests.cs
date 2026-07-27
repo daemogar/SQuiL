@@ -1,5 +1,6 @@
 namespace SQuiL.Tests.ShapeDetection;
 
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 
 using SQuiL.Dialects;
@@ -48,9 +49,19 @@ public class KeyParityTests
     /// <see cref="SqliteDialect"/> (so SQLite-only keywords like INTEGER/BLOB/BOOLEAN/GUID resolve),
     /// via the real Create-Temp-Table header (Task 5), extracts the build-time canonical routing
     /// token via the dialect-aware ShapeKeyOf overload, and compares against
-    /// SqliteDataContext.NormalizeType for the matching provider type name.
+    /// SqliteDataContext.NormalizeType for the provider type name a REAL Microsoft.Data.Sqlite
+    /// reader reports.
+    /// <para>
+    /// The runtime provider type name is NOT hand-fed — it is derived from an actual round trip:
+    /// a <c>Create Temp Table</c> is built with a single column of the EXACT decltype the generator
+    /// bakes into its own header (<c>block.Properties[0].Type.Original</c> — e.g. <c>float</c> for a
+    /// declared <c>double</c>, <c>varbinary(max)</c> for a <c>varbinary</c>), the column is selected,
+    /// and <c>DbDataReader.GetDataTypeName(0)</c> is read exactly as <c>SQuiLBaseDataContext.ShapeKey</c>
+    /// would at runtime. This guards against a fictional/self-consistent affinity string that a live
+    /// reader would never return.
+    /// </para>
     /// </summary>
-    private static void AssertParitySqlite(string sqlType, string providerTypeName)
+    private static void AssertParitySqlite(string sqlType)
     {
         var dialect = new SqliteDialect();
         var tokens = SQuiLTokenizer.GetTokens($"Create Temp Table Returns_T (C {sqlType});\nSelect 1;", dialect);
@@ -63,19 +74,66 @@ public class KeyParityTests
         Assert.True(colonIdx >= 0, $"ShapeKeyOf returned unexpected format: '{shapeKey}'");
         var buildToken = shapeKey.Substring(colonIdx + 1);
 
+        // Faithful runtime observation: create a column with the SAME decltype the generator emits
+        // (Token.Original, which TableVariableDeclaration writes verbatim), select it, and read what
+        // Microsoft.Data.Sqlite actually reports for GetDataTypeName — the real routing input.
+        var emittedDeclType = block!.Properties[0].Type.Original!;
+        var providerTypeName = ReadProviderTypeName(emittedDeclType);
+
         var runtimeToken = new SqliteProbe().NormalizeTypeForTest(providerTypeName);
 
         Assert.Equal(buildToken, runtimeToken);
     }
 
-    [Fact] public void Sqlite_Parity_Integer() => AssertParitySqlite("INTEGER", "INTEGER");
-    [Fact] public void Sqlite_Parity_Text()    => AssertParitySqlite("TEXT", "TEXT");
-    [Fact] public void Sqlite_Parity_Real()    => AssertParitySqlite("REAL", "REAL");
-    [Fact] public void Sqlite_Parity_Blob()    => AssertParitySqlite("BLOB", "BLOB");
-    [Fact] public void Sqlite_Parity_Numeric() => AssertParitySqlite("NUMERIC", "NUMERIC");
-    [Fact] public void Sqlite_Parity_Boolean() => AssertParitySqlite("BOOLEAN", "INTEGER");
-    [Fact] public void Sqlite_Parity_Datetime()=> AssertParitySqlite("DATETIME", "TEXT");
-    [Fact] public void Sqlite_Parity_Guid()    => AssertParitySqlite("GUID", "TEXT");
+    /// <summary>
+    /// Creates a temp table with a single column of <paramref name="declType"/>, selects it, and
+    /// returns the live <c>DbDataReader.GetDataTypeName(0)</c> — the exact provider type name the
+    /// runtime router (<c>SQuiLBaseDataContext.ShapeKey</c>) observes for such a column.
+    /// </summary>
+    private static string ReadProviderTypeName(string declType)
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+
+        using (var create = connection.CreateCommand())
+        {
+            create.CommandText = $"Create Temp Table __parity_probe (C {declType});";
+            create.ExecuteNonQuery();
+        }
+
+        using var select = connection.CreateCommand();
+        select.CommandText = "Select C From __parity_probe;";
+        using var reader = select.ExecuteReader();
+        Assert.True(reader.Read() || reader.FieldCount == 1);
+        return reader.GetDataTypeName(0);
+    }
+
+    // Every spelling that tokenizes to one of the eight SQLite-supported token types (the set
+    // SqliteDialect.SqliteReader maps to a typed reader accessor): TYPE_BIGINT, TYPE_STRING,
+    // TYPE_DOUBLE, TYPE_VARBINARY, TYPE_DECIMAL, TYPE_BOOLEAN, TYPE_DATETIME, TYPE_GUID. Build
+    // RoutingType must equal runtime NormalizeType(GetDataTypeName) for each — no fictional inputs.
+    [Fact] public void Sqlite_Parity_Integer()          => AssertParitySqlite("INTEGER");
+    [Fact] public void Sqlite_Parity_Bigint()           => AssertParitySqlite("bigint");
+    [Fact] public void Sqlite_Parity_Text()             => AssertParitySqlite("TEXT");
+    [Fact] public void Sqlite_Parity_Varchar()          => AssertParitySqlite("varchar(100)");
+    [Fact] public void Sqlite_Parity_Nvarchar()         => AssertParitySqlite("nvarchar(50)");
+    [Fact] public void Sqlite_Parity_Real()             => AssertParitySqlite("REAL");
+    [Fact] public void Sqlite_Parity_Float()            => AssertParitySqlite("float");
+    [Fact] public void Sqlite_Parity_Double()           => AssertParitySqlite("double");
+    [Fact] public void Sqlite_Parity_Blob()             => AssertParitySqlite("BLOB");
+    // NB: `varbinary` is the byte[] token's OTHER spelling, but its emitted decltype `varbinary(max)`
+    // is invalid SQLite ("max" is not a numeric type-arg) so no live column of it can be created —
+    // BLOB is SQLite's binary spelling and covers the byte[] routing token. NormalizeType still maps
+    // "varbinary" defensively (see SqliteDataContext) in case that generator gap is ever closed.
+    [Fact] public void Sqlite_Parity_Numeric()          => AssertParitySqlite("NUMERIC");
+    [Fact] public void Sqlite_Parity_Decimal()          => AssertParitySqlite("decimal(18,2)");
+    [Fact] public void Sqlite_Parity_Boolean()          => AssertParitySqlite("BOOLEAN");
+    [Fact] public void Sqlite_Parity_Bit()              => AssertParitySqlite("bit");
+    [Fact] public void Sqlite_Parity_Date()             => AssertParitySqlite("DATE");
+    [Fact] public void Sqlite_Parity_Datetime()         => AssertParitySqlite("DATETIME");
+    [Fact] public void Sqlite_Parity_Datetime2()        => AssertParitySqlite("datetime2");
+    [Fact] public void Sqlite_Parity_Guid()             => AssertParitySqlite("GUID");
+    [Fact] public void Sqlite_Parity_Uniqueidentifier() => AssertParitySqlite("uniqueidentifier");
 
     [Fact] public void Parity_Bit() => AssertParity("bit", "bit");
     [Fact] public void Parity_Int() => AssertParity("int", "int");

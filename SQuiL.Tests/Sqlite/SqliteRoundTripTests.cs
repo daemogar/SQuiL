@@ -226,4 +226,37 @@ public class SqliteRoundTripTests
 		var sqliteError = Assert.Single(errors, e => e.AsDbException() is SqliteException);
 		Assert.Contains("NonExistentTable_XYZ", sqliteError.Message);
 	}
+
+	/// <summary>
+	/// FACT 7 — routing of a result set with BOOLEAN + GUID + DATETIME columns (the Critical
+	/// build-key/runtime-key parity fix). These three SQLite decltypes have INTEGER/TEXT storage-class
+	/// affinities but keep their verbatim spelling in the temp table, so a live reader's
+	/// <c>GetDataTypeName</c> returns <c>"BOOLEAN"</c>/<c>"GUID"</c>/<c>"DATETIME"</c>. The build-time
+	/// routing key coarsens them to <c>long</c>/<c>string</c>/<c>string</c>; without the matching
+	/// <c>SqliteDataContext.NormalizeType</c> entries the runtime key would be
+	/// <c>boolean</c>/<c>guid</c>/<c>datetime</c>, the result set would miss the routing switch, and a
+	/// spurious "Expected return table 'Flag'" error would surface even though the SQL ran fine. This
+	/// fact proves the real end-to-end path: the one <c>Returns_Flag</c> result set routes to
+	/// <c>Flag</c> and every typed value round-trips.
+	/// </summary>
+	[Fact]
+	public async Task Boolean_guid_datetime_result_set_routes_and_round_trips()
+	{
+		var (keepAlive, provider) = Arrange(nameof(Boolean_guid_datetime_result_set_routes_and_round_trips));
+		using var _ = keepAlive;
+
+		var context = provider.GetRequiredService<TypedRoutingDataContext>();
+		var result = await context.ProcessTypedRoutingAsync(new TypedRoutingRequest());
+
+		// Pre-fix, TryGetValue returned false here (the result set fell through routing and the
+		// guarded return threw "Expected return table 'Flag'"); post-fix it routes cleanly.
+		Assert.True(result.TryGetValue(out var response, out var errors));
+		Assert.Null(errors);
+
+		var row = Assert.Single(response!.Flag!);
+		Assert.Equal(1, row.FlagID);
+		Assert.True(row.IsActive);
+		Assert.Equal(System.Guid.Parse("6f9619ff-8b86-d011-b42d-00c04fc964ff"), row.RowGuid);
+		Assert.Equal(new System.DateTime(2026, 7, 27, 13, 45, 0), row.CreatedAt);
+	}
 }
