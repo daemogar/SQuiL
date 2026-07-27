@@ -285,19 +285,6 @@
         DefaultSeverity: Warning,
         IsEnabledByDefault: true
       }
-    },
-    {
-      Message: OutputOnlyQueryGeneratesFullContext: the query body contains a persistent real-table mutation (Insert). Use [SQuiLQueryTransaction] to wrap the mutation in a transaction.,
-      Severity: Warning,
-      WarningLevel: 1,
-      Descriptor: {
-        Id: SP0023,
-        Title: Mutation Under Non-Transactional Query,
-        MessageFormat: OutputOnlyQueryGeneratesFullContext: the query body contains a persistent real-table mutation (Insert). Use [SQuiLQueryTransaction] to wrap the mutation in a transaction.,
-        Category: Design,
-        DefaultSeverity: Warning,
-        IsEnabledByDefault: true
-      }
     }
   ]
 }

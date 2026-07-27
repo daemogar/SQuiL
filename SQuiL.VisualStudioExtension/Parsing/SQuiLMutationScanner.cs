@@ -31,6 +31,13 @@ public static class SQuiLMutationScanner
         @"\bBegin\s+Tran(saction)?\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    // SQLite starts a transaction with a bare `BEGIN` (optionally BEGIN DEFERRED/IMMEDIATE/EXCLUSIVE
+    // [TRANSACTION]) — a bare BEGIN keyword suffices. Used ONLY for the SQLite dialect: in T-SQL a
+    // bare `BEGIN … END` is a statement block (not a transaction) and must not be flagged (SP0025).
+    static readonly Regex BeginSqlite = new(
+        @"\bBegin\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     // Matches the DML statement keyword (and optional preposition) at the start of a statement.
     // We then inspect what follows in the masked string to decide read-only vs. mutation.
     // Group "kw" = the full keyword phrase.
@@ -49,7 +56,7 @@ public static class SQuiLMutationScanner
         @"\b(Exec|Execute)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    public static MutationScanResult Scan(string body)
+    public static MutationScanResult Scan(string body, EditorDialect dialect = EditorDialect.SqlServer)
     {
         var masked = MaskNonCode(body);
         var hits = new List<MutationHit>();
@@ -93,7 +100,8 @@ public static class SQuiLMutationScanner
         foreach (Match m in Exec.Matches(masked))
             hits.Add(new("Exec", m.Index, m.Length));
 
-        return new(hits.Count == 0, BeginTran.IsMatch(masked), hits);
+        var beginRegex = dialect == EditorDialect.Sqlite ? BeginSqlite : BeginTran;
+        return new(hits.Count == 0, beginRegex.IsMatch(masked), hits);
     }
 
     /// <summary>

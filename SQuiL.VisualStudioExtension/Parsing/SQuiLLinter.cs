@@ -801,7 +801,7 @@ internal static class SQuiLLinter
 
         var bodyText = bodyStartOffset < sql.Length ? sql.Substring(bodyStartOffset) : string.Empty;
 
-        var scan = SQuiLMutationScanner.Scan(bodyText);
+        var scan = SQuiLMutationScanner.Scan(bodyText, dialect);
 
         if (!ctx.Enabled)
         {
@@ -844,9 +844,11 @@ internal static class SQuiLLinter
 
             if (scan.HasOwnTransaction)
             {
-                // Try to locate the Begin Tran in the body for a precise range.
+                // Try to locate the Begin Tran in the body for a precise range. SQLite also starts a
+                // transaction with a bare `BEGIN` (or BEGIN TRANSACTION), so widen the range regex there.
                 var btMatch = System.Text.RegularExpressions.Regex.Match(
-                    bodyText, @"\bBegin\s+Tran(?:saction)?\b",
+                    bodyText,
+                    dialect == EditorDialect.Sqlite ? @"\bBegin(?:\s+Transaction)?\b" : @"\bBegin\s+Tran(?:saction)?\b",
                     System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                 int btLine = 0, btChar = 0, btEndChar = 0;
                 if (btMatch.Success)

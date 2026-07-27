@@ -136,7 +136,7 @@ export class SQuiLDiagnosticsProvider {
         bodyText = text.slice(bodyStartOffset);
       }
 
-      const scan = scanMutations(bodyText);
+      const scan = scanMutations(bodyText, dialect);
 
       if (!ctx.enabled) {
         // [SQuiLQuery] or [SQuiLQueryTransaction(enabled:false)] — warn if mutation detected.
@@ -170,8 +170,13 @@ export class SQuiLDiagnosticsProvider {
           vsDiags.push(d);
         }
         if (scan.hasOwnTransaction) {
-          // Range on the Begin Tran itself, if we can find it in the body.
-          const btMatch = bodyText.match(/\bBegin\s+Tran(?:saction)?\b/i);
+          // Range on the Begin Tran itself, if we can find it in the body. SQLite also starts a
+          // transaction with a bare `BEGIN` (or BEGIN TRANSACTION), so widen the range regex there.
+          const btMatch = bodyText.match(
+            dialect === 'sqlite'
+              ? /\bBegin(?:\s+Transaction)?\b/i
+              : /\bBegin\s+Tran(?:saction)?\b/i
+          );
           const btRange = btMatch && btMatch.index !== undefined
             ? new vscode.Range(
                 document.positionAt(bodyStartOffset + btMatch.index),
