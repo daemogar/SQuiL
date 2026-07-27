@@ -997,6 +997,78 @@ function scanTableColumnPositions(
   return results;
 }
 
+/**
+ * Determine the 0-based line on which the query BODY begins for a SQLite (USE-less)
+ * `.squil` file, mirroring the generator tokenizer's SQLite body boundary (Task 5):
+ * the body is everything AFTER the leading `Create Temp Table` declarations and any
+ * leading bare-name param-table population statements
+ * (`Insert|Update|Delete <ParamTable> …`).
+ *
+ * SQLite files have no `USE`, so the T-SQL `databaseLine + 1` body derivation yields an
+ * empty body and must NOT be used for them (that was the Task-9 review bug: the SP0025
+ * SQLite `Begin` regex was dead and a legit SQLite mutation drew a spurious SP0024).
+ * Reuses the already-parsed declaration set (`parsed.variables`) for the param-table
+ * names — it does NOT re-parse from scratch.
+ *
+ * Returns `lines.length` when the file is header-only (no body).
+ *
+ * Mirrors `SQuiLParser.SqliteBodyStartLine` in SQuiLParser.cs (SSMS + Visual Studio) —
+ * change one side, change all three.
+ */
+export function sqliteBodyStartLine(text: string, parsed: SQuiLParseResult): number {
+  const lines = text.split('\n');
+
+  // Param/Params-prefixed SQLite temp-table names (bare, no `@`) — the same set the
+  // tokenizer's SqliteCreateTempTable records for sample-DML population recognition.
+  const paramTableNames = new Set<string>(
+    parsed.variables
+      .filter(v => v.role === 'param' || v.role === 'params' || v.role === 'param-table')
+      .map(v => v.rawName)
+      .filter(n => !n.startsWith('@') && /^params?_/i.test(n))
+      .map(n => n.toLowerCase()),
+  );
+
+  let i = 0;
+  while (i < lines.length) {
+    const trimmed = lines[i].trim();
+
+    // Skip blank and comment-only lines.
+    if (trimmed === '' || trimmed.startsWith('--') || trimmed.startsWith('/*')) { i++; continue; }
+
+    // `Create Temp Table <name> ( … )` declaration — consume the (possibly multi-line)
+    // statement until the column-list paren depth returns to 0.
+    if (/^CREATE\s+TEMP\s+TABLE\s+\w+\s*\(/i.test(trimmed)) {
+      let depth = 0;
+      let opened = false;
+      while (i < lines.length) {
+        depth += parenDepthDelta(lines[i]);
+        if (lines[i].includes('(')) opened = true;
+        i++;
+        if (opened && depth <= 0) break;
+      }
+      continue;
+    }
+
+    // Bare-name param-table population DML (`Insert Into <ParamTable> …`, `Update <ParamTable> …`,
+    // `Delete [From] <ParamTable> …`) — the SQLite analog of the T-SQL `Insert Into @Var …`
+    // sample-data marker. Only skip when the target is a declared param table; DML against an
+    // OUTPUT table or an ordinary real table is real body logic (the body begins there).
+    const dml = trimmed.match(/^(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+(\w+)/i);
+    if (dml && paramTableNames.has(dml[1].toLowerCase())) {
+      // Consume through the statement terminator `;`.
+      while (i < lines.length && !lines[i].includes(';')) i++;
+      if (i < lines.length) i++;
+      continue;
+    }
+
+    // First statement that is neither a header declaration nor a param-table population
+    // → the body begins here.
+    return i;
+  }
+
+  return lines.length;
+}
+
 /** Net change in paren depth across a string ('(' count minus ')' count).
  *  Used to find the real end of a multi-line `TABLE( ... )` declaration
  *  without being fooled by a column type's own parens (e.g. `varchar(50)`). */

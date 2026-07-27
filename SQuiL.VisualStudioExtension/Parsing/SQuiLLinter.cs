@@ -789,14 +789,29 @@ internal static class SQuiLLinter
         var ctx = SQuiLContextResolver.Resolve(squilFilePath);
         if (!ctx.Found) return; // orphan/duplicate already reported by LintOrphanContext
 
-        // Extract the body text: everything after the USE statement line.
+        // Extract the body text (dialect-aware). For T-SQL the body starts on the line AFTER the
+        // USE statement (DatabaseLine + 1). SQLite files have NO USE — their header is
+        // Create-Temp-Table declarations — so DatabaseLine is null there; the body begins after the
+        // leading declarations (and any param-table population), as computed by SqliteBodyStartLine.
+        // Without this, the SQLite body would be empty, making the SP0025 SQLite Begin regex dead and
+        // drawing a spurious SP0024 on real mutations.
         var parsed = SQuiLParser.Parse(sql, dialect);
-        if (parsed.DatabaseLine is not { } databaseLine) return;
+
+        int bodyStartLine;
+        if (dialect == EditorDialect.Sqlite)
+        {
+            bodyStartLine = SQuiLParser.SqliteBodyStartLine(sql, parsed);
+        }
+        else
+        {
+            if (parsed.DatabaseLine is not { } databaseLine) return;
+            bodyStartLine = databaseLine + 1;
+        }
 
         var lines = sql.Split('\n');
-        // Compute the character offset of the line after the USE statement.
+        // Compute the character offset of the first body line.
         int bodyStartOffset = 0;
-        for (int i = 0; i <= databaseLine && i < lines.Length; i++)
+        for (int i = 0; i < bodyStartLine && i < lines.Length; i++)
             bodyStartOffset += lines[i].Length + 1; // +1 for the '\n'
 
         var bodyText = bodyStartOffset < sql.Length ? sql.Substring(bodyStartOffset) : string.Empty;

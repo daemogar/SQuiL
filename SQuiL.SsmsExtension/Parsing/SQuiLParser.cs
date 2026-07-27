@@ -299,6 +299,96 @@ public static class SQuiLParser
         _                            => "Unknown — does not match SQuiL naming convention",
     };
 
+    // SQLite body-boundary matchers (mirror the regexes in sqliteBodyStartLine, parser.ts).
+    private static readonly Regex SqliteCreateTempTableOpen = new(
+        @"^CREATE\s+TEMP\s+TABLE\s+\w+\s*\(",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex SqliteParamPopulationDml = new(
+        @"^(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+(\w+)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex SqliteParamTablePrefix = new(
+        @"^params?_", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// Determine the 0-based line on which the query BODY begins for a SQLite (USE-less)
+    /// <c>.squil</c> file, mirroring the generator tokenizer's SQLite body boundary (Task 5):
+    /// the body is everything AFTER the leading <c>Create Temp Table</c> declarations and any
+    /// leading bare-name param-table population statements
+    /// (<c>Insert|Update|Delete &lt;ParamTable&gt; …</c>).
+    ///
+    /// SQLite files have no <c>USE</c>, so the T-SQL <c>DatabaseLine + 1</c> body derivation
+    /// yields an empty body and must NOT be used for them (that was the Task-9 review bug: the
+    /// SP0025 SQLite <c>Begin</c> regex was dead and a legit SQLite mutation drew a spurious
+    /// SP0024). Reuses the already-parsed declaration set (<paramref name="parsed"/>.Variables)
+    /// for the param-table names — it does NOT re-parse from scratch.
+    ///
+    /// Returns <c>lines.Length</c> when the file is header-only (no body).
+    ///
+    /// Mirrors <c>sqliteBodyStartLine</c> in parser.ts (VS Code) — change one side, change all three.
+    /// </summary>
+    public static int SqliteBodyStartLine(string text, SQuiLParseResult parsed)
+    {
+        var lines = text.Split('\n');
+
+        // Param/Params-prefixed SQLite temp-table names (bare, no `@`) — the same set the
+        // tokenizer's SqliteCreateTempTable records for sample-DML population recognition.
+        var paramTableNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var v in parsed.Variables)
+        {
+            if (v.Role != VariableRole.Param && v.Role != VariableRole.Params && v.Role != VariableRole.ParamTable)
+                continue;
+            if (v.RawName.StartsWith("@") || !SqliteParamTablePrefix.IsMatch(v.RawName)) continue;
+            paramTableNames.Add(v.RawName);
+        }
+
+        int i = 0;
+        while (i < lines.Length)
+        {
+            string trimmed = lines[i].Trim();
+
+            // Skip blank and comment-only lines.
+            if (trimmed.Length == 0 || trimmed.StartsWith("--") || trimmed.StartsWith("/*")) { i++; continue; }
+
+            // `Create Temp Table <name> ( … )` declaration — consume the (possibly multi-line)
+            // statement until the column-list paren depth returns to 0.
+            if (SqliteCreateTempTableOpen.IsMatch(trimmed))
+            {
+                int depth = 0;
+                bool opened = false;
+                while (i < lines.Length)
+                {
+                    depth += ParenDepthDelta(lines[i]);
+                    if (lines[i].IndexOf('(') >= 0) opened = true;
+                    i++;
+                    if (opened && depth <= 0) break;
+                }
+                continue;
+            }
+
+            // Bare-name param-table population DML (`Insert Into <ParamTable> …`,
+            // `Update <ParamTable> …`, `Delete [From] <ParamTable> …`) — the SQLite analog of the
+            // T-SQL `Insert Into @Var …` sample-data marker. Only skip when the target is a declared
+            // param table; DML against an OUTPUT table or an ordinary real table is real body logic
+            // (the body begins there).
+            var dml = SqliteParamPopulationDml.Match(trimmed);
+            if (dml.Success && paramTableNames.Contains(dml.Groups[1].Value))
+            {
+                // Consume through the statement terminator `;`.
+                while (i < lines.Length && lines[i].IndexOf(';') < 0) i++;
+                if (i < lines.Length) i++;
+                continue;
+            }
+
+            // First statement that is neither a header declaration nor a param-table population
+            // → the body begins here.
+            return i;
+        }
+
+        return lines.Length;
+    }
+
     // ── Internal helpers ────────────────────────────────────────────────
 
     /// <summary>

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import { parseSQuiL, SQuiLDiagnostic, lintShapeCollision, lintUnmatchedSelect } from '../squil/parser';
+import { parseSQuiL, SQuiLDiagnostic, lintShapeCollision, lintUnmatchedSelect, sqliteBodyStartLine } from '../squil/parser';
 import { nullabilityHints } from '../squil/nullabilityHints';
 import { shapeHints } from '../squil/shapeHints';
 import { transactionHints } from '../squil/transactionHints';
@@ -126,13 +126,23 @@ export class SQuiLDiagnosticsProvider {
     // mutation scanner (which body is read-only / has own Begin Tran).
     // Port of the build-time emit in FileGenerator.cs — change one, change all.
     if (ctx.found) {
-      // Extract the body text: everything after the USE statement line.
-      // parsed.databaseLine is 0-based; body starts on the NEXT line.
-      const databaseLine = parsed.databaseLine ?? -1;
+      // Extract the body text (dialect-aware). For T-SQL the body starts on the line
+      // AFTER the USE statement (parsed.databaseLine + 1). SQLite files have NO USE — their
+      // header is Create-Temp-Table declarations — so databaseLine is undefined there; the
+      // body begins after the leading declarations (and any param-table population), as
+      // computed by sqliteBodyStartLine. Without this, the SQLite body would be empty, making
+      // the SP0025 SQLite Begin regex dead and drawing a spurious SP0024 on real mutations.
+      let bodyStartLine: number;
+      if (dialect === 'sqlite') {
+        bodyStartLine = sqliteBodyStartLine(text, parsed);
+      } else {
+        const databaseLine = parsed.databaseLine ?? -1;
+        bodyStartLine = databaseLine >= 0 ? databaseLine + 1 : -1;
+      }
       let bodyText = '';
       let bodyStartOffset = 0;
-      if (databaseLine >= 0 && databaseLine + 1 < document.lineCount) {
-        bodyStartOffset = document.offsetAt(new vscode.Position(databaseLine + 1, 0));
+      if (bodyStartLine >= 0 && bodyStartLine < document.lineCount) {
+        bodyStartOffset = document.offsetAt(new vscode.Position(bodyStartLine, 0));
         bodyText = text.slice(bodyStartOffset);
       }
 
