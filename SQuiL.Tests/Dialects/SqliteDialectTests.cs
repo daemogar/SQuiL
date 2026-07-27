@@ -24,4 +24,16 @@ public class SqliteDialectTests
         Assert.Equal("Microsoft.Data.Sqlite.SqliteType.Text", _dialect.VarCharType());
         Assert.Equal("Microsoft.Data.Sqlite.SqliteType.Integer", _dialect.BitType());
     }
+
+    [Fact]
+    public void ShredStatement_uses_json_each()
+    {
+        var block = SqliteDialectTestHelper.ParseSingleInputBlock(
+            "Create Temp Table Params_Person (PersonID INTEGER, Name TEXT);");
+        var sql = new SqliteDialect().ShredStatement(block);
+        Assert.Contains("From json_each(@__json_Params_Person)", sql);
+        Assert.Contains("json_extract(value, '$.PersonID')", sql);
+        Assert.Contains("json_extract(value, '$.Name')", sql);
+        Assert.StartsWith("Insert Into Params_Person", sql);
+    }
 }

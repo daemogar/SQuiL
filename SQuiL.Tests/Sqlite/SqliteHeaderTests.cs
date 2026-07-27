@@ -212,5 +212,27 @@ public class SqliteHeaderTests
 				Select Total From Return_Total;
 				"""]);
 		}
+
+		/// <summary>
+		/// Task 6: an INPUT-table SQLite query now generates a FULL context (the shred is no longer
+		/// stubbed). Exercises <c>SqliteDialect.ShredStatement</c>/<c>ShredParamName</c> inside the
+		/// emitted <c>input&lt;Name&gt;</c> helper — the sample-DML <c>Insert</c> into the PARAM table
+		/// is dropped (Task 5 boundary), the shred is emitted as <c>json_each</c>/<c>json_extract</c>,
+		/// and the BLOB column is decoded with <c>unhex(…)</c> (the Task 6 blob decision). The
+		/// generated code also Tier-0 compiles against <c>SQuiL.Sqlite</c>.
+		/// </summary>
+		[Fact]
+		public System.Threading.Tasks.Task InputTableQueryGeneratesJsonEachShred()
+		{
+			var name = nameof(InputTableQueryGeneratesJsonEachShred);
+			return TestHelper.VerifySqlite([TestHelper.TestHeaderSqlite([name])], [$$"""
+				--Name: {{name}}
+				Create Temp Table Params_Doc (DocID INTEGER Primary Key, Title TEXT, Payload BLOB);
+				Create Temp Table Returns_Imported (DocID INTEGER, Title TEXT);
+				Insert Into Params_Doc (DocID, Title, Payload) Values (1, 'Ada', unhex('00AB'));
+				Insert Into Returns_Imported (DocID, Title) Select DocID, Title From Params_Doc;
+				Select DocID, Title From Returns_Imported;
+				"""]);
+		}
 	}
 }

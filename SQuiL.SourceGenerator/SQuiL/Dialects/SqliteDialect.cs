@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -102,8 +101,59 @@ public class SqliteDialect : ISqlDialect
 		_ => "Text", // TEXT, DECIMAL, DATETIME, GUID all bind as TEXT
 	});
 
+	/// <summary>
+	/// Returns the JSON parameter name for the given input block:
+	/// <c>@__json_Params_&lt;Name&gt;</c> for a table, <c>@__json_Param_&lt;Name&gt;</c> for an object.
+	/// Identical shape to <c>SqlServerDialect.ShredParamName</c> so the emitter's call sites
+	/// (see <c>SQuiLDataContext.InsertQueries</c>) stay dialect-agnostic.
+	/// </summary>
 	public string ShredParamName(SQuiL.SourceGenerator.Parser.CodeBlock block)
-		=> throw new NotImplementedException("SqliteDialect.ShredParamName — Task 6");
+		=> $"@__json_Param{(block.IsTable ? "s" : "")}_{block.Name}";
+
+	/// <summary>
+	/// Builds the SQLite <c>Insert Into … Select json_extract(…) … From json_each(@__json_…);</c>
+	/// shred — the SQLite analogue of SQL Server's <c>OpenJson … With (…)</c> shred. The insert
+	/// target is the bare temp-table name (SQLite creates the table under its full
+	/// <c>Params_</c>/<c>Param_</c> name in <see cref="TableVariableDeclaration"/>, unlike T-SQL's
+	/// <c>@</c>-prefixed table variable). Each column is pulled from the JSON element with
+	/// <c>json_extract(value, '$.Col')</c>.
+	/// <para>
+	/// Binary (BLOB) columns: the shared <c>SQuiLBinaryJsonConverter</c> (used by
+	/// <c>SQuiLJson.Serialize</c>, which <c>SqliteDataContext.AddJsonParameter</c> calls) already
+	/// serialises <see cref="byte"/>[] as bare uppercase hex, so the extracted hex string is
+	/// decoded back to a blob with SQLite's <c>unhex()</c> (available since SQLite 3.41; the
+	/// Microsoft.Data.Sqlite 10.0.10 bundle ships SQLite 3.49.1). This mirrors the SQL Server
+	/// side's <c>Convert(varbinary(N), …, 2)</c> and keeps the JSON payload identical across both
+	/// dialects — see the Task 9 <c>SqliteBlobRoundTripTests</c> for the runtime round-trip.
+	/// </para>
+	/// </summary>
 	public string ShredStatement(SQuiL.SourceGenerator.Parser.CodeBlock block)
-		=> throw new NotImplementedException("SqliteDialect.ShredStatement — Task 6");
+	{
+		// Insert target = the ORIGINAL (unstripped) temp-table name the create used
+		// (see TableVariableDeclaration / CodeBlock.SqliteTableName), e.g. "Params_Person",
+		// NOT the stripped base Name ("Person") — the two must match or the insert misses
+		// the table. Falls back to Name if SqliteTableName is unset (defensive).
+		var name = block.SqliteTableName ?? block.Name;
+		var cols = block.Properties;
+		var insertList = string.Join(", ", cols.Select(p => $"[{p.Identifier.Value}]"));
+		var selectList = string.Join(", ", cols.Select(SelectColumn));
+
+		// Normalize to \n so `writer.Block` (which splits on \n) strips the raw literal
+		// cleanly on every platform — matches the SqlServerDialect shred's rationale.
+		return $"""
+			Insert Into {name}({insertList})
+			Select {selectList}
+			From json_each({ShredParamName(block)});
+			""".Replace("\r\n", "\n");
+
+		static string SelectColumn(SQuiL.SourceGenerator.Parser.CodeItem p)
+			=> IsBinary(p)
+				? $"unhex(json_extract(value, '$.{p.Identifier.Value}'))"
+				: $"json_extract(value, '$.{p.Identifier.Value}')";
+
+		static bool IsBinary(SQuiL.SourceGenerator.Parser.CodeItem p)
+			=> p.Type.Type is SQuiL.Tokenizer.TokenType.TYPE_VARBINARY
+				or SQuiL.Tokenizer.TokenType.TYPE_BINARY
+				or SQuiL.Tokenizer.TokenType.TYPE_IMAGE;
+	}
 }

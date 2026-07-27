@@ -903,11 +903,12 @@ public class SQuiLDataContext(
 				});
 			}
 
-			// Whether a property is a sized (non-max) string column that needs a length guard.
+			// Whether a property is a sized string column that needs a length guard. Only a
+			// NUMERIC size counts: varchar(max)/nvarchar(max) are unbounded, and SQLite's TEXT
+			// (whose token Value is the type name, not a length) has no length to guard.
 			static bool IsSizedString(CodeItem p)
 				=> p.Type.Type == TokenType.TYPE_STRING
-					&& p.Type.Value is { } s
-					&& !s.Equals("max", StringComparison.OrdinalIgnoreCase);
+					&& int.TryParse(p.Type.Value, out _);
 
 			// Emits a throw for any sized varchar/nvarchar/char column whose value exceeds its
 			// declared length, BEFORE serialization (do not rely on silent OPENJSON truncation).
@@ -926,7 +927,9 @@ public class SQuiLDataContext(
 				{
 					if (p.Type.Type != TokenType.TYPE_STRING) continue;
 					var size = p.Type.Value;
-					if (size is null || size.Equals("max", StringComparison.OrdinalIgnoreCase)) continue;
+					// Only guard a NUMERIC declared length: max/unbounded (and SQLite TEXT, whose
+					// Value is the type name) have no length to enforce.
+					if (!int.TryParse(size, out _)) continue;
 
 					var value = $"{itemExpr}.{p.Identifier.Value}";
 					writer.Block($"if ({value} is not null && {value}.Length > {size})", () =>
