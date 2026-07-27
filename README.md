@@ -32,9 +32,9 @@ your-query.squil  ──▶  SQuiL source generator  ──▶  strongly-typed C
 - .NET SDK 10.0 or later to build a consuming project.
 - The generator and runtime libraries target `netstandard2.0`, so generated
   code runs anywhere the provider package's ADO.NET client is supported.
-- `SQuiL.SqlServer` is the only provider that ships today; multi-database
-  support adds providers behind the same `ISqlDialect` seam (see
-  `[SQuiLDialect]` below).
+- Two providers ship today — `SQuiL.SqlServer` and `SQuiL.Sqlite` — behind the
+  same `ISqlDialect` seam; the dialect is inferred from the referenced provider
+  package (see `[SQuiLDialect]` below and the **SQLite** section).
 
 ## Install
 
@@ -58,9 +58,10 @@ same reason EF Core's provider packages require the main package alongside
 them). Referencing `SQuiL.SqlServer` alone gets you the runtime but no code
 generation.
 
-By default a data context targets SQL Server. Add
-`[SQuiLDialect(SQuiLDialect.SqlServer)]` to a context class to make that
-explicit, or to pick a different provider once more than one ships.
+The dialect is inferred from the provider package you reference
+(`SQuiL.SqlServer` here). Add `[SQuiLDialect(SQuiLDialect.SqlServer)]` to a
+context class to make that explicit, or to disambiguate when a project
+references more than one provider (see the **SQLite** section).
 
 Mark your query files as `AdditionalFiles` so the generator can see them:
 
@@ -120,6 +121,143 @@ sub-namespace of the consuming context by default (override with
 `[SQuiLQuery(..., Namespace: "Dto")]` or `Namespace: ""` for top-level). Note the
 casing rule: an identifier ending in **ID** is always written `ID` (e.g.
 `@Param_UserID` → `UserID`), never `Id`.
+
+## SQLite
+
+SQuiL ships a native **SQLite** provider alongside SQL Server. Everything the
+generator emits — `Process<Query>Async`, the `<Query>Request`/`<Query>Response`
+records, the row records in `<Ctx>.Models`, and the `AddSQuiL()` DI extension —
+is **identical in shape** across dialects; only the SQL the generator scaffolds,
+the runtime base class, and the ADO.NET plumbing differ.
+
+### Install — reference both packages
+
+```bash
+dotnet add package SQuiL.Core
+dotnet add package SQuiL.Sqlite
+```
+
+Same reference-both model as SQL Server (and as EF Core's provider packages):
+`SQuiL.Core` carries the generator (a NuGet analyzer) plus the provider-neutral
+runtime types; `SQuiL.Sqlite` carries the SQLite provider — `SqliteDataContext`
+and the `Microsoft.Data.Sqlite` plumbing. Both are required, because an
+analyzer does not flow through a transitive dependency.
+
+### Dialect selection
+
+The dialect is **inferred from the provider package** the project references:
+reference `SQuiL.Sqlite` and contexts target SQLite; reference `SQuiL.SqlServer`
+and they target SQL Server. If a project references **more than one** provider,
+disambiguate each context explicitly with `[SQuiLDialect]`:
+
+```csharp
+[SQuiLDialect(SQuiLDialect.Sqlite)]
+[SQuiLQuery(QueryFiles.ImportPeople)]
+public partial class ImportPeopleDataContext { }
+```
+
+Resolution order: an explicit `[SQuiLDialect(...)]` wins; otherwise the single
+referenced provider decides; otherwise SQL Server is the default. Referencing
+2+ providers with no `[SQuiLDialect]` on a context is build error **SP0039**
+(ambiguous). A context whose resolved provider package isn't referenced at all
+is **SP0038**.
+
+### Authoring model — `Create Temp Table` declarations
+
+A SQLite `.squil` stays **valid SQLite as written** (just as a SQL Server file
+stays valid T-SQL). SQLite has no `Declare @x table(...)` or `Use [Db];`, so the
+header is a leading run of native `Create Temp Table` statements. The
+direction/cardinality convention carries over onto the **table name**:
+
+| Temp-table name | Role | C# surface |
+|---|---|---|
+| `Params_<N>` | input list | `List<<Ctx>.Models.<N>>? = []` on `*Request` |
+| `Param_<N>` (multi-column) | input object | `<Ctx>.Models.<N>?` on `*Request` |
+| `Param_<N>` (single-column) | input scalar | typed property on `*Request` |
+| `Returns_<N>` | output list | `List<<Ctx>.Models.<N>>?` on `*Response` (no `= []`) |
+| `Return_<N>` (multi-column) | output object | `<Ctx>.Models.<N>?` on `*Response` |
+| `Return_<N>` (single-column) | output scalar | typed property on `*Response` |
+
+Rules:
+
+- **Params (inputs) must be declared before any Returns (outputs)** — an
+  out-of-order declaration is build error **SP0040** in SQLite (a warning in
+  SQL Server).
+- A **single-column** temp table collapses to a **scalar**.
+- Columns use **native SQLite types** (`INTEGER`, `TEXT`, `REAL`, `BLOB`,
+  `NUMERIC`/`DECIMAL`, `BOOLEAN`, `DATE`/`DATETIME`, `GUID`); `Primary Key`,
+  `null`/`not null`, and `default` are ordinary SQLite column constraints. The
+  nullability and nested-object-key rules carry over unchanged.
+- The **body boundary** (the role `Use [Db];` plays in T-SQL) is positional: the
+  first statement that is neither a `Create Temp Table` nor a population of a
+  declared **param** temp table. Everything from there down is emitted verbatim.
+- Sample `Insert Into <ParamTable> … Values …` DML in the header is **stripped**
+  at generation and replaced by the `json_each` input shred — exactly like the
+  SQL Server pipeline strips `Insert Into @Var` and substitutes `OPENJSON`. The
+  file runs as-is in a SQLite shell; generation swaps only sample-inserts ↔
+  shred.
+
+### Worked example
+
+Author writes (valid, runnable SQLite):
+
+```sql
+--Name: ImportPeople
+Create Temp Table Params_Person (PersonID INTEGER Primary Key, Name TEXT, Age INTEGER);
+Create Temp Table Return_Count (Value INTEGER);
+Create Temp Table Returns_Imported (PersonID INTEGER, Status TEXT);
+
+-- sample data (stripped at generation, replaced by the json_each shred)
+Insert Into Params_Person (PersonID, Name, Age) Values (1, 'Ada', 36), (2, 'Alan', 41);
+
+-- ↓ first non-temp / non-param-population statement = body boundary (replaces `Use`)
+Insert Into Returns_Imported (PersonID, Status) Select PersonID, 'ok' From Params_Person;
+Insert Into Return_Count (Value) Select Count(*) From Returns_Imported;
+Select Value From Return_Count;
+Select PersonID, Status From Returns_Imported;
+```
+
+Register the context (dialect inferred from `SQuiL.Sqlite`, or pinned
+explicitly):
+
+```csharp
+[SQuiLDialect(SQuiLDialect.Sqlite)]
+[SQuiLQuery(QueryFiles.ImportPeople)]
+public partial class ImportPeopleDataContext { }
+```
+
+SQuiL generates the same surface it would for SQL Server:
+
+```csharp
+public partial record ImportPeopleRequest
+{
+    public List<TestCase.Models.Person>? Person { get; set; } = [];
+}
+
+public partial record ImportPeopleResponse
+{
+    public long Count { get; set; }                       // INTEGER → long
+    public List<TestCase.Models.Imported>? Imported { get; set; }
+}
+
+// Method on ImportPeopleDataContext (: SqliteDataContext):
+public Task<SQuiLResultType<ImportPeopleResponse>> ProcessImportPeopleAsync(
+    ImportPeopleRequest request, CancellationToken cancellationToken = default) { /* generated */ }
+```
+
+Inputs marshal through `json_each`/`json_extract` (SQLite's `OPENJSON`
+analogue); `byte[]`/`BLOB` values round-trip through a hex string and `unhex`.
+Note SQLite's native affinities: `INTEGER` → `long` and `REAL` → `double`
+(distinct from T-SQL's `int` → `int` / `real` → `float`) — the SQLite dialect
+owns its whole type map.
+
+### Editors
+
+The VS Code and Visual Studio extensions are dialect-aware: they discover a
+`.squil` file's dialect from the owning `.csproj`'s SQuiL provider
+`PackageReference` (with `[SQuiLDialect]` as the override in multi-provider
+projects). SSMS opens `.squil` standalone with no project, so it defaults to the
+SQL Server vocabulary (SSMS is a SQL Server tool).
 
 ## Editor support
 
