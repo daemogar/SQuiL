@@ -442,6 +442,19 @@ public static class DiagnosticsMessages
 			location));
 
 	/// <summary>
+	/// SP0040 — within one SQuiL file, an <c>@Return</c>/<c>@Returns</c> (output) declaration
+	/// precedes a <c>@Param</c>/<c>@Params</c> (input) declaration. Inputs must be declared first.
+	/// The severity is chosen by the caller from the resolved dialect (like SP0016): an error for
+	/// SQLite (<c>isError</c>), a warning otherwise.
+	/// </summary>
+	public static void ReportParamsBeforeReturns(this SourceProductionContext context, string filename, bool isError, Location location)
+		=> context.ReportDiagnostic(CreateDiagnostic(
+			isError ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning, "SP0040",
+			"Params Before Returns",
+			$"{filename}: declare all @Param/@Params (inputs) before any @Return/@Returns (outputs).",
+			location));
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

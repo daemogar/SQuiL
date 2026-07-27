@@ -253,7 +253,53 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
     result.diagnostics.push(d);
   }
 
+  // SP0040: every @Param/@Params (input) must be declared before any @Return/@Returns
+  // (output). Error for SQLite, warning otherwise — severity follows the resolved dialect.
+  for (const d of lintParamsBeforeReturns(result, dialect)) {
+    result.diagnostics.push(d);
+  }
+
   return result;
+}
+
+/** SP0040 — within one file, an @Return/@Returns (output) declaration precedes a
+ *  @Param/@Params (input) declaration. Inputs must be declared first. Reported once,
+ *  anchored at the first offending output (the earliest output still followed by a later
+ *  input). Severity is dialect-dependent: `error` for SQLite (its Create-Temp-Table header
+ *  must create inputs before the shred reads them), `warning` otherwise. Same rule as
+ *  SQuiLOrderingValidator.cs (generator) and LintParamsBeforeReturns in SQuiLLinter.cs
+ *  (SSMS + Visual Studio) — change one, change all.
+ */
+export function lintParamsBeforeReturns(result: SQuiLParseResult, dialect: EditorDialect): SQuiLDiagnostic[] {
+  const inputRoles = new Set<VariableRole>(['param', 'params', 'param-table']);
+  const outputRoles = new Set<VariableRole>(['return', 'returns', 'return-table']);
+
+  // Only INPUT/OUTPUT declarations participate, in file order. Specials/unknowns are skipped.
+  const decls = result.variables.filter(v => inputRoles.has(v.role) || outputRoles.has(v.role));
+
+  // Index of the last input; any output before it is out of order. No inputs → cannot violate.
+  let lastInputIndex = -1;
+  for (let i = 0; i < decls.length; i++) {
+    if (inputRoles.has(decls[i].role)) lastInputIndex = i;
+  }
+  if (lastInputIndex < 0) return [];
+
+  for (let i = 0; i < lastInputIndex; i++) {
+    const v = decls[i];
+    if (!outputRoles.has(v.role)) continue;
+    return [{
+      message:
+        `\`${v.rawName}\` (an output) is declared before a later @Param/@Params input. ` +
+        `Declare all @Param/@Params (inputs) before any @Return/@Returns (outputs).`,
+      line: v.line,
+      startChar: v.character,
+      endChar: v.character + v.rawName.length,
+      severity: dialect === 'sqlite' ? 'error' : 'warning',
+      code: 'SP0040',
+    }];
+  }
+
+  return [];
 }
 
 /**

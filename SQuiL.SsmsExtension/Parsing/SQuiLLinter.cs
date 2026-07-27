@@ -49,7 +49,14 @@ internal static class SQuiLLinter
     /// runs the context-resolver pass (SP0028 orphan / SP0027 duplicate mirror).
     /// Pass <c>null</c> when path is unavailable (e.g. untitled buffers).
     /// </param>
-    public static void Lint(string text, List<SQuiLDiagnostic> diagnostics, string? squilFilePath = null)
+    /// <param name="dialect">
+    /// The resolved editor dialect for the owning project (SQL Server vs SQLite).  Threaded
+    /// into every re-parse below so SQLite <c>Create Temp Table</c> declarations are recognized
+    /// (and the SQL-Server-only "missing USE" warning does not fire), and so SP0040's severity
+    /// follows the dialect.  Mirrors <c>parseSQuiL(text, dialect)</c> in parser.ts (VS Code),
+    /// which parses once with the dialect and runs every lint on that result.
+    /// </param>
+    public static void Lint(string text, List<SQuiLDiagnostic> diagnostics, string? squilFilePath = null, EditorDialect dialect = EditorDialect.SqlServer)
     {
         string[] lines = text.Split('\n');
 
@@ -65,20 +72,66 @@ internal static class SQuiLLinter
         }
 
         LintUndeclaredVariables(text, diagnostics);
-        LintNullabilityHints(text, diagnostics);
-        LintShapeMismatch(text, diagnostics);
-        LintShapeCollision(text, diagnostics);
-        LintSimilarSignatures(text, diagnostics);
-        LintCardinalityCollision(text, diagnostics);
-        LintUnmatchedSelect(text, diagnostics);
-        LintTimestampInput(text, diagnostics);
-        LintScalarNullMarker(text, diagnostics);
-        LintKeyGraph(text, diagnostics);
+        LintNullabilityHints(text, diagnostics, dialect);
+        LintShapeMismatch(text, diagnostics, dialect);
+        LintShapeCollision(text, diagnostics, dialect);
+        LintSimilarSignatures(text, diagnostics, dialect);
+        LintCardinalityCollision(text, diagnostics, dialect);
+        LintUnmatchedSelect(text, diagnostics, dialect);
+        LintTimestampInput(text, diagnostics, dialect);
+        LintScalarNullMarker(text, diagnostics, dialect);
+        LintKeyGraph(text, diagnostics, dialect);
+        LintParamsBeforeReturns(text, diagnostics, dialect);
         if (squilFilePath is not null)
         {
             LintOrphanContext(squilFilePath, diagnostics);
-            LintMutationDiagnostics(text, squilFilePath, diagnostics);
-            LintDebugRollbackHint(text, squilFilePath, diagnostics);
+            LintMutationDiagnostics(text, squilFilePath, diagnostics, dialect);
+            LintDebugRollbackHint(text, squilFilePath, diagnostics, dialect);
+        }
+    }
+
+    // ── Params-before-returns ordering (SP0040) ──────────────────────────────
+    //
+    // Within one file, every @Param/@Params (input) must be declared before any
+    // @Return/@Returns (output). Reported once, anchored at the first offending
+    // output (the earliest output still followed by a later input). Severity is
+    // dialect-dependent: Error for SQLite (its Create-Temp-Table header must create
+    // the input tables before the shred reads them), Warning otherwise.
+    //
+    // Port of SQuiLOrderingValidator.cs (source generator) and
+    // lintParamsBeforeReturns() in parser.ts (VS Code) — change one, change all three.
+
+    internal static void LintParamsBeforeReturns(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
+    {
+        var parsed = SQuiLParser.Parse(sql, dialect);
+
+        static bool IsInput(VariableRole r) => r == VariableRole.Param || r == VariableRole.Params || r == VariableRole.ParamTable;
+        static bool IsOutput(VariableRole r) => r == VariableRole.Return || r == VariableRole.Returns || r == VariableRole.ReturnTable;
+
+        // Only INPUT/OUTPUT declarations participate, in file order. Specials/unknowns are skipped.
+        var decls = parsed.Variables.Where(v => IsInput(v.Role) || IsOutput(v.Role)).ToList();
+
+        // Index of the last input; any output before it is out of order. No inputs → cannot violate.
+        int lastInputIndex = -1;
+        for (int i = 0; i < decls.Count; i++)
+            if (IsInput(decls[i].Role)) lastInputIndex = i;
+        if (lastInputIndex < 0) return;
+
+        for (int i = 0; i < lastInputIndex; i++)
+        {
+            var v = decls[i];
+            if (!IsOutput(v.Role)) continue;
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message   = $"`{v.RawName}` (an output) is declared before a later @Param/@Params input. " +
+                            "Declare all @Param/@Params (inputs) before any @Return/@Returns (outputs).",
+                Line      = v.Line,
+                StartChar = v.Character,
+                EndChar   = v.Character + v.RawName.Length,
+                Severity  = dialect == EditorDialect.Sqlite ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning,
+                Code      = "SP0040",
+            });
+            return;
         }
     }
 
@@ -100,9 +153,9 @@ internal static class SQuiLLinter
         @"^\s*select\s+(?!\*)(.+?)\s+from\s",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    internal static void LintUnmatchedSelect(string sql, List<SQuiLDiagnostic> diagnostics)
+    internal static void LintUnmatchedSelect(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
-        var parsed = SQuiLParser.Parse(sql);
+        var parsed = SQuiLParser.Parse(sql, dialect);
 
         var outputs = parsed.Variables
             .Where(v => (v.Role == VariableRole.Returns || v.Role == VariableRole.ReturnTable)
@@ -212,9 +265,9 @@ internal static class SQuiLLinter
     // Port of SQuiLTimestampInputValidator.cs (source generator) — change one,
     // change all three (+ TS).
 
-    internal static void LintTimestampInput(string sql, List<SQuiLDiagnostic> diagnostics)
+    internal static void LintTimestampInput(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
-        var parsed = SQuiLParser.Parse(sql);
+        var parsed = SQuiLParser.Parse(sql, dialect);
 
         static bool IsTimestamp(string sqlType)
         {
@@ -274,9 +327,9 @@ internal static class SQuiLLinter
     // Port of SQuiLScalarMarkerValidator.cs (source generator) — change one,
     // change all three (+ TS).
 
-    internal static void LintScalarNullMarker(string sql, List<SQuiLDiagnostic> diagnostics)
+    internal static void LintScalarNullMarker(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
-        var parsed = SQuiLParser.Parse(sql);
+        var parsed = SQuiLParser.Parse(sql, dialect);
 
         foreach (var v in parsed.Variables)
         {
@@ -528,9 +581,9 @@ internal static class SQuiLLinter
         return null;
     }
 
-    internal static void LintKeyGraph(string sql, List<SQuiLDiagnostic> diagnostics)
+    internal static void LintKeyGraph(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
-        var parsed = SQuiLParser.Parse(sql);
+        var parsed = SQuiLParser.Parse(sql, dialect);
         var outputList = OutputTableVariables(parsed);
         var inputList = InputTableVariables(parsed);
         var outputGraph = BuildKeyGraph(outputList);
@@ -731,13 +784,13 @@ internal static class SQuiLLinter
     // Port of the build-time emit in FileGenerator.cs and the SP0023/SP0024/SP0025
     // block in diagnosticsProvider.ts (VS Code) — change one, change all three.
 
-    internal static void LintMutationDiagnostics(string sql, string squilFilePath, List<SQuiLDiagnostic> diagnostics)
+    internal static void LintMutationDiagnostics(string sql, string squilFilePath, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
         var ctx = SQuiLContextResolver.Resolve(squilFilePath);
         if (!ctx.Found) return; // orphan/duplicate already reported by LintOrphanContext
 
         // Extract the body text: everything after the USE statement line.
-        var parsed = SQuiLParser.Parse(sql);
+        var parsed = SQuiLParser.Parse(sql, dialect);
         if (parsed.DatabaseLine is not { } databaseLine) return;
 
         var lines = sql.Split('\n');
@@ -831,7 +884,7 @@ internal static class SQuiLLinter
     // Port of transactionHints.ts (VS Code extension, Hint severity there) —
     // change one side, change all three.
 
-    internal static void LintDebugRollbackHint(string sql, string squilFilePath, List<SQuiLDiagnostic> diagnostics)
+    internal static void LintDebugRollbackHint(string sql, string squilFilePath, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
         var ctx = SQuiLContextResolver.Resolve(squilFilePath);
         if (!ctx.Found) return;
@@ -840,7 +893,7 @@ internal static class SQuiLLinter
         if (!ctx.DebugRollback) return;
 
         // Check whether @Debug is declared anywhere in the file.
-        var parsed = SQuiLParser.Parse(sql);
+        var parsed = SQuiLParser.Parse(sql, dialect);
         bool hasDebug = parsed.Variables.Any(v => v.Role == VariableRole.Debug);
         if (hasDebug) return;
 
@@ -876,9 +929,9 @@ internal static class SQuiLLinter
     //
     // Port of lintShapeMismatch() in parser.ts (VS Code extension) — change one, change all.
 
-    internal static void LintShapeMismatch(string sql, List<SQuiLDiagnostic> diagnostics)
+    internal static void LintShapeMismatch(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
-        var parsed = SQuiLParser.Parse(sql);
+        var parsed = SQuiLParser.Parse(sql, dialect);
         var tableVars = parsed.Variables.Where(v =>
             (v.Role == VariableRole.Returns   || v.Role == VariableRole.ReturnTable ||
              v.Role == VariableRole.Params    || v.Role == VariableRole.ParamTable)
@@ -930,9 +983,9 @@ internal static class SQuiLLinter
     // Port of lintCardinalityCollision() in parser.ts (VS Code) and
     // SQuiLCardinalityValidator.cs (source generator) — change one, change all.
 
-    internal static void LintCardinalityCollision(string sql, List<SQuiLDiagnostic> diagnostics)
+    internal static void LintCardinalityCollision(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
-        var parsed = SQuiLParser.Parse(sql);
+        var parsed = SQuiLParser.Parse(sql, dialect);
 
         static bool IsList(VariableRole r) => r == VariableRole.Params || r == VariableRole.Returns;
         static bool IsObject(VariableRole r) => r == VariableRole.ParamTable || r == VariableRole.ReturnTable;
@@ -1014,9 +1067,9 @@ internal static class SQuiLLinter
     // Port of lintShapeCollision() in parser.ts (VS Code extension) —
     // change one, change all three.
 
-    internal static void LintShapeCollision(string sql, List<SQuiLDiagnostic> diagnostics)
+    internal static void LintShapeCollision(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
-        var parsed = SQuiLParser.Parse(sql);
+        var parsed = SQuiLParser.Parse(sql, dialect);
 
         static string CanonicalType(string sqlType)
         {
@@ -1093,9 +1146,9 @@ internal static class SQuiLLinter
     //
     // Port of shapeHints.ts (VS Code extension) — change one, change all three.
 
-    internal static void LintSimilarSignatures(string sql, List<SQuiLDiagnostic> diagnostics)
+    internal static void LintSimilarSignatures(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
-        var parsed = SQuiLParser.Parse(sql);
+        var parsed = SQuiLParser.Parse(sql, dialect);
         var tableVars = parsed.Variables.Where(v =>
             (v.Role == VariableRole.Returns   || v.Role == VariableRole.ReturnTable ||
              v.Role == VariableRole.Params    || v.Role == VariableRole.ParamTable)
@@ -1191,9 +1244,9 @@ internal static class SQuiLLinter
     // Port of nullabilityHints.ts (VS Code extension) — message must stay
     // byte-exact across all three editor surfaces.
 
-    internal static void LintNullabilityHints(string sql, List<SQuiLDiagnostic> diagnostics)
+    internal static void LintNullabilityHints(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
-        var parsed = SQuiLParser.Parse(sql);
+        var parsed = SQuiLParser.Parse(sql, dialect);
         foreach (var v in parsed.Variables)
         {
             if (v.Columns is { Count: > 0 })

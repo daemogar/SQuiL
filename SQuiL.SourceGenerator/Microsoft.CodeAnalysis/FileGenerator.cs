@@ -69,7 +69,7 @@ public class FileGenerator(
 	// last parameter and C# requires optional parameters to precede required ones in a declaration
 	// list, recordNamespace/enabled/debugRollback also drop their defaults here — the sole call site
 	// (SQuiLGenerator.cs) already supplies every argument positionally, so this is behavior-neutral.
-	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records, string recordNamespace, bool enabled, bool debugRollback, SQuiL.Dialects.ISqlDialect dialect, bool registerTables)
+	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records, string recordNamespace, bool enabled, bool debugRollback, SQuiL.Dialects.ISqlDialect dialect, int dialectId, bool registerTables)
 	{
 		try
 		{
@@ -105,6 +105,13 @@ public class FileGenerator(
 			// Scalar standalone null/not null marker validation (SP0037)
 			foreach (var finding in SQuiLScalarMarkerValidator.Detect(blocks, sql))
 				Context.ReportScalarNullabilityMarker(method, finding);
+
+			// Params-before-returns ordering (SP0040): every @Param/@Params (input) must be
+			// declared before any @Return/@Returns (output). Error for SQLite (dialectId == 1),
+			// warning otherwise — the severity is dialect-dependent (like SP0016). Location.None
+			// because AdditionalText SQL files carry no Roslyn Location (see SP0017/SP0022).
+			if (SQuiLOrderingValidator.Detect(blocks, sql) is not null)
+				Context.ReportParamsBeforeReturns(method, dialectId == 1, Location.None);
 
 			if (ShowDebugMessages)
 			{

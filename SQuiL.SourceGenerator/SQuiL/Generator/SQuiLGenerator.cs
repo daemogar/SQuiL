@@ -609,7 +609,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			// missing-provider context's table shape could poison a valid sibling context with a
 			// false-positive SP0017/SP0021, even though its own source emission was already gated).
 			var generation = generator
-				.Create(@namespace, classname, method, setting, text, records, recordNamespace, enabled, debugRollback, dialect, providerReferenced);
+				.Create(@namespace, classname, method, setting, text, records, recordNamespace, enabled, debugRollback, dialect, dialectId, providerReferenced);
 
 			if (!providerReferenced)
 			{
