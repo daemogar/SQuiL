@@ -153,11 +153,15 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
     // simply match no declaration regex and are ignored here (the editor model only needs
     // the declarations for hover/completion/diagnostics).
     if (dialect === 'sqlite') {
-      const createMatch = trimmed.match(/^CREATE\s+TEMP\s+TABLE\s+(\w+)\s*\((.*)$/is);
+      // The name may be bracket-quoted (`[Params_Foo]`, full #3 parity) — mirrors the
+      // generator's `IdentifierRegex`, which recognizes and strips brackets on both the
+      // declaration name and DML targets. Bracket-quoted alternative captures group 1;
+      // bare-name alternative captures group 2 — exactly one of the two is set.
+      const createMatch = trimmed.match(/^CREATE\s+TEMP\s+TABLE\s+(?:\[(\w+)\]|(\w+))\s*\((.*)$/is);
       if (createMatch) {
-        const tableName = createMatch[1];
+        const tableName = createMatch[1] ?? createMatch[2];
         // Collect the (possibly multi-line) column list until the paren depth returns to 0.
-        let inner = createMatch[2];
+        let inner = createMatch[3];
         let depth = 1 + parenDepthDelta(inner);
         let j = i + 1;
         while (depth > 0 && j < lines.length) {
@@ -1055,10 +1059,12 @@ export function sqliteBodyStartLine(text: string, parsed: SQuiLParseResult): num
     // `Delete [From] <ParamTable> …`) — the SQLite analog of the T-SQL `Insert Into @Var …`
     // sample-data marker. Only skip when the target is a declared param table; DML against an
     // OUTPUT table or an ordinary real table is real body logic (the body begins there).
-    // The target may be bracket-quoted (`[ParamTable]`, #3) — the capture group is the bare
-    // inner name (brackets outside it), so the membership comparison sees it bracket-stripped.
-    const dml = trimmed.match(/^(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+\[?(\w+)\]?/i);
-    if (dml && paramTableNames.has(dml[1].toLowerCase())) {
+    // The target may be bracket-quoted (`[ParamTable]`, #3) — properly PAIRED (`\[(\w+)\]` or
+    // `(\w+)`, not the looser `\[?(\w+)\]?` which would also match an unbalanced `[Foo` or
+    // `Foo]`). Exactly one of the two capture groups is set; the membership comparison sees the
+    // name bracket-stripped either way.
+    const dml = trimmed.match(/^(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+(?:\[(\w+)\]|(\w+))/i);
+    if (dml && paramTableNames.has((dml[1] ?? dml[2]).toLowerCase())) {
       // Consume through the statement terminator `;`.
       while (i < lines.length && !lines[i].includes(';')) i++;
       if (i < lines.length) i++;

@@ -174,6 +174,27 @@ test('sqliteBodyStartLine: bracket-quoted param-table population DML is dropped 
   assert.strictEqual(sqliteBodyStartLine(text, parsed), 2);
 });
 
+// Residual #3 gap (full parity): a FULLY bracket-quoted declaration (`Create Temp Table
+// [Params_Foo] (...)`) must itself be parsed into a variable (brackets stripped, as the
+// generator's IdentifierRegex does), so that a following bracket-quoted population Insert is
+// recognized via THAT variable and dropped as sample DML — matching the generator, which drops
+// it too. Pre-fix, the declaration-PARSE regex used bare `\w+` and never matched a bracket-quoted
+// name at all, so no variable was recorded and the Insert was (wrongly) treated as body.
+test('sqliteBodyStartLine: FULLY bracket-quoted declaration + bracketed DML population is dropped (full #3 parity)', () => {
+  const text = [
+    'Create Temp Table [Params_Foo] (ID INTEGER Primary Key, Note TEXT);',
+    "Insert Into [Params_Foo] (ID, Note) Values (1, 'x');",
+    'Select ID, Note From Params_Foo;',
+  ].join('\n');
+  const parsed = parseSQuiL(text, 'sqlite');
+  assert.strictEqual(
+    parsed.variables.some(v => v.rawName === 'Params_Foo'),
+    true,
+    'the fully bracket-quoted declaration must be parsed into a variable named Params_Foo (brackets stripped)',
+  );
+  assert.strictEqual(sqliteBodyStartLine(text, parsed), 2);
+});
+
 // #1: the editors already accept `Delete From <ParamTable>` — this locks that parity (the
 // matching generator fix makes both sides agree).
 test('sqliteBodyStartLine: Delete From against a param table is dropped as sample DML (#1)', () => {

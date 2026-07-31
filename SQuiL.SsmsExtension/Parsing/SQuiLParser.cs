@@ -120,10 +120,13 @@ public static class SQuiLParser
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     // SQLite header model (Task 5): `Create Temp Table <Prefix>_<Name> ( ...` — the SQLite
-    // analog of a T-SQL `Declare @<Prefix>_<Name> table(...)`. Group 1 = the bare table name,
-    // group 2 = everything after the opening paren (column list, possibly spanning lines).
+    // analog of a T-SQL `Declare @<Prefix>_<Name> table(...)`. The name may be bracket-quoted
+    // (`[Params_Foo]`, full #3 parity) — mirrors the generator's IdentifierRegex, which
+    // recognizes and strips brackets on both the declaration name and DML targets. Group 1 =
+    // bracket-quoted table name, group 2 = bare table name (exactly one is set), group 3 =
+    // everything after the opening paren (column list, possibly spanning lines).
     private static readonly Regex CreateTempTable = new(
-        @"^CREATE\s+TEMP\s+TABLE\s+(\w+)\s*\((.*)$",
+        @"^CREATE\s+TEMP\s+TABLE\s+(?:\[(\w+)\]|(\w+))\s*\((.*)$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
     private static readonly Regex SqliteTableOpenParen = new(
@@ -213,9 +216,11 @@ public static class SQuiLParser
                 var createMatch = CreateTempTable.Match(trimmed);
                 if (createMatch.Success)
                 {
-                    string tableName = createMatch.Groups[1].Value;
+                    string tableName = createMatch.Groups[1].Success
+                        ? createMatch.Groups[1].Value
+                        : createMatch.Groups[2].Value;
                     // Collect the (possibly multi-line) column list until the paren depth returns to 0.
-                    string inner = createMatch.Groups[2].Value;
+                    string inner = createMatch.Groups[3].Value;
                     int depth = 1 + ParenDepthDelta(inner);
                     int j = i + 1;
                     while (depth > 0 && j < lines.Length)
@@ -307,10 +312,12 @@ public static class SQuiLParser
         @"^CREATE\s+TEMP\s+TABLE\s+(?:\[\w+\]|\w+)\s*(\(|$)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    // The DML target may be bracket-quoted (`[ParamTable]`, #3) — the capture group is the bare
-    // inner name (brackets outside it), so the membership comparison sees it bracket-stripped.
+    // The DML target may be bracket-quoted (`[ParamTable]`, #3) — properly PAIRED (`\[(\w+)\]`
+    // or `(\w+)`, not the looser `\[?(\w+)\]?` which would also match an unbalanced `[Foo` or
+    // `Foo]`). Group 1 = bracket-quoted name, group 2 = bare name — exactly one is set, and
+    // the membership comparison sees the name bracket-stripped either way.
     private static readonly Regex SqliteParamPopulationDml = new(
-        @"^(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+\[?(\w+)\]?",
+        @"^(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+(?:\[(\w+)\]|(\w+))",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex SqliteParamTablePrefix = new(
@@ -378,7 +385,8 @@ public static class SQuiLParser
             // param table; DML against an OUTPUT table or an ordinary real table is real body logic
             // (the body begins there).
             var dml = SqliteParamPopulationDml.Match(trimmed);
-            if (dml.Success && paramTableNames.Contains(dml.Groups[1].Value))
+            string dmlName = dml.Groups[1].Success ? dml.Groups[1].Value : dml.Groups[2].Value;
+            if (dml.Success && paramTableNames.Contains(dmlName))
             {
                 // Consume through the statement terminator `;`.
                 while (i < lines.Length && lines[i].IndexOf(';') < 0) i++;

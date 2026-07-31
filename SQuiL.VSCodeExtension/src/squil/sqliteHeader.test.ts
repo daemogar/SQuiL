@@ -107,6 +107,24 @@ test('a full SQLite query recognizes both declarations across body/sample-DML li
   assert.strictEqual(r.variables.length, 2);
 });
 
+// Residual #3 gap (full parity): Task A only fixed the body-BOUNDARY regex to recognize
+// bracket-quoted table names. The separate declaration-PARSE regex above still used bare `\w+`
+// and did not accept/strip brackets, so a FULLY bracket-quoted declaration was never recorded as
+// a variable at all — diverging from the generator's IdentifierRegex, which strips brackets on
+// both the declaration name and DML targets.
+test('bracket-quoted table name is parsed into a variable with brackets stripped (full #3 parity)', () => {
+  const r = parseSQuiL([
+    'Create Temp Table [Params_Foo] (ID INTEGER Primary Key, Note TEXT);',
+    'Select 1;',
+  ].join('\n'), 'sqlite');
+
+  const v = r.variables.find(x => x.role === 'params');
+  assert.ok(v, 'expected a params (input list) variable parsed from the bracket-quoted declaration');
+  assert.strictEqual(v!.name, 'Foo');
+  assert.strictEqual(v!.rawName, 'Params_Foo', 'brackets must be stripped from rawName, matching the generator IdentifierRegex');
+  assert.strictEqual(v!.columns?.length, 2);
+});
+
 test('the default (sqlserver) dialect does NOT parse Create Temp Table as a declaration', () => {
   const r = parseSQuiL([
     'Create Temp Table Params_Person (PersonID INTEGER, Name TEXT);',
