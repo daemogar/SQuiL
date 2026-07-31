@@ -4,6 +4,12 @@ import { parseSQuiL, describeRole } from '../squil/parser';
 import { sampleDataExists } from '../squil/sampleDataGenerator';
 import { EditorDialect } from '../squil/dialect';
 import { resolveProjectDialect } from '../squil/contextResolver';
+import {
+  VarDescriptor,
+  headerVarsFor,
+  fileSnippetsFor,
+  typesFor,
+} from '../squil/completionData';
 
 // ─── Real-filesystem resolver callbacks (mirrors previewProvider.ts) ──────
 
@@ -38,157 +44,11 @@ const CONTROL_KEYWORDS = [
   'RaiseError', 'Throw', 'Try', 'Catch', 'Print',
 ];
 
-const SQL_TYPES = [
-  'bigint', 'binary', 'bit', 'char', 'date',
-  'datetime', 'datetime2', 'datetimeoffset',
-  'decimal', 'float', 'image', 'int', 'money',
-  'nchar', 'ntext', 'numeric', 'nvarchar',
-  'real', 'smalldatetime', 'smallint', 'smallmoney',
-  'text', 'time', 'tinyint', 'uniqueidentifier',
-  'varbinary', 'varchar', 'xml',
-  // Common parameterised variants
-  'varchar(50)', 'varchar(100)', 'varchar(255)', 'varchar(max)',
-  'nvarchar(50)', 'nvarchar(100)', 'nvarchar(255)', 'nvarchar(max)',
-  'decimal(18, 2)', 'decimal(18, 4)',
-  'char(1)', 'char(10)',
-];
-
-/** SQLite's type vocabulary — offered instead of SQL_TYPES when the owning .csproj resolves to the SQLite dialect. */
-const SQLITE_TYPES = [
-  'integer', 'text', 'real', 'blob', 'numeric', 'decimal',
-  'boolean', 'date', 'datetime', 'guid', 'uniqueidentifier',
-];
-
 const TABLE_HINTS = ['NoLock', 'ReadPast', 'UpdLock', 'RowLock', 'TabLock'];
 
-// ─── SQuiL variable descriptors ───────────────────────────────────────────
-
-interface VarDescriptor {
-  prefix: string;
-  snippet: string;
-  detail: string;
-  docs: string;
-}
-
-const HEADER_VARS: VarDescriptor[] = [
-  {
-    prefix: '@Param_',
-    snippet: '@Param_${1:Name} ${2:varchar(100)}',
-    detail: 'Input scalar parameter',
-    docs:
-      'Maps to a property on the generated `*Request` record.\n\n' +
-      '```sql\nDeclare @Param_UserID int;\n```',
-  },
-  {
-    prefix: '@Params_',
-    snippet: '@Params_${1:Items} table (${2:ID int})',
-    detail: 'Input table-valued parameter → IEnumerable<T>',
-    docs:
-      'Maps to an `IEnumerable<ItemT>` property on `*Request`.\n\n' +
-      '```sql\nDeclare @Params_UserIDs table (ID int);\n```',
-  },
-  {
-    prefix: '@Return_',
-    snippet: '@Return_${1:Name} ${2:int}',
-    detail: 'Output scalar variable',
-    docs:
-      'Maps to a property on the generated `*Response` record.\n\n' +
-      '```sql\nDeclare @Return_Count int;\n```',
-  },
-  {
-    prefix: '@Returns_',
-    snippet: '@Returns_${1:Items} table (${2:ID int, Name varchar(100)})',
-    detail: 'Output table variable → IEnumerable<T>',
-    docs:
-      'Maps to an `IEnumerable<ItemT>` property on `*Response`.\n\n' +
-      '```sql\nDeclare @Returns_Users table (ID int, Name varchar(100));\n```',
-  },
-  {
-    prefix: '@Debug',
-    snippet: '@Debug bit = 1',
-    detail: 'Debug flag — on *Request as `bool Debug` when declared',
-    docs:
-      'Opt-in special SQuiL variable. `*Request` exposes `bool Debug` **only when `@Debug` is declared**. ' +
-      'Declare `@SuppressDebug` alongside it to gate the auto-debug expression. ' +
-      'The default `= 1` is convenient when running the query directly in SSMS.\n\n' +
-      '```sql\nDeclare @Debug bit = 1;\n```',
-  },
-  {
-    prefix: '@SuppressDebug',
-    snippet: '@SuppressDebug bit = 0',
-    detail: 'Suppress auto-debug — on *Request as `bool SuppressDebug` when declared',
-    docs:
-      'Opt-in special SQuiL variable. Gates the auto-debug expression (replaces the old `DebugOnly` property). ' +
-      'Must be declared together with `@Debug`, otherwise **SP0019** is reported.\n\n' +
-      '```sql\nDeclare @Debug bit = 1;\nDeclare @SuppressDebug bit = 0;\n```',
-  },
-  {
-    prefix: '@EnvironmentName',
-    snippet: '@EnvironmentName varchar(50)',
-    detail: 'Environment name — resolved by SQuiLBaseDataContext',
-    docs:
-      'Resolved by `SQuiLBaseDataContext` from `IConfiguration["EnvironmentName"]` or the ' +
-      '`ASPNETCORE_ENVIRONMENT` environment variable (defaulting to `"Development"`). ' +
-      'Declare in SQL only when the query body needs to read it. Sent as a parameter only — never a C# property.\n\n' +
-      '```sql\nDeclare @EnvironmentName varchar(50);\n```',
-  },
-  {
-    prefix: '@AsOfDate',
-    snippet: "@AsOfDate date = '2008-10-01'",
-    detail: 'Point-in-time — nullable typed property on *Request',
-    docs:
-      'Opt-in special SQuiL variable. Caller-supplied point-in-time value, surfaced as a **nullable typed property** ' +
-      'on `*Request` (its type follows the SQL type map, e.g. `date` → `DateOnly?`). ' +
-      'When null, the **current time at execution** is substituted; the SQL initializer is ignored at runtime.\n\n' +
-      "```sql\nDeclare @AsOfDate date = '2008-10-01';\n```",
-  },
-];
-
-// ─── File-level scaffold snippets ─────────────────────────────────────────
-
-const FILE_SNIPPETS = [
-  {
-    label: 'squil-file',
-    snippet: [
-      '--Name: ${1:QueryName}',
-      '',
-      'Declare @Param_${2:Name} ${3:varchar(100)};',
-      'Declare @Return_${4:Result} ${5:int};',
-      '',
-      'Use [${6:DatabaseName}];',
-      '',
-      '-- SQL body',
-      'Set @Return_${4:Result} = (Select ${7:Count(*)} From ${8:TableName} Where ${9:1=1});',
-      'Select @Return_${4:Result};',
-    ].join('\n'),
-    detail: 'Scaffold a complete SQuiL file',
-  },
-  {
-    label: 'squil-declare-input',
-    snippet: 'Declare @Param_${1:Name} ${2:varchar(100)};',
-    detail: 'Declare input scalar parameter',
-  },
-  {
-    label: 'squil-declare-input-table',
-    snippet: ['Declare @Params_${1:Items} table (', '    ${2:ID} ${3:int}', ');'].join('\n'),
-    detail: 'Declare input table-valued parameter',
-  },
-  {
-    label: 'squil-declare-output',
-    snippet: 'Declare @Return_${1:Name} ${2:int};',
-    detail: 'Declare output scalar variable',
-  },
-  {
-    label: 'squil-declare-output-table',
-    snippet: [
-      'Declare @Returns_${1:Items} table (',
-      '    ${2:ID} ${3:int},',
-      '    ${4:Name} ${5:varchar(100)}',
-      ');',
-    ].join('\n'),
-    detail: 'Declare output table variable',
-  },
-];
+// SQL type vocabularies, SQuiL variable descriptors, and file-level scaffold
+// snippets (T-SQL + SQLite variants, with dialect selectors) live in the pure,
+// unit-tested `../squil/completionData` module.
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -250,7 +110,7 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
     const atMatch = textBefore.match(/@(\w*)$/);
     if (atMatch) {
       const lineHasDeclare = /^\s*DECLARE\s+/i.test(textBefore);
-      const items = this.headerVariableCompletions(atMatch[0], position, !lineHasDeclare);
+      const items = this.headerVariableCompletions(atMatch[0], position, !lineHasDeclare, dialect);
       items.push(...this.variablesDefinedAbove(document, position, atMatch[0]));
       items.push(...this.sampleDataCompletions(document, position, atMatch[0]));
       return items;
@@ -258,7 +118,7 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
 
     // "Declare " typed → offer @Prefix_ patterns (no second Declare)
     if (/^\s*DECLARE\s+$/i.test(textBefore)) {
-      return this.headerVariableCompletions('', position, false);
+      return this.headerVariableCompletions('', position, false, dialect);
     }
 
     // After "Declare @var " or "AS " → SQL types
@@ -277,7 +137,7 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
 
     // Empty/scaffold lines
     if (/^\s*(sq)?$/i.test(textBefore)) {
-      return FILE_SNIPPETS.map(s => {
+      return fileSnippetsFor(dialect).map(s => {
         const item = new vscode.CompletionItem(s.label, vscode.CompletionItemKind.Snippet);
         item.insertText = new vscode.SnippetString(s.snippet);
         item.detail = s.detail;
@@ -294,19 +154,24 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
     typed: string,
     position: vscode.Position,
     prependDeclare: boolean,
+    dialect: EditorDialect,
   ): vscode.CompletionItem[] {
     const replaceRange = new vscode.Range(
       position.translate(0, -typed.length),
       position,
     );
 
-    return HEADER_VARS.map(v => {
+    // SQLite header declarations are full `Create Temp Table …` statements —
+    // never prefixed with the T-SQL `Declare` keyword.
+    const isSqlite = dialect === 'sqlite';
+
+    return headerVarsFor(dialect).map((v: VarDescriptor) => {
       const item = new vscode.CompletionItem(v.prefix, vscode.CompletionItemKind.Variable);
       item.detail = v.detail;
       item.documentation = new vscode.MarkdownString(v.docs);
       item.sortText = '0' + v.prefix;
       item.insertText = new vscode.SnippetString(
-        prependDeclare ? `Declare ${v.snippet};` : `${v.snippet};`,
+        !isSqlite && prependDeclare ? `Declare ${v.snippet};` : `${v.snippet};`,
       );
       item.range = replaceRange;
       return item;
@@ -431,7 +296,7 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
   // ── SQL type completions ───────────────────────────────────────────
 
   private typeCompletions(dialect: EditorDialect = 'sqlserver'): vscode.CompletionItem[] {
-    const types = dialect === 'sqlite' ? SQLITE_TYPES : SQL_TYPES;
+    const types = typesFor(dialect);
     const items = types.map(t => {
       const item = new vscode.CompletionItem(t, vscode.CompletionItemKind.TypeParameter);
       item.detail = dialect === 'sqlite' ? 'SQLite type' : 'SQL type';

@@ -155,6 +155,40 @@ internal static class SQuiLCompletionData
 
     };
 
+    /// <summary>
+    /// SQLite header declarations: <c>Create Temp Table &lt;Prefix&gt;_&lt;Name&gt; (...)</c>.
+    /// SQLite has no <c>@</c> sigil and no <c>Declare</c>/<c>Use</c> — direction
+    /// (Param/Return) and cardinality (singular/plural) are carried entirely by
+    /// the bare table name, exactly as the generator's SQLite header parser
+    /// expects. A singular single-column declaration collapses to a scalar;
+    /// anything wider is an object. Mirrors <c>SQLITE_HEADER_VARS</c> in
+    /// <c>completionProvider.ts</c>'s <c>completionData</c> module.
+    /// </summary>
+    public static readonly HeaderVar[] SqliteHeaderVars =
+    {
+        new("Param_",    "Create Temp Table Param_Name (Value TEXT)",
+            "Input scalar/object — property on *Request",
+            "A single-column Param_ collapses to an input scalar; a wider one is an input object. "
+          + "Maps to a property on the generated *Request record."),
+
+        new("Params_",   "Create Temp Table Params_Items (ID INTEGER)",
+            "Input list — IEnumerable<T> on *Request",
+            "Maps to an IEnumerable<ItemT> property on *Request."),
+
+        new("Return_",   "Create Temp Table Return_Name (Value INTEGER)",
+            "Output scalar/object — property on *Response",
+            "A single-column Return_ collapses to an output scalar; a wider one is an output object. "
+          + "Maps to a property on the generated *Response record."),
+
+        new("Returns_",  "Create Temp Table Returns_Items (ID INTEGER, Name TEXT)",
+            "Output list — IEnumerable<T> on *Response",
+            "Maps to an IEnumerable<ItemT> property on *Response."),
+    };
+
+    /// <summary>Selects <see cref="HeaderVars"/> or <see cref="SqliteHeaderVars"/> for the given dialect.</summary>
+    public static HeaderVar[] HeaderVarsFor(EditorDialect dialect)
+        => dialect == EditorDialect.Sqlite ? SqliteHeaderVars : HeaderVars;
+
     // ── File-level scaffold snippets ──────────────────────────────────
 
     public sealed class FileSnippet
@@ -221,4 +255,58 @@ internal static class SQuiLCompletionData
             }),
             "Multi-row output — becomes IEnumerable<T> on *Response."),
     };
+
+    /// <summary>
+    /// SQLite file scaffolds — <c>Create Temp Table</c> declarations, NO
+    /// <c>Use</c> line (SQLite has no USE statement). Mirrors
+    /// <see cref="FileSnippets"/> one-for-one, and <c>SQLITE_FILE_SNIPPETS</c>
+    /// in <c>completionProvider.ts</c>'s <c>completionData</c> module.
+    /// </summary>
+    public static readonly FileSnippet[] SqliteFileSnippets =
+    {
+        new("Scaffold a complete SQLite SQuiL file",
+            string.Join("\r\n", new[]
+            {
+                "--Name: QueryName",
+                "",
+                "Create Temp Table Params_Roster (PersonID INTEGER Primary Key, Name TEXT);",
+                "Create Temp Table Returns_Echoed (PersonID INTEGER Primary Key, Name TEXT);",
+                "",
+                "-- SQL body",
+                "Insert Into Returns_Echoed (PersonID, Name) Select PersonID, Name From Params_Roster;",
+                "Select PersonID, Name From Returns_Echoed;",
+            }),
+            "Inserts a fully-formed SQLite SQuiL file (Create Temp Table declarations, no USE) with a sample query body."),
+
+        new("Declare Param_ input scalar/object (Create Temp Table)",
+            "Create Temp Table Param_Name (Value TEXT);",
+            "Single-value/object input — becomes a property on *Request."),
+
+        new("Declare Params_ input list (Create Temp Table)",
+            string.Join("\r\n", new[]
+            {
+                "Create Temp Table Params_Items (",
+                "    ID INTEGER",
+                ");",
+            }),
+            "Multi-row input — becomes IEnumerable<T> on *Request."),
+
+        new("Declare Return_ output scalar/object (Create Temp Table)",
+            "Create Temp Table Return_Name (Value INTEGER);",
+            "Single-value/object output — becomes a property on *Response."),
+
+        new("Declare Returns_ output list (Create Temp Table)",
+            string.Join("\r\n", new[]
+            {
+                "Create Temp Table Returns_Items (",
+                "    ID INTEGER,",
+                "    Name TEXT",
+                ");",
+            }),
+            "Multi-row output — becomes IEnumerable<T> on *Response."),
+    };
+
+    /// <summary>Selects <see cref="FileSnippets"/> or <see cref="SqliteFileSnippets"/> for the given dialect.</summary>
+    public static FileSnippet[] FileSnippetsFor(EditorDialect dialect)
+        => dialect == EditorDialect.Sqlite ? SqliteFileSnippets : FileSnippets;
 }
