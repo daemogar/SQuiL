@@ -300,12 +300,17 @@ public static class SQuiLParser
     };
 
     // SQLite body-boundary matchers (mirror the regexes in sqliteBodyStartLine, parser.ts).
+    // The Create-Temp-Table name may be bracket-quoted (`[Name]`, #3) and its opening `(` may be
+    // on a SUBSEQUENT line (#2 — matched by the `$` alternative; the depth-tracking loop below
+    // finds the real end regardless).
     private static readonly Regex SqliteCreateTempTableOpen = new(
-        @"^CREATE\s+TEMP\s+TABLE\s+\w+\s*\(",
+        @"^CREATE\s+TEMP\s+TABLE\s+(?:\[\w+\]|\w+)\s*(\(|$)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    // The DML target may be bracket-quoted (`[ParamTable]`, #3) — the capture group is the bare
+    // inner name (brackets outside it), so the membership comparison sees it bracket-stripped.
     private static readonly Regex SqliteParamPopulationDml = new(
-        @"^(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+(\w+)",
+        @"^(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+\[?(\w+)\]?",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex SqliteParamTablePrefix = new(

@@ -660,8 +660,13 @@ public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 			if (Letter != '(')
 				throw DE(1, $"Expected `(` after table name `{name}`.");
 
+			// Only an EXACT `Param_`/`Params_` prefix (the naming convention) marks this as a
+			// sample-DML-droppable input table — mirrors the editors' `^params?_` gate. A name
+			// that merely STARTS WITH `param` (e.g. `Parameter_Foo`, `Paramx_Foo`) is NOT one.
 			var prefix = name.Split(['_'], 2)[0];
-			if (prefix.StartsWith("param", StringComparison.OrdinalIgnoreCase))
+			if (name.IndexOf('_') >= 0
+				&& (prefix.Equals("param", StringComparison.OrdinalIgnoreCase)
+					|| prefix.Equals("params", StringComparison.OrdinalIgnoreCase)))
 				sqliteParamTableNames.Add(name);
 
 			Tokens.Add(new Token(TokenType.KEYWORD_DECLARE, save.Index, "Create Temp Table") { Original = "Create Temp Table" });
@@ -691,8 +696,13 @@ public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 			var save = (Index: _index, Line, Column);
 
 			var isInsert = MatchWord("insert");
-			if (!isInsert && !MatchWord("update") && !MatchWord("delete"))
-				return false;
+			var isDelete = false;
+			if (!isInsert && !MatchWord("update"))
+			{
+				isDelete = MatchWord("delete");
+				if (!isDelete)
+					return false;
+			}
 
 			WhileWhiteSpace();
 
@@ -704,6 +714,13 @@ public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 					return false;
 				}
 				WhileWhiteSpace();
+			}
+			else if (isDelete)
+			{
+				// `From` is OPTIONAL after `Delete` (mirrors the editors' `DELETE\s+FROM|DELETE`);
+				// both `Delete From <ParamTable>` and bare `Delete <ParamTable>` are sample DML.
+				if (MatchWord("from"))
+					WhileWhiteSpace();
 			}
 
 			var tableMatch = IdentifierRegex.Match(Word);

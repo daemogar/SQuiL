@@ -1036,8 +1036,10 @@ export function sqliteBodyStartLine(text: string, parsed: SQuiLParseResult): num
     if (trimmed === '' || trimmed.startsWith('--') || trimmed.startsWith('/*')) { i++; continue; }
 
     // `Create Temp Table <name> ( … )` declaration — consume the (possibly multi-line)
-    // statement until the column-list paren depth returns to 0.
-    if (/^CREATE\s+TEMP\s+TABLE\s+\w+\s*\(/i.test(trimmed)) {
+    // statement until the column-list paren depth returns to 0. The name may be bracket-quoted
+    // (`[Name]`, #3) and the opening `(` may be on a SUBSEQUENT line (#2 — matched by the `$`
+    // alternative), so the depth-tracking loop below finds the real end regardless.
+    if (/^CREATE\s+TEMP\s+TABLE\s+(?:\[\w+\]|\w+)\s*(?:\(|$)/i.test(trimmed)) {
       let depth = 0;
       let opened = false;
       while (i < lines.length) {
@@ -1053,7 +1055,9 @@ export function sqliteBodyStartLine(text: string, parsed: SQuiLParseResult): num
     // `Delete [From] <ParamTable> …`) — the SQLite analog of the T-SQL `Insert Into @Var …`
     // sample-data marker. Only skip when the target is a declared param table; DML against an
     // OUTPUT table or an ordinary real table is real body logic (the body begins there).
-    const dml = trimmed.match(/^(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+(\w+)/i);
+    // The target may be bracket-quoted (`[ParamTable]`, #3) — the capture group is the bare
+    // inner name (brackets outside it), so the membership comparison sees it bracket-stripped.
+    const dml = trimmed.match(/^(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+\[?(\w+)\]?/i);
     if (dml && paramTableNames.has(dml[1].toLowerCase())) {
       // Consume through the statement terminator `;`.
       while (i < lines.length && !lines[i].includes(';')) i++;

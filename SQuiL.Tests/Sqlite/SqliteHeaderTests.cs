@@ -189,6 +189,45 @@ public class SqliteHeaderTests
 		Assert.StartsWith("Select RowID, Note From Params_Row;", body.Name);
 	}
 
+	/// <summary>Divergence #1 (Task A boundary parity): <c>Delete From &lt;ParamTable&gt;</c> — the
+	/// <c>From</c> is OPTIONAL after <c>Delete</c> (mirrors the editors' <c>DELETE\s+FROM|DELETE</c>
+	/// regex). Before the fix the tokenizer captured <c>From</c> as the table name, failed the
+	/// param-table membership test, and treated the whole statement (and everything after it) as
+	/// BODY one statement too early.</summary>
+	[Fact]
+	public void Delete_From_against_a_param_table_is_dropped_as_sample_dml()
+	{
+		var blocks = Parse("""
+			Create Temp Table Params_Row (RowID INTEGER Primary Key, Note TEXT);
+			Delete From Params_Row Where RowID = 1;
+			Select RowID, Note From Params_Row;
+			""");
+
+		var body = Assert.Single(blocks, b => b.CodeType == CodeType.BODY);
+		Assert.DoesNotContain("Delete", body.Name);
+		Assert.StartsWith("Select RowID, Note From Params_Row;", body.Name);
+	}
+
+	/// <summary>Divergence #4 (Task A boundary parity): a temp table whose prefix merely STARTS WITH
+	/// <c>param</c> (e.g. <c>Parameter_Foo</c>) is NOT a Param_/Params_ input table and must NOT be
+	/// added to the sample-DML-droppable param-table set. The membership test now matches the exact
+	/// <c>^params?_</c> convention (matching the editors). Before the fix, <c>Parameter_Foo</c>
+	/// loosely matched and its population <c>Insert</c> was wrongly dropped, starting the body late.</summary>
+	[Fact]
+	public void Loosely_prefixed_parameter_table_is_not_sample_dml_droppable()
+	{
+		var blocks = Parse("""
+			Create Temp Table Parameter_Foo (ID INTEGER Primary Key, Note TEXT);
+			Insert Into Parameter_Foo (ID, Note) Values (1, 'x');
+			Select ID, Note From Parameter_Foo;
+			""");
+
+		var body = Assert.Single(blocks, b => b.CodeType == CodeType.BODY);
+		// `Parameter_` is not exactly `Param_`/`Params_`, so its Insert is real body logic, not
+		// droppable sample DML — the body begins there.
+		Assert.StartsWith("Insert Into Parameter_Foo", body.Name);
+	}
+
 	public class Generation
 	{
 		/// <summary>

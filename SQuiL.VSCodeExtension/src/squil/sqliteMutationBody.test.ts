@@ -131,6 +131,75 @@ test('sqliteBodyStartLine skips a leading bare-name param-table population state
   assert.ok(!/Insert\s+Into\s+Params_Widget/i.test(body), 'the param-table population must NOT be in the body');
 });
 
+// ── Task A boundary-parity divergences (#1–#4) ────────────────────────────────
+
+// #2: a `Create Temp Table <Name>` whose opening `(` is on a SUBSEQUENT line must still be
+// recognized as a header declaration (the generator's token-stream whitespace crosses newlines).
+test('sqliteBodyStartLine: Create Temp Table with the opening paren on the next line is header (#2)', () => {
+  const text = [
+    'Create Temp Table Params_Foo',
+    '(',
+    '  ID INTEGER Primary Key,',
+    '  Note TEXT',
+    ');',
+    'Select ID, Note From Params_Foo;',
+  ].join('\n');
+  const parsed = parseSQuiL(text, 'sqlite');
+  // The whole 5-line declaration (lines 0–4) is header; the body is the Select on line 5.
+  assert.strictEqual(sqliteBodyStartLine(text, parsed), 5);
+});
+
+// #3a: a bracket-quoted `Create Temp Table [Name] (...)` line is recognized as a header
+// declaration (brackets tolerated around the table name).
+test('sqliteBodyStartLine: bracket-quoted Create Temp Table name is header (#3)', () => {
+  const text = [
+    'Create Temp Table [Params_Foo] (ID INTEGER Primary Key, Note TEXT);',
+    'Select ID, Note From Params_Foo;',
+  ].join('\n');
+  const parsed = parseSQuiL(text, 'sqlite');
+  assert.strictEqual(sqliteBodyStartLine(text, parsed), 1);
+});
+
+// #3b: a bracket-quoted DML target (`Insert Into [ParamTable] …`) is matched against the
+// param-table set with the brackets stripped, so the sample-data population is dropped.
+test('sqliteBodyStartLine: bracket-quoted param-table population DML is dropped (#3)', () => {
+  const text = [
+    'Create Temp Table Params_Widget (WidgetID INTEGER Primary Key, Name TEXT);',
+    "Insert Into [Params_Widget] (WidgetID, Name) Values (1, 'x');",
+    'Insert Into Widgets (WidgetID, Name) Select WidgetID, Name From Params_Widget;',
+  ].join('\n');
+  const parsed = parseSQuiL(text, 'sqlite');
+  // The bracketed population of the param table (line 1) is sample DML and is skipped; the body
+  // is the real Insert Into Widgets on line 2.
+  assert.strictEqual(sqliteBodyStartLine(text, parsed), 2);
+});
+
+// #1: the editors already accept `Delete From <ParamTable>` — this locks that parity (the
+// matching generator fix makes both sides agree).
+test('sqliteBodyStartLine: Delete From against a param table is dropped as sample DML (#1)', () => {
+  const text = [
+    'Create Temp Table Params_Row (RowID INTEGER Primary Key, Note TEXT);',
+    'Delete From Params_Row Where RowID = 1;',
+    'Select RowID, Note From Params_Row;',
+  ].join('\n');
+  const parsed = parseSQuiL(text, 'sqlite');
+  assert.strictEqual(sqliteBodyStartLine(text, parsed), 2);
+});
+
+// #4: the editors already gate the param-table set on `^params?_`, so a loosely-prefixed table
+// (`Parameter_Foo`) is NOT droppable — its population Insert starts the body. Locks parity with
+// the tightened generator membership test.
+test('sqliteBodyStartLine: loosely-prefixed Parameter_ table is not sample-DML droppable (#4)', () => {
+  const text = [
+    'Create Temp Table Parameter_Foo (ID INTEGER Primary Key, Note TEXT);',
+    "Insert Into Parameter_Foo (ID, Note) Values (1, 'x');",
+    'Select ID, Note From Parameter_Foo;',
+  ].join('\n');
+  const parsed = parseSQuiL(text, 'sqlite');
+  // `Parameter_Foo` is not exactly Param_/Params_, so its Insert is real body logic (line 1).
+  assert.strictEqual(sqliteBodyStartLine(text, parsed), 1);
+});
+
 // SQL Server behavior must be unchanged: sqliteBodyStartLine is never used for T-SQL.
 test('SQL Server body extraction still uses USE line (unchanged)', () => {
   const text = [
