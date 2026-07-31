@@ -9,6 +9,7 @@ import {
   headerVarsFor,
   fileSnippetsFor,
   typesFor,
+  isSqliteColumnTypePosition,
 } from '../squil/completionData';
 
 // ─── Real-filesystem resolver callbacks (mirrors previewProvider.ts) ──────
@@ -97,8 +98,16 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
           return this.bodyVariableCompletions(document, atMatch[0], position);
         }
       }
-      // `Declare @var ` → SQL type completions
-      if (/DECLARE\s+@\w+\s+$/i.test(textBefore)) {
+      // Type completions. For SQLite, types belong at the `Create Temp Table
+      // (col │` column-type position ONLY — a SQLite author never writes
+      // `Declare @x`. For SqlServer, `Declare @var ` → types (unchanged).
+      // (SQLite files have no USE line, so this body branch is effectively
+      // unreachable for them, but the gate keeps the two dialects parallel.)
+      if (dialect === 'sqlite') {
+        if (isSqliteColumnTypePosition(textBefore)) {
+          return this.typeCompletions(dialect);
+        }
+      } else if (/DECLARE\s+@\w+\s+$/i.test(textBefore)) {
         return this.typeCompletions(dialect);
       }
       return this.sqlKeywordCompletions(textBefore);
@@ -121,8 +130,17 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
       return this.headerVariableCompletions('', position, false, dialect);
     }
 
-    // After "Declare @var " or "AS " → SQL types
-    if (/DECLARE\s+@\w+\s+$/i.test(textBefore) || /\bAS\s+$/i.test(textBefore)) {
+    // Type completions. For SQLite, types belong ONLY at the `Create Temp Table
+    // (col │` column-type position — the T-SQL `Declare @var ` / `AS ` positions
+    // must NOT drive SQLite type completion (a SQLite author never writes
+    // `Declare @x`, and in a USE-less SQLite file the whole file reads as header,
+    // so `AS ` is an alias position, not a type position). For SqlServer the
+    // existing `Declare @var ` / `AS ` behavior is UNCHANGED.
+    if (dialect === 'sqlite') {
+      if (isSqliteColumnTypePosition(textBefore)) {
+        return this.typeCompletions(dialect);
+      }
+    } else if (/DECLARE\s+@\w+\s+$/i.test(textBefore) || /\bAS\s+$/i.test(textBefore)) {
       return this.typeCompletions(dialect);
     }
 

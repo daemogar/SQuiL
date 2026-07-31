@@ -10,6 +10,7 @@ import {
   headerVarsFor,
   fileSnippetsFor,
   typesFor,
+  isSqliteColumnTypePosition,
 } from './completionData';
 import { resolveProjectDialect } from './contextResolver';
 
@@ -111,6 +112,49 @@ test('a SQLite-project document resolves to Create Temp Table snippets + SQLite 
   assert.match(headerVarsFor(dialect)[0].snippet, /Create Temp Table/i);
   assert.doesNotMatch(fileSnippetsFor(dialect).find(s => s.label === 'squil-file')!.snippet, /\bUse\s+\[/i);
   assert.ok(typesFor(dialect).includes('integer'));
+});
+
+// ─── SQLite column-type-position trigger ───────────────────────────────────
+// A SQLite author writes `Create Temp Table <name> ( <col> │` — the column TYPE
+// position. This is the ONLY place SQLite types should be offered; the T-SQL
+// `Declare @x ` / `AS ` positions must NOT drive SQLite type completion (a
+// SQLite author never types `Declare @x`, and `AS ` is an alias position).
+
+test('SQLite types ARE offered at the Create Temp Table column-type position (first column)', () => {
+  assert.ok(isSqliteColumnTypePosition('Create Temp Table Params_X (PersonID '));
+  assert.ok(isSqliteColumnTypePosition('Create Temp Table Param_Age (Age '));
+  // case-insensitive
+  assert.ok(isSqliteColumnTypePosition('create temp table params_x (personid '));
+  // leading indentation on the line before the statement
+  assert.ok(isSqliteColumnTypePosition('  Create Temp Table Returns_Echoed (PersonID '));
+});
+
+test('SQLite types ARE offered at a later column-type position (after a comma)', () => {
+  assert.ok(isSqliteColumnTypePosition('Create Temp Table Params_X (PersonID INTEGER, Name '));
+  assert.ok(isSqliteColumnTypePosition('Create Temp Table Params_X (A INTEGER, B TEXT, C '));
+});
+
+test('SQLite types are NOT offered once past the column name or outside the parens', () => {
+  // caret right after the open paren, no column name yet → not a type position
+  assert.ok(!isSqliteColumnTypePosition('Create Temp Table Params_X ('));
+  // still typing the column name (no trailing whitespace) → not yet a type position
+  assert.ok(!isSqliteColumnTypePosition('Create Temp Table Params_X (Person'));
+  // type already typed (after the name+type, before a comma) → not a type position
+  assert.ok(!isSqliteColumnTypePosition('Create Temp Table Params_X (PersonID INTEGER '));
+  // paren closed → outside the column list
+  assert.ok(!isSqliteColumnTypePosition('Create Temp Table Params_X (PersonID INTEGER) '));
+});
+
+test('the SQLite column-type trigger never fires at T-SQL / alias positions', () => {
+  // `Select x As ` alias position (the mis-fire this fix removes for SQLite files)
+  assert.ok(!isSqliteColumnTypePosition('Select x As '));
+  assert.ok(!isSqliteColumnTypePosition('Select PersonID As '));
+  // T-SQL declare/type positions belong to the SqlServer path, not this trigger
+  assert.ok(!isSqliteColumnTypePosition('Declare @Param_X '));
+  assert.ok(!isSqliteColumnTypePosition('DECLARE @Param_X '));
+  // empty / unrelated text
+  assert.ok(!isSqliteColumnTypePosition(''));
+  assert.ok(!isSqliteColumnTypePosition('Select PersonID From Params_X '));
 });
 
 test('a SQL-Server-project document resolves to the unchanged T-SQL completions', () => {

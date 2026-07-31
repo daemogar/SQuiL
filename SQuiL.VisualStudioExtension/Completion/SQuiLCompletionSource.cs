@@ -32,6 +32,14 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
     private static readonly Regex DeclareEmptyTail   = new(@"^\s*DECLARE\s+$",      RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex DeclareTypePosition = new(@"DECLARE\s+@\w+\s+$",  RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex AsTypePosition     = new(@"\bAS\s+$",             RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    // SQLite column-type position: caret right after a column NAME (+ whitespace)
+    // inside the still-open `(` of a `Create Temp Table <name> ( … )` declaration —
+    // the first column (after `(`) or a later one (after `,`). SQLite has no
+    // `Declare @x <type>` / `AS <type>` position, so this is where a SQLite author
+    // types a column type. Deliberately does NOT match once a type is already
+    // typed, after the paren closes, or at `AS `/`Declare @x ` positions.
+    // Port: isSqliteColumnTypePosition in completionData.ts — change one, change all.
+    private static readonly Regex SqliteColumnTypePosition = new(@"Create\s+Temp\s+Table\s+\w+\s*\((?:\s*|[^)]*,\s*)\w+\s+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex WithOpenParen      = new(@"WITH\s*\($",           RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex UseLine            = new(@"^\s*USE\s+",           RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex BlankOrSqPrefix    = new(@"^\s*(sq)?$",           RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -86,9 +94,12 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
             // body-context completions are SSMS's job.
             if (atMatch.Success && !DeclareLine.IsMatch(textBefore))
                 AddVariablesDefinedAbove(snapshot, line.LineNumber, completions);
-            else if (dialect == EditorDialect.Sqlite && DeclareTypePosition.IsMatch(textBefore))
+            else if (dialect == EditorDialect.Sqlite && SqliteColumnTypePosition.IsMatch(textBefore))
                 // SQLite ONLY: native SSMS IntelliSense has no SQLite types, so
-                // SQuiL supplies them.  (SqlServer defers to native — unchanged.)
+                // SQuiL supplies them at the Create Temp Table column-type
+                // position.  (SqlServer defers to native — unchanged.)  SQLite
+                // files have no USE line, so this body branch is effectively
+                // unreachable for them; the gate keeps both dialects parallel.
                 AddSqlTypes(completions, dialect);
         }
         else
@@ -113,12 +124,16 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
             {
                 AddFileSnippets(completions, dialect);
             }
-            else if (dialect == EditorDialect.Sqlite
-                  && (DeclareTypePosition.IsMatch(textBefore) || AsTypePosition.IsMatch(textBefore)))
+            else if (dialect == EditorDialect.Sqlite && SqliteColumnTypePosition.IsMatch(textBefore))
             {
-                // SQLite ONLY: offer SQLite types where SSMS's native SQL
-                // completion has none.  For SqlServer these positions still
-                // defer to native (unchanged).
+                // SQLite ONLY: offer SQLite types at the Create Temp Table
+                // column-type position, where SSMS's native SQL completion has
+                // none.  The T-SQL `Declare @x `/`AS ` positions do NOT drive
+                // SQLite type completion — a SQLite author never writes
+                // `Declare @x`, and in a USE-less SQLite file the whole file
+                // reads as header, so `AS ` is an alias position, not a type
+                // position.  For SqlServer every position still defers to native
+                // (unchanged).
                 AddSqlTypes(completions, dialect);
             }
             // Other header contexts (Declare @x | typing, AS, WITH() ): under

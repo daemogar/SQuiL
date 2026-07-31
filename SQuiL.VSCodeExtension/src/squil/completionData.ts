@@ -41,6 +41,30 @@ export function typesFor(dialect: EditorDialect): string[] {
   return dialect === 'sqlite' ? SQLITE_TYPES : SQL_TYPES;
 }
 
+/**
+ * SQLite column-type-position trigger.
+ *
+ * A SQLite header declaration is `Create Temp Table <name> ( <col> <type>, … )` —
+ * there is no T-SQL `Declare @x <type>` / `AS <type>` position, so the existing
+ * type-position triggers never fire where a SQLite author actually types a column
+ * type. This matches the text-before-caret when the caret sits right after a
+ * column NAME (plus whitespace) inside the still-open `(` of a `Create Temp Table`
+ * statement — either the first column (right after the `(`) or a later column
+ * (right after a `,`). It deliberately does NOT match once a type has already
+ * been typed, after the paren closes, or at `AS ` / `Declare @x ` positions, so
+ * SQLite types are offered only where a column type belongs.
+ *
+ * Port: `SqliteColumnTypePosition` in SQuiLCompletionSource.cs (SSMS + Visual
+ * Studio) — same pattern, change one side, change all.
+ */
+const SQLITE_COLUMN_TYPE_POSITION =
+  /Create\s+Temp\s+Table\s+\w+\s*\((?:\s*|[^)]*,\s*)\w+\s+$/i;
+
+/** True when `textBefore` (the current line up to the caret) is a SQLite column-type position. */
+export function isSqliteColumnTypePosition(textBefore: string): boolean {
+  return SQLITE_COLUMN_TYPE_POSITION.test(textBefore);
+}
+
 // ─── SQuiL variable descriptors ────────────────────────────────────────────
 
 export interface VarDescriptor {
