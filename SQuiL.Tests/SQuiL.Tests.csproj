@@ -24,6 +24,7 @@
 		<PackageReference Include="Microsoft.NET.Test.Sdk" />
 		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" />
 		<PackageReference Include="Npgsql" />
+		<PackageReference Include="Testcontainers.PostgreSql" />
 		<PackageReference Include="Verify.DiffPlex" />
 		<PackageReference Include="Verify.SourceGenerators" />
 		<PackageReference Include="Verify.XunitV3" />

@@ -40,12 +40,16 @@ public abstract partial class PostgresDataContext(IConfiguration configuration)
 	}
 
 	/// <summary>
-	/// Serialises <paramref name="value"/> to JSON and adds it as a text parameter. The generated
-	/// PostgreSQL shred reads it with <c>json_to_recordset</c>.
+	/// Serialises <paramref name="value"/> to JSON and adds it as a <c>json</c>-typed parameter. The
+	/// generated PostgreSQL shred reads it with <c>json_to_recordset</c>, whose single overload takes
+	/// a <c>json</c> argument — PostgreSQL does not implicitly cast a plain <c>text</c> parameter to
+	/// <c>json</c> for function-argument resolution (confirmed against a live server: binding this as
+	/// <c>NpgsqlDbType.Text</c> fails with <c>42883 function json_to_recordset(text) does not exist</c>
+	/// even though the parameter's serialized content is valid JSON text).
 	/// </summary>
 	protected DbParameter AddJsonParameter(List<DbParameter> parameters, string name, object? value)
 	{
-		var parameter = CreateParameter(name, NpgsqlDbType.Text, SQuiLJson.Serialize(value));
+		var parameter = CreateParameter(name, NpgsqlDbType.Json, SQuiLJson.Serialize(value));
 		parameters.Add(parameter);
 		return parameter;
 	}
@@ -63,7 +67,17 @@ public abstract partial class PostgresDataContext(IConfiguration configuration)
 	/// names for boolean/uuid/timestamp/date, so no affinity coarsening is needed — this map is the
 	/// PG spelling of the SQL Server map.
 	/// </summary>
-	protected override string NormalizeType(string providerTypeName) => providerTypeName.ToLowerInvariant() switch
+	/// <remarks>
+	/// Pinned against a LIVE container (Task 9): for length/precision-bearing types, Npgsql's
+	/// <c>GetDataTypeName</c> does NOT return the bare <c>pg_type.typname</c> — it returns the
+	/// formatted type WITH its facet, e.g. <c>character varying(100)</c> for a <c>varchar(100)</c>
+	/// column, or <c>numeric(18, 2)</c> (note the space after the comma) for <c>numeric(18,2)</c>.
+	/// A trailing parenthetical is therefore stripped before the switch below, so both the bare and
+	/// faceted spellings route identically — this is a spelling correction to
+	/// <see cref="NormalizeType"/> only; the build-time key never carries length/precision either
+	/// (see <c>SQuiLShapeKey</c>), so stripping the facet here restores parity rather than breaking it.
+	/// </remarks>
+	protected override string NormalizeType(string providerTypeName) => StripFacet(providerTypeName).ToLowerInvariant() switch
 	{
 		"integer" or "int4" or "int" => "int",
 		"bigint" or "int8" => "long",
@@ -81,4 +95,16 @@ public abstract partial class PostgresDataContext(IConfiguration configuration)
 		"double precision" or "float8" => "double",
 		var other => other,
 	};
+
+	/// <summary>
+	/// Strips a trailing parenthetical facet (e.g. the <c>(100)</c> in <c>character varying(100)</c>,
+	/// or the <c>(18, 2)</c> in <c>numeric(18, 2)</c>) from a live Npgsql <c>GetDataTypeName</c>
+	/// result, so <see cref="NormalizeType"/> can switch on the bare type name regardless of whether
+	/// Npgsql included length/precision. No-op when there is no parenthetical.
+	/// </summary>
+	private static string StripFacet(string providerTypeName)
+	{
+		var index = providerTypeName.IndexOf('(');
+		return index < 0 ? providerTypeName : providerTypeName.Substring(0, index).TrimEnd();
+	}
 }
