@@ -52,6 +52,39 @@ public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 	private static Regex SqliteTypeRegex { get; } = new(
 		"""^(integer|blob|boolean|guid)\b""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
+	/// <summary>
+	/// Matches PostgreSQL-only bare type keywords (spellings the T-SQL <see cref="TypeRegex"/>
+	/// does not include). <c>int</c>, <c>bigint</c>, <c>smallint</c>, <c>varchar</c>, <c>char</c>,
+	/// <c>numeric</c>, <c>decimal</c>, <c>date</c>, <c>time</c>, <c>real</c>, <c>text</c>,
+	/// <c>money</c> are already covered by the shared <see cref="TypeRegex"/> and map correctly
+	/// for PostgreSQL without a fork. <c>integer</c> is added here (beyond the design's literal
+	/// list) so the documented <c>int4</c>/<c>int</c>/<c>integer</c> spelling group all actually
+	/// tokenize — <c>integer</c> is a valid Postgres keyword but is NOT matched by the shared
+	/// <see cref="TypeRegex"/> (its bare <c>int</c> alternative requires a word boundary right
+	/// after <c>int</c>, which <c>integer</c> fails). Gated on <see cref="PostgresDialect"/> only,
+	/// so it never collides with <see cref="SqliteTypeRegex"/>'s own (different) <c>integer</c>
+	/// mapping. Multi-word types (<c>double precision</c>, <c>character varying</c>,
+	/// <c>timestamp with/without time zone</c>, <c>time without time zone</c>) are handled by
+	/// <see cref="PostgresMultiWordTypeRegex"/> in <c>Type()</c> below.
+	/// </summary>
+	private static Regex PostgresTypeRegex { get; } = new(
+		"""^(int4|int8|int2|integer|bytea|uuid|bool|boolean|timestamptz|timestamp|float4|float8|bpchar|jsonb|json)\b""",
+		RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
+	/// <summary>
+	/// Matches PostgreSQL's multi-word type spellings, which the single-word <see cref="TypeRegex"/>/
+	/// <see cref="PostgresTypeRegex"/> can't express as a single token: <c>double precision</c>,
+	/// <c>character varying</c> (with an optional length), <c>timestamp with time zone</c>,
+	/// <c>timestamp without time zone</c>, and <c>time without time zone</c>. Tried BEFORE
+	/// <see cref="TypeRegex"/> when <see cref="Dialect"/> is <see cref="PostgresDialect"/>, since
+	/// otherwise the shared regex's bare <c>timestamp</c>/<c>time</c> alternatives would greedily
+	/// consume just the first word and strand the rest (<c>with</c>/<c>without time zone</c>) to
+	/// be mis-tokenized as identifiers.
+	/// </summary>
+	private static Regex PostgresMultiWordTypeRegex { get; } = new(
+		"""^(double\s+precision|character\s+varying(\s*\(\s*(\d+|max)\s*\))?|timestamp\s+with\s+time\s+zone|timestamp\s+without\s+time\s+zone|time\s+without\s+time\s+zone)\b""",
+		RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
 	/// <summary>Matches built-in SQL function calls such as <c>GETDATE()</c>.</summary>
 	private static Regex FunctionRegex { get; } = new(
 		"""^(getdate\(\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
@@ -347,7 +380,25 @@ public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 			return $"Invalid Symbol: `{p.Value}`";
 		});
 
-		bool Type() => Try(TypeRegex, p =>
+		bool Type() => (Dialect is PostgresDialect && Try(PostgresMultiWordTypeRegex, p =>
+		{
+			// Multi-word PostgreSQL spellings — normalize inner whitespace so `character  varying`
+			// (extra spaces) still classifies the same as `character varying`.
+			var normalized = Regex.Replace(p.Value, @"\s+", " ").Trim().ToLowerInvariant();
+
+			if (normalized.StartsWith("double precision"))
+				return T(TokenType.TYPE_DOUBLE, p.Value);
+			if (normalized.StartsWith("character varying"))
+				return T(TokenType.TYPE_STRING, p.Value, p.Value);
+			if (normalized.StartsWith("timestamp with time zone"))
+				return T(TokenType.TYPE_DATETIMEOFFSET, p.Value);
+			if (normalized.StartsWith("timestamp without time zone"))
+				return T(TokenType.TYPE_DATETIME, p.Value);
+			if (normalized.StartsWith("time without time zone"))
+				return T(TokenType.TYPE_TIME, p.Value);
+
+			return $"Invalid Type: `{p.Value}`";
+		})) || Try(TypeRegex, p =>
 		{
 			var value = p.Value.ToLower().Split('(', ')');
 
@@ -432,6 +483,12 @@ public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 				case "image":
 					return T(TokenType.TYPE_IMAGE, p.Value);
 				case "timestamp":
+					// T-SQL's bare `timestamp` is a `rowversion` synonym (byte[], output-only —
+					// see SP0032); PostgreSQL's bare `timestamp` means a datetime column instead.
+					// Gated so SQL Server/SQLite's `timestamp`/`rowversion` meaning is unchanged.
+					return Dialect is PostgresDialect
+						? T(TokenType.TYPE_DATETIME, p.Value)
+						: T(TokenType.TYPE_TIMESTAMP, p.Value);
 				case "rowversion":
 					return T(TokenType.TYPE_TIMESTAMP, p.Value);
 				case "identity":
@@ -469,6 +526,43 @@ public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 					return T(TokenType.TYPE_BOOLEAN, p.Value);
 				case "guid":
 					return T(TokenType.TYPE_GUID, p.Value);
+				default:
+					return $"Invalid Type: `{p.Value}`";
+			}
+		})) || (Dialect is PostgresDialect && Try(PostgresTypeRegex, p =>
+		{
+			// PostgreSQL-only bare keywords with no T-SQL equivalent spelling — see PostgresTypeRegex.
+			switch (p.Value.ToLower())
+			{
+				case "int4":
+				case "integer":
+					return T(TokenType.TYPE_INT, p.Value);
+				case "int8":
+					return T(TokenType.TYPE_BIGINT, p.Value);
+				case "int2":
+					return T(TokenType.TYPE_SMALLINT, p.Value);
+				case "bytea":
+					return T(TokenType.TYPE_VARBINARY, p.Value, "max");
+				case "uuid":
+					return T(TokenType.TYPE_GUID, p.Value);
+				case "bool":
+				case "boolean":
+					return T(TokenType.TYPE_BOOLEAN, p.Value);
+				case "timestamptz":
+					return T(TokenType.TYPE_DATETIMEOFFSET, p.Value);
+				case "timestamp":
+					// Dead in practice — the shared TypeRegex above always claims bare `timestamp`
+					// first (dialect-gated there); kept here only so PostgresTypeRegex's declared
+					// vocabulary is fully handled in case the two regexes are ever reordered.
+					return T(TokenType.TYPE_DATETIME, p.Value);
+				case "float4":
+					return T(TokenType.TYPE_FLOAT, p.Value);
+				case "float8":
+					return T(TokenType.TYPE_DOUBLE, p.Value);
+				case "bpchar":
+				case "jsonb":
+				case "json":
+					return T(TokenType.TYPE_STRING, p.Value, p.Value);
 				default:
 					return $"Invalid Type: `{p.Value}`";
 			}

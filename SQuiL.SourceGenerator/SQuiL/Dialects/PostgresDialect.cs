@@ -21,12 +21,45 @@ public class PostgresDialect : ITempTableHeaderDialect
 		=> throw new System.NotImplementedException();
 	public string ScalarVariableDeclaration(SQuiL.SourceGenerator.Parser.CodeBlock block, string newLine)
 		=> throw new System.NotImplementedException();
-	public string ReaderAccessor(SQuiL.SourceGenerator.Parser.CodeItem item)
-		=> throw new System.NotImplementedException();
-	public string ReaderAccessor(SQuiL.SourceGenerator.Parser.CodeBlock block)
-		=> throw new System.NotImplementedException();
+
+	/// <summary>The <c>reader.GetXxx</c> accessor fragment for a table/object column. Npgsql's
+	/// <c>NpgsqlDataReader</c> is a full ADO.NET reader (unlike Microsoft.Data.Sqlite's), so this
+	/// delegates to the shared T-SQL accessor — every method name <c>Token.DataReader()</c> emits
+	/// (<c>GetInt32</c>, <c>GetGuid</c>, <c>GetFieldValue&lt;System.DateTimeOffset&gt;</c>, etc.)
+	/// is valid on it.</summary>
+	public string ReaderAccessor(SQuiL.SourceGenerator.Parser.CodeItem item) => item.DataReader();
+
+	/// <summary>The <c>reader.GetXxx</c> accessor fragment for a scalar block. See
+	/// <see cref="ReaderAccessor(SQuiL.SourceGenerator.Parser.CodeItem)"/>.</summary>
+	public string ReaderAccessor(SQuiL.SourceGenerator.Parser.CodeBlock block) => block.DataReader();
+
+	/// <summary>
+	/// The <c>NpgsqlTypes.NpgsqlDbType.*</c> parameter-type expression for a block. Unlike SQLite
+	/// (four bind types, delegates to its own small map) this needs a PostgreSQL-specific map —
+	/// <c>Token.SqlDbType()</c> is SQL-Server-shaped (<c>System.Data.SqlDbType.*</c>) and does not
+	/// apply here.
+	/// </summary>
 	public string ParamTypeExpr(SQuiL.SourceGenerator.Parser.CodeBlock block)
-		=> throw new System.NotImplementedException();
+		=> "NpgsqlTypes.NpgsqlDbType." + (block.DatabaseType.Type switch
+		{
+			SQuiL.Tokenizer.TokenType.TYPE_INT => "Integer",
+			SQuiL.Tokenizer.TokenType.TYPE_BIGINT => "Bigint",
+			SQuiL.Tokenizer.TokenType.TYPE_SMALLINT => "Smallint",
+			SQuiL.Tokenizer.TokenType.TYPE_STRING => "Text",
+			SQuiL.Tokenizer.TokenType.TYPE_VARBINARY or SQuiL.Tokenizer.TokenType.TYPE_BINARY
+				or SQuiL.Tokenizer.TokenType.TYPE_IMAGE => "Bytea",
+			SQuiL.Tokenizer.TokenType.TYPE_GUID => "Uuid",
+			SQuiL.Tokenizer.TokenType.TYPE_BOOLEAN => "Boolean",
+			SQuiL.Tokenizer.TokenType.TYPE_DATE => "Date",
+			SQuiL.Tokenizer.TokenType.TYPE_TIME => "Time",
+			SQuiL.Tokenizer.TokenType.TYPE_DATETIME => "Timestamp",
+			SQuiL.Tokenizer.TokenType.TYPE_DATETIMEOFFSET => "TimestampTz",
+			SQuiL.Tokenizer.TokenType.TYPE_DECIMAL or SQuiL.Tokenizer.TokenType.TYPE_MONEY => "Numeric",
+			SQuiL.Tokenizer.TokenType.TYPE_FLOAT => "Real",
+			SQuiL.Tokenizer.TokenType.TYPE_DOUBLE => "Double",
+			_ => "Text",
+		});
+
 	public string ShredParamName(SQuiL.SourceGenerator.Parser.CodeBlock block)
 		=> throw new System.NotImplementedException();
 	public string ShredStatement(SQuiL.SourceGenerator.Parser.CodeBlock block)
