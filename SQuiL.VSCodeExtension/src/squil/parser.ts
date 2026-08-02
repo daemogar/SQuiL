@@ -274,17 +274,14 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
 /** SP0040 — within one file, an @Return/@Returns (output) declaration precedes a
  *  @Param/@Params (input) declaration. Inputs must be declared first. Reported once,
  *  anchored at the first offending output (the earliest output still followed by a later
- *  input). Severity is dialect-dependent: `error` for SQLite (its Create-Temp-Table header
- *  must create inputs before the shred reads them), `warning` otherwise. Same rule as
- *  SQuiLOrderingValidator.cs (generator) and LintParamsBeforeReturns in SQuiLLinter.cs
- *  (SSMS + Visual Studio) — change one, change all.
+ *  input). Severity is dialect-dependent: `error` for every temp-table-header dialect
+ *  (SQLite, Postgres — their Create-Temp-Table header must create inputs before the shred
+ *  reads them), `warning` otherwise. Same rule as SQuiLOrderingValidator.cs (generator) and
+ *  LintParamsBeforeReturns in SQuiLLinter.cs (SSMS + Visual Studio) — change one, change all.
  *
- *  NOTE (deliberately NOT generalized to the temp-table family): the generator's caller
- *  (`FileGenerator.cs`) currently gates this severity on `dialectId == 1` (SQLite only) —
- *  Postgres also being a temp-table-header dialect does not flip it to `error` there, so
- *  this editor mirror stays `dialect === 'sqlite'` to match the generator's ACTUAL (Task 6)
- *  behavior 1:1, rather than the theoretically-consistent temp-table-family rule. Flagged as
- *  a possible generator follow-up, out of scope for the editor-only Task 7.
+ *  Generalized (Task 8) from a SQLite-only gate to the full temp-table family via
+ *  isTempTableDialect(), matching the generator's FileGenerator.cs, which now gates on
+ *  `dialect is ITempTableHeaderDialect`.
  */
 export function lintParamsBeforeReturns(result: SQuiLParseResult, dialect: EditorDialect): SQuiLDiagnostic[] {
   const inputRoles = new Set<VariableRole>(['param', 'params', 'param-table']);
@@ -310,7 +307,7 @@ export function lintParamsBeforeReturns(result: SQuiLParseResult, dialect: Edito
       line: v.line,
       startChar: v.character,
       endChar: v.character + v.rawName.length,
-      severity: dialect === 'sqlite' ? 'error' : 'warning',
+      severity: isTempTableDialect(dialect) ? 'error' : 'warning',
       code: 'SP0040',
     }];
   }

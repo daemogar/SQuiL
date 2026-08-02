@@ -445,7 +445,7 @@ public static class DiagnosticsMessages
 	/// SP0040 — within one SQuiL file, an <c>@Return</c>/<c>@Returns</c> (output) declaration
 	/// precedes a <c>@Param</c>/<c>@Params</c> (input) declaration. Inputs must be declared first.
 	/// The severity is chosen by the caller from the resolved dialect (like SP0016): an error for
-	/// SQLite (<c>isError</c>), a warning otherwise.
+	/// every temp-table-header dialect (SQLite, PostgreSQL — <c>isError</c>), a warning otherwise.
 	/// </summary>
 	public static void ReportParamsBeforeReturns(this SourceProductionContext context, string filename, bool isError, Location location)
 		=> context.ReportDiagnostic(CreateDiagnostic(

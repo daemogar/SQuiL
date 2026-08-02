@@ -107,11 +107,13 @@ public class FileGenerator(
 				Context.ReportScalarNullabilityMarker(method, finding);
 
 			// Params-before-returns ordering (SP0040): every @Param/@Params (input) must be
-			// declared before any @Return/@Returns (output). Error for SQLite (dialectId == 1),
+			// declared before any @Return/@Returns (output). Error for every temp-table-header
+			// dialect (SQLite, PostgreSQL — both declare positional temp tables rather than
+			// T-SQL variables, so an out-of-order declare actually breaks the emitted header),
 			// warning otherwise — the severity is dialect-dependent (like SP0016). Location.None
 			// because AdditionalText SQL files carry no Roslyn Location (see SP0017/SP0022).
 			if (SQuiLOrderingValidator.Detect(blocks, sql) is not null)
-				Context.ReportParamsBeforeReturns(method, dialectId == 1, Location.None);
+				Context.ReportParamsBeforeReturns(method, dialect is SQuiL.Dialects.ITempTableHeaderDialect, Location.None);
 
 			if (ShowDebugMessages)
 			{

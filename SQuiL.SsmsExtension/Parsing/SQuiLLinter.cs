@@ -95,18 +95,16 @@ internal static class SQuiLLinter
     // Within one file, every @Param/@Params (input) must be declared before any
     // @Return/@Returns (output). Reported once, anchored at the first offending
     // output (the earliest output still followed by a later input). Severity is
-    // dialect-dependent: Error for SQLite (its Create-Temp-Table header must create
-    // the input tables before the shred reads them), Warning otherwise.
+    // dialect-dependent: Error for every temp-table-header dialect (SQLite, PostgreSQL —
+    // their Create-Temp-Table header must create the input tables before the shred reads
+    // them), Warning otherwise.
     //
     // Port of SQuiLOrderingValidator.cs (source generator) and
     // lintParamsBeforeReturns() in parser.ts (VS Code) — change one, change all three.
     //
-    // NOTE (deliberately NOT generalized to the temp-table family): the generator's caller
-    // (FileGenerator.cs) currently gates this severity on `dialectId == 1` (SQLite only) —
-    // PostgreSQL also being a temp-table-header dialect does not flip it to Error there, so this
-    // editor mirror stays `dialect == EditorDialect.Sqlite` to match the generator's ACTUAL
-    // (Task 6) behavior 1:1, rather than the theoretically-consistent temp-table-family rule.
-    // Flagged as a possible generator follow-up, out of scope for the editor-only Task 7.
+    // Generalized (Task 8) from a SQLite-only gate to the full temp-table family via
+    // SQuiLDialect.IsTempTableDialect(), matching the generator's FileGenerator.cs, which
+    // now gates on `dialect is ITempTableHeaderDialect`.
 
     internal static void LintParamsBeforeReturns(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
@@ -135,7 +133,7 @@ internal static class SQuiLLinter
                 Line      = v.Line,
                 StartChar = v.Character,
                 EndChar   = v.Character + v.RawName.Length,
-                Severity  = dialect == EditorDialect.Sqlite ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning,
+                Severity  = SQuiLDialect.IsTempTableDialect(dialect) ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning,
                 Code      = "SP0040",
             });
             return;

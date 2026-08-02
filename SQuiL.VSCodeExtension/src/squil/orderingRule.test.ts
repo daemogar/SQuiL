@@ -2,9 +2,10 @@ import { test } from 'node:test';
 import * as assert from 'node:assert';
 import { parseSQuiL, lintParamsBeforeReturns } from './parser';
 
-// SP0040 (Phase 3B, Task 7): every @Param/@Params (input) must be declared before any
-// @Return/@Returns (output). Severity is dialect-dependent — ERROR for SQLite (its
-// Create-Temp-Table header must create inputs before the shred reads them), WARNING otherwise.
+// SP0040 (Phase 3B, Task 7/8): every @Param/@Params (input) must be declared before any
+// @Return/@Returns (output). Severity is dialect-dependent — ERROR for every temp-table-header
+// dialect (SQLite, Postgres — their Create-Temp-Table header must create inputs before the
+// shred reads them), WARNING otherwise.
 // Mirrors SQuiLOrderingValidator.cs (generator) and LintParamsBeforeReturns in SQuiLLinter.cs.
 
 test('SQL Server: output before input is an SP0040 warning', () => {
@@ -21,6 +22,16 @@ test('SQLite: output before input is an SP0040 error', () => {
   const parsed = parseSQuiL(
     ['Create Temp Table Return_A (Value INTEGER);', 'Create Temp Table Param_B (Value INTEGER);', 'Select 1;'].join('\n'),
     'sqlite',
+  );
+  const sp = parsed.diagnostics.filter(d => d.code === 'SP0040');
+  assert.strictEqual(sp.length, 1);
+  assert.strictEqual(sp[0].severity, 'error');
+});
+
+test('Postgres: output before input is an SP0040 error', () => {
+  const parsed = parseSQuiL(
+    ['Create Temp Table Return_A (Value integer);', 'Create Temp Table Param_B (Value integer);', 'Select 1;'].join('\n'),
+    'postgres',
   );
   const sp = parsed.diagnostics.filter(d => d.code === 'SP0040');
   assert.strictEqual(sp.length, 1);

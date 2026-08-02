@@ -388,4 +388,12 @@ public static class TestHelper
 	/// </summary>
 	public static ImmutableArray<Diagnostic> RunWithSqliteProviderOnly(string source, string query)
 		=> RunForDiagnostics([source], [query], includeSqlServer: false, includeSqlite: true);
+
+	/// <summary>
+	/// Only <c>SQuiL.Postgres</c> is referenced with no <c>[SQuiLDialect]</c> attribute — the single
+	/// referenced provider is inferred as the dialect (no SP0038, no SP0039). PostgreSQL counterpart
+	/// to <see cref="RunWithSqliteProviderOnly"/>.
+	/// </summary>
+	public static ImmutableArray<Diagnostic> RunWithPostgresProviderOnly(string source, string query)
+		=> RunForDiagnostics([source], [query], includeSqlServer: false, includeSqlite: false, includePostgres: true);
 }
