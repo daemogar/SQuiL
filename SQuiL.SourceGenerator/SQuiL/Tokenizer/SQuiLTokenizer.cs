@@ -130,7 +130,7 @@ public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 		{
 			WhileWhiteSpace();
 
-			if (Dialect is SqliteDialect && sqliteDepth == 0)
+			if (Dialect is ITempTableHeaderDialect && sqliteDepth == 0)
 			{
 				if (SqliteCreateTempTable())
 				{

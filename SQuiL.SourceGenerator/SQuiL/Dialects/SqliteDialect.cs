@@ -8,7 +8,7 @@ namespace SQuiL.Dialects;
 /// emitted C# and SQL. Type-map, temp-table, and shred members are implemented in Phase 3B
 /// Tasks 4-6; they throw until then so the registry compiles from first registration.
 /// </summary>
-public class SqliteDialect : ISqlDialect
+public class SqliteDialect : ITempTableHeaderDialect
 {
 	public IEnumerable<string> UsingDirectives() => ["using Microsoft.Data.Sqlite;"];
 	public string ProviderExceptionType() => "SqliteException";
@@ -21,7 +21,7 @@ public class SqliteDialect : ISqlDialect
 	/// The native SQLite temp-table declaration for an input/output table/object block, e.g.
 	/// <c>Drop Table If Exists Returns_Person; Create Temp Table Returns_Person (PersonID INTEGER Not Null, ...);</c>.
 	/// The table is created under its ORIGINAL (unstripped) name (see
-	/// <see cref="SQuiL.SourceGenerator.Parser.CodeBlock.SqliteTableName"/>) so it matches the
+	/// <see cref="SQuiL.SourceGenerator.Parser.CodeBlock.TempTableName"/>) so it matches the
 	/// verbatim body, which references the temp table by that full name.
 	/// The leading <c>Drop Table If Exists</c> makes re-running the same connection/session safe
 	/// (SQLite temp tables otherwise persist for the life of the connection, so a second
@@ -31,7 +31,7 @@ public class SqliteDialect : ISqlDialect
 	/// </summary>
 	public string TableVariableDeclaration(SQuiL.SourceGenerator.Parser.CodeBlock block, string newLine)
 	{
-		var name = block.SqliteTableName ?? block.Name;
+		var name = block.TempTableName ?? block.Name;
 		var cols = string.Join($",{newLine}\t", block.Properties.Select(p
 			=> $"{p.Identifier.Value} {p.Type.Original}{(p.IsNullable ? "" : " Not Null")}{(p.IsPrimaryKey ? " Primary Key" : "")}"));
 
@@ -46,15 +46,15 @@ public class SqliteDialect : ISqlDialect
 	/// The native SQLite scalar declaration. SQLite has no bare scalar-variable syntax (no T-SQL
 	/// <c>Declare @x int;</c>), so a scalar is reconstructed as a single-column
 	/// <c>Create Temp Table</c> — the inverse of <c>SQuiLParser</c>'s single-column-object collapse.
-	/// Uses <see cref="SQuiL.SourceGenerator.Parser.CodeBlock.SqliteScalarTableName"/> /
-	/// <see cref="SQuiL.SourceGenerator.Parser.CodeBlock.SqliteScalarColumn"/> (populated by the
+	/// Uses <see cref="SQuiL.SourceGenerator.Parser.CodeBlock.TempScalarTableName"/> /
+	/// <see cref="SQuiL.SourceGenerator.Parser.CodeBlock.TempScalarColumn"/> (populated by the
 	/// collapse branch) to regenerate a physically-matching statement; falls back to the block's
 	/// own name/type if those are absent.
 	/// </summary>
 	public string ScalarVariableDeclaration(SQuiL.SourceGenerator.Parser.CodeBlock block, string newLine)
 	{
-		var name = block.SqliteScalarTableName ?? block.Name;
-		var col = block.SqliteScalarColumn;
+		var name = block.TempScalarTableName ?? block.Name;
+		var col = block.TempScalarColumn;
 		var colDef = col is not null
 			? $"{col.Identifier.Value} {col.Type.Original}{(col.IsNullable ? "" : " Not Null")}{(col.IsPrimaryKey ? " Primary Key" : "")}"
 			: $"{block.Name} {block.DatabaseType.Original}";
@@ -130,10 +130,10 @@ public class SqliteDialect : ISqlDialect
 	public string ShredStatement(SQuiL.SourceGenerator.Parser.CodeBlock block)
 	{
 		// Insert target = the ORIGINAL (unstripped) temp-table name the create used
-		// (see TableVariableDeclaration / CodeBlock.SqliteTableName), e.g. "Params_Person",
+		// (see TableVariableDeclaration / CodeBlock.TempTableName), e.g. "Params_Person",
 		// NOT the stripped base Name ("Person") — the two must match or the insert misses
-		// the table. Falls back to Name if SqliteTableName is unset (defensive).
-		var name = block.SqliteTableName ?? block.Name;
+		// the table. Falls back to Name if TempTableName is unset (defensive).
+		var name = block.TempTableName ?? block.Name;
 		var cols = block.Properties;
 		var insertList = string.Join(", ", cols.Select(p => $"[{p.Identifier.Value}]"));
 		var selectList = string.Join(", ", cols.Select(SelectColumn));

@@ -260,11 +260,12 @@ public class SQuiLParser(List<Token> Tokens, ISqlDialect? Dialect = null)
 							Original = $"{variable.Token.Original} table"
 						})
 					{
-						// SQLite temp tables are referenced verbatim by their full name in the body,
-						// so the declaration must recreate them under the ORIGINAL (unstripped) name.
-						// Left null for SQL Server (which carries the full name via DatabaseType.Original)
-						// so those blocks — and their record equality / snapshots — are unchanged.
-						SqliteTableName = Dialect is SqliteDialect ? variable.Token.Original : null
+						// Temp-table-header dialects (SQLite/PostgreSQL) reference their temp tables
+						// verbatim by full name in the body, so the declaration must recreate them
+						// under the ORIGINAL (unstripped) name. Left null for SQL Server (which
+						// carries the full name via DatabaseType.Original) so those blocks — and
+						// their record equality / snapshots — are unchanged.
+						TempTableName = Dialect is ITempTableHeaderDialect ? variable.Token.Original : null
 					};
 
 					do
@@ -291,15 +292,16 @@ public class SQuiLParser(List<Token> Tokens, ISqlDialect? Dialect = null)
 
 					Expect(TokenType.SYMBOL_RPREN);
 
-					// SQLite header model (Task 5): SQLite's `Create Temp Table` grammar has no
-					// scalar-specific spelling — every declaration is syntactically a table. A
-					// SINGULAR (object-cardinality) declaration with exactly one column is how a
-					// SQLite author spells a scalar declare, so collapse it to the same
-					// INPUT_ARGUMENT/OUTPUT_VARIABLE scalar CodeBlock the ordinary `Declare
-					// @Param_X <type>` path produces. The PLURAL (list-cardinality) form never
-					// collapses — `@Params_X`/`@Returns_X` with one column is still a one-column
-					// list, exactly as it already is for SQL Server.
-					if (Dialect is SqliteDialect
+					// Temp-table-header model (Task 5/2): a temp-table-header dialect's
+					// `Create Temp Table` grammar has no scalar-specific spelling — every
+					// declaration is syntactically a table. A SINGULAR (object-cardinality)
+					// declaration with exactly one column is how such a dialect's author spells a
+					// scalar declare, so collapse it to the same INPUT_ARGUMENT/OUTPUT_VARIABLE
+					// scalar CodeBlock the ordinary `Declare @Param_X <type>` path produces. The
+					// PLURAL (list-cardinality) form never collapses — `@Params_X`/`@Returns_X`
+					// with one column is still a one-column list, exactly as it already is for
+					// SQL Server.
+					if (Dialect is ITempTableHeaderDialect
 						&& block.Properties.Count == 1
 						&& variable.Type is CodeType.INPUT_OBJECT or CodeType.OUTPUT_OBJECT)
 					{
@@ -319,9 +321,10 @@ public class SQuiLParser(List<Token> Tokens, ISqlDialect? Dialect = null)
 							IsNullableMarker = column.IsNullable ? true : null,
 							// Preserve the ORIGINAL (unstripped) temp-table name and single column so
 							// SqliteDialect.ScalarVariableDeclaration can regenerate a physically-matching
-							// `Create Temp Table` statement (SQLite has no bare scalar declare).
-							SqliteScalarTableName = variable.Token.Original,
-							SqliteScalarColumn = column
+							// `Create Temp Table` statement (temp-table-header dialects have no bare
+							// scalar declare).
+							TempScalarTableName = variable.Token.Original,
+							TempScalarColumn = column
 						});
 
 						return;

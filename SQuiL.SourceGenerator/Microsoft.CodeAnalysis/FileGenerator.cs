@@ -194,15 +194,16 @@ public class FileGenerator(
 			var bodyBlock = blocks.FirstOrDefault(b => b.CodeType == CodeType.BODY);
 			if (bodyBlock is not null)
 			{
-				// SQLite declares its @Param*/@Return* variables as bare-named `Create Temp Table`s,
-				// referenced verbatim in the body (`Insert Into Returns_X …`). These are the SQLite
-				// analogue of a T-SQL @table-variable target — a DML against one is NOT a persistent
-				// real-table mutation, so it must not raise SP0023. Collect the query's own declared
-				// SQLite temp-table names (table/object via SqliteTableName, scalar-collapsed via
-				// SqliteScalarTableName) so the scanner can skip them. SQL Server blocks carry
-				// neither, so the set is empty there and behaviour is byte-identical.
+				// Temp-table-header dialects (SQLite/PostgreSQL) declare their @Param*/@Return*
+				// variables as bare-named `Create Temp Table`s, referenced verbatim in the body
+				// (`Insert Into Returns_X …`). These are the analogue of a T-SQL @table-variable
+				// target — a DML against one is NOT a persistent real-table mutation, so it must
+				// not raise SP0023. Collect the query's own declared temp-table names (table/object
+				// via TempTableName, scalar-collapsed via TempScalarTableName) so the scanner can
+				// skip them. SQL Server blocks carry neither, so the set is empty there and
+				// behaviour is byte-identical.
 				var declaredSqliteTables = blocks
-					.SelectMany(b => new[] { b.SqliteTableName, b.SqliteScalarTableName })
+					.SelectMany(b => new[] { b.TempTableName, b.TempScalarTableName })
 					.Where(n => !string.IsNullOrEmpty(n))
 					.Select(n => n!)
 					.ToList();
