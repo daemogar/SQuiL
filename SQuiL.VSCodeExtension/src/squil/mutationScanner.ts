@@ -17,14 +17,16 @@ export interface MutationScanResult {
   mutations: MutationHit[];
 }
 
-import type { EditorDialect } from './dialect';
+import { type EditorDialect, isTempTableDialect } from './dialect';
 
 // Matches T-SQL "Begin Tran" or "Begin Transaction" (case-insensitive).
 const BEGIN_TRAN = /\bBegin\s+Tran(?:saction)?\b/gi;
 
-// SQLite starts a transaction with a bare `BEGIN` (optionally BEGIN DEFERRED/IMMEDIATE/EXCLUSIVE
-// [TRANSACTION]) — a bare BEGIN keyword suffices. Used ONLY for the sqlite dialect: in T-SQL a
-// bare `BEGIN … END` is a statement block (not a transaction) and must not be flagged (SP0025).
+// SQLite and PostgreSQL both start a transaction with a bare `BEGIN` (optionally
+// BEGIN DEFERRED/IMMEDIATE/EXCLUSIVE [TRANSACTION] for SQLite, BEGIN [WORK|TRANSACTION] for
+// PostgreSQL) — a bare BEGIN keyword suffices for either. Used ONLY for the temp-table-header
+// dialect family: in T-SQL a bare `BEGIN … END` is a statement block (not a transaction) and
+// must not be flagged (SP0025).
 const BEGIN_SQLITE = /\bBegin\b/gi;
 
 // Matches DML keyword phrases followed by optional whitespace.
@@ -156,7 +158,7 @@ export function scanMutations(
     hits.push({ kind: 'Exec', start: m.index, length: m[0].length });
   }
 
-  const beginRe = dialect === 'sqlite' ? BEGIN_SQLITE : BEGIN_TRAN;
+  const beginRe = isTempTableDialect(dialect) ? BEGIN_SQLITE : BEGIN_TRAN;
   beginRe.lastIndex = 0;
   const hasOwnTransaction = beginRe.test(masked);
 

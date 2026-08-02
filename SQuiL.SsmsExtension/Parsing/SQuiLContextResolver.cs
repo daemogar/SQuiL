@@ -202,8 +202,8 @@ internal static class SQuiLContextResolver
 
     /// <summary>
     /// Resolve the SQuiL dialect (<see cref="EditorDialect.Sqlite"/> |
-    /// <see cref="EditorDialect.SqlServer"/>) for the given <c>.squil</c> file
-    /// using the real filesystem.
+    /// <see cref="EditorDialect.Postgres"/> | <see cref="EditorDialect.SqlServer"/>)
+    /// for the given <c>.squil</c> file using the real filesystem.
     /// </summary>
     public static EditorDialect ResolveDialect(string squilPath)
         => ResolveDialect(squilPath,

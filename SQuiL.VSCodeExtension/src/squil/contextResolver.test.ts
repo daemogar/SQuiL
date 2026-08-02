@@ -408,6 +408,17 @@ test('resolveProjectDialect returns sqlserver for a project referencing SQuiL.Sq
   assert.strictEqual(dialect, 'sqlserver');
 });
 
+test('resolveProjectDialect returns postgres for a project referencing SQuiL.Postgres', () => {
+  const files: Record<string, string> = {
+    '/proj/Queries/Q.squil': '/* sql */',
+    '/proj/proj.csproj':
+      '<Project><ItemGroup><PackageReference Include="SQuiL.Postgres" Version="1.0.0" /></ItemGroup></Project>',
+  };
+
+  const dialect = resolveProjectDialect('/proj/Queries/Q.squil', makeReadFile(files), makeListDir(files));
+  assert.strictEqual(dialect, 'postgres');
+});
+
 test('resolveProjectDialect defaults to sqlserver when no .csproj is found', () => {
   const files: Record<string, string> = {
     '/proj/Queries/Q.squil': '/* sql */',

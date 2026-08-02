@@ -133,6 +133,24 @@ test('sqlite Begin Immediate is an own transaction', () => {
   );
 });
 
+// PostgreSQL is the other temp-table-header dialect (near-twin of SQLite in the generator) and
+// also starts a transaction with a bare `BEGIN` (or `BEGIN TRANSACTION`/`BEGIN WORK`) — same
+// bare-BEGIN family as SQLite, extended alongside it.
+test('postgres bare Begin is an own transaction', () => {
+  assert.strictEqual(
+    scanMutations('Begin; Insert Into Widgets values(1); Commit;', 'postgres').hasOwnTransaction,
+    true
+  );
+});
+
+test('postgres Begin Transaction is an own transaction', () => {
+  assert.strictEqual(
+    scanMutations('Begin Transaction; Insert Into Widgets values(1); Commit;', 'postgres')
+      .hasOwnTransaction,
+    true
+  );
+});
+
 test('t-sql bare Begin (statement block) is NOT an own transaction', () => {
   assert.strictEqual(
     scanMutations('If (1=1) Begin Update [T] set X=1 End;').hasOwnTransaction,

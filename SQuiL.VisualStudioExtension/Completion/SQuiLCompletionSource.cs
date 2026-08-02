@@ -32,12 +32,12 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
     private static readonly Regex DeclareEmptyTail   = new(@"^\s*DECLARE\s+$",      RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex DeclareTypePosition = new(@"DECLARE\s+@\w+\s+$",  RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex AsTypePosition     = new(@"\bAS\s+$",             RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    // SQLite column-type position: caret right after a column NAME (+ whitespace)
-    // inside the still-open `(` of a `Create Temp Table <name> ( … )` declaration —
-    // the first column (after `(`) or a later one (after `,`). SQLite has no
-    // `Declare @x <type>` / `AS <type>` position, so this is where a SQLite author
-    // types a column type. Deliberately does NOT match once a type is already
-    // typed, after the paren closes, or at `AS `/`Declare @x ` positions.
+    // Temp-table-family (SQLite, PostgreSQL) column-type position: caret right after a column
+    // NAME (+ whitespace) inside the still-open `(` of a `Create Temp Table <name> ( … )`
+    // declaration — the first column (after `(`) or a later one (after `,`). Neither dialect has
+    // a `Declare @x <type>` / `AS <type>` position, so this is where an author types a column
+    // type. Deliberately does NOT match once a type is already typed, after the paren closes, or
+    // at `AS `/`Declare @x ` positions.
     // Port: isSqliteColumnTypePosition in completionData.ts — change one, change all.
     private static readonly Regex SqliteColumnTypePosition = new(@"Create\s+Temp\s+Table\s+\w+\s*\((?:\s*|[^)]*,\s*)\w+\s+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex WithOpenParen      = new(@"WITH\s*\($",           RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -94,12 +94,12 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
             // body-context completions are SSMS's job.
             if (atMatch.Success && !DeclareLine.IsMatch(textBefore))
                 AddVariablesDefinedAbove(snapshot, line.LineNumber, completions);
-            else if (dialect == EditorDialect.Sqlite && SqliteColumnTypePosition.IsMatch(textBefore))
-                // SQLite ONLY: native SSMS IntelliSense has no SQLite types, so
-                // SQuiL supplies them at the Create Temp Table column-type
-                // position.  (SqlServer defers to native — unchanged.)  SQLite
-                // files have no USE line, so this body branch is effectively
-                // unreachable for them; the gate keeps both dialects parallel.
+            else if (SQuiLDialect.IsTempTableDialect(dialect) && SqliteColumnTypePosition.IsMatch(textBefore))
+                // Temp-table family (SQLite, PostgreSQL) ONLY: native SSMS IntelliSense has no
+                // types for these dialects, so SQuiL supplies them at the Create Temp Table
+                // column-type position.  (SqlServer defers to native — unchanged.)  These dialects
+                // have no USE line, so this body branch is effectively unreachable for them; the
+                // gate keeps the dialects parallel.
                 AddSqlTypes(completions, dialect);
         }
         else
@@ -124,16 +124,14 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
             {
                 AddFileSnippets(completions, dialect);
             }
-            else if (dialect == EditorDialect.Sqlite && SqliteColumnTypePosition.IsMatch(textBefore))
+            else if (SQuiLDialect.IsTempTableDialect(dialect) && SqliteColumnTypePosition.IsMatch(textBefore))
             {
-                // SQLite ONLY: offer SQLite types at the Create Temp Table
-                // column-type position, where SSMS's native SQL completion has
-                // none.  The T-SQL `Declare @x `/`AS ` positions do NOT drive
-                // SQLite type completion — a SQLite author never writes
-                // `Declare @x`, and in a USE-less SQLite file the whole file
-                // reads as header, so `AS ` is an alias position, not a type
-                // position.  For SqlServer every position still defers to native
-                // (unchanged).
+                // Temp-table family (SQLite, PostgreSQL) ONLY: offer these dialects' types at the
+                // Create Temp Table column-type position, where SSMS's native SQL completion has
+                // none.  The T-SQL `Declare @x `/`AS ` positions do NOT drive their type
+                // completion — an author never writes `Declare @x`, and in a USE-less file the
+                // whole file reads as header, so `AS ` is an alias position, not a type position.
+                // For SqlServer every position still defers to native (unchanged).
                 AddSqlTypes(completions, dialect);
             }
             // Other header contexts (Declare @x | typing, AS, WITH() ): under
@@ -220,9 +218,9 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
 
         foreach (var v in SQuiLCompletionData.HeaderVarsFor(dialect))
         {
-            // SQLite header declarations are full `Create Temp Table …`
-            // statements — never prefixed with the T-SQL `Declare` keyword.
-            string insertion = dialect != EditorDialect.Sqlite && prependDeclare
+            // Temp-table-family (SQLite, PostgreSQL) header declarations are full
+            // `Create Temp Table …` statements — never prefixed with the T-SQL `Declare` keyword.
+            string insertion = !SQuiLDialect.IsTempTableDialect(dialect) && prependDeclare
                 ? $"Declare {v.Insertion};"
                 : $"{v.Insertion};";
 
@@ -261,9 +259,10 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
     private void AddSqlTypes(List<EditorCompletion> list) => AddSqlTypes(list, EditorDialect.SqlServer);
 
     /// <summary>
-    /// Dialect-gated overload: offers <see cref="SQuiLCompletionData.SqliteTypes"/>
-    /// instead of <see cref="SQuiLCompletionData.SqlTypes"/> when the owning
-    /// .csproj resolves to <see cref="EditorDialect.Sqlite"/>. Mirrors
+    /// Dialect-gated overload: offers <see cref="SQuiLCompletionData.SqliteTypes"/> or
+    /// <see cref="SQuiLCompletionData.PostgresTypes"/> instead of
+    /// <see cref="SQuiLCompletionData.SqlTypes"/> when the owning .csproj resolves to
+    /// <see cref="EditorDialect.Sqlite"/> or <see cref="EditorDialect.Postgres"/>. Mirrors
     /// <c>typeCompletions(dialect)</c> in <c>completionProvider.ts</c>.
     /// </summary>
     private void AddSqlTypes(List<EditorCompletion> list, EditorDialect dialect)
@@ -271,7 +270,9 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
         var glyph = _provider.GlyphService.GetGlyph(
             StandardGlyphGroup.GlyphGroupValueType, StandardGlyphItem.GlyphItemPublic);
 
-        string description = dialect == EditorDialect.Sqlite ? "SQLite type" : "SQL type";
+        string description = dialect == EditorDialect.Sqlite ? "SQLite type"
+            : dialect == EditorDialect.Postgres ? "PostgreSQL type"
+            : "SQL type";
 
         foreach (string t in SQuiLCompletionData.TypesFor(dialect))
         {

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import { parseSQuiL, SQuiLDiagnostic, lintShapeCollision, lintUnmatchedSelect, sqliteBodyStartLine } from '../squil/parser';
+import { parseSQuiL, SQuiLDiagnostic, lintShapeCollision, lintUnmatchedSelect, sqliteBodyStartLine, isTempTableDialect } from '../squil/parser';
 import { nullabilityHints } from '../squil/nullabilityHints';
 import { shapeHints } from '../squil/shapeHints';
 import { transactionHints } from '../squil/transactionHints';
@@ -132,8 +132,10 @@ export class SQuiLDiagnosticsProvider {
       // body begins after the leading declarations (and any param-table population), as
       // computed by sqliteBodyStartLine. Without this, the SQLite body would be empty, making
       // the SP0025 SQLite Begin regex dead and drawing a spurious SP0024 on real mutations.
+      // PostgreSQL shares the same USE-less Create-Temp-Table header shape (temp-table family),
+      // so it takes the same body-boundary path.
       let bodyStartLine: number;
-      if (dialect === 'sqlite') {
+      if (isTempTableDialect(dialect)) {
         bodyStartLine = sqliteBodyStartLine(text, parsed);
       } else {
         const databaseLine = parsed.databaseLine ?? -1;
@@ -180,10 +182,11 @@ export class SQuiLDiagnosticsProvider {
           vsDiags.push(d);
         }
         if (scan.hasOwnTransaction) {
-          // Range on the Begin Tran itself, if we can find it in the body. SQLite also starts a
-          // transaction with a bare `BEGIN` (or BEGIN TRANSACTION), so widen the range regex there.
+          // Range on the Begin Tran itself, if we can find it in the body. The temp-table
+          // dialect family (SQLite, PostgreSQL) also starts a transaction with a bare `BEGIN`
+          // (or BEGIN TRANSACTION), so widen the range regex there.
           const btMatch = bodyText.match(
-            dialect === 'sqlite'
+            isTempTableDialect(dialect)
               ? /\bBegin(?:\s+Transaction)?\b/i
               : /\bBegin\s+Tran(?:saction)?\b/i
           );

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { parseSQuiL, describeRole } from '../squil/parser';
 import { sampleDataExists } from '../squil/sampleDataGenerator';
-import { EditorDialect } from '../squil/dialect';
+import { EditorDialect, isTempTableDialect } from '../squil/dialect';
 import { resolveProjectDialect } from '../squil/contextResolver';
 import {
   VarDescriptor,
@@ -98,12 +98,12 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
           return this.bodyVariableCompletions(document, atMatch[0], position);
         }
       }
-      // Type completions. For SQLite, types belong at the `Create Temp Table
-      // (col │` column-type position ONLY — a SQLite author never writes
-      // `Declare @x`. For SqlServer, `Declare @var ` → types (unchanged).
-      // (SQLite files have no USE line, so this body branch is effectively
-      // unreachable for them, but the gate keeps the two dialects parallel.)
-      if (dialect === 'sqlite') {
+      // Type completions. For the temp-table dialect family (SQLite, PostgreSQL), types
+      // belong at the `Create Temp Table (col │` column-type position ONLY — an author
+      // never writes `Declare @x`. For SqlServer, `Declare @var ` → types (unchanged).
+      // (Temp-table files have no USE line, so this body branch is effectively
+      // unreachable for them, but the gate keeps the dialects parallel.)
+      if (isTempTableDialect(dialect)) {
         if (isSqliteColumnTypePosition(textBefore)) {
           return this.typeCompletions(dialect);
         }
@@ -130,13 +130,13 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
       return this.headerVariableCompletions('', position, false, dialect);
     }
 
-    // Type completions. For SQLite, types belong ONLY at the `Create Temp Table
-    // (col │` column-type position — the T-SQL `Declare @var ` / `AS ` positions
-    // must NOT drive SQLite type completion (a SQLite author never writes
-    // `Declare @x`, and in a USE-less SQLite file the whole file reads as header,
+    // Type completions. For the temp-table dialect family (SQLite, PostgreSQL), types
+    // belong ONLY at the `Create Temp Table (col │` column-type position — the T-SQL
+    // `Declare @var ` / `AS ` positions must NOT drive their type completion (an author
+    // never writes `Declare @x`, and in a USE-less file the whole file reads as header,
     // so `AS ` is an alias position, not a type position). For SqlServer the
     // existing `Declare @var ` / `AS ` behavior is UNCHANGED.
-    if (dialect === 'sqlite') {
+    if (isTempTableDialect(dialect)) {
       if (isSqliteColumnTypePosition(textBefore)) {
         return this.typeCompletions(dialect);
       }
@@ -179,9 +179,9 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
       position,
     );
 
-    // SQLite header declarations are full `Create Temp Table …` statements —
-    // never prefixed with the T-SQL `Declare` keyword.
-    const isSqlite = dialect === 'sqlite';
+    // Temp-table-family (SQLite, PostgreSQL) header declarations are full
+    // `Create Temp Table …` statements — never prefixed with the T-SQL `Declare` keyword.
+    const isTempTable = isTempTableDialect(dialect);
 
     return headerVarsFor(dialect).map((v: VarDescriptor) => {
       const item = new vscode.CompletionItem(v.prefix, vscode.CompletionItemKind.Variable);
@@ -189,7 +189,7 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
       item.documentation = new vscode.MarkdownString(v.docs);
       item.sortText = '0' + v.prefix;
       item.insertText = new vscode.SnippetString(
-        !isSqlite && prependDeclare ? `Declare ${v.snippet};` : `${v.snippet};`,
+        !isTempTable && prependDeclare ? `Declare ${v.snippet};` : `${v.snippet};`,
       );
       item.range = replaceRange;
       return item;
@@ -317,7 +317,7 @@ export class SQuiLCompletionProvider implements vscode.CompletionItemProvider {
     const types = typesFor(dialect);
     const items = types.map(t => {
       const item = new vscode.CompletionItem(t, vscode.CompletionItemKind.TypeParameter);
-      item.detail = dialect === 'sqlite' ? 'SQLite type' : 'SQL type';
+      item.detail = dialect === 'sqlite' ? 'SQLite type' : dialect === 'postgres' ? 'PostgreSQL type' : 'SQL type';
       return item;
     });
 

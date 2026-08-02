@@ -36,23 +36,37 @@ export const SQLITE_TYPES = [
   'boolean', 'date', 'datetime', 'guid', 'uniqueidentifier',
 ];
 
-/** Selects SQL_TYPES or SQLITE_TYPES for the given dialect. */
+/** PostgreSQL's type vocabulary — offered instead of SQL_TYPES when the owning .csproj resolves to the Postgres dialect. */
+export const POSTGRES_TYPES = [
+  'int4', 'int8', 'int2', 'integer', 'bigint', 'smallint',
+  'text', 'varchar', 'char', 'bpchar', 'bytea', 'uuid',
+  'bool', 'boolean', 'timestamp', 'timestamptz', 'date', 'time',
+  'numeric', 'decimal', 'real', 'double precision', 'money', 'json', 'jsonb',
+];
+
+/** Selects SQL_TYPES, SQLITE_TYPES, or POSTGRES_TYPES for the given dialect. */
 export function typesFor(dialect: EditorDialect): string[] {
-  return dialect === 'sqlite' ? SQLITE_TYPES : SQL_TYPES;
+  if (dialect === 'sqlite') return SQLITE_TYPES;
+  if (dialect === 'postgres') return POSTGRES_TYPES;
+  return SQL_TYPES;
 }
 
 /**
- * SQLite column-type-position trigger.
+ * Temp-table-family column-type-position trigger.
  *
- * A SQLite header declaration is `Create Temp Table <name> ( <col> <type>, … )` —
- * there is no T-SQL `Declare @x <type>` / `AS <type>` position, so the existing
- * type-position triggers never fire where a SQLite author actually types a column
- * type. This matches the text-before-caret when the caret sits right after a
- * column NAME (plus whitespace) inside the still-open `(` of a `Create Temp Table`
+ * A temp-table-header dialect (SQLite, PostgreSQL) declaration is
+ * `Create Temp Table <name> ( <col> <type>, … )` — there is no T-SQL
+ * `Declare @x <type>` / `AS <type>` position, so the existing type-position
+ * triggers never fire where an author actually types a column type. This
+ * matches the text-before-caret when the caret sits right after a column
+ * NAME (plus whitespace) inside the still-open `(` of a `Create Temp Table`
  * statement — either the first column (right after the `(`) or a later column
  * (right after a `,`). It deliberately does NOT match once a type has already
  * been typed, after the paren closes, or at `AS ` / `Declare @x ` positions, so
- * SQLite types are offered only where a column type belongs.
+ * temp-table types are offered only where a column type belongs. Dialect-
+ * agnostic by construction (no `@` sigil in either dialect's header), so the
+ * same regex serves SQLite and PostgreSQL alike — callers gate on the
+ * resolved dialect before calling this.
  *
  * Port: `SqliteColumnTypePosition` in SQuiLCompletionSource.cs (SSMS + Visual
  * Studio) — same pattern, change one side, change all.
@@ -60,7 +74,7 @@ export function typesFor(dialect: EditorDialect): string[] {
 const SQLITE_COLUMN_TYPE_POSITION =
   /Create\s+Temp\s+Table\s+\w+\s*\((?:\s*|[^)]*,\s*)\w+\s+$/i;
 
-/** True when `textBefore` (the current line up to the caret) is a SQLite column-type position. */
+/** True when `textBefore` (the current line up to the caret) is a temp-table (SQLite/Postgres) column-type position. */
 export function isSqliteColumnTypePosition(textBefore: string): boolean {
   return SQLITE_COLUMN_TYPE_POSITION.test(textBefore);
 }
@@ -193,9 +207,54 @@ export const SQLITE_HEADER_VARS: VarDescriptor[] = [
   },
 ];
 
-/** Selects HEADER_VARS or SQLITE_HEADER_VARS for the given dialect. */
+/**
+ * PostgreSQL header declarations: `Create Temp Table <Prefix>_<Name> (...)`.
+ * Same temp-table-header shape as SQLite (no `@` sigil, no `Declare`/`Use`,
+ * direction/cardinality carried by the bare table name) — only the column
+ * type spellings differ (PostgreSQL types instead of SQLite's).
+ */
+export const POSTGRES_HEADER_VARS: VarDescriptor[] = [
+  {
+    prefix: 'Param_',
+    snippet: 'Create Temp Table Param_${1:Name} (${2:Value text})',
+    detail: 'Input scalar/object — property on *Request',
+    docs:
+      'A single-column `Param_` collapses to an input **scalar**; a wider one is an input **object**. ' +
+      'Maps to a property on the generated `*Request` record.\n\n' +
+      '```sql\nCreate Temp Table Param_Age (Age integer);\n```',
+  },
+  {
+    prefix: 'Params_',
+    snippet: 'Create Temp Table Params_${1:Items} (${2:ID integer})',
+    detail: 'Input list → IEnumerable<T> on *Request',
+    docs:
+      'Maps to an `IEnumerable<ItemT>` property on `*Request`.\n\n' +
+      '```sql\nCreate Temp Table Params_Roster (PersonID integer Primary Key, Name text);\n```',
+  },
+  {
+    prefix: 'Return_',
+    snippet: 'Create Temp Table Return_${1:Name} (${2:Value integer})',
+    detail: 'Output scalar/object — property on *Response',
+    docs:
+      'A single-column `Return_` collapses to an output **scalar**; a wider one is an output **object**. ' +
+      'Maps to a property on the generated `*Response` record.\n\n' +
+      '```sql\nCreate Temp Table Return_Total (Total integer);\n```',
+  },
+  {
+    prefix: 'Returns_',
+    snippet: 'Create Temp Table Returns_${1:Items} (${2:ID integer, Name text})',
+    detail: 'Output list → IEnumerable<T> on *Response',
+    docs:
+      'Maps to an `IEnumerable<ItemT>` property on `*Response`.\n\n' +
+      '```sql\nCreate Temp Table Returns_Echoed (PersonID integer Primary Key, Name text);\n```',
+  },
+];
+
+/** Selects HEADER_VARS, SQLITE_HEADER_VARS, or POSTGRES_HEADER_VARS for the given dialect. */
 export function headerVarsFor(dialect: EditorDialect): VarDescriptor[] {
-  return dialect === 'sqlite' ? SQLITE_HEADER_VARS : HEADER_VARS;
+  if (dialect === 'sqlite') return SQLITE_HEADER_VARS;
+  if (dialect === 'postgres') return POSTGRES_HEADER_VARS;
+  return HEADER_VARS;
 }
 
 // ─── File-level scaffold snippets ──────────────────────────────────────────
@@ -297,7 +356,56 @@ export const SQLITE_FILE_SNIPPETS: FileSnippetDescriptor[] = [
   },
 ];
 
-/** Selects FILE_SNIPPETS or SQLITE_FILE_SNIPPETS for the given dialect. */
+/**
+ * PostgreSQL file scaffolds — `Create Temp Table` declarations, NO `Use` line
+ * (PostgreSQL has no USE statement; the database is fixed by the connection
+ * string). Mirrors SQLITE_FILE_SNIPPETS one-for-one, with PostgreSQL types.
+ */
+export const POSTGRES_FILE_SNIPPETS: FileSnippetDescriptor[] = [
+  {
+    label: 'squil-file',
+    snippet: [
+      '--Name: ${1:QueryName}',
+      '',
+      'Create Temp Table Params_${2:Roster} (${3:PersonID integer Primary Key, Name text});',
+      'Create Temp Table Returns_${4:Echoed} (${5:PersonID integer Primary Key, Name text});',
+      '',
+      '-- SQL body',
+      'Insert Into Returns_${4:Echoed} (${6:PersonID, Name}) Select ${7:PersonID, Name} From Params_${2:Roster};',
+      'Select ${8:PersonID, Name} From Returns_${4:Echoed};',
+    ].join('\n'),
+    detail: 'Scaffold a complete PostgreSQL SQuiL file (Create Temp Table, no Use)',
+  },
+  {
+    label: 'squil-declare-input',
+    snippet: 'Create Temp Table Param_${1:Name} (${2:Value text});',
+    detail: 'Declare input scalar/object (Create Temp Table)',
+  },
+  {
+    label: 'squil-declare-input-table',
+    snippet: ['Create Temp Table Params_${1:Items} (', '    ${2:ID integer}', ');'].join('\n'),
+    detail: 'Declare input list (Create Temp Table)',
+  },
+  {
+    label: 'squil-declare-output',
+    snippet: 'Create Temp Table Return_${1:Name} (${2:Value integer});',
+    detail: 'Declare output scalar/object (Create Temp Table)',
+  },
+  {
+    label: 'squil-declare-output-table',
+    snippet: [
+      'Create Temp Table Returns_${1:Items} (',
+      '    ${2:ID integer},',
+      '    ${3:Name text}',
+      ');',
+    ].join('\n'),
+    detail: 'Declare output list (Create Temp Table)',
+  },
+];
+
+/** Selects FILE_SNIPPETS, SQLITE_FILE_SNIPPETS, or POSTGRES_FILE_SNIPPETS for the given dialect. */
 export function fileSnippetsFor(dialect: EditorDialect): FileSnippetDescriptor[] {
-  return dialect === 'sqlite' ? SQLITE_FILE_SNIPPETS : FILE_SNIPPETS;
+  if (dialect === 'sqlite') return SQLITE_FILE_SNIPPETS;
+  if (dialect === 'postgres') return POSTGRES_FILE_SNIPPETS;
+  return FILE_SNIPPETS;
 }

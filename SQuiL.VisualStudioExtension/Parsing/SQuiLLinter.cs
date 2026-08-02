@@ -100,6 +100,13 @@ internal static class SQuiLLinter
     //
     // Port of SQuiLOrderingValidator.cs (source generator) and
     // lintParamsBeforeReturns() in parser.ts (VS Code) — change one, change all three.
+    //
+    // NOTE (deliberately NOT generalized to the temp-table family): the generator's caller
+    // (FileGenerator.cs) currently gates this severity on `dialectId == 1` (SQLite only) —
+    // PostgreSQL also being a temp-table-header dialect does not flip it to Error there, so this
+    // editor mirror stays `dialect == EditorDialect.Sqlite` to match the generator's ACTUAL
+    // (Task 6) behavior 1:1, rather than the theoretically-consistent temp-table-family rule.
+    // Flagged as a possible generator follow-up, out of scope for the editor-only Task 7.
 
     internal static void LintParamsBeforeReturns(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
@@ -790,15 +797,15 @@ internal static class SQuiLLinter
         if (!ctx.Found) return; // orphan/duplicate already reported by LintOrphanContext
 
         // Extract the body text (dialect-aware). For T-SQL the body starts on the line AFTER the
-        // USE statement (DatabaseLine + 1). SQLite files have NO USE — their header is
-        // Create-Temp-Table declarations — so DatabaseLine is null there; the body begins after the
-        // leading declarations (and any param-table population), as computed by SqliteBodyStartLine.
-        // Without this, the SQLite body would be empty, making the SP0025 SQLite Begin regex dead and
-        // drawing a spurious SP0024 on real mutations.
+        // USE statement (DatabaseLine + 1). Temp-table-header dialects (SQLite, PostgreSQL) have
+        // NO USE — their header is Create-Temp-Table declarations — so DatabaseLine is null there;
+        // the body begins after the leading declarations (and any param-table population), as
+        // computed by SqliteBodyStartLine. Without this, the body would be empty, making the SP0025
+        // Begin regex dead and drawing a spurious SP0024 on real mutations.
         var parsed = SQuiLParser.Parse(sql, dialect);
 
         int bodyStartLine;
-        if (dialect == EditorDialect.Sqlite)
+        if (SQuiLDialect.IsTempTableDialect(dialect))
         {
             bodyStartLine = SQuiLParser.SqliteBodyStartLine(sql, parsed);
         }
@@ -859,11 +866,12 @@ internal static class SQuiLLinter
 
             if (scan.HasOwnTransaction)
             {
-                // Try to locate the Begin Tran in the body for a precise range. SQLite also starts a
-                // transaction with a bare `BEGIN` (or BEGIN TRANSACTION), so widen the range regex there.
+                // Try to locate the Begin Tran in the body for a precise range. The temp-table
+                // dialect family (SQLite, PostgreSQL) also starts a transaction with a bare `BEGIN`
+                // (or BEGIN TRANSACTION), so widen the range regex there.
                 var btMatch = System.Text.RegularExpressions.Regex.Match(
                     bodyText,
-                    dialect == EditorDialect.Sqlite ? @"\bBegin(?:\s+Transaction)?\b" : @"\bBegin\s+Tran(?:saction)?\b",
+                    SQuiLDialect.IsTempTableDialect(dialect) ? @"\bBegin(?:\s+Transaction)?\b" : @"\bBegin\s+Tran(?:saction)?\b",
                     System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                 int btLine = 0, btChar = 0, btEndChar = 0;
                 if (btMatch.Success)

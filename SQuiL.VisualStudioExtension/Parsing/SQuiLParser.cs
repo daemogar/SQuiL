@@ -206,12 +206,13 @@ public static class SQuiLParser
                 continue;
             }
 
-            // SQLite header model (Task 5): `Create Temp Table <Prefix>_<Name> ( ... )` is the
-            // declaration form (no `@`, no `Use`). Direction/cardinality come from the bare name,
-            // exactly as the `@`-prefixed T-SQL form. Body/sample-DML statements after the header
-            // match no declaration regex and are simply ignored (the editor model only needs the
-            // declarations for hover/completion/diagnostics).
-            if (dialect == EditorDialect.Sqlite)
+            // Temp-table-header model (Task 5, SQLite + PostgreSQL): `Create Temp Table
+            // <Prefix>_<Name> ( ... )` is the declaration form (no `@`, no `Use`). Direction/
+            // cardinality come from the bare name, exactly as the `@`-prefixed T-SQL form.
+            // Body/sample-DML statements after the header match no declaration regex and are
+            // simply ignored (the editor model only needs the declarations for
+            // hover/completion/diagnostics).
+            if (SQuiLDialect.IsTempTableDialect(dialect))
             {
                 var createMatch = CreateTempTable.Match(trimmed);
                 if (createMatch.Success)
@@ -271,9 +272,9 @@ public static class SQuiLParser
             }
         }
 
-        // SQLite has no USE statement (its header is Create Temp Table), so this T-SQL-only
-        // requirement must not fire for the SQLite dialect.
-        if (useCount == 0 && dialect != EditorDialect.Sqlite)
+        // Temp-table-header dialects (SQLite, PostgreSQL) have no USE statement (their header is
+        // Create Temp Table), so this T-SQL-only requirement must not fire for them.
+        if (useCount == 0 && !SQuiLDialect.IsTempTableDialect(dialect))
         {
             result.Diagnostics.Add(new SQuiLDiagnostic
             {

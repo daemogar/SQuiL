@@ -89,12 +89,14 @@ export interface SQuiLParseResult {
 import { validateVariables, findingMessage, findingSeverity } from './variableValidator';
 import { shapeKeyOf } from './shapeKey';
 import { buildKeyGraph, KeyGraphResult, OUTPUT_TABLE_ROLES, INPUT_TABLE_ROLES } from './keyGraph';
-import { EditorDialect } from './dialect';
+import { EditorDialect, isTempTableDialect } from './dialect';
+export { isTempTableDialect };
 
 /**
  * Parse a full SQuiL SQL file text into a structured result.
  *
- * When <c>dialect</c> is <c>'sqlite'</c> the header model is SQLite's native
+ * When <c>dialect</c> is a temp-table-header dialect (<c>'sqlite'</c> or <c>'postgres'</c>)
+ * the header model is that dialect family's native
  * <c>Create Temp Table &lt;Prefix&gt;_&lt;Name&gt; (...)</c> form (direction/cardinality carried
  * by the bare name, single-column singular collapsing to a scalar) instead of T-SQL
  * <c>Declare @...</c> / <c>Use</c> — mirroring the generator's Task-5 header parsing.
@@ -147,12 +149,13 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
       continue;
     }
 
-    // SQLite header model (Task 5): `Create Temp Table <Prefix>_<Name> ( ... )` is the
-    // declaration form (no `@`, no `Use`). Direction/cardinality come from the bare name,
-    // exactly as the `@`-prefixed T-SQL form. Body/sample-DML statements after the header
-    // simply match no declaration regex and are ignored here (the editor model only needs
-    // the declarations for hover/completion/diagnostics).
-    if (dialect === 'sqlite') {
+    // Temp-table-header model (Task 5, SQLite + PostgreSQL): `Create Temp Table
+    // <Prefix>_<Name> ( ... )` is the declaration form (no `@`, no `Use`). Direction/
+    // cardinality come from the bare name, exactly as the `@`-prefixed T-SQL form.
+    // Body/sample-DML statements after the header simply match no declaration regex
+    // and are ignored here (the editor model only needs the declarations for
+    // hover/completion/diagnostics).
+    if (isTempTableDialect(dialect)) {
       // The name may be bracket-quoted (`[Params_Foo]`, full #3 parity) — mirrors the
       // generator's `IdentifierRegex`, which recognizes and strips brackets on both the
       // declaration name and DML targets. Bracket-quoted alternative captures group 1;
@@ -206,9 +209,10 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
     }
   }
 
-  // Missing USE warning — SQLite has no USE statement (its header is Create Temp Table),
-  // so this T-SQL-only requirement must not fire for the SQLite dialect.
-  if (useCount === 0 && dialect !== 'sqlite') {
+  // Missing USE warning — temp-table-header dialects (SQLite, PostgreSQL) have no USE
+  // statement (their header is Create Temp Table), so this T-SQL-only requirement must
+  // not fire for them.
+  if (useCount === 0 && !isTempTableDialect(dialect)) {
     result.diagnostics.push({
       message: 'No USE statement found. SQuiL requires a USE [DatabaseName]; statement.',
       line: 0,
@@ -258,7 +262,8 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
   }
 
   // SP0040: every @Param/@Params (input) must be declared before any @Return/@Returns
-  // (output). Error for SQLite, warning otherwise — severity follows the resolved dialect.
+  // (output). Error for temp-table-header dialects (SQLite, PostgreSQL), warning
+  // otherwise — severity follows the resolved dialect.
   for (const d of lintParamsBeforeReturns(result, dialect)) {
     result.diagnostics.push(d);
   }
@@ -273,6 +278,13 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
  *  must create inputs before the shred reads them), `warning` otherwise. Same rule as
  *  SQuiLOrderingValidator.cs (generator) and LintParamsBeforeReturns in SQuiLLinter.cs
  *  (SSMS + Visual Studio) — change one, change all.
+ *
+ *  NOTE (deliberately NOT generalized to the temp-table family): the generator's caller
+ *  (`FileGenerator.cs`) currently gates this severity on `dialectId == 1` (SQLite only) —
+ *  Postgres also being a temp-table-header dialect does not flip it to `error` there, so
+ *  this editor mirror stays `dialect === 'sqlite'` to match the generator's ACTUAL (Task 6)
+ *  behavior 1:1, rather than the theoretically-consistent temp-table-family rule. Flagged as
+ *  a possible generator follow-up, out of scope for the editor-only Task 7.
  */
 export function lintParamsBeforeReturns(result: SQuiLParseResult, dialect: EditorDialect): SQuiLDiagnostic[] {
   const inputRoles = new Set<VariableRole>(['param', 'params', 'param-table']);

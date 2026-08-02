@@ -3,10 +3,13 @@ import * as assert from 'node:assert';
 import {
   HEADER_VARS,
   SQLITE_HEADER_VARS,
+  POSTGRES_HEADER_VARS,
   FILE_SNIPPETS,
   SQLITE_FILE_SNIPPETS,
+  POSTGRES_FILE_SNIPPETS,
   SQL_TYPES,
   SQLITE_TYPES,
+  POSTGRES_TYPES,
   headerVarsFor,
   fileSnippetsFor,
   typesFor,
@@ -46,6 +49,24 @@ test('sqlite header set covers Param_/Params_/Return_/Returns_ direction+cardina
   }
 });
 
+test('headerVarsFor(postgres) offers Create Temp Table forms, never Declare @…', () => {
+  const vars = headerVarsFor('postgres');
+  assert.strictEqual(vars, POSTGRES_HEADER_VARS);
+  assert.ok(vars.length >= 4, 'expected at least the 4 direction/cardinality forms');
+  for (const v of vars) {
+    assert.match(v.snippet, /Create Temp Table/i, `snippet must be a Create Temp Table form: ${v.snippet}`);
+    assert.doesNotMatch(v.snippet, /Declare\s+@/i, `Postgres snippet must not use Declare @: ${v.snippet}`);
+    assert.doesNotMatch(v.snippet, /@/, `Postgres has no @ sigil: ${v.snippet}`);
+  }
+});
+
+test('postgres header set covers Param_/Params_/Return_/Returns_ direction+cardinality', () => {
+  const joined = POSTGRES_HEADER_VARS.map(v => v.snippet).join('\n');
+  for (const token of ['Param_', 'Params_', 'Return_', 'Returns_']) {
+    assert.ok(joined.includes(`Create Temp Table ${token}`), `missing Create Temp Table ${token}`);
+  }
+});
+
 // ─── file-snippet selection ────────────────────────────────────────────────
 
 test('fileSnippetsFor(sqlserver) is the unchanged T-SQL set (keeps Use […])', () => {
@@ -69,6 +90,20 @@ test('fileSnippetsFor(sqlite) scaffold uses Create Temp Table and has NO Use lin
   }
 });
 
+test('fileSnippetsFor(postgres) scaffold uses Create Temp Table and has NO Use line', () => {
+  const snippets = fileSnippetsFor('postgres');
+  assert.strictEqual(snippets, POSTGRES_FILE_SNIPPETS);
+  const scaffold = snippets.find(s => s.label === 'squil-file');
+  assert.ok(scaffold, 'expected a squil-file scaffold');
+  assert.match(scaffold!.snippet, /Create Temp Table/i, 'Postgres scaffold uses Create Temp Table');
+  assert.doesNotMatch(scaffold!.snippet, /\bUse\s+\[/i, 'Postgres has no USE statement');
+  // Every Postgres declaration snippet is a Create Temp Table form.
+  for (const s of snippets) {
+    assert.match(s.snippet, /Create Temp Table/i, `Postgres file snippet must be Create Temp Table: ${s.label}`);
+    assert.doesNotMatch(s.snippet, /Declare\s+@/i, `Postgres file snippet must not use Declare @: ${s.label}`);
+  }
+});
+
 // ─── type-vocabulary selection ─────────────────────────────────────────────
 
 test('typesFor(sqlite) is the SQLite vocabulary; typesFor(sqlserver) the T-SQL one', () => {
@@ -79,6 +114,13 @@ test('typesFor(sqlite) is the SQLite vocabulary; typesFor(sqlserver) the T-SQL o
   }
   assert.ok(SQL_TYPES.some(t => t.startsWith('varchar')), 'T-SQL types keep varchar');
   assert.ok(!SQLITE_TYPES.some(t => t.startsWith('varchar')), 'SQLite types drop varchar');
+});
+
+test('typesFor(postgres) is the PostgreSQL vocabulary', () => {
+  assert.strictEqual(typesFor('postgres'), POSTGRES_TYPES);
+  for (const t of ['int4', 'int8', 'int2', 'bytea', 'uuid', 'bool', 'boolean', 'timestamptz', 'bpchar', 'jsonb', 'json', 'double precision']) {
+    assert.ok(POSTGRES_TYPES.includes(t), `Postgres types must include ${t}`);
+  }
 });
 
 // ─── end-to-end: document → resolved dialect → offered snippets ─────────────
@@ -112,6 +154,19 @@ test('a SQLite-project document resolves to Create Temp Table snippets + SQLite 
   assert.match(headerVarsFor(dialect)[0].snippet, /Create Temp Table/i);
   assert.doesNotMatch(fileSnippetsFor(dialect).find(s => s.label === 'squil-file')!.snippet, /\bUse\s+\[/i);
   assert.ok(typesFor(dialect).includes('integer'));
+});
+
+test('a Postgres-project document resolves to Create Temp Table snippets + Postgres types', () => {
+  const files: Record<string, string> = {
+    '/proj/Queries/People.squil': 'Create Temp Table Params_Person (PersonID integer Primary Key, Name text);',
+    '/proj/proj.csproj': '<Project><ItemGroup><PackageReference Include="SQuiL.Postgres" Version="1.0.0" /></ItemGroup></Project>',
+  };
+  const dialect = resolveProjectDialect('/proj/Queries/People.squil', makeReadFile(files), makeListDir(files));
+  assert.strictEqual(dialect, 'postgres');
+
+  assert.match(headerVarsFor(dialect)[0].snippet, /Create Temp Table/i);
+  assert.doesNotMatch(fileSnippetsFor(dialect).find(s => s.label === 'squil-file')!.snippet, /\bUse\s+\[/i);
+  assert.ok(typesFor(dialect).includes('uuid'));
 });
 
 // ─── SQLite column-type-position trigger ───────────────────────────────────

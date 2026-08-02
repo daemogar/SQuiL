@@ -31,9 +31,11 @@ public static class SQuiLMutationScanner
         @"\bBegin\s+Tran(saction)?\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    // SQLite starts a transaction with a bare `BEGIN` (optionally BEGIN DEFERRED/IMMEDIATE/EXCLUSIVE
-    // [TRANSACTION]) — a bare BEGIN keyword suffices. Used ONLY for the SQLite dialect: in T-SQL a
-    // bare `BEGIN … END` is a statement block (not a transaction) and must not be flagged (SP0025).
+    // SQLite and PostgreSQL both start a transaction with a bare `BEGIN` (optionally
+    // BEGIN DEFERRED/IMMEDIATE/EXCLUSIVE [TRANSACTION] for SQLite, BEGIN [WORK|TRANSACTION] for
+    // PostgreSQL) — a bare BEGIN keyword suffices for either. Used ONLY for the temp-table-header
+    // dialect family: in T-SQL a bare `BEGIN … END` is a statement block (not a transaction) and
+    // must not be flagged (SP0025).
     static readonly Regex BeginSqlite = new(
         @"\bBegin\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -100,7 +102,7 @@ public static class SQuiLMutationScanner
         foreach (Match m in Exec.Matches(masked))
             hits.Add(new("Exec", m.Index, m.Length));
 
-        var beginRegex = dialect == EditorDialect.Sqlite ? BeginSqlite : BeginTran;
+        var beginRegex = SQuiLDialect.IsTempTableDialect(dialect) ? BeginSqlite : BeginTran;
         return new(hits.Count == 0, beginRegex.IsMatch(masked), hits);
     }
 
