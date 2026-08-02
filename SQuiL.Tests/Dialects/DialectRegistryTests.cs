@@ -52,4 +52,26 @@ public class DialectRegistryTests
 		Assert.Equal("SQuiL.Sqlite", DialectRegistry.ProviderPackageId((int)SQuiLDialect.Sqlite));
 		Assert.Equal("Sqlite", DialectRegistry.DialectName((int)SQuiLDialect.Sqlite));
 	}
+
+	[Fact]
+	public void Resolve_explicit_postgres_returns_postgres_dialect()
+	{
+		var compilation = CompilationWithoutProvider();
+		var dialect = DialectRegistry.Resolve((int)SQuiLDialect.Postgres, compilation);
+		Assert.Equal("PostgresDataContext", dialect.RuntimeBaseType());
+		Assert.Equal("SQuiL.Postgres", DialectRegistry.ProviderPackageId((int)SQuiLDialect.Postgres));
+		Assert.Equal("Postgres", DialectRegistry.DialectName((int)SQuiLDialect.Postgres));
+	}
+
+	[Fact]
+	public void Factory_postgres_returns_PostgresDialect_instance()
+	{
+		Assert.IsType<PostgresDialect>(DialectRegistry.Factory((int)SQuiLDialect.Postgres));
+	}
+
+	[Fact]
+	public void ProviderMetadataName_postgres_is_fully_qualified_PostgresDataContext()
+	{
+		Assert.Equal("SQuiL.PostgresDataContext", DialectRegistry.ProviderMetadataName((int)SQuiLDialect.Postgres));
+	}
 }

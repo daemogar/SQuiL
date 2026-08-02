@@ -209,9 +209,9 @@ public static class TestHelper
 
 	/// <summary>
 	/// Runs the generator over a single source/query pair with an explicit choice of which
-	/// provider assemblies (<c>SQuiL.SqlServer</c> / <c>SQuiL.Sqlite</c>) are referenced, and
-	/// returns the raw generator-run diagnostics — for tests that assert on dialect
-	/// resolution/ambiguity (SP0038/SP0039) rather than on generated-source snapshots.
+	/// provider assemblies (<c>SQuiL.SqlServer</c> / <c>SQuiL.Sqlite</c> / <c>SQuiL.Postgres</c>)
+	/// are referenced, and returns the raw generator-run diagnostics — for tests that assert on
+	/// dialect resolution/ambiguity (SP0038/SP0039) rather than on generated-source snapshots.
 	/// <c>Microsoft.Data.SqlClient</c> is always referenced (these tests are not exercising the
 	/// SP0007 "missing data client" path).
 	/// </summary>
@@ -219,7 +219,8 @@ public static class TestHelper
 		IEnumerable<string> sources,
 		IEnumerable<string> files,
 		bool includeSqlServer,
-		bool includeSqlite)
+		bool includeSqlite,
+		bool includePostgres = false)
 	{
 		var syntaxTrees = sources.Select(p => CSharpSyntaxTree.ParseText(p));
 
@@ -234,6 +235,9 @@ public static class TestHelper
 
 		if (includeSqlite)
 			metareferences.Add(MetadataReference.CreateFromFile(typeof(SqliteDataContext).Assembly.Location));
+
+		if (includePostgres)
+			metareferences.Add(MetadataReference.CreateFromFile(typeof(PostgresDataContext).Assembly.Location));
 
 		var additionalFiles = files
 			.Select(p => (AdditionalText)(p.StartsWith("--Name:")
@@ -265,6 +269,15 @@ public static class TestHelper
 		=> RunForDiagnostics([source], [query], includeSqlServer: true, includeSqlite: true);
 
 	/// <summary>
+	/// All three of <c>SQuiL.SqlServer</c>, <c>SQuiL.Sqlite</c>, and <c>SQuiL.Postgres</c> are
+	/// referenced with no <c>[SQuiLDialect]</c> attribute on the data context — dialect resolution
+	/// is ambiguous (SP0039), same rule as <see cref="RunWithBothProviders"/> extended to 3+
+	/// referenced providers.
+	/// </summary>
+	public static ImmutableArray<Diagnostic> RunWithThreeProviders(string source, string query)
+		=> RunForDiagnostics([source], [query], includeSqlServer: true, includeSqlite: true, includePostgres: true);
+
+	/// <summary>
 	/// Same shape as <see cref="RunForDiagnostics"/>, but additionally references
 	/// <c>SQuiL.Core</c> (needed for source strings that write <c>[SQuiLDialect(SQuiLDialect...)]</c>
 	/// explicitly) and returns the FULL <see cref="GeneratorDriverRunResult"/> — diagnostics AND
@@ -276,7 +289,8 @@ public static class TestHelper
 		IEnumerable<string> sources,
 		IEnumerable<string> files,
 		bool includeSqlServer,
-		bool includeSqlite)
+		bool includeSqlite,
+		bool includePostgres = false)
 	{
 		var syntaxTrees = sources.Select(p => CSharpSyntaxTree.ParseText(p));
 
@@ -298,6 +312,9 @@ public static class TestHelper
 
 		if (includeSqlite)
 			metareferences.Add(MetadataReference.CreateFromFile(typeof(SqliteDataContext).Assembly.Location));
+
+		if (includePostgres)
+			metareferences.Add(MetadataReference.CreateFromFile(typeof(PostgresDataContext).Assembly.Location));
 
 		var additionalFiles = files
 			.Select(p => (AdditionalText)(p.StartsWith("--Name:")

@@ -6,7 +6,8 @@ using System.Collections.Generic;
 
 /// <summary>
 /// Maps a <c>SQuiLDialect</c> value to its generator-side <see cref="ISqlDialect"/>, its provider
-/// runtime base type (probed on the compilation), and its NuGet package id. Phase 3B registers Sqlite here.
+/// runtime base type (probed on the compilation), and its NuGet package id. Phase 3B registers Sqlite
+/// and Postgres here.
 /// </summary>
 public static class DialectRegistry
 {
@@ -15,6 +16,7 @@ public static class DialectRegistry
 	{
 		0 /* SqlServer */ => "SQuiL.SqlServerDataContext",
 		1 /* Sqlite    */ => "SQuiL.SqliteDataContext",
+		2 /* Postgres  */ => "SQuiL.PostgresDataContext",
 		_ => "SQuiL.SqlServerDataContext",
 	};
 
@@ -24,6 +26,7 @@ public static class DialectRegistry
 	{
 		0 /* SqlServer */ => "SQuiL.SqlServer",
 		1 /* Sqlite    */ => "SQuiL.Sqlite",
+		2 /* Postgres  */ => "SQuiL.Postgres",
 		_ => "SQuiL.SqlServer",
 	};
 
@@ -32,6 +35,7 @@ public static class DialectRegistry
 	{
 		0 /* SqlServer */ => "SqlServer",
 		1 /* Sqlite    */ => "Sqlite",
+		2 /* Postgres  */ => "Postgres",
 		_ => "SqlServer",
 	};
 
@@ -39,6 +43,7 @@ public static class DialectRegistry
 	{
 		0 /* SqlServer */ => new SqlServerDialect(),
 		1 /* Sqlite    */ => new SqliteDialect(),
+		2 /* Postgres  */ => new PostgresDialect(),
 		_ => new SqlServerDialect(),
 	};
 
@@ -50,7 +55,7 @@ public static class DialectRegistry
 	public static IReadOnlyList<int> ReferencedProviderIds(Compilation compilation)
 	{
 		var found = new List<int>();
-		foreach (var id in new[] { 0, 1 }) // SqlServer, Sqlite
+		foreach (var id in new[] { 0, 1, 2 }) // SqlServer, Sqlite, Postgres
 			if (IsProviderReferenced(id, compilation))
 				found.Add(id);
 		return found;
