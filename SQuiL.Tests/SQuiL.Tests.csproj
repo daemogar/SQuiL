@@ -41,6 +41,7 @@
 		<ProjectReference Include="..\SQuiL.Core\SQuiL.Core.csproj" />
 		<ProjectReference Include="..\SQuiL.SqlServer\SQuiL.SqlServer.csproj" />
 		<ProjectReference Include="..\SQuiL.Sqlite\SQuiL.Sqlite.csproj" />
+		<ProjectReference Include="..\SQuiL.Postgres\SQuiL.Postgres.csproj" />
 		<!-- Referenced BOTH as a normal assembly (TestHelper's in-memory `new SQuiLGenerator(...)`
 		     snapshot runs) AND as an Analyzer, so the generator ALSO runs at build time over this
 		     project's own `**\Queries\*.sql` AdditionalFiles — producing REAL compiled contexts

@@ -38,6 +38,7 @@ jobs:
         dotnet build --no-restore -c Release "./SQuiL.Core/SQuiL.Core.csproj"
         dotnet build --no-restore -c Release "./SQuiL.SqlServer/SQuiL.SqlServer.csproj"
         dotnet build --no-restore -c Release "./SQuiL.Sqlite/SQuiL.Sqlite.csproj"
+        dotnet build --no-restore -c Release "./SQuiL.Postgres/SQuiL.Postgres.csproj"
 
     - name: Build Tests
       run: dotnet build --no-restore "./SQuiL.Tests/SQuiL.Tests.csproj"

@@ -23,14 +23,16 @@ on:
 env:
   PROJECT: SQuiL
   # Packable projects published as NuGet packages — SQuiL.Core carries the
-  # analyzer + neutral runtime; SQuiL.SqlServer is the SQL Server provider
-  # and SQuiL.Sqlite is the SQLite provider (both depend on SQuiL.Core).
+  # analyzer + neutral runtime; SQuiL.SqlServer is the SQL Server provider,
+  # SQuiL.Sqlite is the SQLite provider, and SQuiL.Postgres is the
+  # PostgreSQL provider (all three depend on SQuiL.Core).
   # SQuiL.SourceGenerator is intentionally absent — it is not packable on
   # its own (see SQuiL.SourceGenerator.csproj); Core packs its DLL into
   # analyzers/dotnet/cs instead.
   CORE_PROJECT: SQuiL.Core/SQuiL.Core.csproj
   SQLSERVER_PROJECT: SQuiL.SqlServer/SQuiL.SqlServer.csproj
   SQLITE_PROJECT: SQuiL.Sqlite/SQuiL.Sqlite.csproj
+  POSTGRES_PROJECT: SQuiL.Postgres/SQuiL.Postgres.csproj
   NUPKG_DIR: nupkgs
   # The next planned official release. Betas are cut as
   # <NEXT_VERSION>-beta.<run#> so they always compare BELOW the official
@@ -80,6 +82,7 @@ jobs:
         dotnet build --no-restore -c Release "./${{ env.CORE_PROJECT }}"
         dotnet build --no-restore -c Release "./${{ env.SQLSERVER_PROJECT }}"
         dotnet build --no-restore -c Release "./${{ env.SQLITE_PROJECT }}"
+        dotnet build --no-restore -c Release "./${{ env.POSTGRES_PROJECT }}"
 
     # push to master        → <NEXT_VERSION>-beta.<run#>, marked prerelease
     # workflow_dispatch     → official: the required version input, plain
@@ -116,13 +119,14 @@ jobs:
     # Pack both published packages — SQuiL.Core (analyzer + neutral runtime)
     # and SQuiL.SqlServer (provider, depends on SQuiL.Core) — into one shared
     # output directory so the Push step's glob picks up both in one go.
-    - name: Pack ${{ env.PROJECT }}.Core, ${{ env.PROJECT }}.SqlServer, and ${{ env.PROJECT }}.Sqlite
+    - name: Pack ${{ env.PROJECT }}.Core, ${{ env.PROJECT }}.SqlServer, ${{ env.PROJECT }}.Sqlite, and ${{ env.PROJECT }}.Postgres
       env:
         RELEASE_NOTE: https://github.com/daemogar/${{ env.PROJECT }}/releases/tag/${{ env.VERSION }}
       run: |
         dotnet pack "./${{ env.CORE_PROJECT }}" -c Release --include-symbols -p:SymbolPackageFormat=snupkg /p:Version=${{ env.VERSION }} /p:PackageReleaseNotes="See ${{ env.RELEASE_NOTE }}" -o "./${{ env.NUPKG_DIR }}"
         dotnet pack "./${{ env.SQLSERVER_PROJECT }}" -c Release --include-symbols -p:SymbolPackageFormat=snupkg /p:Version=${{ env.VERSION }} /p:PackageReleaseNotes="See ${{ env.RELEASE_NOTE }}" -o "./${{ env.NUPKG_DIR }}"
         dotnet pack "./${{ env.SQLITE_PROJECT }}" -c Release --include-symbols -p:SymbolPackageFormat=snupkg /p:Version=${{ env.VERSION }} /p:PackageReleaseNotes="See ${{ env.RELEASE_NOTE }}" -o "./${{ env.NUPKG_DIR }}"
+        dotnet pack "./${{ env.POSTGRES_PROJECT }}" -c Release --include-symbols -p:SymbolPackageFormat=snupkg /p:Version=${{ env.VERSION }} /p:PackageReleaseNotes="See ${{ env.RELEASE_NOTE }}" -o "./${{ env.NUPKG_DIR }}"
 
     # Trusted Publishing: exchange the GitHub OIDC token for a short-lived
     # (1-hour) nuget.org API key. No long-lived NUGET_API_KEY secret needed.
@@ -165,7 +169,7 @@ jobs:
 
         # Loop over all published package ids — SQuiL.SourceGenerator is
         # retired (no longer produced/published) so it is no longer swept here.
-        for PKG in "SQuiL.Core" "SQuiL.SqlServer" "SQuiL.Sqlite"; do
+        for PKG in "SQuiL.Core" "SQuiL.SqlServer" "SQuiL.Sqlite" "SQuiL.Postgres"; do
         PKG_LC="${PKG,,}"
         echo "── Checking $PKG ──"
 

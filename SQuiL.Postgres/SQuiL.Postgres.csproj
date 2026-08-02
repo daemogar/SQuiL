@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>netstandard2.0;net10.0</TargetFrameworks>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>latest</LangVersion>
+		<RootNamespace>SQuiL</RootNamespace>
+		<AssemblyName>SQuiL.Postgres</AssemblyName>
+		<PackageId>SQuiL.Postgres</PackageId>
+		<Authors>Dæmogar</Authors>
+		<Description>PostgreSQL provider for SQuiL, the SQL-to-C# source generator. Requires SQuiL.Core.</Description>
+		<PackageTags>.NET dotnet core library reusable generic server serverside SQL ORM PostgreSQL Postgres Npgsql</PackageTags>
+		<PackageProjectUrl>https://github.com/daemogar/SQuiL</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/daemogar/SQuiL</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+		<Copyright>Copyright © 2021–2026 Dæmogar</Copyright>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\README.md" Pack="true" PackagePath="\" />
+		<None Include="..\LICENSE.txt" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<!--
+	Do NOT set PrivateAssets="all" on this ProjectReference — SQuiL.Core is a
+	packable project (PackageId set), so packing this project converts the
+	reference into a REAL NuGet <dependency id="SQuiL.Core"> on the consumer
+	side, so installing SQuiL.Postgres alone still pulls in SQuiL.Core's
+	runtime DLL. NuGet does NOT flow analyzers through a transitive dependency —
+	consumers who want SQuiL codegen must reference SQuiL.Core DIRECTLY in
+	addition to SQuiL.Postgres (same pattern as EF Core's provider packages).
+	-->
+	<ItemGroup>
+		<ProjectReference Include="..\SQuiL.Core\SQuiL.Core.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Npgsql" />
+	</ItemGroup>
+
+</Project>

@@ -7,5 +7,8 @@ public enum SQuiLDialect
 	SqlServer,
 
 	/// <summary>SQLite (provider package <c>SQuiL.Sqlite</c>).</summary>
-	Sqlite
+	Sqlite,
+
+	/// <summary>PostgreSQL (via Npgsql).</summary>
+	Postgres = 2,
 }
