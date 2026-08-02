@@ -378,10 +378,11 @@ SQuiL/
     `[SQuiLDialect]` to disambiguate — the dialect is ambiguous. Add
     `[SQuiLDialect(...)]` to the context. See `DialectRegistry.ResolveId`
     (returns the `Ambiguous` sentinel `-1`) + `DiagnosticsMessages.ReportAmbiguousDialect`.
-    **SP0040 is now TAKEN** — params-before-returns ordering (Phase 3B): all
-    inputs (`Param_`/`Params_`) must be declared before any output
-    (`Return_`/`Returns_`). Severity is dialect-dependent: an **error** in SQLite
-    (structural — the temp-table header order is load-bearing), a **warning** in
+    **SP0040 is now TAKEN** — params-before-returns ordering (Phase 3B, doc
+    corrected in Phase 3D — see note below): all inputs (`Param_`/`Params_`)
+    must be declared before any output (`Return_`/`Returns_`). Severity is
+    dialect-dependent: an **error** for **temp-table dialects** (SQLite and
+    PostgreSQL — the header order is structural there), a **warning** for
     SQL Server / other dialects (a norm, non-breaking). Editor squiggle in all
     three surfaces. See `SQuiLOrderingValidator.cs` + `DiagnosticsMessages`, and
     the editor mirrors (`lintParamsBeforeReturns` in `parser.ts`;
@@ -390,6 +391,12 @@ SQuiL/
     `Begin`/`Begin Transaction` in the editors, and **SP0023** (mutation scanner)
     treats a query's own declared SQLite temp-table inserts as non-persistent (no
     false positive).
+    **PostgreSQL (Phase 3D) reuses SP0038/SP0039/SP0040 unchanged — no new
+    diagnostic id.** PostgreSQL is dialect id 2 and is a temp-table-header
+    dialect exactly like SQLite (see `ITempTableHeaderDialect` below); the
+    SP0040 bullet above was corrected from "SQLite" to "temp-table dialects
+    (SQLite and PostgreSQL)" to reflect this (doc-lag fix flagged during Task 8
+    / Phase 3B).
     Next free: **SP0041**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
@@ -569,6 +576,12 @@ Required NuGet packages, split by which package now carries them:
   lookup; `System.Text.Json` - the param-sharding JSON shred (`SQuiLJson`).
 - `SQuiL.SqlServer` (SQL Server provider, depends on `SQuiL.Core`):
   `Microsoft.Data.SqlClient` - SQL Server connectivity.
+- `SQuiL.Sqlite` (SQLite provider, depends on `SQuiL.Core`):
+  `Microsoft.Data.Sqlite` - SQLite connectivity.
+- `SQuiL.Postgres` (PostgreSQL provider, depends on `SQuiL.Core`): `Npgsql` -
+  PostgreSQL connectivity. Multi-targets `netstandard2.0;net10.0`, pinned to
+  different Npgsql versions per TFM (`Npgsql 6.0.11` on `netstandard2.0`,
+  `Npgsql 10.0.3` on `net10.0`; see `Directory.Packages.props`).
 - `Microsoft.Extensions.DependencyInjection` - DI support (consumer-side, for
   the generated `AddSQuiL()` extension's registration).
 
@@ -754,6 +767,95 @@ provider plumbing and `CreateError(SqliteException)`. The generated surface is
   Type" diagnostics, completion, and the SP0040 ordering squiggle all switch on
   the resolved dialect. The Insert-Sample-Data command emits dialect-appropriate
   DML (`Insert Into <ParamTable> Values(...)` for SQLite).
+
+**PostgreSQL dialect (Phase 3D) — `PostgresDialect` + `SQuiL.Postgres`, dialect
+id 2.** A near-twin of SQLite: same `Create Temp Table` Option-4 header, same
+positional body boundary, same sample-DML-stripped-and-replaced-by-a-shred
+model. Rather than duplicating the SQLite header machinery, the tokenizer's
+SQLite-specific recognition (`SqliteCreateTempTable`/
+`SqliteParamTableDmlStatement`/`SqliteBodyBoundary`) was generalized to fire
+for any dialect implementing the marker interface `ITempTableHeaderDialect :
+ISqlDialect` (`SQuiL.SourceGenerator/SQuiL/Dialects/ITempTableHeaderDialect.cs`)
+— both `SqliteDialect` and `PostgresDialect` implement it — so one code path
+serves two dialects; only the emitted leaf strings (types, shred, casing)
+differ per dialect via `ISqlDialect`.
+
+- A consumer references BOTH `SQuiL.Core` AND `SQuiL.Postgres` (same
+  reference-both model). `PostgresDataContext : SQuiLBaseDataContext`
+  (package `SQuiL.Postgres`, depends on `Npgsql`) carries the provider
+  plumbing and `CreateError(NpgsqlException)`. `SQuiL.Postgres` **multi-targets
+  `netstandard2.0;net10.0`** with different pinned Npgsql versions per leg
+  (`Directory.Packages.props`: `Npgsql 6.0.11` on the `netstandard2.0` TFM,
+  `Npgsql 10.0.3` on `net10.0` — Npgsql's own major-version support boundary),
+  unlike `SQuiL.Sqlite` which single-targets.
+- **Input shred — `json_to_recordset`, not `json_each`.** Unlike SQLite's
+  untyped `json_each`, PostgreSQL's `json_to_recordset(@json) AS x(col type,
+  …)` needs an explicit TYPED column list to shred a JSON array into rows —
+  structurally the OPENJSON-WITH analogue, not the SQLite analogue. Shape:
+  `Insert Into <TempTable>(Col1, Col2, …) Select x."Col1", x."Col2", … From
+  json_to_recordset(@__json_<Name>) AS x("Col1" <pgtype1>, "Col2" <pgtype2>,
+  …);`. A `bytea` column is declared `text` in the `AS` list (it arrives as a
+  hex string) and decoded in the `SELECT` with `decode(x."Col", 'hex')` — the
+  PG analogue of SQL Server's `Convert(varbinary(N), col, 2)` and SQLite's
+  `unhex(…)`.
+- **Identifier casing — Option B (bare + normalize), Paul's ruling
+  2026-08-01.** PostgreSQL folds unquoted identifiers to lowercase; SQuiL
+  still emits everything **bare** (temp-table DDL, insert target, the whole
+  author-facing body) so a PostgreSQL `.squil` reads identically to a SQL
+  Server/SQLite one — no quoting in the author's hands. The **one** place
+  SQuiL quotes an identifier is the `json_to_recordset` `AS`-column-list
+  (`"Col1" int4, …`), required so PostgreSQL matches the PascalCase JSON keys
+  the shared `SQuiLJson`/`SQuiLBinaryJsonConverter` serializer emits; it never
+  leaks into the author-facing surface. Because PostgreSQL's reader reports
+  lowercased column names (e.g. `personid`), **result routing is
+  case-insensitive for PostgreSQL** — the build-time shape key (`PersonID`)
+  still matches. This case-insensitive fold is exactly the kind of
+  normalization that could mask a build-vs-runtime routing mismatch (the
+  Phase 3B "C1" lesson — see below), so the PostgreSQL `KeyParityTests` rows
+  derive the runtime provider type name from a **live Npgsql reader**
+  (`GetDataTypeName` against a real container), never a hand-fed literal, and
+  at least one round-trip fact routes `uuid`/`boolean`/`timestamp` end to end.
+- **PostgreSQL type map** (`PostgresDialect` owns the whole map; also
+  enforced identically by `PostgresDataContext.NormalizeType` at runtime,
+  guarded by `KeyParityTests`):
+
+  | PostgreSQL type(s) | C# |
+  |---|---|
+  | `int4`/`int`/`integer` | `int` |
+  | `int8`/`bigint` | `long` |
+  | `int2`/`smallint` | `short` |
+  | `text`/`varchar`/`character varying`/`char`/`bpchar`/`json`/`jsonb` | `string` |
+  | `bytea` | `byte[]` |
+  | `uuid` | `System.Guid` |
+  | `boolean`/`bool` | `bool` |
+  | `timestamp`/`timestamp without time zone` | `System.DateTime` |
+  | `timestamptz`/`timestamp with time zone` | `System.DateTimeOffset` |
+  | `date` | `System.DateOnly` |
+  | `time`/`time without time zone` | `System.TimeOnly` |
+  | `numeric`/`decimal`/`money` | `decimal` |
+  | `real`/`float4` | `float` |
+  | `double precision`/`float8` | `double` |
+
+  Note `PostgresDataContext.NormalizeType` strips a trailing parenthetical
+  facet (e.g. `character varying(100)` → `character varying`, `numeric(18,
+  2)` → `numeric`) before switching, because Npgsql's live
+  `GetDataTypeName` includes length/precision facets that the build-time
+  shape key never carries.
+- **Live round-trips** — `SQuiL.Tests/Postgres/**` (header, shred,
+  nested-object, transaction snapshot tests) plus Testcontainers-based live
+  round-trip tests (`postgres` image; Podman preferred, Docker fallback)
+  covering param/null/blob fidelity, result-set routing, and error
+  surfacing — mirroring the Phase 3B SQLite round-trip pattern
+  (`AddSQuiL()` DI, `Process…Async` → `TryGetValue`).
+- **Editors are dialect-aware** for PostgreSQL exactly as for SQLite (types,
+  `Create Temp Table` header/completion, grammar type keywords, `.csproj`
+  discovery via a `SQuiL.Postgres` `PackageReference`); all three C# editor
+  copies (SSMS + Visual Studio, byte-identical modulo namespace) and VS Code
+  build/test clean.
+- **No new diagnostic id.** PostgreSQL reuses SP0038 (missing provider
+  package)/SP0039 (ambiguous dialect)/SP0040 (params-before-returns, error
+  for PostgreSQL as a temp-table dialect) unchanged. Next free id stays
+  **SP0041**.
 
 Inheriting the provider base class explicitly is **not required**. When the context class declares no constructor of its own, the generator emits a `<Ctx>.Constructor.g.cs` file that supplies:
 
@@ -1025,7 +1127,9 @@ IDs above); SP0037 taken by the scalar-nullability-marker check (a scalar
 `null`/`not null` marker is invalid — use `= null`); SP0038 taken by the
 multi-DB missing-provider-package check; SP0039 taken by the ambiguous-dialect
 check (2+ providers, no `[SQuiLDialect]`); SP0040 taken by the
-params-before-returns ordering check (error in SQLite, warning elsewhere).
+params-before-returns ordering check (error for temp-table dialects — SQLite
+and PostgreSQL — warning elsewhere). PostgreSQL (Phase 3D, dialect id 2) added
+no new diagnostic id — it reuses SP0038/SP0039/SP0040 unchanged.
 Next free id: **SP0041**.
 
 ## Special Handling

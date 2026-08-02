@@ -32,9 +32,10 @@ your-query.squil  ──▶  SQuiL source generator  ──▶  strongly-typed C
 - .NET SDK 10.0 or later to build a consuming project.
 - The generator and runtime libraries target `netstandard2.0`, so generated
   code runs anywhere the provider package's ADO.NET client is supported.
-- Two providers ship today — `SQuiL.SqlServer` and `SQuiL.Sqlite` — behind the
-  same `ISqlDialect` seam; the dialect is inferred from the referenced provider
-  package (see `[SQuiLDialect]` below and the **SQLite** section).
+- Three providers ship today — `SQuiL.SqlServer`, `SQuiL.Sqlite`, and
+  `SQuiL.Postgres` — behind the same `ISqlDialect` seam; the dialect is
+  inferred from the referenced provider package (see `[SQuiLDialect]` below
+  and the **SQLite** / **PostgreSQL** sections).
 
 ## Install
 
@@ -258,6 +259,102 @@ The VS Code and Visual Studio extensions are dialect-aware: they discover a
 `PackageReference` (with `[SQuiLDialect]` as the override in multi-provider
 projects). SSMS opens `.squil` standalone with no project, so it defaults to the
 SQL Server vocabulary (SSMS is a SQL Server tool).
+
+## PostgreSQL
+
+SQuiL also ships a native **PostgreSQL** provider. Like SQLite, PostgreSQL has
+no `Declare @x table(...)`/`Use [Db];` syntax, so it reuses the same
+**`Create Temp Table`** authoring model (temp-table name carries
+direction/cardinality, single-column ⇒ scalar). Everything the generator
+emits — `Process<Query>Async`, `<Query>Request`/`<Query>Response`, the row
+records in `<Ctx>.Models`, and `AddSQuiL()` — is identical in shape to SQL
+Server and SQLite; only the emitted SQL, the runtime base class, and the
+ADO.NET plumbing differ.
+
+### Install — reference both packages
+
+```bash
+dotnet add package SQuiL.Core
+dotnet add package SQuiL.Postgres
+```
+
+Same reference-both model as SQL Server and SQLite: `SQuiL.Core` carries the
+generator (a NuGet analyzer) plus the provider-neutral runtime types;
+`SQuiL.Postgres` carries `PostgresDataContext` and the `Npgsql` plumbing.
+`SQuiL.Postgres` multi-targets `netstandard2.0` (Npgsql 6.0.x) and `net10.0`
+(Npgsql 10.x), so it can be consumed from either TFM. Both packages are
+required — an analyzer never flows through a transitive dependency.
+
+The dialect is inferred from the referenced provider package, or pin it
+explicitly:
+
+```csharp
+[SQuiLDialect(SQuiLDialect.Postgres)]
+[SQuiLQuery(QueryFiles.ImportPeople)]
+public partial class ImportPeopleDataContext { }
+```
+
+`SQuiLDialect.Postgres` is dialect id **2**. Resolution/ambiguity rules
+(SP0038/SP0039) are unchanged from the SQL Server/SQLite model.
+
+### Authoring model — same `Create Temp Table` header as SQLite
+
+A PostgreSQL `.squil` stays **valid PostgreSQL as written**. As with SQLite,
+`Params_<N>`/`Param_<N>` name input tables/objects, `Returns_<N>`/`Return_<N>`
+name output tables/objects, and a single-column temp table collapses to a
+scalar. Params must be declared before returns — out of order is build error
+**SP0040** (an error for PostgreSQL, same as SQLite, because the temp-table
+header order is structural).
+
+Columns use native PostgreSQL types — the full map is in [CLAUDE.md](CLAUDE.md).
+The short version:
+
+| PostgreSQL type(s) | C# |
+|---|---|
+| `int4`/`int`/`integer` | `int` |
+| `int8`/`bigint` | `long` |
+| `int2`/`smallint` | `short` |
+| `text`/`varchar`/`character varying`/`char`/`bpchar`/`json`/`jsonb` | `string` |
+| `bytea` | `byte[]` |
+| `uuid` | `System.Guid` |
+| `boolean`/`bool` | `bool` |
+| `timestamp` | `System.DateTime` |
+| `timestamptz` | `System.DateTimeOffset` |
+| `date` | `System.DateOnly` |
+| `time` | `System.TimeOnly` |
+| `numeric`/`decimal`/`money` | `decimal` |
+| `real`/`float4` | `float` |
+| `double precision`/`float8` | `double` |
+
+### Worked example
+
+Author writes (valid, runnable PostgreSQL):
+
+```sql
+--Name: ImportPeople
+Create Temp Table Params_Person (PersonID int4 Primary Key, Name text, Photo bytea);
+Create Temp Table Returns_Imported (PersonID int4, Name text);
+
+-- sample data (stripped at generation, replaced by the json_to_recordset shred)
+Insert Into Params_Person (PersonID, Name, Photo) Values (1, 'Ada', decode('00AB', 'hex'));
+
+Insert Into Returns_Imported (PersonID, Name) Select PersonID, Name From Params_Person;
+Select PersonID, Name From Returns_Imported;
+```
+
+Inputs marshal through `json_to_recordset(@__json_...) AS x("Col" pgtype, ...)`
+— the typed, OPENJSON-style analogue (unlike SQLite's untyped `json_each`).
+`bytea` columns round-trip as hex text, decoded in the shred with
+`decode(x."Col", 'hex')`.
+
+**Identifier casing (Option B).** PostgreSQL folds unquoted identifiers to
+lowercase. SQuiL emits everything bare — the temp-table DDL, the insert
+target, and the author's whole body — exactly as you'd write it by hand; the
+only place SQuiL quotes an identifier is the `json_to_recordset` `AS`
+column-list, which must match the JSON payload's PascalCase keys. Result
+routing is case-insensitive on the PostgreSQL side, so a build-time key like
+`PersonID` still matches the lowercased `personid` column PostgreSQL's reader
+reports.
 
 ## Editor support
 

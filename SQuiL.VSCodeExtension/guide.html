@@ -189,6 +189,7 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
     <li><a href="#result-sets">Result Sets — Authoring Styles</a></li>
     <li><a href="#examples">Examples</a></li>
     <li><a href="#sqlite">SQLite Dialect</a></li>
+    <li><a href="#postgres">PostgreSQL Dialect</a></li>
     <li><a href="#sample-data">Sample Data Insertion</a></li>
     <li><a href="#connection-strings">Connection String Configuration</a></li>
     <li><a href="#project-setup">Project Setup</a></li>
@@ -788,6 +789,82 @@ class="ret">Return_</code> outputs; plural = list, singular = object/scalar). Ke
 <span class="cs-kw">public</span> <span class="cs-cls">Task</span>&lt;<span class="cs-cls">SQuiLResultType</span>&lt;<span class="cs-cls">ImportPeopleResponse</span>&gt;&gt; <span class="cs-pn">ProcessImportPeopleAsync</span>(
     <span class="cs-cls">ImportPeopleRequest</span> <span class="cs-pn">request</span>,
     <span class="cs-cls">CancellationToken</span> <span class="cs-pn">cancellationToken</span> = <span class="cs-kw">default</span>) { <span class="cm">/* generated */</span> }</code></pre>
+
+<!-- ──────────────────── PostgreSQL Dialect ────────────────────────────── -->
+<h2 id="postgres">PostgreSQL Dialect</h2>
+<p>SQuiL also ships a native <strong>PostgreSQL</strong> provider — a near-twin of SQLite: same
+<code>Create Temp Table</code> header, same direction/cardinality-by-table-name convention, same
+positional body boundary. The generated C# is <strong>identical in shape</strong> to SQL Server and
+SQLite. Only the SQL you write, the runtime base class (<code>PostgresDataContext</code>), and the
+ADO.NET plumbing (<code>Npgsql</code>) differ.</p>
+
+<p>Reference <strong>both</strong> <code>SQuiL.Core</code> and <code>SQuiL.Postgres</code>. The dialect is
+<strong>inferred from the provider package</strong> you reference; add
+<code>[SQuiLDialect(SQuiLDialect.Postgres)]</code> to a context to pin it, or to disambiguate a project
+that references more than one provider (2+ providers with no attribute is build error
+<code>SP0039</code>).</p>
+
+<div class="tip">
+  This editor detects a <code>.squil</code> file's dialect from the owning project's SQuiL provider
+  <code>PackageReference</code> (<code>SQuiL.Postgres</code> vs <code>SQuiL.SqlServer</code>/<code>SQuiL.Sqlite</code>),
+  with <code>[SQuiLDialect]</code> as the override — so the type recognizer, hover, completion, and
+  diagnostics switch to the PostgreSQL vocabulary automatically.
+</div>
+
+<p>Two differences from SQLite:</p>
+<ul>
+  <li><strong>Input shred is <code>json_to_recordset</code>, not <code>json_each</code>.</strong>
+    PostgreSQL needs an explicit TYPED column list to shred a JSON array into rows — the
+    OPENJSON-WITH analogue rather than SQLite's untyped shred:
+    <code>Insert Into &lt;TempTable&gt;(Col1, Col2) Select x."Col1", x."Col2" From
+    json_to_recordset(@__json_&lt;Name&gt;) AS x("Col1" &lt;pgtype&gt;, "Col2" &lt;pgtype&gt;);</code>
+    A <code class="tp">bytea</code> column is declared <code class="tp">text</code> in the <code>AS</code>
+    list and decoded with <code>decode(x."Col", 'hex')</code> in the <code>SELECT</code> — PostgreSQL's
+    analogue of SQLite's <code>unhex(…)</code>.</li>
+  <li><strong>Identifier casing is Option B (bare + normalize).</strong> PostgreSQL folds unquoted
+    identifiers to lowercase, but SQuiL still emits everything <strong>bare</strong> — the temp-table DDL,
+    the insert target, the whole author-facing body — so a PostgreSQL <code>.squil</code> reads
+    identically to a SQL Server/SQLite one. The <strong>only</strong> quoted identifiers SQuiL emits are
+    the <code>json_to_recordset</code> <code>AS</code>-column-list, required to match the PascalCase JSON
+    keys the shared serializer emits. Result routing is case-insensitive on the PostgreSQL side (the
+    reader reports lowercased column names), so a build-time key like <code>PersonID</code> still
+    matches.</li>
+</ul>
+
+<p>PostgreSQL type map (author writes native PostgreSQL types):</p>
+<table>
+  <tr><th>PostgreSQL type(s)</th><th>C#</th></tr>
+  <tr><td><code class="tp">int4</code>/<code class="tp">int</code>/<code class="tp">integer</code></td><td><code>int</code></td></tr>
+  <tr><td><code class="tp">int8</code>/<code class="tp">bigint</code></td><td><code>long</code></td></tr>
+  <tr><td><code class="tp">int2</code>/<code class="tp">smallint</code></td><td><code>short</code></td></tr>
+  <tr><td><code class="tp">text</code>/<code class="tp">varchar</code>/<code class="tp">character varying</code>/<code class="tp">char</code>/<code class="tp">bpchar</code>/<code class="tp">json</code>/<code class="tp">jsonb</code></td><td><code>string</code></td></tr>
+  <tr><td><code class="tp">bytea</code></td><td><code>byte[]</code></td></tr>
+  <tr><td><code class="tp">uuid</code></td><td><code>System.Guid</code></td></tr>
+  <tr><td><code class="tp">boolean</code>/<code class="tp">bool</code></td><td><code>bool</code></td></tr>
+  <tr><td><code class="tp">timestamp</code></td><td><code>System.DateTime</code></td></tr>
+  <tr><td><code class="tp">timestamptz</code></td><td><code>System.DateTimeOffset</code></td></tr>
+  <tr><td><code class="tp">date</code></td><td><code>System.DateOnly</code></td></tr>
+  <tr><td><code class="tp">time</code></td><td><code>System.TimeOnly</code></td></tr>
+  <tr><td><code class="tp">numeric</code>/<code class="tp">decimal</code>/<code class="tp">money</code></td><td><code>decimal</code></td></tr>
+  <tr><td><code class="tp">real</code>/<code class="tp">float4</code></td><td><code>float</code></td></tr>
+  <tr><td><code class="tp">double precision</code>/<code class="tp">float8</code></td><td><code>double</code></td></tr>
+</table>
+
+<pre><code><span class="ann">--Name: ImportPeople</span>
+<span class="kw">Create Temp Table</span> <span class="par">Params_Person</span> (PersonID <span class="tp">int4</span> <span class="kw">Primary Key</span>, Name <span class="tp">text</span>, Photo <span class="tp">bytea</span>);
+<span class="kw">Create Temp Table</span> <span class="ret">Returns_Imported</span> (PersonID <span class="tp">int4</span>, Name <span class="tp">text</span>);
+
+<span class="cm">-- sample data (stripped at generation, replaced by the json_to_recordset shred)</span>
+<span class="kw">Insert Into</span> <span class="par">Params_Person</span> (PersonID, Name, Photo) <span class="kw">Values</span> (1, <span class="str">'Ada'</span>, decode(<span class="str">'00AB'</span>, <span class="str">'hex'</span>));
+
+<span class="kw">Insert Into</span> <span class="ret">Returns_Imported</span> (PersonID, Name) <span class="kw">Select</span> PersonID, Name <span class="kw">From</span> <span class="par">Params_Person</span>;
+<span class="kw">Select</span> PersonID, Name <span class="kw">From</span> <span class="ret">Returns_Imported</span>;</code></pre>
+
+<p>Params-before-returns is still enforced as a build <strong>error</strong> here too
+(<code>SP0040</code>) — PostgreSQL is a temp-table dialect exactly like SQLite. The generated C# is the
+same shape as the SQLite example above, but the method's declaring class is
+<code>: PostgresDataContext</code> and a runtime error is reachable via <code>error.AsDbException()</code>
+as an <code>NpgsqlException</code>.</p>
 
 <!-- ──────────────────── Sample Data Insertion ────────────────────────── -->
 <h2 id="sample-data">Sample Data Insertion</h2>

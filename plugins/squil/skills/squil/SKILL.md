@@ -1,6 +1,6 @@
 ---
 name: squil
-description: Use this skill whenever the user is working with SQuiL — the C# source generator at https://github.com/daemogar/SQuiL that turns .squil/.sql query files into strongly-typed C# data contexts. Trigger on any mention of SQuiL or any .squil file; on SQuiLBaseDataContext, SQuiLResultType, [SQuiLQuery], [SQuiLTable], SQuiLException, SQuiLAggregateException, AddSQuiL, Process…Async; on .sql files paired with a C# project that uses AdditionalFiles for queries; on the @-prefix naming conventions (@Param_, @Params_, @Return_, @Returns_, @Debug, @SuppressDebug, @AsOfDate, @EnvironmentName); or whenever the user asks to author SQuiL query files, set up a .csproj for SQuiL, register a SQuiL data context, or write wrappers around generated Process…Async methods. Trigger even when the user does not say "SQuiL" by name — if their .csproj references SQuiL.Core, SQuiL.SqlServer, or SQuiL.Sqlite, this skill applies. Prefer this skill over generic "C# / SQL" guidance for any project that uses SQuiL.
+description: Use this skill whenever the user is working with SQuiL — the C# source generator at https://github.com/daemogar/SQuiL that turns .squil/.sql query files into strongly-typed C# data contexts. Trigger on any mention of SQuiL or any .squil file; on SQuiLBaseDataContext, SQuiLResultType, [SQuiLQuery], [SQuiLTable], SQuiLException, SQuiLAggregateException, AddSQuiL, Process…Async; on .sql files paired with a C# project that uses AdditionalFiles for queries; on the @-prefix naming conventions (@Param_, @Params_, @Return_, @Returns_, @Debug, @SuppressDebug, @AsOfDate, @EnvironmentName); or whenever the user asks to author SQuiL query files, set up a .csproj for SQuiL, register a SQuiL data context, or write wrappers around generated Process…Async methods. Trigger even when the user does not say "SQuiL" by name — if their .csproj references SQuiL.Core, SQuiL.SqlServer, SQuiL.Sqlite, or SQuiL.Postgres, this skill applies. Prefer this skill over generic "C# / SQL" guidance for any project that uses SQuiL.
 ---
 
 # SQuiL skill
@@ -356,6 +356,83 @@ The row records `Person` and `Imported` land in `<Ctx>.Models`, `AddSQuiL()` and
 SQLite runtime error surfaces through the result's `errors` list (never thrown),
 reachable via `error.AsDbException()` as a `SqliteException`.
 
+### Authoring for PostgreSQL
+
+PostgreSQL (`SQuiL.Postgres`, dialect id 2) is a **near-twin of SQLite**: same
+`Create Temp Table` Option-4 header, same direction/cardinality-by-table-name
+convention, same positional body boundary, same sample-DML-stripped-and-
+replaced-by-a-shred model. The generated C# surface is identical in shape to
+SQL Server and SQLite; only the SQL you write, the runtime base class
+(`PostgresDataContext`), and the ADO.NET plumbing (`Npgsql`) differ.
+
+Two differences from SQLite:
+
+- **Input shred is `json_to_recordset`, not `json_each`.** PostgreSQL needs an
+  explicit TYPED column list to shred a JSON array into rows — the
+  OPENJSON-WITH analogue rather than SQLite's untyped shred:
+  `Insert Into <TempTable>(Col1, Col2) Select x."Col1", x."Col2" From
+  json_to_recordset(@__json_<Name>) AS x("Col1" <pgtype>, "Col2" <pgtype>);`.
+  A `bytea` column is declared `text` in the `AS` list and decoded with
+  `decode(x."Col", 'hex')` in the `SELECT` — PostgreSQL's analogue of SQLite's
+  `unhex(…)`.
+- **Identifier casing is Option B (bare + normalize).** PostgreSQL folds
+  unquoted identifiers to lowercase, but SQuiL still emits everything **bare**
+  — the temp-table DDL, the insert target, the whole author-facing body —
+  so a PostgreSQL `.squil` reads identically to a SQL Server/SQLite one. The
+  **only** quoted identifiers SQuiL emits are the `json_to_recordset`
+  `AS`-column-list, required to match the PascalCase JSON keys the shared
+  serializer emits. Result routing is case-insensitive on the PostgreSQL side
+  (the reader reports lowercased column names), so a build-time key like
+  `PersonID` still matches.
+
+PostgreSQL type map (author writes native PostgreSQL types):
+
+| PostgreSQL type(s) | C# |
+|---|---|
+| `int4`/`int`/`integer` | `int` |
+| `int8`/`bigint` | `long` |
+| `int2`/`smallint` | `short` |
+| `text`/`varchar`/`character varying`/`char`/`bpchar`/`json`/`jsonb` | `string` |
+| `bytea` | `byte[]` |
+| `uuid` | `System.Guid` |
+| `boolean`/`bool` | `bool` |
+| `timestamp`/`timestamp without time zone` | `System.DateTime` |
+| `timestamptz`/`timestamp with time zone` | `System.DateTimeOffset` |
+| `date` | `System.DateOnly` |
+| `time`/`time without time zone` | `System.TimeOnly` |
+| `numeric`/`decimal`/`money` | `decimal` |
+| `real`/`float4` | `float` |
+| `double precision`/`float8` | `double` |
+
+Worked example — author writes valid, runnable PostgreSQL:
+
+```sql
+--Name: ImportPeople
+Create Temp Table Params_Person (PersonID int4 Primary Key, Name text, Photo bytea);
+Create Temp Table Returns_Imported (PersonID int4, Name text);
+
+-- sample data (stripped at generation, replaced by the json_to_recordset shred)
+Insert Into Params_Person (PersonID, Name, Photo) Values (1, 'Ada', decode('00AB', 'hex'));
+
+Insert Into Returns_Imported (PersonID, Name) Select PersonID, Name From Params_Person;
+Select PersonID, Name From Returns_Imported;
+```
+
+Register with the PostgreSQL dialect (inferred from `SQuiL.Postgres`, or pinned):
+
+```csharp
+[SQuiLDialect(SQuiLDialect.Postgres)]
+[SQuiLQuery(QueryFiles.ImportPeople)]
+public partial class ImportPeopleDataContext { }
+```
+
+Same generated shape as the SQLite example above (row records in
+`<Ctx>.Models`, `AddSQuiL()`, `TryGetValue`), but the method's declaring class
+is `: PostgresDataContext` and a runtime error is reachable via
+`error.AsDbException()` as an `NpgsqlException`. Params-before-returns is
+still enforced as a build **error** here too (SP0040) — PostgreSQL is a
+temp-table dialect exactly like SQLite.
+
 ### Common authoring mistakes
 
 - **Skipping `Use <DB>`.** Required, and it must come after the declares but before any data-modifying SQL.
@@ -376,9 +453,9 @@ reachable via `error.AsDbException()` as a `SqliteException`.
 - **A `Primary Key`/foreign-key chain that loops back on itself.** Nested objects require a tree, not a cycle; a self-referencing or circular link chain is build error **SP0034**.
 - **A nested-input link column typed as something other than an integer or `uniqueidentifier`.** SQuiL synthesizes nested-input join keys itself, but only for integer-family (`int`/`bigint`/`smallint`) or `uniqueidentifier` columns — anything else (e.g. `varchar`) is build error **SP0036**. Change the link column's type.
 - **Putting a `null`/`not null` marker on a scalar `Declare`.** That syntax is only valid on table columns — a scalar is invalid T-SQL with it. Build error **SP0037**. Use `= null` for a nullable scalar (or remove the marker for non-nullable).
-- **Referencing `SQuiL.Core` without the matching provider package.** A data context resolves to a dialect (explicitly via `[SQuiLDialect]`, else inferred from the single referenced provider, else SqlServer) whose runtime base class (`SqlServerDataContext` / `SqliteDataContext`) isn't referenced by the compilation — build error **SP0038**. Add the provider package (`SQuiL.SqlServer` or `SQuiL.Sqlite`) alongside `SQuiL.Core`.
-- **Referencing two providers with no `[SQuiLDialect]`.** If the project references both `SQuiL.SqlServer` and `SQuiL.Sqlite`, the dialect is ambiguous — each context needs an explicit `[SQuiLDialect(...)]`. Missing it is build error **SP0039**.
-- **Declaring a SQLite output before all inputs.** In a SQLite `.squil`, every `Param_`/`Params_` temp table must be declared before any `Return_`/`Returns_` — out-of-order is build error **SP0040** (only a warning in SQL Server).
+- **Referencing `SQuiL.Core` without the matching provider package.** A data context resolves to a dialect (explicitly via `[SQuiLDialect]`, else inferred from the single referenced provider, else SqlServer) whose runtime base class (`SqlServerDataContext` / `SqliteDataContext` / `PostgresDataContext`) isn't referenced by the compilation — build error **SP0038**. Add the provider package (`SQuiL.SqlServer`, `SQuiL.Sqlite`, or `SQuiL.Postgres`) alongside `SQuiL.Core`.
+- **Referencing two providers with no `[SQuiLDialect]`.** If the project references 2+ of `SQuiL.SqlServer`/`SQuiL.Sqlite`/`SQuiL.Postgres`, the dialect is ambiguous — each context needs an explicit `[SQuiLDialect(...)]`. Missing it is build error **SP0039**.
+- **Declaring a temp-table-dialect output before all inputs.** In a SQLite or PostgreSQL `.squil`, every `Param_`/`Params_` temp table must be declared before any `Return_`/`Returns_` — out-of-order is build error **SP0040** (only a warning in SQL Server).
 
 ---
 
@@ -410,9 +487,12 @@ shape as EF Core's provider packages:
 
 For **SQLite**, reference `SQuiL.Sqlite` instead of (or alongside)
 `SQuiL.SqlServer` — it carries `SqliteDataContext` and the
-`Microsoft.Data.Sqlite` plumbing. The dialect is inferred from whichever
-provider is referenced (see "Selecting a dialect" below and "Authoring for
-SQLite"). The generated surface is identical across dialects.
+`Microsoft.Data.Sqlite` plumbing. For **PostgreSQL**, reference `SQuiL.Postgres`
+instead — it carries `PostgresDataContext` and the `Npgsql` plumbing (multi-
+targets `netstandard2.0;net10.0`). The dialect is inferred from whichever
+provider is referenced (see "Selecting a dialect" below, "Authoring for
+SQLite", and "Authoring for PostgreSQL"). The generated surface is identical
+across dialects.
 
 **Both are required, not either/or.** NuGet does not flow a package's
 analyzer through a transitive dependency — only a *direct* `PackageReference`
@@ -428,14 +508,15 @@ red", check for exactly this — one package present, the other missing.
 ### Selecting a dialect — `[SQuiLDialect]`
 
 `[SQuiLDialect(...)]` on a data-context class is optional and picks which
-provider that context targets. The `SQuiLDialect` enum has two members:
-`SqlServer` and `Sqlite`. Resolution (`DialectRegistry.Resolve`) is
-**provider-inference**:
+provider that context targets. The `SQuiLDialect` enum has three members:
+`SqlServer` (id 0), `Sqlite` (id 1), and `Postgres` (id 2). Resolution
+(`DialectRegistry.Resolve`) is **provider-inference**:
 
 1. An explicit `[SQuiLDialect(...)]` wins.
 2. Otherwise the **single referenced provider** package decides — reference
    `SQuiL.SqlServer` and contexts target SQL Server; reference `SQuiL.Sqlite`
-   and they target SQLite.
+   and they target SQLite; reference `SQuiL.Postgres` and they target
+   PostgreSQL.
 3. Otherwise (no provider referenced) SQL Server is the default — and
    **SP0038** fires because that provider's base type is absent.
 4. Referencing **2+** providers with no `[SQuiLDialect]` on a context is build
