@@ -110,4 +110,49 @@ public class EditorParityTests
             Assert.Equal(ExpectedSqlite[sql], cs);
         }
     }
+
+    // Canonical PostgreSQL->short-C# matrix (Task 7 fix round 1 — the PG overlay was missing
+    // entirely; every PG-only spelling fell through to `object`), matching POSTGRES_TO_CS in
+    // SQuiL.VSCodeExtension/src/squil/previewGenerator.ts. Regex keys are lowercase a-z0-9 only
+    // (see EntryRegex), so multi-word ANSI long-form spellings (`character varying`, `timestamp
+    // without time zone`, etc.) never match this regex and are intentionally NOT asserted here —
+    // they're covered instead by the exact-string unit tests in previewGenerator.test.ts.
+    private static readonly Dictionary<string, string> ExpectedPostgres = new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        ["int2"] = "short", ["smallint"] = "short",
+        ["int4"] = "int", ["int"] = "int", ["integer"] = "int",
+        ["int8"] = "long", ["bigint"] = "long",
+        ["text"] = "string", ["varchar"] = "string", ["char"] = "string", ["bpchar"] = "string",
+        ["json"] = "string", ["jsonb"] = "string",
+        ["bytea"] = "byte[]",
+        ["uuid"] = "Guid",
+        ["bool"] = "bool", ["boolean"] = "bool",
+        ["timestamp"] = "DateTime",
+        ["timestamptz"] = "DateTimeOffset",
+        ["date"] = "DateOnly",
+        ["time"] = "TimeOnly",
+        ["numeric"] = "decimal", ["decimal"] = "decimal", ["money"] = "decimal",
+        ["real"] = "float", ["float4"] = "float",
+        ["float8"] = "double",
+    };
+
+    [Theory]
+    [InlineData("SQuiL.SsmsExtension/Parsing/SqlTypeMap.cs")]
+    [InlineData("SQuiL.VisualStudioExtension/Parsing/SqlTypeMap.cs")]
+    public void PostgresEditorMapAgreesWithMatrix(string relPath)
+    {
+        var full = Path.Combine(RepoRoot(), relPath.Replace('/', Path.DirectorySeparatorChar));
+        Assert.True(File.Exists(full), $"missing {full}");
+        var text = File.ReadAllText(full);
+
+        var postgresMapBody = ExtractDictionaryBody(text, "PostgresMap");
+
+        foreach (Match m in EntryRegex.Matches(postgresMapBody))
+        {
+            var sql = m.Groups["sql"].Value;
+            var cs = m.Groups["cs"].Value;
+            Assert.True(ExpectedPostgres.ContainsKey(sql), $"editor PostgresMap has '{sql}' not in the canonical Postgres matrix");
+            Assert.Equal(ExpectedPostgres[sql], cs);
+        }
+    }
 }

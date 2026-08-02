@@ -36,9 +36,35 @@ const SQLITE_CS: Record<string, string> = {
   guid: 'Guid', uniqueidentifier: 'Guid',
 };
 
+/**
+ * PostgreSQL's type vocabulary overlays SQL_CS for keys whose CLR mapping differs by dialect
+ * (or whose spelling doesn't exist in the base SQL Server map at all — `int4`/`int8`/`int2`/
+ * `bpchar`/`bytea`/`uuid`/`bool`/`timestamptz`/`json`/`jsonb`). Matches the generator's PG type
+ * map (`Token.CSharpType()` / `PostgresDialect.ParamTypeExpr`). Keys absent here fall back to
+ * SQL_CS unchanged.
+ */
+const POSTGRES_CS: Record<string, string> = {
+  int2: 'short', smallint: 'short',
+  int4: 'int', int: 'int', integer: 'int',
+  int8: 'long', bigint: 'long',
+  text: 'string', varchar: 'string', char: 'string', bpchar: 'string',
+  'character varying': 'string', json: 'string', jsonb: 'string',
+  bytea: 'byte[]',
+  uuid: 'Guid',
+  bool: 'bool', boolean: 'bool',
+  timestamp: 'DateTime', 'timestamp without time zone': 'DateTime',
+  timestamptz: 'DateTimeOffset', 'timestamp with time zone': 'DateTimeOffset',
+  date: 'DateOnly',
+  time: 'TimeOnly', 'time without time zone': 'TimeOnly',
+  numeric: 'decimal', decimal: 'decimal', money: 'decimal',
+  real: 'float', float4: 'float',
+  'double precision': 'double', float8: 'double',
+};
+
 function sqlToCSharp(sqlType: string, dialect: EditorDialect = 'sqlserver'): string {
   const base = sqlType.toLowerCase().replace(/\s*\(.*\)/, '').trim();
   if (dialect === 'sqlite' && base in SQLITE_CS) return SQLITE_CS[base];
+  if (dialect === 'postgres' && base in POSTGRES_CS) return POSTGRES_CS[base];
   return SQL_CS[base] ?? 'object';
 }
 

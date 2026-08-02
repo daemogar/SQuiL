@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
 import { parseSQuiL } from './parser';
-import { generateCSharpPreview } from './previewGenerator';
+import { generateCSharpPreview, sqlToCSharp } from './previewGenerator';
 
 // Preview parity with the generator's opt-in special emission:
 //   • bool Debug          only when @Debug declared
@@ -328,4 +328,68 @@ test('sqlite dialect maps table-column types the same as scalars', () => {
   assert.ok(out.includes('long RowID'), 'RowID column INTEGER -> long under sqlite');
   assert.ok(out.includes('double Amount'), 'Amount column REAL -> double under sqlite');
   assert.ok(out.includes('string Note'), 'Note column TEXT -> string under sqlite');
+});
+
+// Task 7 fix-round-1: PostgreSQL's overlay was missing entirely — every PG-only spelling
+// (int2/int4/int8/integer, bpchar, bytea, uuid, bool/boolean, timestamp/timestamptz, double
+// precision, …) fell through to the `object` fallback in hover/preview. sqlToCSharp is
+// unit-tested directly (it's exported) plus one end-to-end preview test, mirroring the sqlite
+// dialect coverage above.
+
+test('sqlToCSharp(postgres) maps every PG-only spelling to the generator-matching C# type', () => {
+  const cases: Array<[string, string]> = [
+    ['int2', 'short'], ['smallint', 'short'],
+    ['int4', 'int'], ['int', 'int'], ['integer', 'int'],
+    ['int8', 'long'], ['bigint', 'long'],
+    ['text', 'string'], ['varchar', 'string'], ['char', 'string'], ['bpchar', 'string'],
+    ['character varying', 'string'], ['json', 'string'], ['jsonb', 'string'],
+    ['bytea', 'byte[]'],
+    ['uuid', 'Guid'],
+    ['bool', 'bool'], ['boolean', 'bool'],
+    ['timestamp', 'DateTime'], ['timestamp without time zone', 'DateTime'],
+    ['timestamptz', 'DateTimeOffset'], ['timestamp with time zone', 'DateTimeOffset'],
+    ['date', 'DateOnly'],
+    ['time', 'TimeOnly'], ['time without time zone', 'TimeOnly'],
+    ['numeric', 'decimal'], ['decimal', 'decimal'], ['money', 'decimal'],
+    ['real', 'float'], ['float4', 'float'],
+    ['double precision', 'double'], ['float8', 'double'],
+  ];
+
+  for (const [sql, expected] of cases) {
+    assert.strictEqual(sqlToCSharp(sql, 'postgres'), expected, `${sql} -> ${expected} under postgres`);
+  }
+});
+
+test('sqlToCSharp(postgres) with a length qualifier still resolves the base type', () => {
+  assert.strictEqual(sqlToCSharp('varchar(100)', 'postgres'), 'string');
+  assert.strictEqual(sqlToCSharp('numeric(18, 2)', 'postgres'), 'decimal');
+});
+
+test('sqlToCSharp is unaffected for sqlserver/sqlite when called with unrelated dialects (no cross-contamination)', () => {
+  // A PG-only spelling under the wrong dialect must NOT resolve via the Postgres overlay.
+  assert.strictEqual(sqlToCSharp('bytea', 'sqlserver'), 'object');
+  assert.strictEqual(sqlToCSharp('bytea', 'sqlite'), 'object');
+  assert.strictEqual(sqlToCSharp('int', 'sqlserver'), 'int', 'sqlserver behavior unchanged');
+});
+
+test('postgres dialect maps INT2/INT4/INT8/BYTEA/UUID/BOOL/TIMESTAMPTZ scalars to their PG CLR types (end-to-end preview)', () => {
+  const parsed = parseSQuiL([
+    '--Name: PostgresScalars',
+    'Declare @Param_A int2;',
+    'Declare @Param_B int8;',
+    'Declare @Param_C bytea;',
+    'Declare @Param_D uuid;',
+    'Declare @Param_E bool;',
+    'Declare @Param_F timestamptz;',
+    'Use Db;',
+    'Select @Param_A;',
+  ].join('\n'));
+
+  const out = generateCSharpPreview(parsed, parsed.queryName ?? 'Query', undefined, false, true, 'postgres');
+  assert.ok(out.includes('public short A { get; set; }'), 'int2 -> short under postgres');
+  assert.ok(out.includes('public long B { get; set; }'), 'int8 -> long under postgres');
+  assert.ok(out.includes('public byte[] C { get; set; }'), 'bytea -> byte[] under postgres');
+  assert.ok(out.includes('public Guid D { get; set; }'), 'uuid -> Guid under postgres');
+  assert.ok(out.includes('public bool E { get; set; }'), 'bool -> bool under postgres');
+  assert.ok(out.includes('public DateTimeOffset F { get; set; }'), 'timestamptz -> DateTimeOffset under postgres');
 });

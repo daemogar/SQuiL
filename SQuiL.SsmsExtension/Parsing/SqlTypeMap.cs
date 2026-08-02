@@ -65,6 +65,53 @@ public static class SqlTypeMap
         ["uniqueidentifier"]  = "Guid",
     };
 
+    /// <summary>
+    /// PostgreSQL's type vocabulary overlays <see cref="Map"/> for keys whose CLR mapping
+    /// differs by dialect, or whose spelling doesn't exist in the base SQL Server map at all
+    /// (<c>int4</c>/<c>int8</c>/<c>int2</c>/<c>bpchar</c>/<c>bytea</c>/<c>uuid</c>/<c>bool</c>/
+    /// <c>timestamptz</c>/<c>json</c>/<c>jsonb</c>, plus the ANSI long-form spellings
+    /// <c>character varying</c>/<c>timestamp without time zone</c>/<c>timestamp with time
+    /// zone</c>/<c>time without time zone</c>). Keys absent here fall back to <see cref="Map"/>
+    /// unchanged. Matches the generator's PG type map (<c>Token.CSharpType()</c> /
+    /// <c>PostgresDialect.ParamTypeExpr</c>) and <c>POSTGRES_CS</c>/<c>POSTGRES_TO_CS</c> in
+    /// <c>hoverProvider.ts</c>/<c>previewGenerator.ts</c>.
+    /// </summary>
+    private static readonly Dictionary<string, string> PostgresMap = new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        ["int2"]                        = "short",
+        ["smallint"]                    = "short",
+        ["int4"]                        = "int",
+        ["int"]                         = "int",
+        ["integer"]                     = "int",
+        ["int8"]                        = "long",
+        ["bigint"]                      = "long",
+        ["text"]                        = "string",
+        ["varchar"]                     = "string",
+        ["char"]                        = "string",
+        ["bpchar"]                      = "string",
+        ["character varying"]           = "string",
+        ["json"]                        = "string",
+        ["jsonb"]                       = "string",
+        ["bytea"]                       = "byte[]",
+        ["uuid"]                        = "Guid",
+        ["bool"]                        = "bool",
+        ["boolean"]                     = "bool",
+        ["timestamp"]                   = "DateTime",
+        ["timestamp without time zone"] = "DateTime",
+        ["timestamptz"]                 = "DateTimeOffset",
+        ["timestamp with time zone"]    = "DateTimeOffset",
+        ["date"]                        = "DateOnly",
+        ["time"]                        = "TimeOnly",
+        ["time without time zone"]      = "TimeOnly",
+        ["numeric"]                     = "decimal",
+        ["decimal"]                     = "decimal",
+        ["money"]                       = "decimal",
+        ["real"]                        = "float",
+        ["float4"]                      = "float",
+        ["double precision"]            = "double",
+        ["float8"]                      = "double",
+    };
+
     /// <summary>Strip any <c>(N)</c> qualifier and look up the base type, defaulting to the SQL Server dialect.</summary>
     public static string SqlToCSharp(string sqlType) => SqlToCSharp(sqlType, EditorDialect.SqlServer);
 
@@ -79,6 +126,9 @@ public static class SqlTypeMap
 
         if (dialect == EditorDialect.Sqlite && SqliteMap.TryGetValue(baseType, out var sqliteCs))
             return sqliteCs;
+
+        if (dialect == EditorDialect.Postgres && PostgresMap.TryGetValue(baseType, out var postgresCs))
+            return postgresCs;
 
         return Map.TryGetValue(baseType, out var cs) ? cs : "object";
     }
