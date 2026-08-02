@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace SQuiL.Dialects;
 
@@ -18,9 +19,32 @@ public class PostgresDialect : ITempTableHeaderDialect
 	public string BitType() => "NpgsqlTypes.NpgsqlDbType.Boolean";
 
 	public string TableVariableDeclaration(SQuiL.SourceGenerator.Parser.CodeBlock block, string newLine)
-		=> throw new System.NotImplementedException();
+	{
+		var name = block.TempTableName ?? block.Name;
+		var cols = string.Join($",{newLine}\t", block.Properties.Select(p
+			=> $"{p.Identifier.Value} {p.Type.Original}{(p.IsNullable ? "" : " Not Null")}{(p.IsPrimaryKey ? " Primary Key" : "")}"));
+
+		return $"""
+			Drop Table If Exists {name};
+			Create Temp Table {name} (
+				{cols});
+			""".Replace("\r\n", "\n");
+	}
+
 	public string ScalarVariableDeclaration(SQuiL.SourceGenerator.Parser.CodeBlock block, string newLine)
-		=> throw new System.NotImplementedException();
+	{
+		var name = block.TempScalarTableName ?? block.Name;
+		var col = block.TempScalarColumn;
+		var colDef = col is not null
+			? $"{col.Identifier.Value} {col.Type.Original}{(col.IsNullable ? "" : " Not Null")}{(col.IsPrimaryKey ? " Primary Key" : "")}"
+			: $"{block.Name} {block.DatabaseType.Original}";
+
+		return $"""
+			Drop Table If Exists {name};
+			Create Temp Table {name} (
+				{colDef});
+			""".Replace("\r\n", "\n");
+	}
 
 	/// <summary>The <c>reader.GetXxx</c> accessor fragment for a table/object column. Npgsql's
 	/// <c>NpgsqlDataReader</c> is a full ADO.NET reader (unlike Microsoft.Data.Sqlite's), so this

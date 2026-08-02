@@ -78,6 +78,29 @@ public static class TestHelper
 				"""))}}
 			""";
 
+	/// <summary>
+	/// PostgreSQL counterpart to <see cref="TestHeaderSqlite"/>: emits an explicit
+	/// <c>[SQuiLDialect(SQuiLDialect.Postgres)]</c>-decorated partial data-context class extending
+	/// <c>PostgresDataContext</c> for each of <paramref name="names"/>, for tests exercising the
+	/// PostgreSQL header model (Task 5) via <see cref="VerifyPostgres"/>.
+	/// </summary>
+	public static string TestHeaderPostgres(IEnumerable<string> names)
+		=> $$"""
+			using Microsoft.Extensions.Configuration;
+			using {{NamespaceName}};
+
+			namespace TestCase;
+
+			{{string.Join("", names.Select(p => $$"""
+				[{{DialectAttributeName}}(SQuiLDialect.Postgres)]
+				[{{QueryAttributeName}}(QueryFiles.{{p}})]
+				public partial class {{p}}DataContext(IConfiguration Configuration) : PostgresDataContext(Configuration)
+				{
+				}
+
+				"""))}}
+			""";
+
 	/// <param name="compileCheck">Pass false ONLY for tests whose user sources
 	/// are deliberately invalid C#, or that pin a known not-yet-fixed
 	/// generator codegen bug (say which in a comment at the call site).</param>
@@ -126,6 +149,21 @@ public static class TestHelper
 		[CallerFilePath] string path = default!)
 		=> VerifyCore(sources, files, includeProvider: false, includeSqlClient: true, compileCheck, name, path, includeSqlite: true);
 
+	/// <summary>
+	/// PostgreSQL counterpart to <see cref="Verify"/>: the compilation references
+	/// <c>SQuiL.Postgres</c> (+ <c>Npgsql</c> itself) instead of <c>SQuiL.SqlServer</c>, and the
+	/// Tier-0 compile-check (see <see cref="CompilationAssert.GeneratedCodeCompiles"/>) is told to
+	/// swap in the same pair — so a query targeting <c>[SQuiLDialect(SQuiLDialect.Postgres)]</c>
+	/// (see <see cref="TestHeaderPostgres"/>) both generates AND Tier-0-compiles correctly.
+	/// </summary>
+	public static Task VerifyPostgres(
+		IEnumerable<string> sources,
+		IEnumerable<string> files,
+		bool compileCheck = true,
+		[CallerMemberName] string name = default!,
+		[CallerFilePath] string path = default!)
+		=> VerifyCore(sources, files, includeProvider: false, includeSqlClient: true, compileCheck, name, path, includePostgres: true);
+
 	static Task VerifyCore(
 		IEnumerable<string> sources,
 		IEnumerable<string> files,
@@ -134,7 +172,8 @@ public static class TestHelper
 		bool compileCheck,
 		string name,
 		string path,
-		bool includeSqlite = false)
+		bool includeSqlite = false,
+		bool includePostgres = false)
 	{
 		var syntaxTrees = sources.Select(p => CSharpSyntaxTree.ParseText(p));
 
@@ -153,6 +192,12 @@ public static class TestHelper
 		{
 			metareferences.Add(MetadataReference.CreateFromFile(typeof(SqliteDataContext).Assembly.Location));
 			metareferences.Add(MetadataReference.CreateFromFile(typeof(Microsoft.Data.Sqlite.SqliteConnection).Assembly.Location));
+		}
+
+		if (includePostgres)
+		{
+			metareferences.Add(MetadataReference.CreateFromFile(typeof(PostgresDataContext).Assembly.Location));
+			metareferences.Add(MetadataReference.CreateFromFile(typeof(Npgsql.NpgsqlConnection).Assembly.Location));
 		}
 
 		var additionalFiles = files
@@ -178,7 +223,7 @@ public static class TestHelper
 		// exempt — their (possibly partial) output is asserted via snapshots.
 		if (compileCheck
 			&& !driver.GetRunResult().Diagnostics.Any(p => p.Severity == DiagnosticSeverity.Error))
-			CompilationAssert.GeneratedCodeCompiles(sources, files, includeSqlite: includeSqlite);
+			CompilationAssert.GeneratedCodeCompiles(sources, files, includeSqlite: includeSqlite, includePostgres: includePostgres);
 
 		VerifySettings settings = default!;
 		if (path is not null)

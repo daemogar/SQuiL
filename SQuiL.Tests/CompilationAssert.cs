@@ -42,7 +42,8 @@ public static class CompilationAssert
 		IEnumerable<string> sources,
 		IEnumerable<string> files,
 		bool injectImplicitUsings = true,
-		bool includeSqlite = false)
+		bool includeSqlite = false,
+		bool includePostgres = false)
 	{
 		var syntaxTrees = sources
 			.Append(injectImplicitUsings ? ImplicitUsings : string.Empty)
@@ -58,16 +59,20 @@ public static class CompilationAssert
 			MetadataReference.CreateFromFile(typeof(ServiceCollection).Assembly.Location),
 			// SwapS the provider assembly pair based on which dialect this generated output
 			// targets: a SqlServer-targeted context's generated code names SqlServerDataContext
-			// and never Microsoft.Data.Sqlite (and vice versa) — referencing BOTH provider
-			// packages unconditionally would make dialect resolution ambiguous (SP0039) for
-			// every existing (no [SQuiLDialect] attribute) SqlServer test, so this stays a
+			// and never Microsoft.Data.Sqlite/Npgsql (and vice versa) — referencing more than one
+			// provider package unconditionally would make dialect resolution ambiguous (SP0039)
+			// for every existing (no [SQuiLDialect] attribute) SqlServer test, so this stays a
 			// switch, not an addition.
 			includeSqlite
 				? MetadataReference.CreateFromFile(typeof(SqliteDataContext).Assembly.Location)
-				: MetadataReference.CreateFromFile(typeof(SqlServerDataContext).Assembly.Location),
+				: includePostgres
+					? MetadataReference.CreateFromFile(typeof(PostgresDataContext).Assembly.Location)
+					: MetadataReference.CreateFromFile(typeof(SqlServerDataContext).Assembly.Location),
 			.. includeSqlite
 				? [MetadataReference.CreateFromFile(typeof(Microsoft.Data.Sqlite.SqliteConnection).Assembly.Location)]
-				: Array.Empty<MetadataReference>(),
+				: includePostgres
+					? [MetadataReference.CreateFromFile(typeof(Npgsql.NpgsqlConnection).Assembly.Location)]
+					: Array.Empty<MetadataReference>(),
 		];
 
 		var additionalFiles = files
