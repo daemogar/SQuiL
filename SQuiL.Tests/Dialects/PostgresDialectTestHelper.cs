@@ -30,4 +30,14 @@ internal static class PostgresDialectTestHelper
 		return blocks.First(b => (b.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT
 			&& b.CodeType != CodeType.OUTPUT_VARIABLE);
 	}
+
+	/// <summary>Parses SQL and returns the first INPUT table/object block (mirrors
+	/// <c>SqliteDialectTestHelper.ParseSingleInputBlock</c>).</summary>
+	public static CodeBlock ParseSingleInputBlock(string sql)
+	{
+		var dialect = new PostgresDialect();
+		var blocks = SQuiLParser.ParseTokens(SQuiLTokenizer.GetTokens(sql, dialect), dialect);
+		return blocks.First(b => (b.CodeType & CodeType.INPUT) == CodeType.INPUT
+			&& b.CodeType != CodeType.INPUT_ARGUMENT);
+	}
 }

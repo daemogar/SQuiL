@@ -5,9 +5,9 @@ namespace SQuiL.Dialects;
 
 /// <summary>
 /// The PostgreSQL dialect (via Npgsql): the source of every PostgreSQL-specific string the generator
-/// bakes into emitted C# and SQL. A temp-table-header dialect (near-twin of SQLite). Type-map,
-/// temp-table, and shred members are filled in Tasks 4-6; they throw until then so the registry
-/// compiles from first registration.
+/// bakes into emitted C# and SQL. A temp-table-header dialect (near-twin of SQLite). Type-map
+/// (Task 4), temp-table header (Task 5), and shred (Task 6) members are all implemented — no
+/// member throws <see cref="System.NotImplementedException"/> any more.
 /// </summary>
 public class PostgresDialect : ITempTableHeaderDialect
 {
@@ -84,8 +84,61 @@ public class PostgresDialect : ITempTableHeaderDialect
 			_ => "Text",
 		});
 
+	/// <summary>
+	/// Returns the JSON parameter name for the given input block:
+	/// <c>@__json_Params_&lt;Name&gt;</c> for a table, <c>@__json_Param_&lt;Name&gt;</c> for an object.
+	/// Identical shape to <c>SqlServerDialect.ShredParamName</c>/<c>SqliteDialect.ShredParamName</c>
+	/// so the emitter's call sites stay dialect-agnostic.
+	/// </summary>
 	public string ShredParamName(SQuiL.SourceGenerator.Parser.CodeBlock block)
-		=> throw new System.NotImplementedException();
+		=> $"@__json_Param{(block.IsTable ? "s" : "")}_{block.Name}";
+
+	/// <summary>
+	/// Builds the PostgreSQL <c>Insert Into … Select … From json_to_recordset(…) AS x(…);</c>
+	/// shred — the PG analogue of SQL Server's <c>OpenJson … With (…)</c> shred (typed AS-column-
+	/// list, unlike SQLite's untyped <c>json_each</c>). The insert target and insert column list
+	/// are BARE (Option B; PG folds unquoted identifiers to lowercase, matching the bare DDL this
+	/// dialect's <see cref="TableVariableDeclaration"/> emits). The <c>json_to_recordset</c>
+	/// AS-column-list is the one place this dialect QUOTES identifiers — it must match the
+	/// PascalCase JSON keys the shared <c>SQuiLJson</c> serializer emits, since PG folds unquoted
+	/// identifiers to lowercase and would otherwise fail to bind the recordset columns.
+	/// <para>
+	/// Binary columns: the shared <c>SQuiLBinaryJsonConverter</c> (used by <c>SQuiLJson.Serialize</c>,
+	/// which <c>PostgresDataContext.AddJsonParameter</c> calls) serialises <see cref="byte"/>[] as
+	/// bare uppercase hex, so the column is declared <c>text</c> in the AS-list and decoded back to
+	/// <c>bytea</c> with <c>decode(x."Col", 'hex')</c> — the PG mirror of SQL Server's
+	/// <c>Convert(varbinary(N), …, 2)</c> and SQLite's <c>unhex(…)</c>.
+	/// </para>
+	/// </summary>
 	public string ShredStatement(SQuiL.SourceGenerator.Parser.CodeBlock block)
-		=> throw new System.NotImplementedException();
+	{
+		var name = block.TempTableName ?? block.Name;
+		var cols = block.Properties;
+
+		var insertList = string.Join(", ", cols.Select(p => p.Identifier.Value));       // bare (Option B)
+		var selectList = string.Join(", ", cols.Select(SelectColumn));                   // x."Col" / decode(x."Col",'hex')
+		var recordList = string.Join($",{'\n'}\t", cols.Select(RecordColumn));           // "Col" <pgtype>  (quoted)
+
+		return $"""
+			Insert Into {name}({insertList})
+			Select {selectList}
+			From json_to_recordset({ShredParamName(block)}) AS x(
+				{recordList});
+			""".Replace("\r\n", "\n");
+
+		static string SelectColumn(SQuiL.SourceGenerator.Parser.CodeItem p)
+			=> IsBinary(p)
+				? $"decode(x.\"{p.Identifier.Value}\", 'hex')"
+				: $"x.\"{p.Identifier.Value}\"";
+
+		static string RecordColumn(SQuiL.SourceGenerator.Parser.CodeItem p)
+			=> IsBinary(p)
+				? $"\"{p.Identifier.Value}\" text"                      // hex string arrives as text
+				: $"\"{p.Identifier.Value}\" {p.Type.Original}";        // author's PG type verbatim
+
+		static bool IsBinary(SQuiL.SourceGenerator.Parser.CodeItem p)
+			=> p.Type.Type is SQuiL.Tokenizer.TokenType.TYPE_VARBINARY
+				or SQuiL.Tokenizer.TokenType.TYPE_BINARY
+				or SQuiL.Tokenizer.TokenType.TYPE_IMAGE;
+	}
 }
