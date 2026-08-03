@@ -8,7 +8,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class DebugRollbackHoistsDebugAndGatesCommitDataContext : SQuiLBaseDataContext
+partial class DebugRollbackHoistsDebugAndGatesCommitDataContext : SqlServerDataContext
 {
     public DebugRollbackHoistsDebugAndGatesCommitDataContext(IConfiguration Configuration) : base(Configuration) { }
 }

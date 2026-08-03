@@ -25,6 +25,12 @@ public static class SQuiLMutationScanner
     // An @-prefixed variable target at the position immediately following the keyword whitespace.
     static readonly Regex AtTarget = new(@"^@[A-Za-z_]\w*", RegexOptions.Compiled);
 
+    // A bare identifier target at the position immediately following the keyword whitespace.
+    // Used to recognise a DML target that names one of the query's OWN declared SQLite temp
+    // tables (Create Temp Table Returns_X / Params_X / Return_X). SQLite has no @-prefix, so the
+    // AtTarget skip cannot catch it — this is the SQLite analogue of T-SQL's @table-variable skip.
+    static readonly Regex BareTarget = new(@"^[A-Za-z_]\w*", RegexOptions.Compiled);
+
     static readonly Regex SelectInto = new(
         @"\bSelect\b[\s\S]*?\bInto\s+",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -33,10 +39,21 @@ public static class SQuiLMutationScanner
         @"\b(Exec|Execute)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    public static MutationScanResult Scan(string body)
+    /// <param name="declaredTables">
+    /// The query's OWN declared SQLite temp-table names (the full, unstripped physical names —
+    /// e.g. <c>Returns_Imported</c>, <c>Params_Person</c>, <c>Return_Total</c>). A DML statement
+    /// targeting one of these is NON-persistent — the SQLite analogue of a T-SQL @table-variable —
+    /// so it must not raise SP0023. <c>null</c>/empty (every SQL Server query) preserves the
+    /// original behaviour exactly.
+    /// </param>
+    public static MutationScanResult Scan(string body, IReadOnlyCollection<string>? declaredTables = null)
     {
         var masked = MaskNonCode(body);
         var hits = new List<MutationHit>();
+
+        var declared = declaredTables is { Count: > 0 }
+            ? new HashSet<string>(declaredTables, StringComparer.OrdinalIgnoreCase)
+            : null;
 
         foreach (Match m in Dml.Matches(masked))
         {
@@ -46,6 +63,10 @@ public static class SQuiLMutationScanner
             var originalAtTarget = targetPos < body.Length
                 && AtTarget.IsMatch(body.Substring(targetPos));
             if (originalAtTarget) continue;
+
+            // SQLite: a target that names one of the query's own declared temp tables is
+            // non-persistent (like a T-SQL @table-variable) → not a real-table mutation.
+            if (IsDeclaredTarget(body, targetPos, declared)) continue;
 
             // Normalise keyword: first word of "kw" group, title-cased
             var kwRaw = m.Groups["kw"].Value;
@@ -70,7 +91,7 @@ public static class SQuiLMutationScanner
             var targetPos = m.Index + m.Length;
             var originalAtTarget = targetPos < body.Length
                 && AtTarget.IsMatch(body.Substring(targetPos));
-            if (!originalAtTarget)
+            if (!originalAtTarget && !IsDeclaredTarget(body, targetPos, declared))
                 hits.Add(new("SelectInto", m.Index, m.Length));
         }
 
@@ -78,6 +99,17 @@ public static class SQuiLMutationScanner
             hits.Add(new("Exec", m.Index, m.Length));
 
         return new(hits.Count == 0, BeginTran.IsMatch(masked), hits);
+    }
+
+    /// <summary>
+    /// <c>true</c> when the bare identifier at <paramref name="targetPos"/> in the original SQL
+    /// names one of the query's own declared SQLite temp tables (<paramref name="declared"/>).
+    /// </summary>
+    private static bool IsDeclaredTarget(string body, int targetPos, HashSet<string>? declared)
+    {
+        if (declared is null || targetPos >= body.Length) return false;
+        var match = BareTarget.Match(body.Substring(targetPos));
+        return match.Success && declared.Contains(match.Value);
     }
 
     /// <summary>

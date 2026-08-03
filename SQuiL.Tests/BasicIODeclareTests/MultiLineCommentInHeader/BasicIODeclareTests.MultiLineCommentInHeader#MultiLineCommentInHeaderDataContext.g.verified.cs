@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class MultiLineCommentInHeaderDataContext : SQuiLBaseDataContext
+partial class MultiLineCommentInHeaderDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessMultiLineCommentInHeaderAsync(
 		MultiLineCommentInHeaderRequest request,
@@ -41,9 +41,9 @@ partial class MultiLineCommentInHeaderDataContext : SQuiLBaseDataContext
 			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

@@ -32,6 +32,14 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
     private static readonly Regex DeclareEmptyTail   = new(@"^\s*DECLARE\s+$",      RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex DeclareTypePosition = new(@"DECLARE\s+@\w+\s+$",  RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex AsTypePosition     = new(@"\bAS\s+$",             RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    // Temp-table-family (SQLite, PostgreSQL) column-type position: caret right after a column
+    // NAME (+ whitespace) inside the still-open `(` of a `Create Temp Table <name> ( … )`
+    // declaration — the first column (after `(`) or a later one (after `,`). Neither dialect has
+    // a `Declare @x <type>` / `AS <type>` position, so this is where an author types a column
+    // type. Deliberately does NOT match once a type is already typed, after the paren closes, or
+    // at `AS `/`Declare @x ` positions.
+    // Port: isSqliteColumnTypePosition in completionData.ts — change one, change all.
+    private static readonly Regex SqliteColumnTypePosition = new(@"Create\s+Temp\s+Table\s+\w+\s*\((?:\s*|[^)]*,\s*)\w+\s+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex WithOpenParen      = new(@"WITH\s*\($",           RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex UseLine            = new(@"^\s*USE\s+",           RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex BlankOrSqPrefix    = new(@"^\s*(sq)?$",           RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -62,6 +70,7 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
         string textBefore = lineText.Substring(0, Math.Min(columnIndex, lineText.Length));
         string textAfter  = columnIndex < lineText.Length ? lineText.Substring(columnIndex) : "";
         bool inHeader = IsInHeader(snapshot, line.LineNumber);
+        EditorDialect dialect = ResolveDialect(_buffer);
 
         // Editing inside an existing @word? Suppress so changing Param↔Params
         // is a plain text edit, not a hijacked autocomplete (matches VS Code).
@@ -85,6 +94,13 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
             // body-context completions are SSMS's job.
             if (atMatch.Success && !DeclareLine.IsMatch(textBefore))
                 AddVariablesDefinedAbove(snapshot, line.LineNumber, completions);
+            else if (SQuiLDialect.IsTempTableDialect(dialect) && SqliteColumnTypePosition.IsMatch(textBefore))
+                // Temp-table family (SQLite, PostgreSQL) ONLY: native SSMS IntelliSense has no
+                // types for these dialects, so SQuiL supplies them at the Create Temp Table
+                // column-type position.  (SqlServer defers to native — unchanged.)  These dialects
+                // have no USE line, so this body branch is effectively unreachable for them; the
+                // gate keeps the dialects parallel.
+                AddSqlTypes(completions, dialect);
         }
         else
         {
@@ -97,22 +113,32 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
                 // user is sitting under a `Declare @Params_X table (...)`
                 // and types @.
                 AddSampleDataCompletion(snapshot, line.LineNumber, completions);
-                AddHeaderVariables(completions, prependDeclare: !declareOnLine);
+                AddHeaderVariables(completions, prependDeclare: !declareOnLine, dialect);
                 AddVariablesDefinedAbove(snapshot, line.LineNumber, completions);
             }
             else if (DeclareEmptyTail.IsMatch(textBefore))
             {
-                AddHeaderVariables(completions, prependDeclare: false);
+                AddHeaderVariables(completions, prependDeclare: false, dialect);
             }
             else if (BlankOrSqPrefix.IsMatch(textBefore))
             {
-                AddFileSnippets(completions);
+                AddFileSnippets(completions, dialect);
             }
-            // Other header contexts (Declare @x | typing, AS, WITH() ): defer
-            // to SSMS's native SQL completion for types and table hints —
-            // that list is larger and more authoritative than ours, and
-            // matches the user's expectation of "augmentation, not
-            // replacement".
+            else if (SQuiLDialect.IsTempTableDialect(dialect) && SqliteColumnTypePosition.IsMatch(textBefore))
+            {
+                // Temp-table family (SQLite, PostgreSQL) ONLY: offer these dialects' types at the
+                // Create Temp Table column-type position, where SSMS's native SQL completion has
+                // none.  The T-SQL `Declare @x `/`AS ` positions do NOT drive their type
+                // completion — an author never writes `Declare @x`, and in a USE-less file the
+                // whole file reads as header, so `AS ` is an alias position, not a type position.
+                // For SqlServer every position still defers to native (unchanged).
+                AddSqlTypes(completions, dialect);
+            }
+            // Other header contexts (Declare @x | typing, AS, WITH() ): under
+            // the SqlServer dialect, defer to SSMS's native SQL completion for
+            // types and table hints — that list is larger and more
+            // authoritative than ours, and matches the user's expectation of
+            // "augmentation, not replacement".
         }
 
         if (completions.Count == 0) return;
@@ -144,6 +170,22 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
     }
 
     /// <summary>
+    /// Resolve the SQuiL editor dialect (SQL Server vs SQLite) for the buffer's
+    /// on-disk file, using the same <c>ITextDocument</c> lookup as
+    /// <c>SQuiLQuickInfoSource</c> / <c>SQuiLErrorTagger</c> and
+    /// <c>SQuiLContextResolver.ResolveDialect</c> (.csproj PackageReference
+    /// discovery). Falls back to <see cref="EditorDialect.SqlServer"/> when the
+    /// buffer has no on-disk path (e.g. an unsaved/preview buffer) — mirrors
+    /// completionProvider.ts's <c>resolveProjectDialect(document.uri.fsPath, …)</c>.
+    /// </summary>
+    private static EditorDialect ResolveDialect(ITextBuffer buffer)
+    {
+        if (buffer.Properties.TryGetProperty(typeof(ITextDocument), out ITextDocument doc) && doc.FilePath is { Length: > 0 } path)
+            return SQuiLContextResolver.ResolveDialect(path);
+        return EditorDialect.SqlServer;
+    }
+
+    /// <summary>
     /// Build the tracking span that the completion session will replace.
     /// When the user typed <c>@</c>, replace from the <c>@</c> onward.
     /// Otherwise replace the trailing identifier (or just insert at caret).
@@ -169,14 +211,16 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
 
     // ── Completion adders ─────────────────────────────────────────────
 
-    private void AddHeaderVariables(List<EditorCompletion> list, bool prependDeclare)
+    private void AddHeaderVariables(List<EditorCompletion> list, bool prependDeclare, EditorDialect dialect)
     {
         var glyph = _provider.GlyphService.GetGlyph(
             StandardGlyphGroup.GlyphGroupVariable, StandardGlyphItem.GlyphItemPublic);
 
-        foreach (var v in SQuiLCompletionData.HeaderVars)
+        foreach (var v in SQuiLCompletionData.HeaderVarsFor(dialect))
         {
-            string insertion = prependDeclare
+            // Temp-table-family (SQLite, PostgreSQL) header declarations are full
+            // `Create Temp Table …` statements — never prefixed with the T-SQL `Declare` keyword.
+            string insertion = !SQuiLDialect.IsTempTableDialect(dialect) && prependDeclare
                 ? $"Declare {v.Insertion};"
                 : $"{v.Insertion};";
 
@@ -212,19 +256,32 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
         }
     }
 
-    private void AddSqlTypes(List<EditorCompletion> list)
+    private void AddSqlTypes(List<EditorCompletion> list) => AddSqlTypes(list, EditorDialect.SqlServer);
+
+    /// <summary>
+    /// Dialect-gated overload: offers <see cref="SQuiLCompletionData.SqliteTypes"/> or
+    /// <see cref="SQuiLCompletionData.PostgresTypes"/> instead of
+    /// <see cref="SQuiLCompletionData.SqlTypes"/> when the owning .csproj resolves to
+    /// <see cref="EditorDialect.Sqlite"/> or <see cref="EditorDialect.Postgres"/>. Mirrors
+    /// <c>typeCompletions(dialect)</c> in <c>completionProvider.ts</c>.
+    /// </summary>
+    private void AddSqlTypes(List<EditorCompletion> list, EditorDialect dialect)
     {
         var glyph = _provider.GlyphService.GetGlyph(
             StandardGlyphGroup.GlyphGroupValueType, StandardGlyphItem.GlyphItemPublic);
 
-        foreach (string t in SQuiLCompletionData.SqlTypes)
+        string description = dialect == EditorDialect.Sqlite ? "SQLite type"
+            : dialect == EditorDialect.Postgres ? "PostgreSQL type"
+            : "SQL type";
+
+        foreach (string t in SQuiLCompletionData.TypesFor(dialect))
         {
             list.Add(new EditorCompletion(
                 displayText:        t,
                 insertionText:      t,
-                description:        "SQL type",
+                description:        description,
                 iconSource:         glyph,
-                iconAutomationText: "SQL type"));
+                iconAutomationText: description));
         }
 
         list.Add(new EditorCompletion(
@@ -251,14 +308,14 @@ internal sealed class SQuiLCompletionSource : ICompletionSource
         }
     }
 
-    private void AddFileSnippets(List<EditorCompletion> list)
+    private void AddFileSnippets(List<EditorCompletion> list, EditorDialect dialect)
     {
         // StandardGlyphGroup has no "snippet" value — Macro reads as a stamped
         // template, which is the closest semantic match in the built-in set.
         var glyph = _provider.GlyphService.GetGlyph(
             StandardGlyphGroup.GlyphGroupMacro, StandardGlyphItem.GlyphItemPublic);
 
-        foreach (var s in SQuiLCompletionData.FileSnippets)
+        foreach (var s in SQuiLCompletionData.FileSnippetsFor(dialect))
         {
             list.Add(new EditorCompletion(
                 displayText:        s.Label,

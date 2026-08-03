@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import { parseSQuiL, SQuiLDiagnostic, lintShapeCollision, lintUnmatchedSelect } from '../squil/parser';
+import { parseSQuiL, SQuiLDiagnostic, lintShapeCollision, lintUnmatchedSelect, sqliteBodyStartLine, isTempTableDialect } from '../squil/parser';
 import { nullabilityHints } from '../squil/nullabilityHints';
 import { shapeHints } from '../squil/shapeHints';
 import { transactionHints } from '../squil/transactionHints';
 import { nestedObjectHints } from '../squil/nestedObjectHints';
-import { resolveContext } from '../squil/contextResolver';
+import { resolveContext, resolveProjectDialect } from '../squil/contextResolver';
 import { scanMutations } from '../squil/mutationScanner';
 
 export class SQuiLDiagnosticsProvider {
@@ -20,7 +20,16 @@ export class SQuiLDiagnosticsProvider {
     if (document.languageId !== 'squil') return;
 
     const text = document.getText();
-    const parsed = parseSQuiL(text);
+    // Real-fs callbacks (diagnosticsProvider runs in the extension host with real disk
+    // access), used both for dialect discovery and the SP0027/SP0028 context resolver.
+    const fsReadFile = (p: string): string | undefined => {
+      try { return fs.readFileSync(p, 'utf-8'); } catch { return undefined; }
+    };
+    const fsListDir = (d: string): string[] => {
+      try { return fs.readdirSync(d).map(String); } catch { return []; }
+    };
+    const dialect = resolveProjectDialect(document.uri.fsPath, fsReadFile, fsListDir);
+    const parsed = parseSQuiL(text, dialect);
     const vsDiags: vscode.Diagnostic[] = [];
 
     for (const d of parsed.diagnostics) {
@@ -84,12 +93,6 @@ export class SQuiLDiagnosticsProvider {
     // We use real fs here (diagnosticsProvider runs in the extension host with
     // real disk access). The resolver is injected with real-fs callbacks.
     const squilPath = document.uri.fsPath;
-    const fsReadFile = (p: string): string | undefined => {
-      try { return fs.readFileSync(p, 'utf-8'); } catch { return undefined; }
-    };
-    const fsListDir = (d: string): string[] => {
-      try { return fs.readdirSync(d).map(String); } catch { return []; }
-    };
     const ctx = resolveContext(squilPath, fsReadFile, fsListDir);
     if (!ctx.found) {
       const range0 = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
@@ -123,17 +126,29 @@ export class SQuiLDiagnosticsProvider {
     // mutation scanner (which body is read-only / has own Begin Tran).
     // Port of the build-time emit in FileGenerator.cs — change one, change all.
     if (ctx.found) {
-      // Extract the body text: everything after the USE statement line.
-      // parsed.databaseLine is 0-based; body starts on the NEXT line.
-      const databaseLine = parsed.databaseLine ?? -1;
+      // Extract the body text (dialect-aware). For T-SQL the body starts on the line
+      // AFTER the USE statement (parsed.databaseLine + 1). SQLite files have NO USE — their
+      // header is Create-Temp-Table declarations — so databaseLine is undefined there; the
+      // body begins after the leading declarations (and any param-table population), as
+      // computed by sqliteBodyStartLine. Without this, the SQLite body would be empty, making
+      // the SP0025 SQLite Begin regex dead and drawing a spurious SP0024 on real mutations.
+      // PostgreSQL shares the same USE-less Create-Temp-Table header shape (temp-table family),
+      // so it takes the same body-boundary path.
+      let bodyStartLine: number;
+      if (isTempTableDialect(dialect)) {
+        bodyStartLine = sqliteBodyStartLine(text, parsed);
+      } else {
+        const databaseLine = parsed.databaseLine ?? -1;
+        bodyStartLine = databaseLine >= 0 ? databaseLine + 1 : -1;
+      }
       let bodyText = '';
       let bodyStartOffset = 0;
-      if (databaseLine >= 0 && databaseLine + 1 < document.lineCount) {
-        bodyStartOffset = document.offsetAt(new vscode.Position(databaseLine + 1, 0));
+      if (bodyStartLine >= 0 && bodyStartLine < document.lineCount) {
+        bodyStartOffset = document.offsetAt(new vscode.Position(bodyStartLine, 0));
         bodyText = text.slice(bodyStartOffset);
       }
 
-      const scan = scanMutations(bodyText);
+      const scan = scanMutations(bodyText, dialect);
 
       if (!ctx.enabled) {
         // [SQuiLQuery] or [SQuiLQueryTransaction(enabled:false)] — warn if mutation detected.
@@ -167,8 +182,14 @@ export class SQuiLDiagnosticsProvider {
           vsDiags.push(d);
         }
         if (scan.hasOwnTransaction) {
-          // Range on the Begin Tran itself, if we can find it in the body.
-          const btMatch = bodyText.match(/\bBegin\s+Tran(?:saction)?\b/i);
+          // Range on the Begin Tran itself, if we can find it in the body. The temp-table
+          // dialect family (SQLite, PostgreSQL) also starts a transaction with a bare `BEGIN`
+          // (or BEGIN TRANSACTION), so widen the range regex there.
+          const btMatch = bodyText.match(
+            isTempTableDialect(dialect)
+              ? /\bBegin(?:\s+Transaction)?\b/i
+              : /\bBegin\s+Tran(?:saction)?\b/i
+          );
           const btRange = btMatch && btMatch.index !== undefined
             ? new vscode.Range(
                 document.positionAt(bodyStartOffset + btMatch.index),

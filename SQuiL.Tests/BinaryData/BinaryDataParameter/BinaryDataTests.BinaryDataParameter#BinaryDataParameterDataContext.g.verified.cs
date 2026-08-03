@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class BinaryDataParameterDataContext : SQuiLBaseDataContext
+partial class BinaryDataParameterDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<BinaryDataParameterResponse>> ProcessBinaryDataParameterAsync(
 		BinaryDataParameterRequest request,
@@ -79,7 +79,7 @@ partial class BinaryDataParameterDataContext : SQuiLBaseDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isBinaryTable) errors.Add(new(51001, 12, 1, 84, "BinaryTable", "Expected return table `BinaryTable`"));

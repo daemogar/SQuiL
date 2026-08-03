@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class FullVariableDataContext : SQuiLBaseDataContext
+partial class FullVariableDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<FullVariableResponse>> ProcessFullVariableAsync(
 		FullVariableRequest request,
@@ -119,7 +119,7 @@ partial class FullVariableDataContext : SQuiLBaseDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isScaler) errors.Add(new(51001, 12, 1, 124, "Scaler", "Expected return scaler `Scaler`"));

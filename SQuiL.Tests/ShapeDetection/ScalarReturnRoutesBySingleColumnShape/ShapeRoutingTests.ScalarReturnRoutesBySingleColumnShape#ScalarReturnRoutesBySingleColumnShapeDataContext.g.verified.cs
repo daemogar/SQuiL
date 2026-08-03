@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ScalarReturnRoutesBySingleColumnShapeDataContext : SQuiLBaseDataContext
+partial class ScalarReturnRoutesBySingleColumnShapeDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<ScalarReturnRoutesBySingleColumnShapeResponse>> ProcessScalarReturnRoutesBySingleColumnShapeAsync(
 		ScalarReturnRoutesBySingleColumnShapeRequest request,
@@ -67,7 +67,7 @@ partial class ScalarReturnRoutesBySingleColumnShapeDataContext : SQuiLBaseDataCo
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isCount) errors.Add(new(51001, 12, 1, 72, "Count", "Expected return scaler `Count`"));

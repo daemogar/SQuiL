@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class IdenticalOutputSignaturesCollideSP0030DataContext : SQuiLBaseDataContext
+partial class IdenticalOutputSignaturesCollideSP0030DataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<IdenticalOutputSignaturesCollideSP0030Response>> ProcessIdenticalOutputSignaturesCollideSP0030Async(
 		IdenticalOutputSignaturesCollideSP0030Request request,
@@ -100,7 +100,7 @@ partial class IdenticalOutputSignaturesCollideSP0030DataContext : SQuiLBaseDataC
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isActive) errors.Add(new(51001, 12, 1, 105, "Active", "Expected return table `Active`"));

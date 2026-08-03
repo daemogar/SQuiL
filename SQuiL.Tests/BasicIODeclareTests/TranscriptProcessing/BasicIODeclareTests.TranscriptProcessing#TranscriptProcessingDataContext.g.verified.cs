@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TranscriptProcessingDataContext : SQuiLBaseDataContext
+partial class TranscriptProcessingDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessTranscriptProcessingAsync(
 		TranscriptProcessingRequest request,
@@ -44,9 +44,9 @@ partial class TranscriptProcessingDataContext : SQuiLBaseDataContext
 			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string inputStudent(List<DbParameter> parameters)

@@ -8,7 +8,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class PositionalEnabledFalse_NoTransactionInjectedDataContext : SQuiLBaseDataContext
+partial class PositionalEnabledFalse_NoTransactionInjectedDataContext : SqlServerDataContext
 {
     public PositionalEnabledFalse_NoTransactionInjectedDataContext(IConfiguration Configuration) : base(Configuration) { }
 }

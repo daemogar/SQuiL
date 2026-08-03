@@ -16,7 +16,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class EmbeddedObjectChildDataContext : SQuiLBaseDataContext
+partial class EmbeddedObjectChildDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<EmbeddedObjectChildResponse>> ProcessEmbeddedObjectChildAsync(
 		EmbeddedObjectChildRequest request,
@@ -122,7 +122,7 @@ partial class EmbeddedObjectChildDataContext : SQuiLBaseDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isTranscript) errors.Add(new(51001, 12, 1, 127, "Transcript", "Expected return object `Transcript`"));

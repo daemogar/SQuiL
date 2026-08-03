@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class LengthOnlyDifferenceStillCollidesSP0030DataContext : SQuiLBaseDataContext
+partial class LengthOnlyDifferenceStillCollidesSP0030DataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<LengthOnlyDifferenceStillCollidesSP0030Response>> ProcessLengthOnlyDifferenceStillCollidesSP0030Async(
 		LengthOnlyDifferenceStillCollidesSP0030Request request,
@@ -94,7 +94,7 @@ partial class LengthOnlyDifferenceStillCollidesSP0030DataContext : SQuiLBaseData
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isA) errors.Add(new(51001, 12, 1, 99, "A", "Expected return table `A`"));

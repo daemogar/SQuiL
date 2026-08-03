@@ -19,7 +19,7 @@ public class UndeclaredVariableTests
 			namespace TestCase;
 
 			[{{QueryAttributeName}}(QueryFiles.{{name}})]
-			public partial class {{name}}DataContext(IConfiguration Configuration) : {{BaseDataContextClassName}}(Configuration)
+			public partial class {{name}}DataContext(IConfiguration Configuration) : SqlServerDataContext(Configuration)
 			{
 			}
 			""";

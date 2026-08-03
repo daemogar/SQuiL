@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class XmlAndSmallDateTimeMapToStringAndDateTimeDataContext : SQuiLBaseDataContext
+partial class XmlAndSmallDateTimeMapToStringAndDateTimeDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessXmlAndSmallDateTimeMapToStringAndDateTimeAsync(
 		XmlAndSmallDateTimeMapToStringAndDateTimeRequest request,
@@ -42,9 +42,9 @@ partial class XmlAndSmallDateTimeMapToStringAndDateTimeDataContext : SQuiLBaseDa
 			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>latest</LangVersion>
+		<RootNamespace>SQuiL</RootNamespace>
+		<AssemblyName>SQuiL.SqlServer</AssemblyName>
+		<PackageId>SQuiL.SqlServer</PackageId>
+		<Authors>Dæmogar</Authors>
+		<Description>SQL Server provider for SQuiL — the ISqlDialect implementation and ADO.NET plumbing that let SQuiL-generated data contexts execute against SQL Server. Requires SQuiL.Core.</Description>
+		<PackageTags>.NET dotnet core library reusable generic server serverside SQL ORM SqlServer</PackageTags>
+		<PackageProjectUrl>https://github.com/daemogar/SQuiL</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/daemogar/SQuiL</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+		<Copyright>Copyright © 2021–2026 Dæmogar</Copyright>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\README.md" Pack="true" PackagePath="\" />
+		<None Include="..\LICENSE.txt" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<!--
+	Do NOT set PrivateAssets="all" on this ProjectReference — SQuiL.Core is a
+	packable project (PackageId set), so packing this project converts the
+	reference into a REAL NuGet <dependency id="SQuiL.Core"> on the consumer
+	side (default NuGet SDK behavior for a ProjectReference to a packable
+	project), so installing SQuiL.SqlServer alone still pulls in SQuiL.Core's
+	runtime DLL. NOTE (verified empirically, 2026-07-20): NuGet does NOT flow
+	analyzers/ package content through a transitive dependency — only a
+	DIRECT PackageReference activates a package's analyzers (confirmed against
+	Microsoft.Extensions.Logging → Logging.Abstractions' LoggerMessage
+	generator too, so this is a general NuGet/SDK behavior, not specific to
+	our packaging). Consumers who want SQuiL codegen must reference SQuiL.Core
+	directly IN ADDITION to SQuiL.SqlServer — same pattern as EF Core's
+	provider packages requiring the main package alongside them.
+	-->
+	<ItemGroup>
+		<ProjectReference Include="..\SQuiL.Core\SQuiL.Core.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Data.SqlClient" />
+	</ItemGroup>
+
+</Project>

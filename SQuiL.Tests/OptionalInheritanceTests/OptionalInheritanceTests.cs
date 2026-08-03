@@ -5,7 +5,7 @@ using static Microsoft.CodeAnalysis.SourceGeneratorHelper;
 public class OptionalInheritanceTests
 {
 	// Zero-config context: no base, no constructor. The generator emits
-	// <Namespace>.<Ctx>.Constructor.g.cs supplying ': SQuiLBaseDataContext' + an IConfiguration ctor.
+	// <Namespace>.<Ctx>.Constructor.g.cs supplying ': SqlServerDataContext' + an IConfiguration ctor.
 	[Fact]
 	public Task ZeroConfigContextEmitsConstructor()
 		=> TestHelper.Verify([$$"""
@@ -59,7 +59,7 @@ public class OptionalInheritanceTests
 			namespace TestCase;
 
 			[{{QueryAttributeName}}(QueryFiles.PrimaryCtor)]
-			public partial class PrimaryCtorDataContext(IConfiguration Configuration) : {{BaseDataContextClassName}}(Configuration)
+			public partial class PrimaryCtorDataContext(IConfiguration Configuration) : SqlServerDataContext(Configuration)
 			{
 			}
 			"""], ["""

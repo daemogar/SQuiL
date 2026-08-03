@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class BinaryListUsesHexConvertDataContext : SQuiLBaseDataContext
+partial class BinaryListUsesHexConvertDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessBinaryListUsesHexConvertAsync(
 		BinaryListUsesHexConvertRequest request,
@@ -40,9 +40,9 @@ partial class BinaryListUsesHexConvertDataContext : SQuiLBaseDataContext
 			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string inputBlobs(List<DbParameter> parameters)

@@ -8,7 +8,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ReadOnlyUnderTransactionWarnsSP0024DataContext : SQuiLBaseDataContext
+partial class ReadOnlyUnderTransactionWarnsSP0024DataContext : SqlServerDataContext
 {
     public ReadOnlyUnderTransactionWarnsSP0024DataContext(IConfiguration Configuration) : base(Configuration) { }
 }

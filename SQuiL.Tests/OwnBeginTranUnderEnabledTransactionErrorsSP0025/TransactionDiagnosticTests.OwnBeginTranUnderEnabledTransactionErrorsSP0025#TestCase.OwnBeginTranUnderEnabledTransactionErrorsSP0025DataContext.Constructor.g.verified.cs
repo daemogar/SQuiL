@@ -8,7 +8,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class OwnBeginTranUnderEnabledTransactionErrorsSP0025DataContext : SQuiLBaseDataContext
+partial class OwnBeginTranUnderEnabledTransactionErrorsSP0025DataContext : SqlServerDataContext
 {
     public OwnBeginTranUnderEnabledTransactionErrorsSP0025DataContext(IConfiguration Configuration) : base(Configuration) { }
 }

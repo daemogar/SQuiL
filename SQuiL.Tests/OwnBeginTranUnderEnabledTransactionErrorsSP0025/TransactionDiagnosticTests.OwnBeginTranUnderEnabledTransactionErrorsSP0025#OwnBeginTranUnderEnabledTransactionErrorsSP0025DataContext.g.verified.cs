@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class OwnBeginTranUnderEnabledTransactionErrorsSP0025DataContext : SQuiLBaseDataContext
+partial class OwnBeginTranUnderEnabledTransactionErrorsSP0025DataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessOwnBeginTranUnderEnabledTransactionErrorsSP0025Async(
 		OwnBeginTranUnderEnabledTransactionErrorsSP0025Request request,
@@ -45,10 +45,10 @@ partial class OwnBeginTranUnderEnabledTransactionErrorsSP0025DataContext : SQuiL
 			transaction.Commit();
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
 			transaction.Rollback();
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

@@ -1,5 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 
+using SQuiL.Dialects;
 using SQuiL.Generator;
 using SQuiL.Models;
 using SQuiL.Tokenizer;
@@ -13,8 +14,19 @@ namespace SQuiL.SourceGenerator.Parser;
 /// with the appropriate <see cref="CodeType"/> flags.
 /// </summary>
 /// <param name="Tokens">The token list to parse, typically returned by <see cref="SQuiLTokenizer.GetTokens()"/>.</param>
-public class SQuiLParser(List<Token> Tokens)
+/// <param name="Dialect">
+/// The dialect this token stream was tokenized under. Defaults to <see cref="SqlServerDialect"/>
+/// so every existing call site is unaffected. Only used for one thing: under
+/// <see cref="SqliteDialect"/>, a <c>Create Temp Table</c> declaration with EXACTLY ONE column
+/// and singular (object) cardinality (<c>Param_</c>/<c>Return_</c>, not the plural
+/// <c>Params_</c>/<c>Returns_</c> list form) collapses to a plain scalar block — SQLite's
+/// header grammar has no scalar-specific syntax, so a one-column table IS how a SQLite author
+/// spells a scalar declare.
+/// </param>
+public class SQuiLParser(List<Token> Tokens, ISqlDialect? Dialect = null)
 {
+	private ISqlDialect Dialect { get; } = Dialect ?? new SqlServerDialect();
+
 	private int Index { get; set; }
 
 	/// <summary>Advances the cursor by <paramref name="count"/> positions, skipping comment tokens.</summary>
@@ -41,8 +53,8 @@ public class SQuiLParser(List<Token> Tokens)
 	private List<CodeBlock>? CodeBlocks { get; set; }
 
 	/// <summary>Static entry point: parses <paramref name="tokens"/> and returns the resulting code blocks.</summary>
-	public static List<CodeBlock> ParseTokens(List<Token> tokens)
-		=> new SQuiLParser(tokens).ParseTokens();
+	public static List<CodeBlock> ParseTokens(List<Token> tokens, ISqlDialect? dialect = null)
+		=> new SQuiLParser(tokens, dialect).ParseTokens();
 
 	/// <summary>
 	/// Parses the token stream and returns all recognized <see cref="CodeBlock"/>s.
@@ -246,7 +258,15 @@ public class SQuiLParser(List<Token> Tokens)
 						new Token(type, offset, variable.Name)
 						{
 							Original = $"{variable.Token.Original} table"
-						});
+						})
+					{
+						// Temp-table-header dialects (SQLite/PostgreSQL) reference their temp tables
+						// verbatim by full name in the body, so the declaration must recreate them
+						// under the ORIGINAL (unstripped) name. Left null for SQL Server (which
+						// carries the full name via DatabaseType.Original) so those blocks — and
+						// their record equality / snapshots — are unchanged.
+						TempTableName = Dialect is ITempTableHeaderDialect ? variable.Token.Original : null
+					};
 
 					do
 					{
@@ -271,6 +291,44 @@ public class SQuiLParser(List<Token> Tokens)
 					while (Current.Type == TokenType.SYMBOL_COMMA);
 
 					Expect(TokenType.SYMBOL_RPREN);
+
+					// Temp-table-header model (Task 5/2): a temp-table-header dialect's
+					// `Create Temp Table` grammar has no scalar-specific spelling — every
+					// declaration is syntactically a table. A SINGULAR (object-cardinality)
+					// declaration with exactly one column is how such a dialect's author spells a
+					// scalar declare, so collapse it to the same INPUT_ARGUMENT/OUTPUT_VARIABLE
+					// scalar CodeBlock the ordinary `Declare @Param_X <type>` path produces. The
+					// PLURAL (list-cardinality) form never collapses — `@Params_X`/`@Returns_X`
+					// with one column is still a one-column list, exactly as it already is for
+					// SQL Server.
+					if (Dialect is ITempTableHeaderDialect
+						&& block.Properties.Count == 1
+						&& variable.Type is CodeType.INPUT_OBJECT or CodeType.OUTPUT_OBJECT)
+					{
+						var column = block.Properties[0];
+						var scalarType = variable.Type == CodeType.INPUT_OBJECT
+							? CodeType.INPUT_ARGUMENT
+							: CodeType.OUTPUT_VARIABLE;
+
+						CodeBlocks.Add(new(scalarType, column.Type with
+						{
+							Value = variable.Name,
+							Original = $"{variable.Token.Original} {column.Type.Original}"
+						}, variable.Name, column.DefaultValue)
+						{
+							Size = column.Type.Value,
+							IsSpecialDeclaration = variable.IsSpecialDeclaration,
+							IsNullableMarker = column.IsNullable ? true : null,
+							// Preserve the ORIGINAL (unstripped) temp-table name and single column so
+							// SqliteDialect.ScalarVariableDeclaration can regenerate a physically-matching
+							// `Create Temp Table` statement (temp-table-header dialects have no bare
+							// scalar declare).
+							TempScalarTableName = variable.Token.Original,
+							TempScalarColumn = column
+						});
+
+						return;
+					}
 
 					CodeBlocks.Add(block);
 				}

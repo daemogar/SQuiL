@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class FractionalNumericDefaultsDataContext : SQuiLBaseDataContext
+partial class FractionalNumericDefaultsDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessFractionalNumericDefaultsAsync(
 		FractionalNumericDefaultsRequest request,
@@ -42,9 +42,9 @@ partial class FractionalNumericDefaultsDataContext : SQuiLBaseDataContext
 			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

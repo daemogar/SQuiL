@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ColumnDefaultBeforeRequiredDataContext : SQuiLBaseDataContext
+partial class ColumnDefaultBeforeRequiredDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessColumnDefaultBeforeRequiredAsync(
 		ColumnDefaultBeforeRequiredRequest request,
@@ -40,9 +40,9 @@ partial class ColumnDefaultBeforeRequiredDataContext : SQuiLBaseDataContext
 			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string inputRows(List<DbParameter> parameters)

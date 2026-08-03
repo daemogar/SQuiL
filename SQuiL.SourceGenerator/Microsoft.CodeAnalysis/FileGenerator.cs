@@ -53,8 +53,23 @@ public class FileGenerator(
 	/// <param name="setting">The connection-string configuration key.</param>
 	/// <param name="text">The SQL source text to parse.</param>
 	/// <param name="records">All partial record declarations visible in the current compilation.</param>
+	/// <param name="dialect">The resolved dialect for this data context (selects the runtime base class and emitted SQL).</param>
+	/// <param name="registerTables">
+	/// <c>false</c> for a missing-provider (SP0038) context: its structural diagnostics
+	/// (SP0033/SP0034/SP0036/SP0037, mutation-scan warnings, etc.) still run and its
+	/// <see cref="SQuiLFileGeneration"/> is still built and queued, but its table-shaped
+	/// declarations must not register into the shared <see cref="TableMap"/> — the caller
+	/// (<c>SQuiLGenerator.cs</c>) already drops the queued generation from <see cref="Generations"/>
+	/// before <see cref="GenerateCode"/> runs, so this context's own emission is suppressed
+	/// separately; this flag closes the remaining gap where its tables would otherwise still
+	/// leak into (and could poison) a valid sibling context's shared table emission.
+	/// </param>
 	/// <returns>The new <see cref="SQuiLFileGeneration"/>, or <c>null</c> if parsing failed.</returns>
-	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records, string recordNamespace = "", bool enabled = false, bool debugRollback = true)
+	// `dialect` must be required (no `= null`, per the Phase 3A deferred cleanup); since it's the
+	// last parameter and C# requires optional parameters to precede required ones in a declaration
+	// list, recordNamespace/enabled/debugRollback also drop their defaults here — the sole call site
+	// (SQuiLGenerator.cs) already supplies every argument positionally, so this is behavior-neutral.
+	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records, string recordNamespace, bool enabled, bool debugRollback, SQuiL.Dialects.ISqlDialect dialect, int dialectId, bool registerTables)
 	{
 		try
 		{
@@ -73,14 +88,14 @@ public class FileGenerator(
 					Context.ReportUndeclaredVariable(method, finding);
 			}
 
-			var tokens = SQuiLTokenizer.GetTokens(sql);
-			var blocks = SQuiLParser.ParseTokens(tokens);
+			var tokens = SQuiLTokenizer.GetTokens(sql, dialect);
+			var blocks = SQuiLParser.ParseTokens(tokens, dialect);
 
 			foreach (var finding in SQuiLCardinalityValidator.Detect(blocks, sql))
 				Context.ReportCardinalityCollision(method, finding);
 
 			// Shape collision validation (SP0030)
-			foreach (var finding in SQuiLShapeCollisionValidator.Detect(blocks, sql))
+			foreach (var finding in SQuiLShapeCollisionValidator.Detect(blocks, sql, dialect))
 				Context.ReportShapeCollision(method, finding);
 
 			// Timestamp-input validation (SP0032)
@@ -90,6 +105,15 @@ public class FileGenerator(
 			// Scalar standalone null/not null marker validation (SP0037)
 			foreach (var finding in SQuiLScalarMarkerValidator.Detect(blocks, sql))
 				Context.ReportScalarNullabilityMarker(method, finding);
+
+			// Params-before-returns ordering (SP0040): every @Param/@Params (input) must be
+			// declared before any @Return/@Returns (output). Error for every temp-table-header
+			// dialect (SQLite, PostgreSQL — both declare positional temp tables rather than
+			// T-SQL variables, so an out-of-order declare actually breaks the emitted header),
+			// warning otherwise — the severity is dialect-dependent (like SP0016). Location.None
+			// because AdditionalText SQL files carry no Roslyn Location (see SP0017/SP0022).
+			if (SQuiLOrderingValidator.Detect(blocks, sql) is not null)
+				Context.ReportParamsBeforeReturns(method, dialect is SQuiL.Dialects.ITempTableHeaderDialect, Location.None);
 
 			if (ShowDebugMessages)
 			{
@@ -152,7 +176,7 @@ public class FileGenerator(
 				return default;
 			}
 
-			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, recordNamespace, method, blocks, TableMap, records, sql, keyGraph, inputGraph);
+			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, recordNamespace, method, blocks, TableMap, records, sql, keyGraph, inputGraph, registerTables);
 
 			foreach (var property in generation.Request.Properties.Union(generation.Response.Properties))
 				if (property is SQuiLTable table)
@@ -172,7 +196,21 @@ public class FileGenerator(
 			var bodyBlock = blocks.FirstOrDefault(b => b.CodeType == CodeType.BODY);
 			if (bodyBlock is not null)
 			{
-				var scan = SQuiLMutationScanner.Scan(bodyBlock.Name);
+				// Temp-table-header dialects (SQLite/PostgreSQL) declare their @Param*/@Return*
+				// variables as bare-named `Create Temp Table`s, referenced verbatim in the body
+				// (`Insert Into Returns_X …`). These are the analogue of a T-SQL @table-variable
+				// target — a DML against one is NOT a persistent real-table mutation, so it must
+				// not raise SP0023. Collect the query's own declared temp-table names (table/object
+				// via TempTableName, scalar-collapsed via TempScalarTableName) so the scanner can
+				// skip them. SQL Server blocks carry neither, so the set is empty there and
+				// behaviour is byte-identical.
+				var declaredSqliteTables = blocks
+					.SelectMany(b => new[] { b.TempTableName, b.TempScalarTableName })
+					.Where(n => !string.IsNullOrEmpty(n))
+					.Select(n => n!)
+					.ToList();
+
+				var scan = SQuiLMutationScanner.Scan(bodyBlock.Name, declaredSqliteTables);
 
 				if (!enabled)
 				{
@@ -194,7 +232,7 @@ public class FileGenerator(
 				}
 			}
 
-			generation.Context = new(@namespace, classname, method, setting, blocks, enabled, debugRollback, keyGraph, inputGraph);
+			generation.Context = new(@namespace, classname, method, setting, blocks, enabled, debugRollback, keyGraph, inputGraph, dialect);
 
 			Generations.Add(generation);
 

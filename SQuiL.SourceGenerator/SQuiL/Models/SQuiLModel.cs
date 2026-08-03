@@ -41,6 +41,16 @@ public class SQuiLModel(
 	/// <summary>The C# namespace row records are emitted into (e.g. <c>MyApp.Data.Models</c>).</summary>
 	public string RecordNamespace { get; init; } = "";
 
+	/// <summary>
+	/// <c>true</c> (the default) to register this model's table-shaped properties into the shared
+	/// <paramref name="TableMap"/> via <see cref="SQuiLTableMap.Add(SQuiLTable)"/>. A missing-provider
+	/// context (SP0038 — its resolved dialect's provider package isn't referenced) passes
+	/// <c>false</c> here: its structural diagnostics still need to run, but its own emission is
+	/// already suppressed by the caller, and its table shapes must NOT leak into the shared map —
+	/// doing so could poison a valid sibling context's emission with a false-positive SP0017/SP0021.
+	/// </summary>
+	public bool RegisterTables { get; init; } = true;
+
 	/// <summary>All properties (scalar, table, and object) belonging to this model.</summary>
 	public List<SQuiLProperty> Properties { get; } = [];
 
@@ -61,6 +71,11 @@ public class SQuiLModel(
 	/// <param name="blocks">All parsed code blocks from the SQL file.</param>
 	/// <param name="tableMap">Shared table-name mapping for resolving cross-query types.</param>
 	/// <param name="records">All partial record declarations visible in the compilation.</param>
+	/// <param name="registerTables">
+	/// Forwarded to <see cref="RegisterTables"/> on both the request and response models — pass
+	/// <c>false</c> for a missing-provider (SP0038) context so its table shapes never reach the
+	/// shared <paramref name="tableMap"/>. Defaults to <c>true</c> (today's behavior, unchanged).
+	/// </param>
 	/// <returns>The request model and the response model as a tuple.</returns>
 	public static (SQuiLModel Request, SQuiLModel Response) Create(
 		string @namespace,
@@ -71,12 +86,13 @@ public class SQuiLModel(
 		ImmutableDictionary<string, SQuiLPartialModel> records,
 		string sql = "",
 		SQuiLKeyGraph? outputGraph = null,
-		SQuiLKeyGraph? inputGraph = null)
+		SQuiLKeyGraph? inputGraph = null,
+		bool registerTables = true)
 	{
-		var request = new SQuiLModel(@namespace, modelname, "Request", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql }
+		var request = new SQuiLModel(@namespace, modelname, "Request", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql, RegisterTables = registerTables }
 			.Build(blocks.Where(p => (p.CodeType & CodeType.INPUT) == CodeType.INPUT), inputGraph);
 
-		var response = new SQuiLModel(@namespace, modelname, "Response", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql }
+		var response = new SQuiLModel(@namespace, modelname, "Response", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql, RegisterTables = registerTables }
 			.Build(blocks.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT), outputGraph);
 
 		return (request, response);
@@ -244,7 +260,12 @@ public class SQuiLModel(
 			};
 
 		if (addProperty) Properties.Add(table);
-		TableMap.Add(table);
+
+		// See RegisterTables: a missing-provider context still builds its own SQuiLTable/SQuiLObject
+		// instances (needed for this model's own Properties list and structural diagnostics), but
+		// must not write its shape into the shared cross-context TableMap.
+		if (RegisterTables)
+			TableMap.Add(table);
 
 		if (hasParameterizedConstructor)
 			return;

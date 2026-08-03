@@ -31,6 +31,12 @@ public static class SourceGeneratorHelper
 	/// <summary>Fully-qualified name used when scanning the compilation for <c>[SQuiLTableAttribute]</c>.</summary>
 	public static string NamespacedTableTypeAttributeName { get; } = $"{NamespaceName}.{TableTypeAttributeName}";
 
+	/// <summary>Short name of the dialect-selection attribute class: <c>SQuiLDialectAttribute</c>.</summary>
+	public static string DialectAttributeName { get; } = $"{NamespaceName}DialectAttribute";
+
+	/// <summary>Fully-qualified name used when scanning the compilation for <c>[SQuiLDialectAttribute]</c>. Unlike the query/table attributes, this type is not emitted by the generator — it ships in the <c>SQuiL.Core</c> runtime package.</summary>
+	public static string NamespacedDialectAttributeValue { get; } = $"{NamespaceName}.{DialectAttributeName}";
+
 	/// <summary>Short name of the result-type generic record: <c>SQuiLResultType</c>.</summary>
 	public static string ResultTypeAttributeName { get; } = $"{NamespaceName}ResultType";
 

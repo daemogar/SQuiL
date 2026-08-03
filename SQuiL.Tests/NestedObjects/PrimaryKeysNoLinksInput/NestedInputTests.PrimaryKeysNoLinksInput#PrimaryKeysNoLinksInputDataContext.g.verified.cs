@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class PrimaryKeysNoLinksInputDataContext : SQuiLBaseDataContext
+partial class PrimaryKeysNoLinksInputDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessPrimaryKeysNoLinksInputAsync(
 		PrimaryKeysNoLinksInputRequest request,
@@ -40,9 +40,9 @@ partial class PrimaryKeysNoLinksInputDataContext : SQuiLBaseDataContext
 			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string inputAlpha(List<DbParameter> parameters)

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class EnabledTransactionWrapsNonQueryPathDataContext : SQuiLBaseDataContext
+partial class EnabledTransactionWrapsNonQueryPathDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessEnabledTransactionWrapsNonQueryPathAsync(
 		EnabledTransactionWrapsNonQueryPathRequest request,
@@ -45,10 +45,10 @@ partial class EnabledTransactionWrapsNonQueryPathDataContext : SQuiLBaseDataCont
 			transaction.Commit();
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
 			transaction.Rollback();
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

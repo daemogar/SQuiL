@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TwoContextsWithConflictingNamespaceDataContext : SQuiLBaseDataContext
+partial class TwoContextsWithConflictingNamespaceDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<TwoContextsWithConflictingNamespace2Response>> ProcessTwoContextsWithConflictingNamespace2Async(
 		TwoContextsWithConflictingNamespace2Request request,
@@ -77,7 +77,7 @@ partial class TwoContextsWithConflictingNamespaceDataContext : SQuiLBaseDataCont
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isPerson) errors.Add(new(51001, 12, 1, 82, "Person", "Expected return table `Person`"));

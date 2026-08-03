@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ScalarNullabilityMatrixDataContext : SQuiLBaseDataContext
+partial class ScalarNullabilityMatrixDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<ScalarNullabilityMatrixResponse>> ProcessScalarNullabilityMatrixAsync(
 		ScalarNullabilityMatrixRequest request,
@@ -74,7 +74,7 @@ partial class ScalarNullabilityMatrixDataContext : SQuiLBaseDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isCount) errors.Add(new(51001, 12, 1, 79, "Count", "Expected return scaler `Count`"));

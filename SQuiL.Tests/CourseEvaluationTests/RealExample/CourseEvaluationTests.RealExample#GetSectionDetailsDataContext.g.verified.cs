@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace CourseEvaluation.Application.Data;
 
-partial class CourseEvaluationDataContext : SQuiLBaseDataContext
+partial class CourseEvaluationDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<GetSectionDetailsResponse>> ProcessGetSectionDetailsAsync(
 		GetSectionDetailsRequest request,
@@ -112,7 +112,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isSections) errors.Add(new(51001, 12, 1, 117, "Sections", "Expected return table `Sections`"));

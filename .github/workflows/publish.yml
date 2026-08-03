@@ -22,7 +22,18 @@ on:
 
 env:
   PROJECT: SQuiL
-  DIRECTORY: SQuiL.SourceGenerator
+  # Packable projects published as NuGet packages — SQuiL.Core carries the
+  # analyzer + neutral runtime; SQuiL.SqlServer is the SQL Server provider,
+  # SQuiL.Sqlite is the SQLite provider, and SQuiL.Postgres is the
+  # PostgreSQL provider (all three depend on SQuiL.Core).
+  # SQuiL.SourceGenerator is intentionally absent — it is not packable on
+  # its own (see SQuiL.SourceGenerator.csproj); Core packs its DLL into
+  # analyzers/dotnet/cs instead.
+  CORE_PROJECT: SQuiL.Core/SQuiL.Core.csproj
+  SQLSERVER_PROJECT: SQuiL.SqlServer/SQuiL.SqlServer.csproj
+  SQLITE_PROJECT: SQuiL.Sqlite/SQuiL.Sqlite.csproj
+  POSTGRES_PROJECT: SQuiL.Postgres/SQuiL.Postgres.csproj
+  NUPKG_DIR: nupkgs
   # The next planned official release. Betas are cut as
   # <NEXT_VERSION>-beta.<run#> so they always compare BELOW the official
   # they precede (SemVer rule 11). Keep in sync with the workflow_dispatch
@@ -61,12 +72,17 @@ jobs:
         dotnet-version: 10.0.x
 
     - name: Restore Dependencies
-      working-directory: ./${{ env.DIRECTORY }}
       run: dotnet restore
 
+    # Build only the packable projects (NOT the whole SQuiL.slnx — see the
+    # matching comment in build.yml; the solution also carries net472 VSSDK
+    # extension projects this ubuntu-latest runner cannot build).
     - name: Build ${{ env.PROJECT }}
-      working-directory: ./${{ env.DIRECTORY }}
-      run: dotnet build --no-restore -c Release
+      run: |
+        dotnet build --no-restore -c Release "./${{ env.CORE_PROJECT }}"
+        dotnet build --no-restore -c Release "./${{ env.SQLSERVER_PROJECT }}"
+        dotnet build --no-restore -c Release "./${{ env.SQLITE_PROJECT }}"
+        dotnet build --no-restore -c Release "./${{ env.POSTGRES_PROJECT }}"
 
     # push to master        → <NEXT_VERSION>-beta.<run#>, marked prerelease
     # workflow_dispatch     → official: the required version input, plain
@@ -100,11 +116,17 @@ jobs:
         prerelease: ${{ env.PRERELEASE }}
         artifactErrorsFailBuild: true
 
-    - name: Pack ${{ env.PROJECT }}.SourceGenerator
+    # Pack both published packages — SQuiL.Core (analyzer + neutral runtime)
+    # and SQuiL.SqlServer (provider, depends on SQuiL.Core) — into one shared
+    # output directory so the Push step's glob picks up both in one go.
+    - name: Pack ${{ env.PROJECT }}.Core, ${{ env.PROJECT }}.SqlServer, ${{ env.PROJECT }}.Sqlite, and ${{ env.PROJECT }}.Postgres
       env:
         RELEASE_NOTE: https://github.com/daemogar/${{ env.PROJECT }}/releases/tag/${{ env.VERSION }}
-      working-directory: ./${{ env.DIRECTORY }}
-      run: dotnet pack -c Release --include-symbols -p:SymbolPackageFormat=snupkg /p:Version=${{ env.VERSION }} /p:PackageReleaseNotes="See ${{ env.RELEASE_NOTE }}"
+      run: |
+        dotnet pack "./${{ env.CORE_PROJECT }}" -c Release --include-symbols -p:SymbolPackageFormat=snupkg /p:Version=${{ env.VERSION }} /p:PackageReleaseNotes="See ${{ env.RELEASE_NOTE }}" -o "./${{ env.NUPKG_DIR }}"
+        dotnet pack "./${{ env.SQLSERVER_PROJECT }}" -c Release --include-symbols -p:SymbolPackageFormat=snupkg /p:Version=${{ env.VERSION }} /p:PackageReleaseNotes="See ${{ env.RELEASE_NOTE }}" -o "./${{ env.NUPKG_DIR }}"
+        dotnet pack "./${{ env.SQLITE_PROJECT }}" -c Release --include-symbols -p:SymbolPackageFormat=snupkg /p:Version=${{ env.VERSION }} /p:PackageReleaseNotes="See ${{ env.RELEASE_NOTE }}" -o "./${{ env.NUPKG_DIR }}"
+        dotnet pack "./${{ env.POSTGRES_PROJECT }}" -c Release --include-symbols -p:SymbolPackageFormat=snupkg /p:Version=${{ env.VERSION }} /p:PackageReleaseNotes="See ${{ env.RELEASE_NOTE }}" -o "./${{ env.NUPKG_DIR }}"
 
     # Trusted Publishing: exchange the GitHub OIDC token for a short-lived
     # (1-hour) nuget.org API key. No long-lived NUGET_API_KEY secret needed.
@@ -119,8 +141,7 @@ jobs:
         user: ${{ secrets.NUGET_USER }}
 
     - name: Push Nuget
-      working-directory: ./${{ env.DIRECTORY }}
-      run: dotnet nuget push **/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+      run: dotnet nuget push "./${{ env.NUPKG_DIR }}/*.nupkg" --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
 
     # Keep nuget.org tidy: leave all stable releases listed, plus the single
     # newest -beta.<N> pre-release ONLY while its base version outranks every
@@ -144,9 +165,13 @@ jobs:
         JUST_PUBLISHED: ${{ env.VERSION }}
       run: |
         set -u
-        PKG="SQuiL.SourceGenerator"
-        PKG_LC="squil.sourcegenerator"
         SOURCE="https://api.nuget.org/v3/index.json"
+
+        # Loop over all published package ids — SQuiL.SourceGenerator is
+        # retired (no longer produced/published) so it is no longer swept here.
+        for PKG in "SQuiL.Core" "SQuiL.SqlServer" "SQuiL.Sqlite" "SQuiL.Postgres"; do
+        PKG_LC="${PKG,,}"
+        echo "── Checking $PKG ──"
 
         # Search index excludes unlisted versions, so this is exactly the set of
         # currently-LISTED versions (idempotent — no per-version state to read).
@@ -154,8 +179,8 @@ jobs:
           | jq -r --arg id "$PKG_LC" '.data[]? | select((.id | ascii_downcase) == $id) | .versions[].version')
 
         if [ -z "$versions" ]; then
-          echo "No listed versions returned (search-index lag?). Nothing to clean up."
-          exit 0
+          echo "No listed versions returned for $PKG (search-index lag?). Nothing to clean up."
+          continue
         fi
 
         # Highest stable X.Y.Z (no pre-release suffix).
@@ -200,6 +225,7 @@ jobs:
           echo "Unlisting $PKG $v"
           dotnet nuget delete "$PKG" "$v" --non-interactive --api-key "$API_KEY" --source "$SOURCE" \
             || echo "::warning::Failed to unlist $PKG $v (continuing)."
+        done
         done
 
   # ───────────────────────────────────────────────────────────────────────

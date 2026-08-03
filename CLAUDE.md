@@ -364,7 +364,40 @@ SQuiL/
     `DiagnosticsMessages.ReportScalarNullabilityMarker`, and the editor
     mirrors (`lintScalarNullMarker` in `parser.ts`; `LintScalarNullMarker` in
     both `SQuiLLinter.cs`).
-    Next free: **SP0038**. (Verify an id is truly unreferenced with a repo-wide grep
+    **SP0038 is now TAKEN** — build error (generator): a data context resolves
+    to a dialect (explicit `[SQuiLDialect]`, or the SqlServer default — see
+    "Dialect selection" below) whose provider runtime base type (e.g.
+    `SQuiL.SqlServerDataContext`) is not referenced by the compilation — the
+    consumer referenced `SQuiL.Core` but not the matching provider package
+    (`SQuiL.SqlServer`, etc.). See `DialectRegistry.IsProviderReferenced` +
+    `DiagnosticsMessages.ReportMissingProvider`; the offending context's
+    constructor/base-class file is skipped so only SP0038 shows (no cascade).
+    **SP0039 is now TAKEN** — build error (generator, Phase 3B): a data context's
+    compilation references **2+** SQuiL provider packages (e.g. both
+    `SQuiL.SqlServer` and `SQuiL.Sqlite`) and the context carries no
+    `[SQuiLDialect]` to disambiguate — the dialect is ambiguous. Add
+    `[SQuiLDialect(...)]` to the context. See `DialectRegistry.ResolveId`
+    (returns the `Ambiguous` sentinel `-1`) + `DiagnosticsMessages.ReportAmbiguousDialect`.
+    **SP0040 is now TAKEN** — params-before-returns ordering (Phase 3B, doc
+    corrected in Phase 3D — see note below): all inputs (`Param_`/`Params_`)
+    must be declared before any output (`Return_`/`Returns_`). Severity is
+    dialect-dependent: an **error** for **temp-table dialects** (SQLite and
+    PostgreSQL — the header order is structural there), a **warning** for
+    SQL Server / other dialects (a norm, non-breaking). Editor squiggle in all
+    three surfaces. See `SQuiLOrderingValidator.cs` + `DiagnosticsMessages`, and
+    the editor mirrors (`lintParamsBeforeReturns` in `parser.ts`;
+    `LintParamsBeforeReturns` in both `SQuiLLinter.cs`).
+    Note: **SP0025** (double-transaction) now also recognizes SQLite
+    `Begin`/`Begin Transaction` in the editors, and **SP0023** (mutation scanner)
+    treats a query's own declared SQLite temp-table inserts as non-persistent (no
+    false positive).
+    **PostgreSQL (Phase 3D) reuses SP0038/SP0039/SP0040 unchanged — no new
+    diagnostic id.** PostgreSQL is dialect id 2 and is a temp-table-header
+    dialect exactly like SQLite (see `ITempTableHeaderDialect` below); the
+    SP0040 bullet above was corrected from "SQLite" to "temp-table dialects
+    (SQLite and PostgreSQL)" to reflect this (doc-lag fix flagged during Task 8
+    / Phase 3B).
+    Next free: **SP0041**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
   - Signature: `[SQuiLQueryTransaction(QueryFiles type, string setting = "SQuiLDatabase", bool enabled = true, bool debugRollback = true)]`
@@ -495,7 +528,7 @@ For a SQL file `MyQuery.sql`, the generator creates:
 
 - **SQuiLDefinition** (`SQuiL/Generator/SQuiLDefinition.cs`): Represents a class with `[SQuiLQuery]` or `[SQuiLTable]` attributes
 - **SQuiLDataContext** (`SQuiL/Models/SQuiLDataContext.cs`): Model representing a data context with its queries
-- **SQuiLBaseDataContext**: Base class for all generated data contexts (provides connection/parameter helpers)
+- **SQuiLBaseDataContext** (`SQuiL.Core`): provider-neutral base class (environment resolution only). Each provider supplies its own runtime base — **SqlServerDataContext** (`SQuiL.SqlServer`) `: SQuiLBaseDataContext` adds the connection/parameter helpers and the `CreateError` seam — which generated data contexts actually inherit; see "Optional inheritance + dialect selection" below.
 - **CodeBlock/CodeItem** (`SQuiL/Parser/`): Intermediate representation of parsed SQL
 - **SQuiLTableMap**: Tracks custom table type mappings from `[SQuiLTable]` attributes
 
@@ -536,24 +569,64 @@ Select @Return_Count;
 
 ## Dependencies
 
-Required NuGet packages:
-- `Microsoft.CodeAnalysis.CSharp` (4.12.0) - Roslyn APIs for source generation
-- `Microsoft.Data.SqlClient` (6.0.1) - SQL Server connectivity
-- `Microsoft.Extensions.Configuration` - Configuration/connection string handling
-- `Microsoft.Extensions.DependencyInjection` - DI support
+Required NuGet packages, split by which package now carries them:
+- `SQuiL.Core` (generator + provider-neutral runtime): `Microsoft.CodeAnalysis.CSharp`
+  (build-only, via the `SQuiL.SourceGenerator` project it packs) - Roslyn APIs
+  for source generation; `Microsoft.Extensions.Configuration` - connection-string
+  lookup; `System.Text.Json` - the param-sharding JSON shred (`SQuiLJson`).
+- `SQuiL.SqlServer` (SQL Server provider, depends on `SQuiL.Core`):
+  `Microsoft.Data.SqlClient` - SQL Server connectivity.
+- `SQuiL.Sqlite` (SQLite provider, depends on `SQuiL.Core`):
+  `Microsoft.Data.Sqlite` - SQLite connectivity.
+- `SQuiL.Postgres` (PostgreSQL provider, depends on `SQuiL.Core`): `Npgsql` -
+  PostgreSQL connectivity. Multi-targets `netstandard2.0;net10.0`, pinned to
+  different Npgsql versions per TFM (`Npgsql 6.0.11` on `netstandard2.0`,
+  `Npgsql 10.0.3` on `net10.0`; see `Directory.Packages.props`).
+- `Microsoft.Extensions.DependencyInjection` - DI support (consumer-side, for
+  the generated `AddSQuiL()` extension's registration).
 
-### Package structure (single-package distribution)
+### Package structure (`SQuiL.Core` + `SQuiL.SqlServer` split)
 
-The `SQuiL.SourceGenerator` NuGet bundles both the generator DLL (into
-`analyzers/dotnet/cs`) **and** the `SQuiL.Library.dll` runtime assembly (into
-`lib/netstandard2.0`). Because the library DLL is embedded rather than pulled
-in via a NuGet dependency, its transitive `PackageReference`s are **not**
-resolved for consumers automatically.
+**Phase 3A (multi-DB via `ISqlDialect`) retired the single-package
+`SQuiL.SourceGenerator` NuGet.** The distribution is now two packages:
 
-**Rule:** any `PackageReference` added to `SQuiL.Library.csproj` that is needed
-at consumer runtime (e.g. `Microsoft.Extensions.Configuration`) must be mirrored
-in `SQuiL.SourceGenerator.csproj` so it flows through to the consumer. Keep
-the two dependency lists in sync.
+- **`SQuiL.Core`** — packs the generator DLL (built from the
+  `SQuiL.SourceGenerator` project) into `analyzers/dotnet/cs`, **and** its own
+  runtime DLL (`IncludeBuildOutput`, the SDK default) into
+  `lib/netstandard2.0` — the provider-neutral attributes, `SQuiLBaseDataContext`,
+  `SQuiLResultType`, `SQuiLError`/`SQuiLException`/`SQuiLAggregateException`,
+  and `SQuiLDialect`/`SQuiLDialectAttribute`.
+- **`SQuiL.SqlServer`** — packs `SqlServerDataContext` and the
+  `Microsoft.Data.SqlClient` plumbing. References `SQuiL.Core` via a packable
+  `ProjectReference` (no `PrivateAssets="all"`), so installing `SQuiL.SqlServer`
+  alone pulls `SQuiL.Core`'s **runtime DLL** in transitively like any normal
+  NuGet dependency.
+
+**What does *not* flow transitively: the analyzer.** NuGet only activates a
+package's `analyzers/` content for a project that *directly*
+`PackageReference`s that package — a transitive dependency's analyzer is
+never loaded (verified empirically 2026-07-20 against `SQuiL.Core` and, as a
+sanity check, against `Microsoft.Extensions.Logging` → `Logging.Abstractions`'
+`LoggerMessage` generator, so this is general NuGet/SDK behavior, not
+SQuiL-specific). **Consequence: consumers must reference `SQuiL.Core` directly
+in addition to `SQuiL.SqlServer`** — same pattern as EF Core's provider
+packages requiring the main package alongside them. A project with only
+`SQuiL.SqlServer` referenced compiles and runs, but the generator never fires
+(no `Process…Async` methods materialize) because its analyzer was never
+activated.
+
+**Runtime deps are now normal NuGet dependencies — no manual mirroring.**
+Every `PackageReference` on `SQuiL.Core.csproj` / `SQuiL.SqlServer.csproj` is a
+real `<dependency>` in the packed nuspec and flows to consumers through the
+ordinary NuGet dependency graph. (The old rule — "mirror any runtime
+`PackageReference` from `SQuiL.Library.csproj` into `SQuiL.SourceGenerator.csproj`
+by hand, because the library DLL was embedded rather than referenced" — no
+longer applies; there is no more embedded-library packaging in this repo.)
+The one thing that still needs care is the analyzer DLL itself
+(`SQuiL.SourceGenerator.dll`/`.pdb`), which `SQuiL.Core.csproj` still packs
+manually into `analyzers/dotnet/cs` via `<None Pack="true" PackagePath="...">`
+entries, because analyzer content is never a `PackageReference`-driven
+transitive dependency by design.
 
 Test dependencies:
 - `xunit` - Test framework
@@ -590,18 +663,223 @@ The `[SQuiLQuery]` attribute accepts an optional `setting` parameter to specify 
 public partial class MyDataContext { }
 ```
 
-### Optional inheritance (`SQuiLBaseDataContext`)
+### Optional inheritance + dialect selection (`[SQuiLDialect]`, runtime base split)
 
-Inheriting `SQuiLBaseDataContext` explicitly is **not required**. When the context class declares no constructor of its own, the generator emits a `<Ctx>.Constructor.g.cs` file that supplies:
+**Runtime base split (Phase 3A, multi-DB via `ISqlDialect`):** `SQuiLBaseDataContext`
+(`SQuiL.Core`) is now provider-neutral — it holds only `EnvironmentName`
+resolution. Each provider package supplies its own runtime base class that
+inherits from it and adds the ADO.NET plumbing: `SqlServerDataContext`
+(`SQuiL.SqlServer`) `: SQuiLBaseDataContext` carries `ConnectionStringBuilder`,
+`CreateConnection`, parameter construction, and the `CreateError(SqlException)`
+seam (see "Error handling" below). Generated data contexts inherit the
+*provider's* base class, not `SQuiLBaseDataContext` directly.
+
+**Dialect selection — `[SQuiLDialect(SQuiLDialect.Sqlite)]`:** optional,
+class-level attribute (`SQuiL.Core`) that picks which provider a data context
+targets. `DialectRegistry.ResolveId`/`Resolve` (shipped, Phase 3B) implements
+**provider-inference** resolution:
+1. An explicit `[SQuiLDialect(...)]` on the class wins.
+2. Otherwise, the **single referenced provider** package decides — scan
+   `ReferencedProviderIds` (each dialect's `ProviderMetadataName` probed via
+   `compilation.GetTypeByMetadataName`); exactly one provider ⇒ that dialect.
+3. Otherwise (zero providers referenced), `SQuiLDialect.SqlServer` (dialect 0)
+   is the default — **SP0038** then fires because that provider's base type is
+   absent.
+4. **2+ providers referenced with no `[SQuiLDialect]` ⇒ `Ambiguous` (`-1`) ⇒
+   SP0039** ("specify `[SQuiLDialect(...)]`").
+
+`SQuiLDialect` (enum) has two members: **`SqlServer` = dialect id 0**,
+**`Sqlite` = dialect id 1**. `DialectRegistry`
+(`SQuiL.SourceGenerator/SQuiL/Dialects/DialectRegistry.cs`) maps each id to its
+generator-side `ISqlDialect` (`SqlServerDialect` / `SqliteDialect`), its
+`ProviderMetadataName` (`SQuiL.SqlServerDataContext` / `SQuiL.SqliteDataContext`),
+its `RuntimeBaseType()` (`SqlServerDataContext` / `SqliteDataContext`), and its
+NuGet package id (`SQuiL.SqlServer` / `SQuiL.Sqlite`). If the resolved dialect's
+runtime base type isn't referenced by the compilation, the generator reports
+**SP0038** instead of letting a missing-base-type error surface as a cryptic
+"type not found" (the context's constructor/base-class file is skipped so only
+SP0038 shows).
+
+**SQLite dialect (Phase 3B) — `SqliteDialect` + `SQuiL.Sqlite`.** A consumer
+references BOTH `SQuiL.Core` AND `SQuiL.Sqlite` (EF-Core reference-both model;
+analyzers don't flow transitively). `SqliteDataContext : SQuiLBaseDataContext`
+(package `SQuiL.Sqlite`, depends on `Microsoft.Data.Sqlite`) carries the
+provider plumbing and `CreateError(SqliteException)`. The generated surface is
+**identical in shape** across dialects (`Process<Query>Async` →
+`SQuiLResultType<Response>`; `<Query>Request`/`<Query>Response`; row records in
+`<Ctx>.Models`; `AddSQuiL()`); only the emitted SQL, base class, `using`
+(`Microsoft.Data.Sqlite`), and exception (`SqliteException`) differ.
+
+- **`ISqlDialect` reshaping** — SQLite drives per-dialect members
+  (`SQuiL.SourceGenerator/SQuiL/Dialects/ISqlDialect.cs`,
+  `SqliteDialect.cs`): declaration form (`Create Temp Table x (...)` +
+  `Drop Table If Exists` vs T-SQL `Declare @x table(...)`); body boundary
+  (positional first-non-header statement; `DatabaseDirective(catalog)` → empty,
+  no `Use`); header/sample detection (bare-name param-table DML vs `@`-prefixed);
+  input shred (`json_each`/`json_extract` vs `OpenJson … With(...)`); the whole
+  type map; exception type; usings; runtime base. The CLR half is per-dialect
+  too (SQLite `INTEGER` → `long` ≠ T-SQL `int` → `int`) — this supersedes the
+  3A "CLR half stays neutral" note; `ISqlDialect` was left unfrozen for exactly
+  this.
+- **Option-4 header model** — the header is a leading run of native
+  `Create Temp Table <Prefix>_<Name> ( ... )` statements; the `@`-prefix
+  direction/cardinality convention carries onto the temp-table NAME
+  (`Params_`/`Param_` inputs, `Returns_`/`Return_` outputs; singular =
+  object/scalar, plural = list; a **single-column** temp table ⇒ a scalar).
+  Native SQLite column constraints (`Primary Key`, `null`/`not null`,
+  `default`) — no invented markers; nullability + nested-object-key rules carry
+  over unchanged. **Params (inputs) must precede Returns (outputs)** — SP0040
+  (error in SQLite). Special variables are single-column temp tables named
+  exactly `Debug`/`EnvironmentName`/`AsOfDate`/`SuppressDebug`.
+- **Body boundary + sample-DML stripping** — the body boundary is the first
+  statement that is neither a `Create Temp Table` nor a population
+  (`Insert`/`Update`/`Delete`) of a declared **param** temp table; everything
+  from there is emitted verbatim. Sample DML into a param temp table is
+  **stripped** at generation and replaced by the `json_each` shred (symmetric
+  with the SQL Server `@Var`-DML → `OPENJSON` strip). The file runs as-is in a
+  SQLite shell. See `SqliteDialect.TableVariableDeclaration`/`ScalarVariableDeclaration`/
+  `ShredStatement`/`ShredParamName` and the tokenizer's `SqliteCreateTempTable`/
+  `SqliteParamTableDmlStatement`/`SqliteBodyBoundary`.
+- **SQLite type map** (`SqliteDialect` owns the whole map; reader accessor +
+  `SqliteType.*` param + CLR type):
+
+  | SQLite declare | C# | Reader | Param |
+  |---|---|---|---|
+  | `INTEGER` | `long` | `GetInt64` | `SqliteType.Integer` |
+  | `TEXT` | `string` | `GetString` | `SqliteType.Text` |
+  | `REAL` | `double` | `GetDouble` | `SqliteType.Real` |
+  | `BLOB` | `byte[]` | `GetFieldValue<byte[]>` | `SqliteType.Blob` |
+  | `NUMERIC` / `DECIMAL` | `decimal` | `GetDecimal` | `SqliteType.Text` |
+  | `BOOLEAN` | `bool` | `GetBoolean` | `SqliteType.Integer` |
+  | `DATE` / `DATETIME` | `System.DateTime` | `GetFieldValue<DateTime>` | `SqliteType.Text` |
+  | `GUID` / `UNIQUEIDENTIFIER` | `System.Guid` | `GetFieldValue<Guid>` | `SqliteType.Text` |
+
+  Nullability follows the unified rule. `byte[]`/`BLOB` round-trips through the
+  JSON shred as bare uppercase hex (shared `SQuiLBinaryJsonConverter`), decoded
+  with SQLite's `unhex()` (SQLite ≥ 3.41; Microsoft.Data.Sqlite bundles 3.49.1).
+  A per-dialect `KeyParity` test guards build==runtime `NormalizeType`.
+- **Editors are dialect-aware** — each editor discovers a `.squil` file's
+  dialect from the owning `.csproj`'s SQuiL provider `PackageReference`
+  (`SQuiL.Sqlite` vs `SQuiL.SqlServer`), with `[SQuiLDialect]` as the override
+  in multi-provider projects. **SSMS** opens `.squil` standalone with no project,
+  so it **defaults to the SqlServer vocabulary** (SSMS is a SQL Server tool;
+  SQLite authoring happens in VS Code / VS). The type recognizer, hover, "Invalid
+  Type" diagnostics, completion, and the SP0040 ordering squiggle all switch on
+  the resolved dialect. The Insert-Sample-Data command emits dialect-appropriate
+  DML (`Insert Into <ParamTable> Values(...)` for SQLite).
+
+**PostgreSQL dialect (Phase 3D) — `PostgresDialect` + `SQuiL.Postgres`, dialect
+id 2.** A near-twin of SQLite: same `Create Temp Table` Option-4 header, same
+positional body boundary, same sample-DML-stripped-and-replaced-by-a-shred
+model. Rather than duplicating the SQLite header machinery, the tokenizer's
+SQLite-specific recognition (`SqliteCreateTempTable`/
+`SqliteParamTableDmlStatement`/`SqliteBodyBoundary`) was generalized to fire
+for any dialect implementing the marker interface `ITempTableHeaderDialect :
+ISqlDialect` (`SQuiL.SourceGenerator/SQuiL/Dialects/ITempTableHeaderDialect.cs`)
+— both `SqliteDialect` and `PostgresDialect` implement it — so one code path
+serves two dialects; only the emitted leaf strings (types, shred, casing)
+differ per dialect via `ISqlDialect`.
+
+- A consumer references BOTH `SQuiL.Core` AND `SQuiL.Postgres` (same
+  reference-both model). `PostgresDataContext : SQuiLBaseDataContext`
+  (package `SQuiL.Postgres`, depends on `Npgsql`) carries the provider
+  plumbing and `CreateError(NpgsqlException)`. `SQuiL.Postgres` **multi-targets
+  `netstandard2.0;net10.0`** with different pinned Npgsql versions per leg
+  (`Directory.Packages.props`: `Npgsql 6.0.11` on the `netstandard2.0` TFM,
+  `Npgsql 10.0.3` on `net10.0` — Npgsql's own major-version support boundary),
+  unlike `SQuiL.Sqlite` which single-targets.
+- **Input shred — `json_to_recordset`, not `json_each`.** Unlike SQLite's
+  untyped `json_each`, PostgreSQL's `json_to_recordset(@json) AS x(col type,
+  …)` needs an explicit TYPED column list to shred a JSON array into rows —
+  structurally the OPENJSON-WITH analogue, not the SQLite analogue. Shape:
+  `Insert Into <TempTable>(Col1, Col2, …) Select x."Col1", x."Col2", … From
+  json_to_recordset(@__json_<Name>) AS x("Col1" <pgtype1>, "Col2" <pgtype2>,
+  …);`. A `bytea` column is declared `text` in the `AS` list (it arrives as a
+  hex string) and decoded in the `SELECT` with `decode(x."Col", 'hex')` — the
+  PG analogue of SQL Server's `Convert(varbinary(N), col, 2)` and SQLite's
+  `unhex(…)`.
+- **Identifier casing — Option B (bare + normalize), Paul's ruling
+  2026-08-01.** PostgreSQL folds unquoted identifiers to lowercase; SQuiL
+  still emits everything **bare** (temp-table DDL, insert target, the whole
+  author-facing body) so a PostgreSQL `.squil` reads identically to a SQL
+  Server/SQLite one — no quoting in the author's hands. The **one** place
+  SQuiL quotes an identifier is the `json_to_recordset` `AS`-column-list
+  (`"Col1" int4, …`), required so PostgreSQL matches the PascalCase JSON keys
+  the shared `SQuiLJson`/`SQuiLBinaryJsonConverter` serializer emits; it never
+  leaks into the author-facing surface. Because PostgreSQL's reader reports
+  lowercased column names (e.g. `personid`), **result routing is
+  case-insensitive for PostgreSQL** — the build-time shape key (`PersonID`)
+  still matches. This case-insensitive fold is exactly the kind of
+  normalization that could mask a build-vs-runtime routing mismatch (the
+  Phase 3B "C1" lesson — see below), so the PostgreSQL `KeyParityTests` rows
+  derive the runtime provider type name from a **live Npgsql reader**
+  (`GetDataTypeName` against a real container), never a hand-fed literal, and
+  at least one round-trip fact routes `uuid`/`boolean`/`timestamp` end to end.
+- **PostgreSQL type map** (`PostgresDialect` owns the whole map; also
+  enforced identically by `PostgresDataContext.NormalizeType` at runtime,
+  guarded by `KeyParityTests`):
+
+  | PostgreSQL type(s) | C# |
+  |---|---|
+  | `int4`/`int`/`integer` | `int` |
+  | `int8`/`bigint` | `long` |
+  | `int2`/`smallint` | `short` |
+  | `text`/`varchar`/`character varying`/`char`/`bpchar`/`json`/`jsonb` | `string` |
+  | `bytea` | `byte[]` |
+  | `uuid` | `System.Guid` |
+  | `boolean`/`bool` | `bool` |
+  | `timestamp`/`timestamp without time zone` | `System.DateTime` |
+  | `timestamptz`/`timestamp with time zone` | `System.DateTimeOffset` |
+  | `date` | `System.DateOnly` |
+  | `time`/`time without time zone` | `System.TimeOnly` |
+  | `numeric`/`decimal`/`money` | `decimal` |
+  | `real`/`float4` | `float` |
+  | `double precision`/`float8` | `double` |
+
+  Note `PostgresDataContext.NormalizeType` strips a trailing parenthetical
+  facet (e.g. `character varying(100)` → `character varying`, `numeric(18,
+  2)` → `numeric`) before switching, because Npgsql's live
+  `GetDataTypeName` includes length/precision facets that the build-time
+  shape key never carries.
+- **Live round-trips** — `SQuiL.Tests/Postgres/**` (header, shred,
+  nested-object, transaction snapshot tests) plus Testcontainers-based live
+  round-trip tests (`postgres` image; Podman preferred, Docker fallback)
+  covering param/null/blob fidelity, result-set routing, and error
+  surfacing — mirroring the Phase 3B SQLite round-trip pattern
+  (`AddSQuiL()` DI, `Process…Async` → `TryGetValue`).
+- **Editors are dialect-aware** for PostgreSQL exactly as for SQLite (types,
+  `Create Temp Table` header/completion, grammar type keywords, `.csproj`
+  discovery via a `SQuiL.Postgres` `PackageReference`); all three C# editor
+  copies (SSMS + Visual Studio, byte-identical modulo namespace) and VS Code
+  build/test clean.
+- **No new diagnostic id.** PostgreSQL reuses SP0038 (missing provider
+  package)/SP0039 (ambiguous dialect)/SP0040 (params-before-returns, error
+  for PostgreSQL as a temp-table dialect) unchanged. Next free id stays
+  **SP0041**.
+
+Inheriting the provider base class explicitly is **not required**. When the context class declares no constructor of its own, the generator emits a `<Ctx>.Constructor.g.cs` file that supplies:
 
 ```csharp
-public partial class MyDataContext : SQuiLBaseDataContext
+public partial class MyDataContext : SqlServerDataContext
 {
     public MyDataContext(IConfiguration Configuration) : base(Configuration) { }
 }
 ```
 
-Declaring **any** constructor (primary or ordinary) on the class opts out — the generator skips the constructor file, and the hand-written constructor must chain `: base(configuration)`. The class must still be `partial` (diagnostic **SP0006**). The explicit form — `public partial class MyDataContext(IConfiguration Configuration) : SQuiLBaseDataContext(Configuration) { }` — is still valid and compiles unchanged (backward-compatible). **SP0010** was freed by this change, then went through the trailing-only column-default error and a free-pool stint, and is now **TAKEN by the editor-only nullability hint** (see Diagnostic IDs / Nullability rule below).
+Declaring **any** constructor (primary or ordinary) on the class opts out — the generator skips the constructor file, and the hand-written constructor must chain `: base(configuration)`. The class must still be `partial` (diagnostic **SP0006**). The explicit form — `public partial class MyDataContext(IConfiguration Configuration) : SqlServerDataContext(Configuration) { }` — is still valid and compiles unchanged (backward-compatible). **SP0010** was freed by this change, then went through the trailing-only column-default error and a free-pool stint, and is now **TAKEN by the editor-only nullability hint** (see Diagnostic IDs / Nullability rule below).
+
+### Error types now provider-neutral (`SQuiLError`/`SQuiLException` → `DbException`)
+
+`SQuiLError`/`SQuiLException` (`SQuiL.Core`) used to expose a
+`Microsoft.Data.SqlClient.SqlException` directly (`AsSqlException()`). They
+now expose the ADO.NET-standard `System.Data.Common.DbException?` instead —
+`SQuiLError.AsDbException()` (renamed from `AsSqlException()`); `SQuiLException`
+is itself a `DbException` and exposes the same value via its `Exception`
+property. Each provider's `CreateError` seam (e.g.
+`SqlServerDataContext.CreateError(SqlException e)`) builds the provider-neutral
+`SQuiLError` and attaches the concrete exception via the internal
+`SQuiLError.WithException(DbException?)`, so `SQuiL.Core` never references a
+provider-specific exception type. `SQuiLAggregateException` is unchanged.
 
 ### Nullability rule (unified — applies to both scalars and table columns)
 
@@ -846,7 +1124,13 @@ the nested-objects key-graph diagnostics (ambiguous/cycle, both OUTPUT and
 INPUT graphs); SP0035 taken by the editor-only orphaned-PK hint (both graphs);
 SP0036 taken by the nested-INPUT unsupported-key-type check (see Diagnostic
 IDs above); SP0037 taken by the scalar-nullability-marker check (a scalar
-`null`/`not null` marker is invalid — use `= null`). Next free id: **SP0038**.
+`null`/`not null` marker is invalid — use `= null`); SP0038 taken by the
+multi-DB missing-provider-package check; SP0039 taken by the ambiguous-dialect
+check (2+ providers, no `[SQuiLDialect]`); SP0040 taken by the
+params-before-returns ordering check (error for temp-table dialects — SQLite
+and PostgreSQL — warning elsewhere). PostgreSQL (Phase 3D, dialect id 2) added
+no new diagnostic id — it reuses SP0038/SP0039/SP0040 unchanged.
+Next free id: **SP0041**.
 
 ## Special Handling
 

@@ -105,3 +105,62 @@ test('mutation keyword in block comment is ignored', () => {
     true
   );
 });
+
+// SP0025 SQLite keyword awareness (Task 9): SQLite starts a transaction with a bare `BEGIN`
+// (optionally BEGIN DEFERRED/IMMEDIATE/EXCLUSIVE [TRANSACTION]) as well as `BEGIN TRANSACTION`.
+// Bare BEGIN must count as an own-transaction ONLY for the sqlite dialect — in T-SQL a bare
+// `BEGIN … END` is a statement block, not a transaction, and must NOT be flagged.
+test('sqlite bare Begin is an own transaction', () => {
+  assert.strictEqual(
+    scanMutations('Begin; Insert Into Widgets values(1); Commit;', 'sqlite').hasOwnTransaction,
+    true
+  );
+});
+
+test('sqlite Begin Transaction is an own transaction', () => {
+  assert.strictEqual(
+    scanMutations('Begin Transaction; Insert Into Widgets values(1); Commit;', 'sqlite')
+      .hasOwnTransaction,
+    true
+  );
+});
+
+test('sqlite Begin Immediate is an own transaction', () => {
+  assert.strictEqual(
+    scanMutations('Begin Immediate; Insert Into Widgets values(1); Commit;', 'sqlite')
+      .hasOwnTransaction,
+    true
+  );
+});
+
+// PostgreSQL is the other temp-table-header dialect (near-twin of SQLite in the generator) and
+// also starts a transaction with a bare `BEGIN` (or `BEGIN TRANSACTION`/`BEGIN WORK`) — same
+// bare-BEGIN family as SQLite, extended alongside it.
+test('postgres bare Begin is an own transaction', () => {
+  assert.strictEqual(
+    scanMutations('Begin; Insert Into Widgets values(1); Commit;', 'postgres').hasOwnTransaction,
+    true
+  );
+});
+
+test('postgres Begin Transaction is an own transaction', () => {
+  assert.strictEqual(
+    scanMutations('Begin Transaction; Insert Into Widgets values(1); Commit;', 'postgres')
+      .hasOwnTransaction,
+    true
+  );
+});
+
+test('t-sql bare Begin (statement block) is NOT an own transaction', () => {
+  assert.strictEqual(
+    scanMutations('If (1=1) Begin Update [T] set X=1 End;').hasOwnTransaction,
+    false
+  );
+});
+
+test('t-sql bare Begin (statement block) is NOT flagged even with explicit sqlserver dialect', () => {
+  assert.strictEqual(
+    scanMutations('If (1=1) Begin Update [T] set X=1 End;', 'sqlserver').hasOwnTransaction,
+    false
+  );
+});

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
+partial class TwoQueriesWithSameReferenceDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessTwoQueriesWithSameReference2Async(
 		TwoQueriesWithSameReference2Request request,
@@ -40,9 +40,9 @@ partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string inputQuestion(List<DbParameter> parameters)

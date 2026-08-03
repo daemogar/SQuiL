@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class DebugRollbackFalseAlwaysCommitsDataContext : SQuiLBaseDataContext
+partial class DebugRollbackFalseAlwaysCommitsDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<DebugRollbackFalseAlwaysCommitsResponse>> ProcessDebugRollbackFalseAlwaysCommitsAsync(
 		DebugRollbackFalseAlwaysCommitsRequest request,
@@ -73,7 +73,7 @@ partial class DebugRollbackFalseAlwaysCommitsDataContext : SQuiLBaseDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isCount) errors.Add(new(51001, 12, 1, 78, "Count", "Expected return scaler `Count`"));

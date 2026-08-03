@@ -8,7 +8,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class C : SQuiLBaseDataContext
+partial class C : SqlServerDataContext
 {
     public C(IConfiguration Configuration) : base(Configuration) { }
 }

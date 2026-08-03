@@ -188,6 +188,8 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
     <li><a href="#type-reference">SQL Type → C# Type Reference</a></li>
     <li><a href="#result-sets">Result Sets — Authoring Styles</a></li>
     <li><a href="#examples">Examples</a></li>
+    <li><a href="#sqlite">SQLite Dialect</a></li>
+    <li><a href="#postgres">PostgreSQL Dialect</a></li>
     <li><a href="#sample-data">Sample Data Insertion</a></li>
     <li><a href="#connection-strings">Connection String Configuration</a></li>
     <li><a href="#project-setup">Project Setup</a></li>
@@ -709,6 +711,161 @@ diagnostic is INPUT-only: <code>SP0036</code> (build error, squiggled in all thr
 link column's declared type is neither integer-family nor <code>uniqueidentifier</code> — nothing else can
 have a join key synthesized.</p>
 
+<!-- ──────────────────── SQLite Dialect ────────────────────────────────── -->
+<h2 id="sqlite">SQLite Dialect</h2>
+<p>SQuiL ships a native <strong>SQLite</strong> provider alongside SQL Server. The generated C# is
+<strong>identical in shape</strong> across dialects — <code>Process&lt;Query&gt;Async</code> →
+<code>SQuiLResultType&lt;Response&gt;</code>, the <code>*Request</code>/<code>*Response</code> records,
+row records in <code>&lt;Ctx&gt;.Models</code>, and <code>AddSQuiL()</code>. Only the SQL you write, the
+runtime base class (<code>SqliteDataContext</code>), and the ADO.NET plumbing differ.</p>
+
+<p>Reference <strong>both</strong> <code>SQuiL.Core</code> and <code>SQuiL.Sqlite</code>. The dialect is
+<strong>inferred from the provider package</strong> you reference; add
+<code>[SQuiLDialect(SQuiLDialect.Sqlite)]</code> to a context to pin it, or to disambiguate a project
+that references more than one provider (2+ providers with no attribute is build error
+<code>SP0039</code>).</p>
+
+<div class="tip">
+  This editor detects a <code>.squil</code> file's dialect from the owning project's SQuiL provider
+  <code>PackageReference</code> (<code>SQuiL.Sqlite</code> vs <code>SQuiL.SqlServer</code>), with
+  <code>[SQuiLDialect]</code> as the override — so the type recognizer, hover, completion, and diagnostics
+  switch to the SQLite vocabulary automatically.
+</div>
+
+<p>SQLite has no <code>Declare @x table(...)</code> and no <code>Use [Db];</code>, so the header is a
+leading run of native <code>Create Temp Table</code> statements. The direction/cardinality convention that
+<code class="par">@Param_</code>/<code class="par">@Params_</code>/<code class="ret">@Return_</code>/<code
+class="ret">@Returns_</code> express in T-SQL carries over onto the <strong>temp-table name</strong>
+(<code class="par">Params_</code>/<code class="par">Param_</code> inputs, <code class="ret">Returns_</code>/<code
+class="ret">Return_</code> outputs; plural = list, singular = object/scalar). Key rules:</p>
+<ul>
+  <li><strong>Params before returns</strong> — every input temp table must be declared before any output
+    temp table. Out of order is build error <code>SP0040</code> (an error in SQLite; only a warning in SQL
+    Server), squiggled in the editor.</li>
+  <li><strong>A single-column temp table is a scalar</strong> — the property takes the table's base name.</li>
+  <li><strong>Native SQLite types</strong> (<code class="tp">INTEGER</code>, <code class="tp">TEXT</code>,
+    <code class="tp">REAL</code>, <code class="tp">BLOB</code>, <code class="tp">NUMERIC</code>/<code
+    class="tp">DECIMAL</code>, <code class="tp">BOOLEAN</code>, <code class="tp">DATE</code>/<code
+    class="tp">DATETIME</code>, <code class="tp">GUID</code>). Note the affinities differ from T-SQL:
+    <code class="tp">INTEGER</code> → <code>long</code> and <code class="tp">REAL</code> → <code>double</code>.
+    <code class="kw">Primary Key</code>, <code>null</code>/<code>not null</code>, and <code>default</code> are
+    ordinary SQLite column constraints; nullability and nested-object rules are unchanged.</li>
+  <li><strong>Positional body boundary</strong> — no <code>Use</code>; the body starts at the first statement
+    that is neither a <code>Create Temp Table</code> nor a population of a declared param temp table.</li>
+  <li><strong>Sample DML is stripped</strong> — an <code>Insert Into &lt;ParamTable&gt; … Values …</code> in
+    the header is dropped at generation and replaced by the <code>json_each</code> input shred (SQLite's
+    <code>OPENJSON</code> analogue). <code>byte[]</code>/<code class="tp">BLOB</code> values round-trip through
+    a hex string decoded with SQLite's <code>unhex</code>.</li>
+</ul>
+
+<pre><code><span class="ann">--Name: ImportPeople</span>
+<span class="kw">Create Temp Table</span> <span class="par">Params_Person</span> (PersonID <span class="tp">INTEGER</span> <span class="kw">Primary Key</span>, Name <span class="tp">TEXT</span>, Age <span class="tp">INTEGER</span>);
+<span class="kw">Create Temp Table</span> <span class="ret">Return_Count</span> (Value <span class="tp">INTEGER</span>);
+<span class="kw">Create Temp Table</span> <span class="ret">Returns_Imported</span> (PersonID <span class="tp">INTEGER</span>, Status <span class="tp">TEXT</span>);
+
+<span class="cm">-- sample data (stripped at generation, replaced by the json_each shred)</span>
+<span class="kw">Insert Into</span> <span class="par">Params_Person</span> (PersonID, Name, Age) <span class="kw">Values</span> (1, <span class="str">'Ada'</span>, 36), (2, <span class="str">'Alan'</span>, 41);
+
+<span class="cm">-- ↓ first non-temp / non-param-population statement = body boundary (replaces Use)</span>
+<span class="kw">Insert Into</span> <span class="ret">Returns_Imported</span> (PersonID, Status) <span class="kw">Select</span> PersonID, <span class="str">'ok'</span> <span class="kw">From</span> <span class="par">Params_Person</span>;
+<span class="kw">Insert Into</span> <span class="ret">Return_Count</span> (Value) <span class="kw">Select</span> Count(*) <span class="kw">From</span> <span class="ret">Returns_Imported</span>;
+<span class="kw">Select</span> Value <span class="kw">From</span> <span class="ret">Return_Count</span>;
+<span class="kw">Select</span> PersonID, Status <span class="kw">From</span> <span class="ret">Returns_Imported</span>;</code></pre>
+
+<p><strong>Generated C#</strong> — the same shape as SQL Server (note <code class="tp">INTEGER</code> →
+<code>long</code>):</p>
+<pre><code><span class="cs-kw">public partial record</span> <span class="cs-cls">ImportPeopleRequest</span>
+{
+    <span class="cs-kw">public</span> <span class="cs-cls">List</span>&lt;<span class="cs-cls">Ctx.Models.Person</span>&gt;? <span class="cs-pn">Person</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; } = [];
+}
+
+<span class="cs-kw">public partial record</span> <span class="cs-cls">ImportPeopleResponse</span>
+{
+    <span class="cs-kw">public</span> <span class="cs-tp">long</span> <span class="cs-pn">Count</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+    <span class="cs-kw">public</span> <span class="cs-cls">List</span>&lt;<span class="cs-cls">Ctx.Models.Imported</span>&gt;? <span class="cs-pn">Imported</span> { <span class="cs-kw">get</span>; <span class="cs-kw">set</span>; }
+}
+
+<span class="cm">// Method on ImportPeopleDataContext (: SqliteDataContext):</span>
+<span class="cs-kw">public</span> <span class="cs-cls">Task</span>&lt;<span class="cs-cls">SQuiLResultType</span>&lt;<span class="cs-cls">ImportPeopleResponse</span>&gt;&gt; <span class="cs-pn">ProcessImportPeopleAsync</span>(
+    <span class="cs-cls">ImportPeopleRequest</span> <span class="cs-pn">request</span>,
+    <span class="cs-cls">CancellationToken</span> <span class="cs-pn">cancellationToken</span> = <span class="cs-kw">default</span>) { <span class="cm">/* generated */</span> }</code></pre>
+
+<!-- ──────────────────── PostgreSQL Dialect ────────────────────────────── -->
+<h2 id="postgres">PostgreSQL Dialect</h2>
+<p>SQuiL also ships a native <strong>PostgreSQL</strong> provider — a near-twin of SQLite: same
+<code>Create Temp Table</code> header, same direction/cardinality-by-table-name convention, same
+positional body boundary. The generated C# is <strong>identical in shape</strong> to SQL Server and
+SQLite. Only the SQL you write, the runtime base class (<code>PostgresDataContext</code>), and the
+ADO.NET plumbing (<code>Npgsql</code>) differ.</p>
+
+<p>Reference <strong>both</strong> <code>SQuiL.Core</code> and <code>SQuiL.Postgres</code>. The dialect is
+<strong>inferred from the provider package</strong> you reference; add
+<code>[SQuiLDialect(SQuiLDialect.Postgres)]</code> to a context to pin it, or to disambiguate a project
+that references more than one provider (2+ providers with no attribute is build error
+<code>SP0039</code>).</p>
+
+<div class="tip">
+  This editor detects a <code>.squil</code> file's dialect from the owning project's SQuiL provider
+  <code>PackageReference</code> (<code>SQuiL.Postgres</code> vs <code>SQuiL.SqlServer</code>/<code>SQuiL.Sqlite</code>),
+  with <code>[SQuiLDialect]</code> as the override — so the type recognizer, hover, completion, and
+  diagnostics switch to the PostgreSQL vocabulary automatically.
+</div>
+
+<p>Two differences from SQLite:</p>
+<ul>
+  <li><strong>Input shred is <code>json_to_recordset</code>, not <code>json_each</code>.</strong>
+    PostgreSQL needs an explicit TYPED column list to shred a JSON array into rows — the
+    OPENJSON-WITH analogue rather than SQLite's untyped shred:
+    <code>Insert Into &lt;TempTable&gt;(Col1, Col2) Select x."Col1", x."Col2" From
+    json_to_recordset(@__json_&lt;Name&gt;) AS x("Col1" &lt;pgtype&gt;, "Col2" &lt;pgtype&gt;);</code>
+    A <code class="tp">bytea</code> column is declared <code class="tp">text</code> in the <code>AS</code>
+    list and decoded with <code>decode(x."Col", 'hex')</code> in the <code>SELECT</code> — PostgreSQL's
+    analogue of SQLite's <code>unhex(…)</code>.</li>
+  <li><strong>Identifier casing is Option B (bare + normalize).</strong> PostgreSQL folds unquoted
+    identifiers to lowercase, but SQuiL still emits everything <strong>bare</strong> — the temp-table DDL,
+    the insert target, the whole author-facing body — so a PostgreSQL <code>.squil</code> reads
+    identically to a SQL Server/SQLite one. The <strong>only</strong> quoted identifiers SQuiL emits are
+    the <code>json_to_recordset</code> <code>AS</code>-column-list, required to match the PascalCase JSON
+    keys the shared serializer emits. Result routing is case-insensitive on the PostgreSQL side (the
+    reader reports lowercased column names), so a build-time key like <code>PersonID</code> still
+    matches.</li>
+</ul>
+
+<p>PostgreSQL type map (author writes native PostgreSQL types):</p>
+<table>
+  <tr><th>PostgreSQL type(s)</th><th>C#</th></tr>
+  <tr><td><code class="tp">int4</code>/<code class="tp">int</code>/<code class="tp">integer</code></td><td><code>int</code></td></tr>
+  <tr><td><code class="tp">int8</code>/<code class="tp">bigint</code></td><td><code>long</code></td></tr>
+  <tr><td><code class="tp">int2</code>/<code class="tp">smallint</code></td><td><code>short</code></td></tr>
+  <tr><td><code class="tp">text</code>/<code class="tp">varchar</code>/<code class="tp">character varying</code>/<code class="tp">char</code>/<code class="tp">bpchar</code>/<code class="tp">json</code>/<code class="tp">jsonb</code></td><td><code>string</code></td></tr>
+  <tr><td><code class="tp">bytea</code></td><td><code>byte[]</code></td></tr>
+  <tr><td><code class="tp">uuid</code></td><td><code>System.Guid</code></td></tr>
+  <tr><td><code class="tp">boolean</code>/<code class="tp">bool</code></td><td><code>bool</code></td></tr>
+  <tr><td><code class="tp">timestamp</code></td><td><code>System.DateTime</code></td></tr>
+  <tr><td><code class="tp">timestamptz</code></td><td><code>System.DateTimeOffset</code></td></tr>
+  <tr><td><code class="tp">date</code></td><td><code>System.DateOnly</code></td></tr>
+  <tr><td><code class="tp">time</code></td><td><code>System.TimeOnly</code></td></tr>
+  <tr><td><code class="tp">numeric</code>/<code class="tp">decimal</code>/<code class="tp">money</code></td><td><code>decimal</code></td></tr>
+  <tr><td><code class="tp">real</code>/<code class="tp">float4</code></td><td><code>float</code></td></tr>
+  <tr><td><code class="tp">double precision</code>/<code class="tp">float8</code></td><td><code>double</code></td></tr>
+</table>
+
+<pre><code><span class="ann">--Name: ImportPeople</span>
+<span class="kw">Create Temp Table</span> <span class="par">Params_Person</span> (PersonID <span class="tp">int4</span> <span class="kw">Primary Key</span>, Name <span class="tp">text</span>, Photo <span class="tp">bytea</span>);
+<span class="kw">Create Temp Table</span> <span class="ret">Returns_Imported</span> (PersonID <span class="tp">int4</span>, Name <span class="tp">text</span>);
+
+<span class="cm">-- sample data (stripped at generation, replaced by the json_to_recordset shred)</span>
+<span class="kw">Insert Into</span> <span class="par">Params_Person</span> (PersonID, Name, Photo) <span class="kw">Values</span> (1, <span class="str">'Ada'</span>, decode(<span class="str">'00AB'</span>, <span class="str">'hex'</span>));
+
+<span class="kw">Insert Into</span> <span class="ret">Returns_Imported</span> (PersonID, Name) <span class="kw">Select</span> PersonID, Name <span class="kw">From</span> <span class="par">Params_Person</span>;
+<span class="kw">Select</span> PersonID, Name <span class="kw">From</span> <span class="ret">Returns_Imported</span>;</code></pre>
+
+<p>Params-before-returns is still enforced as a build <strong>error</strong> here too
+(<code>SP0040</code>) — PostgreSQL is a temp-table dialect exactly like SQLite. The generated C# is the
+same shape as the SQLite example above, but the method's declaring class is
+<code>: PostgresDataContext</code> and a runtime error is reachable via <code>error.AsDbException()</code>
+as an <code>NpgsqlException</code>.</p>
+
 <!-- ──────────────────── Sample Data Insertion ────────────────────────── -->
 <h2 id="sample-data">Sample Data Insertion</h2>
 <p>For local testing, you can have SQuiL generate an <code>Insert Into</code> block populated with type-aware
@@ -757,7 +914,13 @@ and re-running it replaces the existing block in place. <strong>Existing blocks 
 <!-- ──────────────────── Project Setup ────────────────────────────────── -->
 <h2 id="project-setup">Project Setup</h2>
 <h3>1. NuGet reference</h3>
-<pre><code>&lt;<span class="cs-cls">PackageReference</span> <span class="cs-pn">Include</span>=<span class="str">"SQuiL.SourceGenerator"</span> <span class="cs-pn">Version</span>=<span class="str">"*"</span> /&gt;</code></pre>
+<pre><code>&lt;<span class="cs-cls">PackageReference</span> <span class="cs-pn">Include</span>=<span class="str">"SQuiL.Core"</span> <span class="cs-pn">Version</span>=<span class="str">"*"</span> /&gt;
+&lt;<span class="cs-cls">PackageReference</span> <span class="cs-pn">Include</span>=<span class="str">"SQuiL.SqlServer"</span> <span class="cs-pn">Version</span>=<span class="str">"*"</span> /&gt;</code></pre>
+<p>Reference <strong>both</strong> packages: <code>SQuiL.Core</code> carries the generator (as a NuGet analyzer)
+plus the provider-neutral runtime types; <code>SQuiL.SqlServer</code> carries the SQL Server provider
+(<code>SqlServerDataContext</code> and the <code>Microsoft.Data.SqlClient</code> plumbing). NuGet does not
+activate a package's analyzer through a transitive dependency, so referencing <code>SQuiL.SqlServer</code>
+alone gets you the runtime but not code generation — both references are required.</p>
 
 <h3>2. Register your <code>.squil</code> files as <code>AdditionalFiles</code></h3>
 <p>SQuiL discovers queries via MSBuild's <code>AdditionalFiles</code> item. The simplest pattern picks up every <code>.squil</code> file anywhere in the project — the file's relative path becomes the entry in the generated <code>QueryFiles</code> enum:</p>
@@ -778,8 +941,9 @@ and re-running it replaces the existing block in place. <strong>Existing blocks 
 
 <h3>3. Declare the data context (<code>[SQuiLQuery]</code>)</h3>
 <p>Your data context is a <code>partial class</code> decorated with one <code>[SQuiLQuery]</code> attribute per <code>.squil</code> file
-it owns. Inheriting <code>SQuiLBaseDataContext</code> explicitly is <strong>not required</strong> — SQuiL supplies the base
-type and an <code>IConfiguration</code> constructor automatically when the class declares no constructor of its own.
+it owns. Inheriting the provider base class explicitly is <strong>not required</strong> — SQuiL supplies the base
+type (<code>SqlServerDataContext</code> by default; override with <code>[SQuiLDialect(SQuiLDialect.SqlServer)]</code>)
+and an <code>IConfiguration</code> constructor automatically when the class declares no constructor of its own.
 Declaring any constructor (primary or ordinary) opts out; that constructor must then chain <code>: base(configuration)</code>.</p>
 
 <pre><code><span class="cs-kw">using</span> <span class="cs-cls">SQuiL</span>;

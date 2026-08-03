@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class LeafOwnPrimaryKeyInputNestingDataContext : SQuiLBaseDataContext
+partial class LeafOwnPrimaryKeyInputNestingDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessLeafOwnPrimaryKeyInputNestingAsync(
 		LeafOwnPrimaryKeyInputNestingRequest request,
@@ -59,9 +59,9 @@ partial class LeafOwnPrimaryKeyInputNestingDataContext : SQuiLBaseDataContext
 			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string inputOrder(List<DbParameter> parameters)

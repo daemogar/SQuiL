@@ -29,6 +29,7 @@ public class NestedDiagnosticsTests
 
 		IEnumerable<MetadataReference> metareferences = [
 			MetadataReference.CreateFromFile(typeof(SqlConnection).Assembly.Location),
+			MetadataReference.CreateFromFile(typeof(SqlServerDataContext).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(IServiceCollection).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(IConfiguration).Assembly.Location)
 		];

@@ -97,8 +97,18 @@ internal sealed class SQuiLErrorTagger : ITagger<IErrorTag>
         if (_buffer.Properties.TryGetProperty(typeof(Microsoft.VisualStudio.Text.ITextDocument), out Microsoft.VisualStudio.Text.ITextDocument doc))
             filePath = doc.FilePath;
 
-        var parsed = SQuiLParser.Parse(text);
-        SQuiLLinter.Lint(text, parsed.Diagnostics, filePath);
+        // Resolve the editor dialect (SQL Server vs SQLite) for the owning project the same
+        // way QuickInfo/Preview do — SQuiLContextResolver.ResolveDialect (.csproj PackageReference
+        // discovery). Threaded into BOTH the parse and the linter so SQLite Create-Temp-Table
+        // declarations are recognized, the SQL-Server-only "missing USE" warning does not fire on
+        // a SQLite file, and SP0040's severity follows the dialect. Falls back to SQL Server when
+        // the buffer has no on-disk path (untitled buffer).
+        var dialect = filePath is not null
+            ? SQuiLContextResolver.ResolveDialect(filePath)
+            : EditorDialect.SqlServer;
+
+        var parsed = SQuiLParser.Parse(text, dialect);
+        SQuiLLinter.Lint(text, parsed.Diagnostics, filePath, dialect);
 
         foreach (var d in parsed.Diagnostics)
         {

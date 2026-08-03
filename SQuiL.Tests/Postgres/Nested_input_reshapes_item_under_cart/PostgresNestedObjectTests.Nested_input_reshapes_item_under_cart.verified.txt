@@ -1,0 +1,524 @@
+﻿{
+  Diagnostics: [
+    {
+      Message: CodeBlock { CodeType = INPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = {scrubbed}, Value = Cart, Original = Param_Cart table }, Name = Cart, DefaultValue = , IsObject = True, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = INPUT_OBJECT, DatabaseType = Token { Type = TYPE_OBJECT, Offset = {scrubbed}, Value = Cart, Original = Param_Cart table }, Name = Cart, DefaultValue = , IsObject = True, IsTable = False, IsBinary = False, IsRequired = False, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = INPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = {scrubbed}, Value = Item, Original = Params_Item table }, Name = Item, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = INPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = {scrubbed}, Value = Item, Original = Params_Item table }, Name = Item, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = {scrubbed}, Value = CartLine, Original = Returns_CartLine table }, Name = CartLine, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = OUTPUT_TABLE, DatabaseType = Token { Type = TYPE_TABLE, Offset = {scrubbed}, Value = CartLine, Original = Returns_CartLine table }, Name = CartLine, DefaultValue = , IsObject = False, IsTable = True, IsBinary = False, IsRequired = False, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties = System.Collections.Generic.List`1[SQuiL.SourceGenerator.Parser.CodeItem] },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = {scrubbed}, Value = Insert Into Returns_CartLine (ShopperName, Product) Select c.ShopperName, i.Product From Param_Cart c Join Params_Item i On i.CartID = c.CartID; Select ShopperName, Product From Returns_CartLine;, Original = Insert Into Returns_CartLine (ShopperName, Product) Select c.ShopperName, i.Product From Param_Cart c Join Params_Item i On i.CartID = c.CartID; Select ShopperName, Product From Returns_CartLine; }, Name = Insert Into Returns_CartLine (ShopperName, Product) Select c.ShopperName, i.Product From Param_Cart c Join Params_Item i On i.CartID = c.CartID; Select ShopperName, Product From Returns_CartLine;, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: CodeBlock { CodeType = BODY, DatabaseType = Token { Type = BODY, Offset = {scrubbed}, Value = Insert Into Returns_CartLine (ShopperName, Product) Select c.ShopperName, i.Product From Param_Cart c Join Params_Item i On i.CartID = c.CartID; Select ShopperName, Product From Returns_CartLine;, Original = Insert Into Returns_CartLine (ShopperName, Product) Select c.ShopperName, i.Product From Param_Cart c Join Params_Item i On i.CartID = c.CartID; Select ShopperName, Product From Returns_CartLine; }, Name = Insert Into Returns_CartLine (ShopperName, Product) Select c.ShopperName, i.Product From Param_Cart c Join Params_Item i On i.CartID = c.CartID; Select ShopperName, Product From Returns_CartLine;, DefaultValue = , IsObject = False, IsTable = False, IsBinary = False, IsRequired = True, IsNullableMarker = , HasScalarNullabilityMarker = False, IsNullable = False, Size = , IsSpecialDeclaration = False, Properties =  },
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_DECLARE => Create Temp Table,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => Create Temp Table,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: VARIABLE => Param_Cart,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => Param_Cart,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_TABLE => Param_Cart,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_TABLE => Param_Cart,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_LPREN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_LPREN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => CartID,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => CartID,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_INT => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_INT => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_PRIMARY_KEY => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_PRIMARY_KEY => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => ShopperName,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => ShopperName,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => text,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => text,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_RPREN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_RPREN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_DECLARE => Create Temp Table,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => Create Temp Table,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: VARIABLE => Params_Item,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => Params_Item,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_TABLE => Params_Item,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_TABLE => Params_Item,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_LPREN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_LPREN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => ItemID,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => ItemID,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_INT => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_INT => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_PRIMARY_KEY => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_PRIMARY_KEY => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => CartID,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => CartID,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_INT => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_INT => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => Product,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => Product,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => text,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => text,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_RPREN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_RPREN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: KEYWORD_DECLARE => Create Temp Table,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: KEYWORD_DECLARE => Create Temp Table,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: VARIABLE => Returns_CartLine,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: VARIABLE => Returns_CartLine,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_TABLE => Returns_CartLine,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_TABLE => Returns_CartLine,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_LPREN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_LPREN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => ShopperName,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => ShopperName,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => text,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => text,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_COMMA => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_COMMA => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: IDENTIFIER => Product,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: IDENTIFIER => Product,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: TYPE_STRING => text,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: TYPE_STRING => text,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: SYMBOL_RPREN => ,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: SYMBOL_RPREN => ,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Message: BODY => Insert Into Returns_CartLine (ShopperName, Product) Select c.ShopperName, i.Product From Param_Cart c Join Params_Item i On i.CartID = c.CartID; Select ShopperName, Product From Returns_CartLine;,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SP0000,
+        Title: Development Data,
+        MessageFormat: BODY => Insert Into Returns_CartLine (ShopperName, Product) Select c.ShopperName, i.Product From Param_Cart c Join Params_Item i On i.CartID = c.CartID; Select ShopperName, Product From Returns_CartLine;,
+        Category: Logger,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

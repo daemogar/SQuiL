@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class IntegerTypesMapToLongShortByteDataContext : SQuiLBaseDataContext
+partial class IntegerTypesMapToLongShortByteDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessIntegerTypesMapToLongShortByteAsync(
 		IntegerTypesMapToLongShortByteRequest request,
@@ -43,9 +43,9 @@ partial class IntegerTypesMapToLongShortByteDataContext : SQuiLBaseDataContext
 			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

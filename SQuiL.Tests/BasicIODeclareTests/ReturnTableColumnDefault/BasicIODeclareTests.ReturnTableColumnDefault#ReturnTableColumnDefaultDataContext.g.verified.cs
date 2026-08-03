@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ReturnTableColumnDefaultDataContext : SQuiLBaseDataContext
+partial class ReturnTableColumnDefaultDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<ReturnTableColumnDefaultResponse>> ProcessReturnTableColumnDefaultAsync(
 		ReturnTableColumnDefaultRequest request,
@@ -82,7 +82,7 @@ partial class ReturnTableColumnDefaultDataContext : SQuiLBaseDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isRows) errors.Add(new(51001, 12, 1, 87, "Rows", "Expected return table `Rows`"));

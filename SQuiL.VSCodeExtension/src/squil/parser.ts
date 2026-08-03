@@ -89,9 +89,20 @@ export interface SQuiLParseResult {
 import { validateVariables, findingMessage, findingSeverity } from './variableValidator';
 import { shapeKeyOf } from './shapeKey';
 import { buildKeyGraph, KeyGraphResult, OUTPUT_TABLE_ROLES, INPUT_TABLE_ROLES } from './keyGraph';
+import { EditorDialect, isTempTableDialect } from './dialect';
+export { isTempTableDialect };
 
-/** Parse a full SQuiL SQL file text into a structured result. */
-export function parseSQuiL(text: string): SQuiLParseResult {
+/**
+ * Parse a full SQuiL SQL file text into a structured result.
+ *
+ * When <c>dialect</c> is a temp-table-header dialect (<c>'sqlite'</c> or <c>'postgres'</c>)
+ * the header model is that dialect family's native
+ * <c>Create Temp Table &lt;Prefix&gt;_&lt;Name&gt; (...)</c> form (direction/cardinality carried
+ * by the bare name, single-column singular collapsing to a scalar) instead of T-SQL
+ * <c>Declare @...</c> / <c>Use</c> — mirroring the generator's Task-5 header parsing.
+ * Defaults to <c>'sqlserver'</c> so every existing caller is unaffected.
+ */
+export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): SQuiLParseResult {
   const lines = text.split('\n');
   const result: SQuiLParseResult = {
     variables: [],
@@ -138,6 +149,38 @@ export function parseSQuiL(text: string): SQuiLParseResult {
       continue;
     }
 
+    // Temp-table-header model (Task 5, SQLite + PostgreSQL): `Create Temp Table
+    // <Prefix>_<Name> ( ... )` is the declaration form (no `@`, no `Use`). Direction/
+    // cardinality come from the bare name, exactly as the `@`-prefixed T-SQL form.
+    // Body/sample-DML statements after the header simply match no declaration regex
+    // and are ignored here (the editor model only needs the declarations for
+    // hover/completion/diagnostics).
+    if (isTempTableDialect(dialect)) {
+      // The name may be bracket-quoted (`[Params_Foo]`, full #3 parity) — mirrors the
+      // generator's `IdentifierRegex`, which recognizes and strips brackets on both the
+      // declaration name and DML targets. Bracket-quoted alternative captures group 1;
+      // bare-name alternative captures group 2 — exactly one of the two is set.
+      const createMatch = trimmed.match(/^CREATE\s+TEMP\s+TABLE\s+(?:\[(\w+)\]|(\w+))\s*\((.*)$/is);
+      if (createMatch) {
+        const tableName = createMatch[1] ?? createMatch[2];
+        // Collect the (possibly multi-line) column list until the paren depth returns to 0.
+        let inner = createMatch[3];
+        let depth = 1 + parenDepthDelta(inner);
+        let j = i + 1;
+        while (depth > 0 && j < lines.length) {
+          const seg = lines[j];
+          inner += '\n' + seg;
+          depth += parenDepthDelta(seg);
+          j++;
+        }
+        const closeIdx = inner.lastIndexOf(')');
+        const columnsInner = (closeIdx >= 0 ? inner.slice(0, closeIdx) : inner).trim();
+
+        parseSqliteCreateTable(tableName, columnsInner, i, rawLine, result, lines);
+        continue;
+      }
+    }
+
     // DECLARE statement — capture the variable name and everything after it
     // Handles multiline TABLE declarations by joining continuation if needed
     const declareMatch = trimmed.match(/^DECLARE\s+(@\w+)\s+([\s\S]*?)(?:;|$)/i);
@@ -166,8 +209,10 @@ export function parseSQuiL(text: string): SQuiLParseResult {
     }
   }
 
-  // Missing USE warning
-  if (useCount === 0) {
+  // Missing USE warning — temp-table-header dialects (SQLite, PostgreSQL) have no USE
+  // statement (their header is Create Temp Table), so this T-SQL-only requirement must
+  // not fire for them.
+  if (useCount === 0 && !isTempTableDialect(dialect)) {
     result.diagnostics.push({
       message: 'No USE statement found. SQuiL requires a USE [DatabaseName]; statement.',
       line: 0,
@@ -216,7 +261,58 @@ export function parseSQuiL(text: string): SQuiLParseResult {
     result.diagnostics.push(d);
   }
 
+  // SP0040: every @Param/@Params (input) must be declared before any @Return/@Returns
+  // (output). Error for temp-table-header dialects (SQLite, PostgreSQL), warning
+  // otherwise — severity follows the resolved dialect.
+  for (const d of lintParamsBeforeReturns(result, dialect)) {
+    result.diagnostics.push(d);
+  }
+
   return result;
+}
+
+/** SP0040 — within one file, an @Return/@Returns (output) declaration precedes a
+ *  @Param/@Params (input) declaration. Inputs must be declared first. Reported once,
+ *  anchored at the first offending output (the earliest output still followed by a later
+ *  input). Severity is dialect-dependent: `error` for every temp-table-header dialect
+ *  (SQLite, Postgres — their Create-Temp-Table header must create inputs before the shred
+ *  reads them), `warning` otherwise. Same rule as SQuiLOrderingValidator.cs (generator) and
+ *  LintParamsBeforeReturns in SQuiLLinter.cs (SSMS + Visual Studio) — change one, change all.
+ *
+ *  Generalized (Task 8) from a SQLite-only gate to the full temp-table family via
+ *  isTempTableDialect(), matching the generator's FileGenerator.cs, which now gates on
+ *  `dialect is ITempTableHeaderDialect`.
+ */
+export function lintParamsBeforeReturns(result: SQuiLParseResult, dialect: EditorDialect): SQuiLDiagnostic[] {
+  const inputRoles = new Set<VariableRole>(['param', 'params', 'param-table']);
+  const outputRoles = new Set<VariableRole>(['return', 'returns', 'return-table']);
+
+  // Only INPUT/OUTPUT declarations participate, in file order. Specials/unknowns are skipped.
+  const decls = result.variables.filter(v => inputRoles.has(v.role) || outputRoles.has(v.role));
+
+  // Index of the last input; any output before it is out of order. No inputs → cannot violate.
+  let lastInputIndex = -1;
+  for (let i = 0; i < decls.length; i++) {
+    if (inputRoles.has(decls[i].role)) lastInputIndex = i;
+  }
+  if (lastInputIndex < 0) return [];
+
+  for (let i = 0; i < lastInputIndex; i++) {
+    const v = decls[i];
+    if (!outputRoles.has(v.role)) continue;
+    return [{
+      message:
+        `\`${v.rawName}\` (an output) is declared before a later @Param/@Params input. ` +
+        `Declare all @Param/@Params (inputs) before any @Return/@Returns (outputs).`,
+      line: v.line,
+      startChar: v.character,
+      endChar: v.character + v.rawName.length,
+      severity: isTempTableDialect(dialect) ? 'error' : 'warning',
+      code: 'SP0040',
+    }];
+  }
+
+  return [];
 }
 
 /**
@@ -592,6 +688,81 @@ export function lintShapeCollision(parsed: SQuiLParseResult): SQuiLDiagnostic[] 
 
 // ─── Internal helpers ──────────────────────────────────────────────────────
 
+/**
+ * SQLite header parser (Task 5): maps one `Create Temp Table <Prefix>_<Name> ( ... )`
+ * statement to the SAME `SQuiLVariable`/`TableColumn` model the T-SQL `Declare @...` path
+ * builds. Direction + cardinality come from the bare `<Prefix>_` (Params_/Param_/Returns_/
+ * Return_); a SINGULAR (Param_/Return_) declaration with exactly one column collapses to a
+ * scalar variable, mirroring the generator's single-column-object collapse.
+ */
+function parseSqliteCreateTable(
+  tableName: string,
+  columnsInner: string,
+  lineNum: number,
+  fullLine: string,
+  result: SQuiLParseResult,
+  allLines: string[],
+): void {
+  const nameStart = fullLine.indexOf(tableName);
+  const character = nameStart >= 0 ? nameStart : 0;
+
+  const underscore = tableName.indexOf('_');
+  const prefix = (underscore >= 0 ? tableName.slice(0, underscore) : tableName).toUpperCase();
+  const baseName = underscore >= 0 ? tableName.slice(underscore + 1) : tableName;
+
+  const columns = parseTableColumns(columnsInner);
+  const isPlural = prefix === 'PARAMS' || prefix === 'RETURNS';
+  const isInput = prefix === 'PARAM' || prefix === 'PARAMS';
+  const isOutput = prefix === 'RETURN' || prefix === 'RETURNS';
+
+  // Single-column SINGULAR declaration collapses to a scalar (Param_ -> param, Return_ -> return).
+  if (!isPlural && (isInput || isOutput) && columns.length === 1) {
+    const col = columns[0];
+    result.variables.push({
+      role: isInput ? 'param' : 'return',
+      rawName: tableName,
+      name: baseName,
+      sqlType: col.sqlType,
+      nullable: col.nullabilityMarker === 'NULL',
+      line: lineNum,
+      character,
+    });
+    return;
+  }
+
+  let role: VariableRole;
+  if (prefix === 'PARAMS') role = 'params';
+  else if (prefix === 'PARAM') role = 'param-table';
+  else if (prefix === 'RETURNS') role = 'returns';
+  else if (prefix === 'RETURN') role = 'return-table';
+  else role = 'unknown';
+
+  // Precise per-column source positions: scan from this line using the SQLite header open
+  // pattern (`Temp Table <name> (`) instead of the T-SQL `table(` pattern.
+  const colPositions = scanTableColumnPositions(allLines, lineNum, 0, /\bTEMP\s+TABLE\s+\w+\s*\(/i);
+  if (colPositions.length === columns.length) {
+    columns.forEach((col, idx) => {
+      col.line = colPositions[idx].line;
+      col.character = colPositions[idx].character;
+    });
+  } else {
+    for (const col of columns) {
+      col.line = lineNum;
+      col.character = character;
+    }
+  }
+
+  result.variables.push({
+    role,
+    rawName: tableName,
+    name: baseName,
+    sqlType: 'TABLE',
+    columns,
+    line: lineNum,
+    character,
+  });
+}
+
 function parseVariable(
   rawName: string,
   typeStr: string,
@@ -784,6 +955,7 @@ function scanTableColumnPositions(
   lines: string[],
   startLine: number,
   startChar: number,
+  open: RegExp = /\bTABLE\s*\(/i,
 ): { line: number; character: number }[] {
   const results: { line: number; character: number }[] = [];
 
@@ -806,7 +978,7 @@ function scanTableColumnPositions(
   }
 
   const text = flatChars.join('');
-  const openMatch = /\bTABLE\s*\(/i.exec(text);
+  const openMatch = open.exec(text);
   if (!openMatch) return results;
 
   const isNameChar = (c: string) => /[A-Za-z0-9_]/.test(c);
@@ -836,6 +1008,84 @@ function scanTableColumnPositions(
   }
 
   return results;
+}
+
+/**
+ * Determine the 0-based line on which the query BODY begins for a SQLite (USE-less)
+ * `.squil` file, mirroring the generator tokenizer's SQLite body boundary (Task 5):
+ * the body is everything AFTER the leading `Create Temp Table` declarations and any
+ * leading bare-name param-table population statements
+ * (`Insert|Update|Delete <ParamTable> …`).
+ *
+ * SQLite files have no `USE`, so the T-SQL `databaseLine + 1` body derivation yields an
+ * empty body and must NOT be used for them (that was the Task-9 review bug: the SP0025
+ * SQLite `Begin` regex was dead and a legit SQLite mutation drew a spurious SP0024).
+ * Reuses the already-parsed declaration set (`parsed.variables`) for the param-table
+ * names — it does NOT re-parse from scratch.
+ *
+ * Returns `lines.length` when the file is header-only (no body).
+ *
+ * Mirrors `SQuiLParser.SqliteBodyStartLine` in SQuiLParser.cs (SSMS + Visual Studio) —
+ * change one side, change all three.
+ */
+export function sqliteBodyStartLine(text: string, parsed: SQuiLParseResult): number {
+  const lines = text.split('\n');
+
+  // Param/Params-prefixed SQLite temp-table names (bare, no `@`) — the same set the
+  // tokenizer's SqliteCreateTempTable records for sample-DML population recognition.
+  const paramTableNames = new Set<string>(
+    parsed.variables
+      .filter(v => v.role === 'param' || v.role === 'params' || v.role === 'param-table')
+      .map(v => v.rawName)
+      .filter(n => !n.startsWith('@') && /^params?_/i.test(n))
+      .map(n => n.toLowerCase()),
+  );
+
+  let i = 0;
+  while (i < lines.length) {
+    const trimmed = lines[i].trim();
+
+    // Skip blank and comment-only lines.
+    if (trimmed === '' || trimmed.startsWith('--') || trimmed.startsWith('/*')) { i++; continue; }
+
+    // `Create Temp Table <name> ( … )` declaration — consume the (possibly multi-line)
+    // statement until the column-list paren depth returns to 0. The name may be bracket-quoted
+    // (`[Name]`, #3) and the opening `(` may be on a SUBSEQUENT line (#2 — matched by the `$`
+    // alternative), so the depth-tracking loop below finds the real end regardless.
+    if (/^CREATE\s+TEMP\s+TABLE\s+(?:\[\w+\]|\w+)\s*(?:\(|$)/i.test(trimmed)) {
+      let depth = 0;
+      let opened = false;
+      while (i < lines.length) {
+        depth += parenDepthDelta(lines[i]);
+        if (lines[i].includes('(')) opened = true;
+        i++;
+        if (opened && depth <= 0) break;
+      }
+      continue;
+    }
+
+    // Bare-name param-table population DML (`Insert Into <ParamTable> …`, `Update <ParamTable> …`,
+    // `Delete [From] <ParamTable> …`) — the SQLite analog of the T-SQL `Insert Into @Var …`
+    // sample-data marker. Only skip when the target is a declared param table; DML against an
+    // OUTPUT table or an ordinary real table is real body logic (the body begins there).
+    // The target may be bracket-quoted (`[ParamTable]`, #3) — properly PAIRED (`\[(\w+)\]` or
+    // `(\w+)`, not the looser `\[?(\w+)\]?` which would also match an unbalanced `[Foo` or
+    // `Foo]`). Exactly one of the two capture groups is set; the membership comparison sees the
+    // name bracket-stripped either way.
+    const dml = trimmed.match(/^(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DELETE)\s+(?:\[(\w+)\]|(\w+))/i);
+    if (dml && paramTableNames.has((dml[1] ?? dml[2]).toLowerCase())) {
+      // Consume through the statement terminator `;`.
+      while (i < lines.length && !lines[i].includes(';')) i++;
+      if (i < lines.length) i++;
+      continue;
+    }
+
+    // First statement that is neither a header declaration nor a param-table population
+    // → the body begins here.
+    return i;
+  }
+
+  return lines.length;
 }
 
 /** Net change in paren depth across a string ('(' count minus ')' count).

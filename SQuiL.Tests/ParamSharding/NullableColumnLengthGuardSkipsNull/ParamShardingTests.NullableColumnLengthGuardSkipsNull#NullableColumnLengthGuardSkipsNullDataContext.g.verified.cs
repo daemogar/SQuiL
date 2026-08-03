@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class NullableColumnLengthGuardSkipsNullDataContext : SQuiLBaseDataContext
+partial class NullableColumnLengthGuardSkipsNullDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessNullableColumnLengthGuardSkipsNullAsync(
 		NullableColumnLengthGuardSkipsNullRequest request,
@@ -40,9 +40,9 @@ partial class NullableColumnLengthGuardSkipsNullDataContext : SQuiLBaseDataConte
 			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string inputPeople(List<DbParameter> parameters)

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class GuidNonNullDefaultCompilesDataContext : SQuiLBaseDataContext
+partial class GuidNonNullDefaultCompilesDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessGuidNonNullDefaultCompilesAsync(
 		GuidNonNullDefaultCompilesRequest request,
@@ -41,9 +41,9 @@ partial class GuidNonNullDefaultCompilesDataContext : SQuiLBaseDataContext
 			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

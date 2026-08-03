@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class PrimaryKeysNoLinksDataContext : SQuiLBaseDataContext
+partial class PrimaryKeysNoLinksDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<PrimaryKeysNoLinksResponse>> ProcessPrimaryKeysNoLinksAsync(
 		PrimaryKeysNoLinksRequest request,
@@ -100,7 +100,7 @@ partial class PrimaryKeysNoLinksDataContext : SQuiLBaseDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isAlpha) errors.Add(new(51001, 12, 1, 105, "Alpha", "Expected return table `Alpha`"));

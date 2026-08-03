@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class CustomTableVariableWithPrimaryConstructorDataContext : SQuiLBaseDataContext
+partial class CustomTableVariableWithPrimaryConstructorDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<CustomTableVariableWithPrimaryConstructorResponse>> ProcessCustomTableVariableWithPrimaryConstructorAsync(
 		CustomTableVariableWithPrimaryConstructorRequest request,
@@ -80,7 +80,7 @@ partial class CustomTableVariableWithPrimaryConstructorDataContext : SQuiLBaseDa
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isTable) errors.Add(new(51001, 12, 1, 85, "Table", "Expected return table `Table`"));

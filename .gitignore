@@ -63,6 +63,9 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 
+# Local pack-verification output (dotnet pack -o ./artifacts-local); never commit built .nupkg/.snupkg files
+artifacts-local/
+
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
 

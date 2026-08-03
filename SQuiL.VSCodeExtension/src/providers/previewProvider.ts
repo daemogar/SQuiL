@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { parseSQuiL } from '../squil/parser';
 import { generateCSharpPreview } from '../squil/previewGenerator';
-import { resolveContext } from '../squil/contextResolver';
+import { resolveContext, resolveProjectDialect } from '../squil/contextResolver';
 
 // ─── Real-filesystem resolver callbacks ───────────────────────────────────
 
@@ -64,7 +64,8 @@ export async function openPreview(
   }
 
   const text = document.getText();
-  const parsed = parseSQuiL(text);
+  const dialect = resolveProjectDialect(document.uri.fsPath, fsReadFile, fsListDir);
+  const parsed = parseSQuiL(text, dialect);
 
   // Derive query name: prefer --Name: annotation, fallback to file stem
   const queryName =
@@ -75,7 +76,7 @@ export async function openPreview(
   // enabled/debugRollback. Falls back to enabled=false (no transaction) when
   // the file is orphaned or has duplicate registrations.
   const ctx = resolveContext(document.uri.fsPath, fsReadFile, fsListDir);
-  const content = generateCSharpPreview(parsed, queryName, undefined, ctx.enabled, ctx.debugRollback);
+  const content = generateCSharpPreview(parsed, queryName, undefined, ctx.enabled, ctx.debugRollback, dialect);
   provider.setContent(document.uri, content);
 
   const previewUri = provider.previewUri(document.uri);
@@ -98,7 +99,8 @@ export function refreshPreview(
   if (document.languageId !== 'squil') return;
 
   const text = document.getText();
-  const parsed = parseSQuiL(text);
+  const dialect = resolveProjectDialect(document.uri.fsPath, fsReadFile, fsListDir);
+  const parsed = parseSQuiL(text, dialect);
   const queryName =
     parsed.queryName ??
     path.basename(document.fileName, path.extname(document.fileName));
@@ -106,6 +108,6 @@ export function refreshPreview(
   // Re-resolve context on each refresh so the preview stays in sync with
   // any changes to the C# attribute.
   const ctx = resolveContext(document.uri.fsPath, fsReadFile, fsListDir);
-  const content = generateCSharpPreview(parsed, queryName, undefined, ctx.enabled, ctx.debugRollback);
+  const content = generateCSharpPreview(parsed, queryName, undefined, ctx.enabled, ctx.debugRollback, dialect);
   provider.setContent(document.uri, content);
 }

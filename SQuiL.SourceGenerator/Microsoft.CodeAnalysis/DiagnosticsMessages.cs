@@ -412,6 +412,49 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
+	/// SP0038 — A data context resolves to a dialect whose provider runtime base type (e.g.
+	/// <c>SQuiL.SqlServerDataContext</c>) is not referenced by the compilation — the consumer
+	/// referenced <c>SQuiL.Core</c> but not the matching provider package (<c>SQuiL.SqlServer</c>,
+	/// etc.). Reported instead of letting the missing base type surface as a cryptic
+	/// "type not found" error; the context's constructor/base-class file is skipped so only
+	/// SP0038 shows up (no cascade).
+	/// </summary>
+	public static void ReportMissingProvider(
+		this SourceProductionContext context, string contextName, string dialectName, string packageId, Location? location = default)
+	{
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0038", "SQuiL Provider Package Not Referenced",
+			$"Data context '{contextName}' targets the {dialectName} dialect, but its provider package is not referenced. " +
+			$"Add a PackageReference to '{packageId}'.", location));
+	}
+
+	/// <summary>
+	/// SP0039 — 2+ SQuiL provider packages (e.g. <c>SQuiL.SqlServer</c> and <c>SQuiL.Sqlite</c>) are
+	/// referenced by the compilation and this data context declares no <c>[SQuiLDialect]</c>
+	/// attribute, so the generator cannot infer which dialect it targets. Reported instead of
+	/// silently guessing; the context's code generation is skipped entirely.
+	/// </summary>
+	public static void ReportAmbiguousDialect(
+		this SourceProductionContext context, string className, Location location)
+		=> context.ReportDiagnostic(CreateDiagnostic(
+			DiagnosticSeverity.Error, "SP0039", "Ambiguous SQuiL Dialect",
+			$"'{className}' references more than one SQuiL provider package. Add [SQuiLDialect(...)] "
+			+ "to choose the dialect (e.g. SQuiLDialect.Sqlite or SQuiLDialect.SqlServer).",
+			location));
+
+	/// <summary>
+	/// SP0040 — within one SQuiL file, an <c>@Return</c>/<c>@Returns</c> (output) declaration
+	/// precedes a <c>@Param</c>/<c>@Params</c> (input) declaration. Inputs must be declared first.
+	/// The severity is chosen by the caller from the resolved dialect (like SP0016): an error for
+	/// every temp-table-header dialect (SQLite, PostgreSQL — <c>isError</c>), a warning otherwise.
+	/// </summary>
+	public static void ReportParamsBeforeReturns(this SourceProductionContext context, string filename, bool isError, Location location)
+		=> context.ReportDiagnostic(CreateDiagnostic(
+			isError ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning, "SP0040",
+			"Params Before Returns",
+			$"{filename}: declare all @Param/@Params (inputs) before any @Return/@Returns (outputs).",
+			location));
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

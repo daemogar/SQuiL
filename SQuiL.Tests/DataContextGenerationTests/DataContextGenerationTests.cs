@@ -216,7 +216,7 @@ public class DataContextGenerationTests //: DataContextUsedTests
 				// Only the first partial declaration of a class may carry the
 				// primary constructor (CS8863), and the shared record types may
 				// only be defined once (CS0101) — so subsequent sources of a
-				// generic-name (split) context declare `: SQuiLBaseDataContext`
+				// generic-name (split) context declare `: SqlServerDataContext`
 				// explicitly by this test fixture's own convention (the generator
 				// no longer requires it; it auto-supplies the base type and
 				// constructor for context partials that declare no constructor),
@@ -229,7 +229,7 @@ public class DataContextGenerationTests //: DataContextUsedTests
 
 						[{{QueryAttributeName}}(QueryFiles.{{queryName}})]
 						public partial class {{contextName}}DataContext
-							: {{BaseDataContextClassName}}
+							: SqlServerDataContext
 						{
 						}
 						"""
@@ -255,7 +255,7 @@ public class DataContextGenerationTests //: DataContextUsedTests
 			{{string.Join("", attributes.Select(callback))}}
 			public partial class {{name}}DataContext(
 				IConfiguration Configuration)
-				: {{BaseDataContextClassName}}(Configuration)
+				: SqlServerDataContext(Configuration)
 			{
 			}
 			""";

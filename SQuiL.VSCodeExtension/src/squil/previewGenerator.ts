@@ -7,6 +7,7 @@
  */
 
 import { SQuiLParseResult, SQuiLVariable } from './parser';
+import { EditorDialect } from './dialect';
 
 // ─── SQL → C# type mapping ────────────────────────────────────────────────
 
@@ -42,8 +43,72 @@ const SQL_TO_CS: Record<string, string> = {
   xml: 'string',
 };
 
-export function sqlToCSharp(sqlType: string): string {
+/**
+ * SQLite's type vocabulary overlays SQL_TO_CS for keys whose CLR mapping
+ * differs by dialect (e.g. SQLite's REAL is an 8-byte double, not a 4-byte
+ * float; SQLite has no dedicated DATE storage class so both DATE and DATETIME
+ * map to DateTime). Keys absent here fall back to SQL_TO_CS unchanged.
+ */
+const SQLITE_TO_CS: Record<string, string> = {
+  integer: 'long',
+  text: 'string',
+  real: 'double',
+  blob: 'byte[]',
+  numeric: 'decimal',
+  boolean: 'bool',
+  date: 'DateTime',
+  datetime: 'DateTime',
+  guid: 'Guid',
+  uniqueidentifier: 'Guid',
+};
+
+/**
+ * PostgreSQL's type vocabulary overlays SQL_TO_CS for keys whose CLR mapping differs by dialect
+ * (or whose spelling doesn't exist in the base SQL Server map at all — `int4`/`int8`/`int2`/
+ * `bpchar`/`bytea`/`uuid`/`bool`/`timestamptz`/`json`/`jsonb`, plus the ANSI long-form
+ * spellings `character varying`/`timestamp without time zone`/`timestamp with time zone`/
+ * `time without time zone`). Matches the generator's PG type map (`Token.CSharpType()` /
+ * `PostgresDialect.ParamTypeExpr`). Keys absent here fall back to SQL_TO_CS unchanged.
+ */
+const POSTGRES_TO_CS: Record<string, string> = {
+  int2: 'short',
+  smallint: 'short',
+  int4: 'int',
+  int: 'int',
+  integer: 'int',
+  int8: 'long',
+  bigint: 'long',
+  text: 'string',
+  varchar: 'string',
+  char: 'string',
+  bpchar: 'string',
+  'character varying': 'string',
+  json: 'string',
+  jsonb: 'string',
+  bytea: 'byte[]',
+  uuid: 'Guid',
+  bool: 'bool',
+  boolean: 'bool',
+  timestamp: 'DateTime',
+  'timestamp without time zone': 'DateTime',
+  timestamptz: 'DateTimeOffset',
+  'timestamp with time zone': 'DateTimeOffset',
+  date: 'DateOnly',
+  time: 'TimeOnly',
+  'time without time zone': 'TimeOnly',
+  numeric: 'decimal',
+  decimal: 'decimal',
+  money: 'decimal',
+  real: 'float',
+  float4: 'float',
+  'double precision': 'double',
+  float8: 'double',
+};
+
+export function sqlToCSharp(sqlType: string, dialect: EditorDialect = 'sqlserver'): string {
   const base = sqlType.toLowerCase().replace(/\s*\(.*\)/, '').trim();
+  if (dialect === 'sqlite' && base in SQLITE_TO_CS) return SQLITE_TO_CS[base];
+  if (dialect === 'postgres' && base in POSTGRES_TO_CS) return POSTGRES_TO_CS[base];
   return SQL_TO_CS[base] ?? 'object';
 }
 
@@ -120,7 +185,7 @@ function buildNestedGraph(tableVars: SQuiLVariable[]): NestedGraph {
   return { roots, childrenOf, isChild: v => parentOf.has(v) };
 }
 
-function getPropertyType(v: SQuiLVariable, modelsNs?: string): string {
+function getPropertyType(v: SQuiLVariable, modelsNs?: string, dialect: EditorDialect = 'sqlserver'): string {
   if (v.role === 'params' || v.role === 'returns') {
     const typeName = modelsNs ? `${modelsNs}.${recordTypeName(v)}` : recordTypeName(v);
     return `List<${typeName}>?`;
@@ -130,7 +195,7 @@ function getPropertyType(v: SQuiLVariable, modelsNs?: string): string {
     return `${typeName}?`;
   }
   // Scalars: non-nullable unless an explicit `null` marker was declared. Ref types are NOT auto-?.
-  const cs = sqlToCSharp(v.sqlType);
+  const cs = sqlToCSharp(v.sqlType, dialect);
   return v.nullable ? `${cs}?` : cs;
 }
 
@@ -142,6 +207,7 @@ export function generateCSharpPreview(
   namespace = 'YourNamespace',
   enabled = false,
   debugRollback = true,
+  dialect: EditorDialect = 'sqlserver',
 ): string {
   const db = parsed.database ?? '/* database */';
   const lines: string[] = [];
@@ -196,13 +262,13 @@ export function generateCSharpPreview(
   // ROOTS appear at the top level — an input child collapses into its
   // parent record as a member instead (mirrors the Response nesting below).
   lines.push(`// ── Request ─────────────────────────────────────────────`);
-  emitModelRecord(lines, `${queryName}Request`, requestVars, /*isResponse*/ false, parsed.variables, modelsNs);
+  emitModelRecord(lines, `${queryName}Request`, requestVars, /*isResponse*/ false, parsed.variables, modelsNs, dialect);
 
   // ── Response record (only nesting ROOTS appear at the top level — a
   // child collapses into its parent record as a member instead)
   if (returns.length > 0) {
     lines.push(`// ── Response ────────────────────────────────────────────`);
-    emitModelRecord(lines, `${queryName}Response`, responseVars, /*isResponse*/ true, undefined, modelsNs);
+    emitModelRecord(lines, `${queryName}Response`, responseVars, /*isResponse*/ true, undefined, modelsNs, dialect);
   }
 
   // ── Data context
@@ -261,7 +327,7 @@ export function generateCSharpPreview(
     lines.push(`namespace ${modelsNs};`);
     lines.push('');
     for (const v of tableVars) {
-      emitTableRecord(lines, recordTypeName(v), v, modelsNs, childrenOf(v));
+      emitTableRecord(lines, recordTypeName(v), v, modelsNs, childrenOf(v), dialect);
     }
   }
 
@@ -306,11 +372,12 @@ function emitTableRecord(
   v: SQuiLVariable,
   modelsNs?: string,
   children?: SQuiLVariable[],
+  dialect: EditorDialect = 'sqlserver',
 ): void {
   if (!v.columns || v.columns.length === 0) return;
 
   const csType = (col: typeof v.columns[number]): string => {
-    const cs = sqlToCSharp(col.sqlType);
+    const cs = sqlToCSharp(col.sqlType, dialect);
     return col.nullable ? `${cs}?` : cs;
   };
 
@@ -344,7 +411,7 @@ function emitTableRecord(
       // trailing `;`); a bare auto-property has no initializer and no `;`
       // (matches `*.g.verified.cs` ground truth for both sides).
       const initializer = child.role === 'params' ? ' = [];' : '';
-      lines.push(`    public ${getPropertyType(child, modelsNs)} ${child.name} { get; set; }${initializer}`);
+      lines.push(`    public ${getPropertyType(child, modelsNs, dialect)} ${child.name} { get; set; }${initializer}`);
     });
   }
   lines.push(`}`);
@@ -358,6 +425,7 @@ function emitModelRecord(
   isResponse: boolean,
   allVars?: SQuiLVariable[],
   modelsNs?: string,
+  dialect: EditorDialect = 'sqlserver',
 ): void {
   lines.push(`public partial record ${typeName}`);
   lines.push(`{`);
@@ -380,7 +448,7 @@ function emitModelRecord(
       // matching the generator which maps the bare declared type. AsOfDate is
       // always nullable on *Request.
       const asOfType = asOfDate.sqlType.split(/[\s=]/)[0];
-      lines.push(`    public ${sqlToCSharp(asOfType)}? AsOfDate { get; set; }`);
+      lines.push(`    public ${sqlToCSharp(asOfType, dialect)}? AsOfDate { get; set; }`);
     }
 
     if ((hasDebug || hasSuppressDebug || asOfDate) && vars.length > 0) lines.push('');
@@ -388,7 +456,7 @@ function emitModelRecord(
 
   vars.forEach(v => {
     const initializer = (!isResponse && isCollectionRole(v)) ? ' = []' : '';
-    lines.push(`    public ${getPropertyType(v, modelsNs)} ${v.name} { get; set; }${initializer};`);
+    lines.push(`    public ${getPropertyType(v, modelsNs, dialect)} ${v.name} { get; set; }${initializer};`);
   });
 
   lines.push(`}`);

@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.Data.SqlClient;
 
+using SQuiL.Dialects;
 using SQuiL.Generator;
 using SQuiL.SourceGenerator.Parser;
 using SQuiL.Tokenizer;
@@ -20,22 +21,29 @@ namespace SQuiL.Models;
 /// <param name="Method">The query method name (SQL file name without extension).</param>
 /// <param name="Setting">The connection-string configuration key passed to <c>ConnectionStringBuilder</c>.</param>
 /// <param name="Blocks">All parsed code blocks from the SQL file (USE, DECLARE, BODY).</param>
+// `Dialect` must be required (no `?? new SqlServerDialect()` coalesce, per the Phase 3A deferred
+// cleanup); since it's the last parameter and C# requires optional parameters to precede required
+// ones in a primary-constructor declaration, `Graph`/`InputGraph` also drop their defaults here —
+// the sole call site (FileGenerator.cs) already supplies every argument positionally, so this is
+// behavior-neutral.
 public class SQuiLDataContext(
 		string NameSpace,
 		string ClassName,
 		string Method,
 		string Setting,
 		List<CodeBlock> Blocks,
-		bool Enabled = false,
-		bool DebugRollback = true,
-		SQuiLKeyGraph? Graph = null,
-		SQuiLKeyGraph? InputGraph = null)
+		bool Enabled,
+		bool DebugRollback,
+		SQuiLKeyGraph? Graph,
+		SQuiLKeyGraph? InputGraph,
+		ISqlDialect Dialect)
 {
 	/// <summary>
-	/// Resolved key graph for this query's OUTPUT blocks (Task 4, nested objects). A default
-	/// parameter value must be a compile-time constant, so <paramref name="Graph"/> defaults to
-	/// <c>null</c> here and is coalesced to an empty (no-links) graph — every existing call site
-	/// that omits <c>Graph</c> keeps today's flat reader behavior byte-for-byte.
+	/// Resolved key graph for this query's OUTPUT blocks (Task 4, nested objects). <paramref
+	/// name="Graph"/> has no default value (it is a required constructor parameter, per the Phase
+	/// 3A deferred cleanup), but callers may still explicitly pass <c>null</c> for a query with no
+	/// nested-object links; the coalesce here maps that <c>null</c> to an empty (no-links) graph so
+	/// every such call site keeps today's flat reader behavior byte-for-byte.
 	/// </summary>
 	private SQuiLKeyGraph EffectiveGraph { get; } = Graph ?? SQuiLKeyGraph.Build([], "");
 
@@ -45,6 +53,13 @@ public class SQuiLDataContext(
 	/// per-table <c>input&lt;Name&gt;</c> emission byte-for-byte.
 	/// </summary>
 	private SQuiLKeyGraph EffectiveInputGraph { get; } = InputGraph ?? SQuiLKeyGraph.Build([], "");
+
+	/// <summary>
+	/// The SQL dialect this data context targets — resolved by the generator (explicit
+	/// <c>[SQuiLDialect]</c>, else the single referenced provider, else SQL Server) and passed in
+	/// as a required constructor argument; see <see cref="SQuiL.Dialects.DialectRegistry"/>.
+	/// </summary>
+	private ISqlDialect Sql { get; } = Dialect;
 
 	/// <summary>
 	/// Generates the full C# source for the data-context partial class.
@@ -57,8 +72,12 @@ public class SQuiLDataContext(
 		StringWriter text = new(builder);
 		IndentedTextWriter writer = new(text, "\t");
 
-		var database = Blocks.FirstOrDefault(p => p.CodeType == CodeType.USING)?.Name;
-		if (database is null)
+		// A USE statement is only required for dialects whose DatabaseDirective actually emits
+		// something (e.g. SQL Server's `Use [Db];`). SQLite has no such directive — its header
+		// is native `Create Temp Table` statements with no USING CodeBlock at all — so this
+		// check is skipped entirely for a dialect that returns "" regardless of catalog.
+		if (Sql.DatabaseDirective("SQuiL").Length > 0
+			&& !Blocks.Any(p => p.CodeType == CodeType.USING))
 			return new Exception("Missing USE statement.");
 
 		var query = Blocks.First(p => p.CodeType == CodeType.BODY)?.Name;
@@ -74,13 +93,14 @@ public class SQuiLDataContext(
 		var outputs = Blocks
 			.Where(p => (p.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT)
 			.Select(p => (CodeBlock: p, Query: p.CodeType == CodeType.OUTPUT_VARIABLE
-				? $"Declare {p.DatabaseType.Original};"
+				? Sql.ScalarVariableDeclaration(p, writer.NewLine)
 				: TableDeclaration(p)))
 			.ToList();
 
+		var providerUsings = string.Join(writer.NewLine, Sql.UsingDirectives());
 		writer.WriteLine($$"""
 			{{SourceGeneratorHelper.FileHeader}}
-			using Microsoft.Data.SqlClient;
+			{{providerUsings}}
 
 			using System;
 			using System.Collections.Generic;
@@ -106,7 +126,7 @@ public class SQuiLDataContext(
 
 		void Process()
 		{
-			writer.Block($$"""partial class {{ClassName}} : {{SourceGeneratorHelper.BaseDataContextClassName}}""", () =>
+			writer.Block($$"""partial class {{ClassName}} : {{Sql.RuntimeBaseType()}}""", () =>
 			{
 				var errorReturnType = true;
 				var returnType = generation.Response.ModelName;
@@ -218,10 +238,10 @@ public class SQuiLDataContext(
 							else
 								WriteReturn(generation.Response.ModelName, "");
 						});
-						writer.Block("catch(Microsoft.Data.SqlClient.SqlException e)", () =>
+						writer.Block($"catch({Sql.ProviderExceptionType()} e)", () =>
 						{
 							if (Enabled) writer.WriteLine("transaction.Rollback();");
-							WriteReturn("SQuiLError", "e");
+							writer.WriteLine($"return new {returnType}(CreateError(e));");
 						});
 
 						void WriteReturn(string model, string parameter)
@@ -241,9 +261,9 @@ public class SQuiLDataContext(
 								EmitFlatReader();
 							else
 								EmitNestedReader();
-						}, new IndentedTextWriterBlock("catch(SqlException e)", () =>
+						}, new IndentedTextWriterBlock($"catch({Sql.ProviderExceptionType()} e)", () =>
 						{
-							writer.WriteLine("errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));");
+							writer.WriteLine("errors.Add(CreateError(e));");
 						}));
 
 						writer.WriteLine();
@@ -297,9 +317,11 @@ public class SQuiLDataContext(
 									string Query(List<DbParameter> parameters) => $"""
 									"""");
 					QueryDeclareStatements();
+					// "{builder.InitialCatalog}" is deliberately the literal placeholder text (braces included), not a generator-time value: it is emitted verbatim into the generated data-context and resolved at THAT code's own runtime by its own `SqlConnectionStringBuilder builder` (see line ~138), not by this method's `StringBuilder builder`.
+					var databaseDirective = Sql.DatabaseDirective("{builder.InitialCatalog}");
 					writer.Block($$""""
-									Use [{builder.InitialCatalog}];
-							
+									{{databaseDirective}}
+
 									{{query}}
 									""";
 									"""");
@@ -357,7 +379,7 @@ public class SQuiLDataContext(
 					// injected sentinel column. A scalar's key is its single aliased column
 					// (name = the scalar's base name); a table/object's key is its ordered columns.
 					var shapeKey = (block.IsTable || block.IsObject)
-						? SQuiLShapeKey.ShapeKeyOf(block)
+						? SQuiLShapeKey.ShapeKeyOf(block, Sql)
 						: SQuiLShapeKey.ScalarKeyOf(block.Name, block.CSharpType(block.Name));
 
 					writer.Block($"""case "{shapeKey}":""", () =>
@@ -400,7 +422,7 @@ public class SQuiLDataContext(
 									// DateTime.MinValue instead of null. The explicit nullable type
 									// forces the null. (TODO #19)
 									writer.Write($"""reader.IsDBNull(reader.GetOrdinal("{item.Identifier.Value}")) ? default({item.CSharpType()}) : """);
-								writer.Write($"""{item.DataReader()}(reader.GetOrdinal("{item.Identifier.Value}"))""");
+								writer.Write($"""{Sql.ReaderAccessor(item)}(reader.GetOrdinal("{item.Identifier.Value}"))""");
 								comma = ",";
 							}
 							writer.Indent--;
@@ -424,7 +446,7 @@ public class SQuiLDataContext(
 								isNullable = $"""throw new NullReferenceException("{exception}")""";
 							}
 
-							writer.WriteLine($"response.{block.Name} = !reader.IsDBNull(0) ? {block.DataReader()}(0) : {isNullable};");
+							writer.WriteLine($"response.{block.Name} = !reader.IsDBNull(0) ? {Sql.ReaderAccessor(block)}(0) : {isNullable};");
 						}
 						writer.WriteLine("break;");
 					});
@@ -459,7 +481,7 @@ public class SQuiLDataContext(
 						// above: a bare default! yields 0/MinValue for NULL value-type
 						// columns because `var` + best-common-type discard the null. (TODO #19)
 						defaultCondition = $"reader.IsDBNull(index{item.Identifier.Value}) ? default({item.CSharpType()}) : ";
-					writer.WriteLine($"""var value{item.Identifier.Value} = {defaultCondition}{item.DataReader()}(index{item.Identifier.Value});""");
+					writer.WriteLine($"""var value{item.Identifier.Value} = {defaultCondition}{Sql.ReaderAccessor(item)}(index{item.Identifier.Value});""");
 				}
 
 				writer.WriteLine();
@@ -633,7 +655,7 @@ public class SQuiLDataContext(
 
 				if (block.IsTable || block.IsObject)
 				{
-					var shapeKey = SQuiLShapeKey.ShapeKeyOf(block);
+					var shapeKey = SQuiLShapeKey.ShapeKeyOf(block, Sql);
 					writer.Block($"""case "{shapeKey}":""", () =>
 					{
 						writer.WriteLine($"is{block.Name} = true;");
@@ -663,7 +685,7 @@ public class SQuiLDataContext(
 							isNullable = $"""throw new NullReferenceException("{exception}")""";
 						}
 
-						writer.WriteLine($"response.{block.Name} = !reader.IsDBNull(0) ? {block.DataReader()}(0) : {isNullable};");
+						writer.WriteLine($"response.{block.Name} = !reader.IsDBNull(0) ? {Sql.ReaderAccessor(block)}(0) : {isNullable};");
 						writer.WriteLine("break;");
 					});
 				}
@@ -831,7 +853,7 @@ public class SQuiLDataContext(
 							writer.WriteLine();
 						}
 
-						writer.WriteLine($"""AddJsonParameter(parameters, "{SQuiLShred.JsonParamName(CodeBlock)}", __{CodeBlock.Name});""");
+						writer.WriteLine($"""AddJsonParameter(parameters, "{Sql.ShredParamName(CodeBlock)}", __{CodeBlock.Name});""");
 					}
 					else if (CodeBlock.IsTable)
 					{
@@ -851,7 +873,7 @@ public class SQuiLDataContext(
 							writer.WriteLine();
 						}
 
-						writer.WriteLine($"""AddJsonParameter(parameters, "{SQuiLShred.JsonParamName(CodeBlock)}", request.{CodeBlock.Name});""");
+						writer.WriteLine($"""AddJsonParameter(parameters, "{Sql.ShredParamName(CodeBlock)}", request.{CodeBlock.Name});""");
 					}
 					else if (CodeBlock.IsObject)
 					{
@@ -865,7 +887,7 @@ public class SQuiLDataContext(
 						EmitStringLengthGuards(CodeBlock, $"request.{CodeBlock.Name}");
 						if (CodeBlock.Properties.Any(IsSizedString)) writer.WriteLine();
 
-						writer.WriteLine($$"""AddJsonParameter(parameters, "{{SQuiLShred.JsonParamName(CodeBlock)}}", new[] { request.{{CodeBlock.Name}} });""");
+						writer.WriteLine($$"""AddJsonParameter(parameters, "{{Sql.ShredParamName(CodeBlock)}}", new[] { request.{{CodeBlock.Name}} });""");
 					}
 
 					// Emit `return """ <shred sql> """;` through Block — exactly how the
@@ -876,16 +898,17 @@ public class SQuiLDataContext(
 					// (all row data lives in the JSON parameter), nothing to interpolate.
 					writer.WriteLine();
 					writer.Block("return \"\"\"");
-					writer.Block(SQuiLShred.ShredSql(CodeBlock));
+					writer.Block(Sql.ShredStatement(CodeBlock));
 					writer.Block("\"\"\";");
 				});
 			}
 
-			// Whether a property is a sized (non-max) string column that needs a length guard.
+			// Whether a property is a sized string column that needs a length guard. Only a
+			// NUMERIC size counts: varchar(max)/nvarchar(max) are unbounded, and SQLite's TEXT
+			// (whose token Value is the type name, not a length) has no length to guard.
 			static bool IsSizedString(CodeItem p)
 				=> p.Type.Type == TokenType.TYPE_STRING
-					&& p.Type.Value is { } s
-					&& !s.Equals("max", StringComparison.OrdinalIgnoreCase);
+					&& int.TryParse(p.Type.Value, out _);
 
 			// Emits a throw for any sized varchar/nvarchar/char column whose value exceeds its
 			// declared length, BEFORE serialization (do not rely on silent OPENJSON truncation).
@@ -904,7 +927,9 @@ public class SQuiLDataContext(
 				{
 					if (p.Type.Type != TokenType.TYPE_STRING) continue;
 					var size = p.Type.Value;
-					if (size is null || size.Equals("max", StringComparison.OrdinalIgnoreCase)) continue;
+					// Only guard a NUMERIC declared length: max/unbounded (and SQLite TEXT, whose
+					// Value is the type name) have no length to enforce.
+					if (!int.TryParse(size, out _)) continue;
 
 					var value = $"{itemExpr}.{p.Identifier.Value}";
 					writer.Block($"if ({value} is not null && {value}.Length > {size})", () =>
@@ -918,13 +943,7 @@ public class SQuiLDataContext(
 		}
 
 		string TableDeclaration(CodeBlock block)
-		{
-			return $"""
-				Declare {block.DatabaseType.Original}(
-					{string.Join($",{writer.NewLine}\t", block.Properties.Select(p
-						=> $"[{p.Identifier.Value}] {p.Type.Original}{(p.IsNullable ? " Null" : "")}"))});
-				""";
-		}
+			=> Sql.TableVariableDeclaration(block, writer.NewLine);
 
 		void CommandParameters(
 			List<CodeBlock>? precomputedInputArgs = null,
@@ -964,7 +983,7 @@ public class SQuiLDataContext(
 			if (hasEnvironmentName)
 			{
 				Comma();
-				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.EnvironmentName}}", System.Data.SqlDbType.VarChar, {{SQuiLGenerator.EnvironmentName}}.Length, {{SQuiLGenerator.EnvironmentName}})""");
+				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.EnvironmentName}}", {{Sql.VarCharType()}}, {{SQuiLGenerator.EnvironmentName}}.Length, {{SQuiLGenerator.EnvironmentName}})""");
 			}
 
 			if (hasDebug)
@@ -978,19 +997,19 @@ public class SQuiLDataContext(
 						? $$"""!request.SuppressDebug && (request.Debug || {{SQuiLGenerator.EnvironmentName}} != "Production")"""
 						: $"request.Debug || {SQuiLGenerator.EnvironmentName} != \"Production\"");
 				Comma();
-				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.Debug}}", System.Data.SqlDbType.Bit, {{debugValue}})""");
+				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.Debug}}", {{Sql.BitType()}}, {{debugValue}})""");
 			}
 
 			if (hasSuppressDebug)
 			{
 				Comma();
-				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.SuppressDebug}}", System.Data.SqlDbType.Bit, request.SuppressDebug)""");
+				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.SuppressDebug}}", {{Sql.BitType()}}, request.SuppressDebug)""");
 			}
 
 			if (asOfDate is not null)
 			{
 				Comma();
-				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.AsOfDate}}", {{asOfDate.SqlDbType()}}, request.AsOfDate ?? {{AsOfDateNowExpression(asOfDate)}})""");
+				writer.Write($$"""CreateParameter("@{{SQuiLGenerator.AsOfDate}}", {{Sql.ParamTypeExpr(asOfDate)}}, request.AsOfDate ?? {{AsOfDateNowExpression(asOfDate)}})""");
 			}
 
 			foreach (var parameter in inputArgs)
@@ -1001,7 +1020,7 @@ public class SQuiLDataContext(
 					continue;
 
 				Comma();
-				writer.Write($$"""CreateParameter("@Param_{{parameter.Name}}", {{parameter.SqlDbType()}}, """);
+				writer.Write($$"""CreateParameter("@Param_{{parameter.Name}}", {{Sql.ParamTypeExpr(parameter)}}, """);
 
 				WriteValue();
 
@@ -1060,68 +1079,5 @@ public class SQuiLDataContext(
 		string F(IEnumerable<string> lines)
 			=> string.Join($"{newline}{newline}{tabs}", lines);
 		*/
-	}
-}
-
-/// <summary>
-/// Dialect-specific helpers for the JSON/OPENJSON param-sharding feature (TODO #1).
-/// Generates the SQL-Server OPENJSON shred statement for a table or object input block.
-/// A future <c>ISqlDialect</c> seam (TODO #6) will substitute the dialect-appropriate
-/// equivalent (e.g. <c>json_to_recordset</c> for PostgreSQL).
-/// </summary>
-public static class SQuiLShred
-{
-	/// <summary>
-	/// Returns the JSON parameter name for the given input block:
-	/// <c>@__json_Params_&lt;Name&gt;</c> for a table, <c>@__json_Param_&lt;Name&gt;</c> for an object.
-	/// </summary>
-	public static string JsonParamName(CodeBlock block)
-		=> $"@__json_Param{(block.IsTable ? "s" : "")}_{block.Name}";
-
-	/// <summary>
-	/// Builds the full <c>Insert Into … Select … From OpenJson(…) With (…);</c> shred statement
-	/// for the given input block. Binary columns are captured as <c>nvarchar(max)</c> in the
-	/// WITH clause and converted with <c>CONVERT(varbinary(N), col, 2)</c> in the SELECT.
-	/// </summary>
-	public static string ShredSql(CodeBlock block)
-	{
-		var varName = $"@Param{(block.IsTable ? "s" : "")}_{block.Name}";
-		var cols = block.Properties;
-
-		var insertList = string.Join(", ", cols.Select(p => $"[{p.Identifier.Value}]"));
-		var selectList = string.Join(", ", cols.Select(SelectColumn));
-		var withList = string.Join($",\n\t", cols.Select(WithColumn));
-
-		// Normalize to \n so `writer.Block` (which splits on \n) strips the raw literal
-		// cleanly on every platform — the source-file EOL of this raw literal is CRLF on
-		// a Windows checkout, which would otherwise leave stray \r inside the emitted SQL.
-		return $"""
-			Insert Into {varName}({insertList})
-			Select {selectList}
-			From OpenJson({JsonParamName(block)})
-			With (
-				{withList});
-			""".Replace("\r\n", "\n");
-
-		static string SelectColumn(CodeItem p)
-			=> IsBinary(p)
-				? $"Convert(varbinary({BinarySize(p)}), [{p.Identifier.Value}], 2)"
-				: $"[{p.Identifier.Value}]";
-
-		static string WithColumn(CodeItem p)
-		{
-			var path = $"'$.{p.Identifier.Value}'";
-			return IsBinary(p)
-				? $"[{p.Identifier.Value}] nvarchar(max) {path}"
-				: $"[{p.Identifier.Value}] {p.Type.Original} {path}";
-		}
-
-		static bool IsBinary(CodeItem p)
-			=> p.Type.Type is TokenType.TYPE_BINARY or TokenType.TYPE_VARBINARY or TokenType.TYPE_IMAGE;
-
-		static string BinarySize(CodeItem p)
-			=> p.Type.Value is null || p.Type.Value.Equals("max", StringComparison.OrdinalIgnoreCase)
-				? "max"
-				: p.Type.Value;
 	}
 }

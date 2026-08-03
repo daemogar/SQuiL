@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace CourseEvaluation.Application.Data;
 
-partial class CourseEvaluationDataContext : SQuiLBaseDataContext
+partial class CourseEvaluationDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<GetCourseForEvaluationByEvaluationIDResponse>> ProcessGetCourseForEvaluationByEvaluationIDAsync(
 		GetCourseForEvaluationByEvaluationIDRequest request,
@@ -100,7 +100,7 @@ partial class CourseEvaluationDataContext : SQuiLBaseDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isSectionID) errors.Add(new(51001, 12, 1, 105, "SectionID", "Expected return scaler `SectionID`"));

@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class MutationUnderPlainQueryWarnsSP0023DataContext : SQuiLBaseDataContext
+partial class MutationUnderPlainQueryWarnsSP0023DataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessMutationUnderPlainQueryWarnsSP0023Async(
 		MutationUnderPlainQueryWarnsSP0023Request request,
@@ -41,9 +41,9 @@ partial class MutationUnderPlainQueryWarnsSP0023DataContext : SQuiLBaseDataConte
 			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

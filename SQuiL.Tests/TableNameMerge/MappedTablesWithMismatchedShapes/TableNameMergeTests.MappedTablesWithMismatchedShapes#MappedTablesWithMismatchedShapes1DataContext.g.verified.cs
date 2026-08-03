@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class MappedTablesWithMismatchedShapesDataContext : SQuiLBaseDataContext
+partial class MappedTablesWithMismatchedShapesDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<MappedTablesWithMismatchedShapes1Response>> ProcessMappedTablesWithMismatchedShapes1Async(
 		MappedTablesWithMismatchedShapes1Request request,
@@ -77,7 +77,7 @@ partial class MappedTablesWithMismatchedShapesDataContext : SQuiLBaseDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isPeople) errors.Add(new(51001, 12, 1, 82, "People", "Expected return table `People`"));

@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>latest</LangVersion>
+		<AssemblyName>SQuiL.Core</AssemblyName>
+		<RootNamespace>SQuiL</RootNamespace>
+		<PackageId>SQuiL.Core</PackageId>
+		<Authors>Dæmogar</Authors>
+		<Description>Runtime library for SQuiL — attributes, base classes, and types used by SQuiL-generated code. Bundles the SQuiL source generator (analyzer) alongside the neutral runtime, so referencing this package alone is enough to generate code; install a provider package (e.g. SQuiL.SqlServer) to execute it.</Description>
+		<PackageTags>.NET dotnet core library reusable generic server serverside SQL ORM</PackageTags>
+		<PackageProjectUrl>https://github.com/daemogar/SQuiL</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/daemogar/SQuiL</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+		<Copyright>Copyright © 2021–2026 Dæmogar</Copyright>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\README.md" Pack="true" PackagePath="\" />
+		<None Include="..\LICENSE.txt" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<!--
+	SQuiL.Core is now the single package that carries BOTH the analyzer (packed
+	below into analyzers/dotnet/cs from SQuiL.SourceGenerator's build output) and
+	this project's own runtime DLL (packed automatically into lib/netstandard2.0 —
+	IncludeBuildOutput is the SDK default here, unlike the generator project).
+	These PackageReferences are now REAL NuGet dependencies that flow to consumers
+	via the normal transitive-dependency graph — no manual mirroring needed.
+	-->
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.Configuration" />
+		<PackageReference Include="System.Text.Json" />
+	</ItemGroup>
+
+	<!-- The param-sharding JSON helpers (SQuiLJson, SQuiLBinaryJsonConverter) are
+	     internal implementation details behind the AddJsonParameter seam; the test
+	     project exercises them directly, and SQuiL.SqlServer's AddJsonParameter
+	     (moved from this project) calls SQuiLJson.Serialize. -->
+	<ItemGroup>
+		<InternalsVisibleTo Include="SQuiL.Tests" />
+		<InternalsVisibleTo Include="SQuiL.SqlServer" />
+		<InternalsVisibleTo Include="SQuiL.Sqlite" />
+		<InternalsVisibleTo Include="SQuiL.Postgres" />
+	</ItemGroup>
+
+	<!--
+	Build SQuiL.SourceGenerator before this project so its DLL exists at the path
+	the pack target references below. ReferenceOutputAssembly=false keeps the
+	generator's compile-only Roslyn types out of this library's compile (and out
+	of consumers' compile — the generator is not a real assembly reference here,
+	only a build-order dependency). PrivateAssets=all keeps the project reference
+	from becoming a NuGet dependency in its own right — the generator's DLL is
+	shipped inline via the analyzers/dotnet/cs entry below instead.
+	-->
+	<ItemGroup>
+		<ProjectReference Include="..\SQuiL.SourceGenerator\SQuiL.SourceGenerator.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Pack the generator DLL/PDB into analyzers/ so this single NuGet package
+		     provides both the analyzer and the runtime types it depends on. -->
+		<None Include="..\SQuiL.SourceGenerator\bin\$(Configuration)\netstandard2.0\SQuiL.SourceGenerator.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="..\SQuiL.SourceGenerator\bin\$(Configuration)\netstandard2.0\SQuiL.SourceGenerator.pdb" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+	</ItemGroup>
+
+</Project>

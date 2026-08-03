@@ -17,11 +17,14 @@
 		<PackageReference Include="Basic.Reference.Assemblies.Net100" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.Data.Sqlite" />
 		<PackageReference Include="Microsoft.Data.SqlClient" />
 		<PackageReference Include="Microsoft.Extensions.Configuration" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" />
 		<PackageReference Include="Microsoft.NET.Test.Sdk" />
 		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" />
+		<PackageReference Include="Npgsql" />
+		<PackageReference Include="Testcontainers.PostgreSql" />
 		<PackageReference Include="Verify.DiffPlex" />
 		<PackageReference Include="Verify.SourceGenerators" />
 		<PackageReference Include="Verify.XunitV3" />
@@ -37,8 +40,16 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\SQuiL.Library\SQuiL.Library.csproj" />
-		<ProjectReference Include="..\SQuiL.SourceGenerator\SQuiL.SourceGenerator.csproj" />
+		<ProjectReference Include="..\SQuiL.Core\SQuiL.Core.csproj" />
+		<ProjectReference Include="..\SQuiL.SqlServer\SQuiL.SqlServer.csproj" />
+		<ProjectReference Include="..\SQuiL.Sqlite\SQuiL.Sqlite.csproj" />
+		<ProjectReference Include="..\SQuiL.Postgres\SQuiL.Postgres.csproj" />
+		<!-- Referenced BOTH as a normal assembly (TestHelper's in-memory `new SQuiLGenerator(...)`
+		     snapshot runs) AND as an Analyzer, so the generator ALSO runs at build time over this
+		     project's own `**\Queries\*.sql` AdditionalFiles — producing REAL compiled contexts
+		     (e.g. the Sqlite round-trip contexts in Sqlite\Queries). ReferenceOutputAssembly stays
+		     true (default) so TestHelper still sees the SQuiLGenerator type. -->
+		<ProjectReference Include="..\SQuiL.SourceGenerator\SQuiL.SourceGenerator.csproj" OutputItemType="Analyzer" />
 		<ProjectReference Include="..\tools\GuideRenderer\GuideRenderer.csproj" />
 	</ItemGroup>
 

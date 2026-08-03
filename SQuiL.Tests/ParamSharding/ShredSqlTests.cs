@@ -1,3 +1,4 @@
+using SQuiL.Dialects;
 using SQuiL.Models;
 using SQuiL.SourceGenerator.Parser;
 
@@ -5,6 +6,8 @@ namespace SQuiL.Tests.ParamSharding;
 
 public class ShredSqlTests
 {
+	private static readonly SqlServerDialect Dialect = new();
+
 	private static CodeBlock TableBlock()
 	{
 		// Build a @Params_Table table block with TableID int, IsFemale bit, LastName varchar(100).
@@ -20,7 +23,7 @@ public class ShredSqlTests
 	[Fact]
 	public void TableShredEmitsOpenJsonInsertSelect()
 	{
-		var sql = SQuiLShred.ShredSql(TableBlock());
+		var sql = Dialect.ShredStatement(TableBlock());
 
 		Assert.Contains("Insert Into @Params_Table([TableID], [IsFemale], [LastName])", sql);
 		Assert.Contains("From OpenJson(@__json_Params_Table)", sql);
@@ -32,5 +35,5 @@ public class ShredSqlTests
 
 	[Fact]
 	public void JsonParamNameUsesPluralForTable()
-		=> Assert.Equal("@__json_Params_Table", SQuiLShred.JsonParamName(TableBlock()));
+		=> Assert.Equal("@__json_Params_Table", Dialect.ShredParamName(TableBlock()));
 }

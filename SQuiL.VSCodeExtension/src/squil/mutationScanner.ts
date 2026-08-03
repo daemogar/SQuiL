@@ -17,8 +17,17 @@ export interface MutationScanResult {
   mutations: MutationHit[];
 }
 
-// Matches "Begin Tran" or "Begin Transaction" (case-insensitive).
+import { type EditorDialect, isTempTableDialect } from './dialect';
+
+// Matches T-SQL "Begin Tran" or "Begin Transaction" (case-insensitive).
 const BEGIN_TRAN = /\bBegin\s+Tran(?:saction)?\b/gi;
+
+// SQLite and PostgreSQL both start a transaction with a bare `BEGIN` (optionally
+// BEGIN DEFERRED/IMMEDIATE/EXCLUSIVE [TRANSACTION] for SQLite, BEGIN [WORK|TRANSACTION] for
+// PostgreSQL) — a bare BEGIN keyword suffices for either. Used ONLY for the temp-table-header
+// dialect family: in T-SQL a bare `BEGIN … END` is a statement block (not a transaction) and
+// must not be flagged (SP0025).
+const BEGIN_SQLITE = /\bBegin\b/gi;
 
 // Matches DML keyword phrases followed by optional whitespace.
 // We then inspect the original string at the target position.
@@ -112,7 +121,10 @@ function normaliseKind(kw: string): string {
   return first.charAt(0).toUpperCase() + first.slice(1);
 }
 
-export function scanMutations(body: string): MutationScanResult {
+export function scanMutations(
+  body: string,
+  dialect: EditorDialect = 'sqlserver'
+): MutationScanResult {
   const masked = maskNonCode(body);
   const hits: MutationHit[] = [];
 
@@ -121,6 +133,7 @@ export function scanMutations(body: string): MutationScanResult {
   SELECT_INTO.lastIndex = 0;
   EXEC.lastIndex = 0;
   BEGIN_TRAN.lastIndex = 0;
+  BEGIN_SQLITE.lastIndex = 0;
 
   let m: RegExpExecArray | null;
 
@@ -145,8 +158,9 @@ export function scanMutations(body: string): MutationScanResult {
     hits.push({ kind: 'Exec', start: m.index, length: m[0].length });
   }
 
-  BEGIN_TRAN.lastIndex = 0;
-  const hasOwnTransaction = BEGIN_TRAN.test(masked);
+  const beginRe = isTempTableDialect(dialect) ? BEGIN_SQLITE : BEGIN_TRAN;
+  beginRe.lastIndex = 0;
+  const hasOwnTransaction = beginRe.test(masked);
 
   return {
     isProvablyReadOnly: hits.length === 0,

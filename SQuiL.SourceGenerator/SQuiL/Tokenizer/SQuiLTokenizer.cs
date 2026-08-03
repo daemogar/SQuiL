@@ -1,5 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 
+using SQuiL.Dialects;
+
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -11,9 +13,19 @@ namespace SQuiL.Tokenizer;
 /// into <see cref="SQuiL.SourceGenerator.Parser.CodeBlock"/>s.
 /// </summary>
 /// <param name="Text">The raw SQL source text to tokenize.</param>
-public class SQuiLTokenizer(string Text)
+/// <param name="Dialect">
+/// The dialect whose type vocabulary governs ambiguous/dialect-specific type keywords
+/// (e.g. SQLite's <c>INTEGER</c>/<c>BLOB</c>/<c>BOOLEAN</c>/<c>GUID</c>, and SQLite's
+/// <c>REAL</c>/<c>DATE</c> mapping to <c>double</c>/<c>DateTime</c> instead of SQL Server's
+/// <c>float</c>/<c>DateOnly</c>). Defaults to <see cref="SqlServerDialect"/> so every
+/// existing call site (and the internal <c>USE</c>-statement sub-tokenizer, which never
+/// tokenizes types) is unaffected.
+/// </param>
+public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 {
 	private string Text { get; } = Text;
+
+	private ISqlDialect Dialect { get; } = Dialect ?? new SqlServerDialect();
 
 	/// <summary>Matches SQL keywords that drive the parse: <c>DECLARE</c>, <c>SET</c>, <c>USE</c>, etc.</summary>
 	private static Regex KeywordRegex { get; } = new(
@@ -30,6 +42,48 @@ public class SQuiLTokenizer(string Text)
 	/// </summary>
 	private static Regex TypeRegex { get; } = new(
 		"""^((bit|int|real|float|double|uniqueidentifier|date(?!time)|time|datetime(2|offset|)|smalldatetime|xml|n?text|bigint|smallint|tinyint|smallmoney|money|image|timestamp|rowversion)\b|(decimal|numeric)(\s*\(\s*\d+\s*(,\s*\d+\s*)?\)|\b)|identity(\s*\(\s*\d+\s*,\s*\d+\s*\)|\b)|n?(var)?char\s*\(\s*(\d+|max)\s*\)|table\s*\(|default\s+(\d+(\.\d+)?|'.*?')|varbinary\s*\(\s*max\s*\)|binary\s*\(\s*\d+\s*\))""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+
+	/// <summary>
+	/// Matches SQLite-only bare type keywords that have no T-SQL equivalent spelling and so are
+	/// absent from <see cref="TypeRegex"/> (kept dialect-scoped so SQL Server tokenization is
+	/// byte-for-byte unaffected): <c>INTEGER</c>, <c>BLOB</c>, <c>BOOLEAN</c>, <c>GUID</c>.
+	/// Attempted only when <see cref="Dialect"/> is <see cref="SqliteDialect"/>.
+	/// </summary>
+	private static Regex SqliteTypeRegex { get; } = new(
+		"""^(integer|blob|boolean|guid)\b""", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
+	/// <summary>
+	/// Matches PostgreSQL-only bare type keywords (spellings the T-SQL <see cref="TypeRegex"/>
+	/// does not include). <c>int</c>, <c>bigint</c>, <c>smallint</c>, <c>varchar</c>, <c>char</c>,
+	/// <c>numeric</c>, <c>decimal</c>, <c>date</c>, <c>time</c>, <c>real</c>, <c>text</c>,
+	/// <c>money</c> are already covered by the shared <see cref="TypeRegex"/> and map correctly
+	/// for PostgreSQL without a fork. <c>integer</c> is added here (beyond the design's literal
+	/// list) so the documented <c>int4</c>/<c>int</c>/<c>integer</c> spelling group all actually
+	/// tokenize — <c>integer</c> is a valid Postgres keyword but is NOT matched by the shared
+	/// <see cref="TypeRegex"/> (its bare <c>int</c> alternative requires a word boundary right
+	/// after <c>int</c>, which <c>integer</c> fails). Gated on <see cref="PostgresDialect"/> only,
+	/// so it never collides with <see cref="SqliteTypeRegex"/>'s own (different) <c>integer</c>
+	/// mapping. Multi-word types (<c>double precision</c>, <c>character varying</c>,
+	/// <c>timestamp with/without time zone</c>, <c>time without time zone</c>) are handled by
+	/// <see cref="PostgresMultiWordTypeRegex"/> in <c>Type()</c> below.
+	/// </summary>
+	private static Regex PostgresTypeRegex { get; } = new(
+		"""^(int4|int8|int2|integer|bytea|uuid|bool|boolean|timestamptz|timestamp|float4|float8|bpchar|jsonb|json)\b""",
+		RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
+	/// <summary>
+	/// Matches PostgreSQL's multi-word type spellings, which the single-word <see cref="TypeRegex"/>/
+	/// <see cref="PostgresTypeRegex"/> can't express as a single token: <c>double precision</c>,
+	/// <c>character varying</c> (with an optional length), <c>timestamp with time zone</c>,
+	/// <c>timestamp without time zone</c>, and <c>time without time zone</c>. Tried BEFORE
+	/// <see cref="TypeRegex"/> when <see cref="Dialect"/> is <see cref="PostgresDialect"/>, since
+	/// otherwise the shared regex's bare <c>timestamp</c>/<c>time</c> alternatives would greedily
+	/// consume just the first word and strand the rest (<c>with</c>/<c>without time zone</c>) to
+	/// be mis-tokenized as identifiers.
+	/// </summary>
+	private static Regex PostgresMultiWordTypeRegex { get; } = new(
+		"""^(double\s+precision|character\s+varying(\s*\(\s*(\d+|max)\s*\))?|timestamp\s+with\s+time\s+zone|timestamp\s+without\s+time\s+zone|time\s+without\s+time\s+zone)\b""",
+		RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
 	/// <summary>Matches built-in SQL function calls such as <c>GETDATE()</c>.</summary>
 	private static Regex FunctionRegex { get; } = new(
@@ -74,9 +128,13 @@ public class SQuiLTokenizer(string Text)
 
 	private List<Token>? Tokens { get; set; }
 
-	/// <summary>Static entry point: tokenizes <paramref name="text"/> and returns the token list.</summary>
+	/// <summary>Static entry point: tokenizes <paramref name="text"/> under the SQL Server dialect and returns the token list.</summary>
 	public static List<Token> GetTokens(string text)
-		=> new SQuiLTokenizer(text).GetTokens();
+		=> GetTokens(text, new SqlServerDialect());
+
+	/// <summary>Static entry point: tokenizes <paramref name="text"/> under <paramref name="dialect"/> and returns the token list.</summary>
+	public static List<Token> GetTokens(string text, ISqlDialect dialect)
+		=> new SQuiLTokenizer(text, dialect).GetTokens();
 
 	/// <summary>
 	/// Tokenizes the SQL source text, stopping at the <c>USE</c> statement boundary where the
@@ -90,9 +148,33 @@ public class SQuiLTokenizer(string Text)
 		Tokens = [];
 
 		var token = default(Token);
+
+		// SQLite header model (Task 5) — see SqliteCreateTempTable/SqliteParamTableDmlStatement/
+		// SqliteBodyBoundary below. `sqliteDepth` tracks whether we're inside an open Create-Temp-
+		// Table column list (depth 1) or between statements (depth 0); the three boundary checks
+		// only ever run at depth 0. `sqliteParamTableNames` remembers every Param/Params-prefixed
+		// temp-table name declared so far, so a later bare-name DML statement can be recognized as
+		// sample-data population of an INPUT table (dropped) vs. real body logic (e.g. populating an
+		// OUTPUT table — never dropped).
+		var sqliteDepth = 0;
+		HashSet<string> sqliteParamTableNames = new(StringComparer.OrdinalIgnoreCase);
+
 		while (Index < Text.Length)
 		{
 			WhileWhiteSpace();
+
+			if (Dialect is ITempTableHeaderDialect && sqliteDepth == 0)
+			{
+				if (SqliteCreateTempTable())
+				{
+					sqliteDepth++;
+					continue;
+				}
+				if (SqliteParamTableDmlStatement())
+					continue;
+				if (SqliteBodyBoundary())
+					break;
+			}
 
 			if (UseStatement())
 				break;
@@ -104,7 +186,14 @@ public class SQuiLTokenizer(string Text)
 			if (CanBeType() && Type())
 				continue;
 			if (Symbol())
+			{
+				// Close the Create-Temp-Table column-list scope opened by SqliteCreateTempTable's
+				// synthetic SYMBOL_LPREN, so the NEXT statement is re-examined as a header
+				// declaration/DML/body boundary instead of being tokenized as more columns.
+				if (sqliteDepth > 0 && Tokens.Count > 0 && Tokens[^1].Type == TokenType.SYMBOL_RPREN)
+					sqliteDepth--;
 				continue;
+			}
 			if (Function())
 				continue;
 			if (Literal())
@@ -291,7 +380,25 @@ public class SQuiLTokenizer(string Text)
 			return $"Invalid Symbol: `{p.Value}`";
 		});
 
-		bool Type() => Try(TypeRegex, p =>
+		bool Type() => (Dialect is PostgresDialect && Try(PostgresMultiWordTypeRegex, p =>
+		{
+			// Multi-word PostgreSQL spellings — normalize inner whitespace so `character  varying`
+			// (extra spaces) still classifies the same as `character varying`.
+			var normalized = Regex.Replace(p.Value, @"\s+", " ").Trim().ToLowerInvariant();
+
+			if (normalized.StartsWith("double precision"))
+				return T(TokenType.TYPE_DOUBLE, p.Value);
+			if (normalized.StartsWith("character varying"))
+				return T(TokenType.TYPE_STRING, p.Value, p.Value);
+			if (normalized.StartsWith("timestamp with time zone"))
+				return T(TokenType.TYPE_DATETIMEOFFSET, p.Value);
+			if (normalized.StartsWith("timestamp without time zone"))
+				return T(TokenType.TYPE_DATETIME, p.Value);
+			if (normalized.StartsWith("time without time zone"))
+				return T(TokenType.TYPE_TIME, p.Value);
+
+			return $"Invalid Type: `{p.Value}`";
+		})) || Try(TypeRegex, p =>
 		{
 			var value = p.Value.ToLower().Split('(', ')');
 
@@ -323,7 +430,10 @@ public class SQuiLTokenizer(string Text)
 				case "smallmoney":
 					return T(TokenType.TYPE_SMALLMONEY, p.Value);
 				case "real":
-					return T(TokenType.TYPE_FLOAT, "real");
+					// SQLite's REAL is an 8-byte IEEE float (C# double); T-SQL's real is 4-byte (C# float).
+					return Dialect is SqliteDialect
+						? T(TokenType.TYPE_DOUBLE, "real")
+						: T(TokenType.TYPE_FLOAT, "real");
 				case "double" or "float":
 					return T(TokenType.TYPE_DOUBLE, "float");
 				case "decimal" or "numeric":
@@ -354,7 +464,11 @@ public class SQuiLTokenizer(string Text)
 				case "ntext":
 					return T(TokenType.TYPE_STRING, p.Value, p.Value);
 				case "date":
-					return T(TokenType.TYPE_DATE, p.Value);
+					// SQLite has no dedicated DATE storage class; it stores date values as TEXT
+					// alongside DATETIME, so both map to the same TokenType under this dialect.
+					return Dialect is SqliteDialect
+						? T(TokenType.TYPE_DATETIME, p.Value)
+						: T(TokenType.TYPE_DATE, p.Value);
 				case "time":
 					return T(TokenType.TYPE_TIME, p.Value);
 				case "datetime":
@@ -369,6 +483,12 @@ public class SQuiLTokenizer(string Text)
 				case "image":
 					return T(TokenType.TYPE_IMAGE, p.Value);
 				case "timestamp":
+					// T-SQL's bare `timestamp` is a `rowversion` synonym (byte[], output-only —
+					// see SP0032); PostgreSQL's bare `timestamp` means a datetime column instead.
+					// Gated so SQL Server/SQLite's `timestamp`/`rowversion` meaning is unchanged.
+					return Dialect is PostgresDialect
+						? T(TokenType.TYPE_DATETIME, p.Value)
+						: T(TokenType.TYPE_TIMESTAMP, p.Value);
 				case "rowversion":
 					return T(TokenType.TYPE_TIMESTAMP, p.Value);
 				case "identity":
@@ -393,7 +513,60 @@ public class SQuiLTokenizer(string Text)
 				}
 				return text.ToString().ToLower();
 			}
-		});
+		}) || (Dialect is SqliteDialect && Try(SqliteTypeRegex, p =>
+		{
+			// SQLite-only bare keywords with no T-SQL equivalent spelling — see SqliteTypeRegex.
+			switch (p.Value.ToLower())
+			{
+				case "integer":
+					return T(TokenType.TYPE_BIGINT, p.Value);
+				case "blob":
+					return T(TokenType.TYPE_VARBINARY, p.Value, "max");
+				case "boolean":
+					return T(TokenType.TYPE_BOOLEAN, p.Value);
+				case "guid":
+					return T(TokenType.TYPE_GUID, p.Value);
+				default:
+					return $"Invalid Type: `{p.Value}`";
+			}
+		})) || (Dialect is PostgresDialect && Try(PostgresTypeRegex, p =>
+		{
+			// PostgreSQL-only bare keywords with no T-SQL equivalent spelling — see PostgresTypeRegex.
+			switch (p.Value.ToLower())
+			{
+				case "int4":
+				case "integer":
+					return T(TokenType.TYPE_INT, p.Value);
+				case "int8":
+					return T(TokenType.TYPE_BIGINT, p.Value);
+				case "int2":
+					return T(TokenType.TYPE_SMALLINT, p.Value);
+				case "bytea":
+					return T(TokenType.TYPE_VARBINARY, p.Value, "max");
+				case "uuid":
+					return T(TokenType.TYPE_GUID, p.Value);
+				case "bool":
+				case "boolean":
+					return T(TokenType.TYPE_BOOLEAN, p.Value);
+				case "timestamptz":
+					return T(TokenType.TYPE_DATETIMEOFFSET, p.Value);
+				case "timestamp":
+					// Dead in practice — the shared TypeRegex above always claims bare `timestamp`
+					// first (dialect-gated there); kept here only so PostgresTypeRegex's declared
+					// vocabulary is fully handled in case the two regexes are ever reordered.
+					return T(TokenType.TYPE_DATETIME, p.Value);
+				case "float4":
+					return T(TokenType.TYPE_FLOAT, p.Value);
+				case "float8":
+					return T(TokenType.TYPE_DOUBLE, p.Value);
+				case "bpchar":
+				case "jsonb":
+				case "json":
+					return T(TokenType.TYPE_STRING, p.Value, p.Value);
+				default:
+					return $"Invalid Type: `{p.Value}`";
+			}
+		}));
 
 		bool Keyword() => Try(KeywordRegex, p =>
 		{
@@ -535,6 +708,160 @@ public class SQuiLTokenizer(string Text)
 						tokenizer.Increment();
 				}
 			}
+		}
+
+		// Matches a whole-word keyword case-insensitively at the current position (the next
+		// character must not itself be an identifier character, so `create` doesn't match a
+		// prefix of `createx`) and, on success, advances past it.
+		bool MatchWord(string word)
+		{
+			if (!Word.StartsWith(word, StringComparison.OrdinalIgnoreCase))
+				return false;
+			if (Word.Length > word.Length && IsWordChar(Word[word.Length]))
+				return false;
+			Increment(word.Length);
+			return true;
+		}
+
+		static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c == '_';
+
+		// Recognizes `Create Temp Table <Name> (` and emits the SAME token shape the T-SQL
+		// `Declare @<Name> table(` path produces — KEYWORD_DECLARE, VARIABLE, TYPE_TABLE,
+		// SYMBOL_LPREN — so SQuiLParser.ProcessDeclareStatement handles both dialects
+		// identically; the column list that follows is tokenized by the ordinary
+		// Type()/Identifier()/Symbol() loop, unchanged. Tracks every Param/Params-prefixed
+		// name declared so far for SqliteParamTableDmlStatement's sample-DML recognition.
+		bool SqliteCreateTempTable()
+		{
+			var save = (Index: _index, Line, Column);
+
+			if (!MatchWord("create")) return Restore();
+			WhileWhiteSpace();
+			if (!MatchWord("temp")) return Restore();
+			WhileWhiteSpace();
+			if (!MatchWord("table")) return Restore();
+			WhileWhiteSpace();
+
+			var nameMatch = IdentifierRegex.Match(Word);
+			if (!nameMatch.Success)
+				throw DE(Word.Length, "Expected a table name after `Create Temp Table`.");
+
+			var name = nameMatch.Value.TrimStart('[').TrimEnd(']');
+			var nameOffset = Index;
+			Increment(nameMatch.Value.Length);
+			WhileWhiteSpace();
+
+			if (Letter != '(')
+				throw DE(1, $"Expected `(` after table name `{name}`.");
+
+			// Only an EXACT `Param_`/`Params_` prefix (the naming convention) marks this as a
+			// sample-DML-droppable input table — mirrors the editors' `^params?_` gate. A name
+			// that merely STARTS WITH `param` (e.g. `Parameter_Foo`, `Paramx_Foo`) is NOT one.
+			var prefix = name.Split(['_'], 2)[0];
+			if (name.IndexOf('_') >= 0
+				&& (prefix.Equals("param", StringComparison.OrdinalIgnoreCase)
+					|| prefix.Equals("params", StringComparison.OrdinalIgnoreCase)))
+				sqliteParamTableNames.Add(name);
+
+			Tokens.Add(new Token(TokenType.KEYWORD_DECLARE, save.Index, "Create Temp Table") { Original = "Create Temp Table" });
+			Tokens.Add(new Token(TokenType.VARIABLE, nameOffset, name) { Original = name });
+			Tokens.Add(new Token(TokenType.TYPE_TABLE, nameOffset, name));
+			Increment();
+			Tokens.Add(new Token(TokenType.SYMBOL_LPREN, nameOffset));
+
+			return true;
+
+			bool Restore()
+			{
+				(_index, Line, Column) = save;
+				return false;
+			}
+		}
+
+		// Recognizes a bare-name `Insert|Update|Delete <ParamTable> ...;` statement — the SQLite
+		// analog of the T-SQL `Insert Into @Var Values(...)` sample-data marker — and skips it
+		// verbatim (no tokens emitted at all) up to and including its terminating `;`. Only
+		// matches when <ParamTable> was already seen as a Param/Params-prefixed Create Temp
+		// Table declaration; a DML statement against any other table (an OUTPUT table, or an
+		// ordinary real table) is real body logic, not sample data, and is left completely
+		// untouched — the caller falls through to SqliteBodyBoundary().
+		bool SqliteParamTableDmlStatement()
+		{
+			var save = (Index: _index, Line, Column);
+
+			var isInsert = MatchWord("insert");
+			var isDelete = false;
+			if (!isInsert && !MatchWord("update"))
+			{
+				isDelete = MatchWord("delete");
+				if (!isDelete)
+					return false;
+			}
+
+			WhileWhiteSpace();
+
+			if (isInsert)
+			{
+				if (!MatchWord("into"))
+				{
+					(_index, Line, Column) = save;
+					return false;
+				}
+				WhileWhiteSpace();
+			}
+			else if (isDelete)
+			{
+				// `From` is OPTIONAL after `Delete` (mirrors the editors' `DELETE\s+FROM|DELETE`);
+				// both `Delete From <ParamTable>` and bare `Delete <ParamTable>` are sample DML.
+				if (MatchWord("from"))
+					WhileWhiteSpace();
+			}
+
+			var tableMatch = IdentifierRegex.Match(Word);
+			var tableName = tableMatch.Success ? tableMatch.Value.TrimStart('[').TrimEnd(']') : default;
+
+			if (tableName is null || !sqliteParamTableNames.Contains(tableName))
+			{
+				(_index, Line, Column) = save;
+				return false;
+			}
+
+			SkipToStatementEnd();
+			return true;
+
+			void SkipToStatementEnd()
+			{
+				while (Index < Text.Length)
+				{
+					if (Letter == '\'')
+					{
+						Increment();
+						while (Index < Text.Length && Letter != '\'')
+							Increment();
+						if (Index < Text.Length)
+							Increment();
+						continue;
+					}
+					if (Letter == ';')
+					{
+						Increment();
+						return;
+					}
+					Increment();
+				}
+			}
+		}
+
+		// Everything from here to end-of-text is the query body, captured verbatim as one
+		// opaque BODY token — mirrors UseStatement()'s tail capture. Reached only once
+		// SqliteCreateTempTable/SqliteParamTableDmlStatement have both failed to match the
+		// statement at the current position, so by construction this is always the FIRST
+		// statement that is neither a header declare nor a sample-DML population.
+		bool SqliteBodyBoundary()
+		{
+			var body = Word.Trim();
+			Tokens.Add(T(TokenType.BODY, body, body));
+			return true;
 		}
 
 		void WhileWhiteSpace()

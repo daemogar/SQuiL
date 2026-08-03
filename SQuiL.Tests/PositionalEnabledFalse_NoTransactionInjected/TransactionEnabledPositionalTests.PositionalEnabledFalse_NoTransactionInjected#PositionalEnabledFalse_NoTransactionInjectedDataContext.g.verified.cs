@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class PositionalEnabledFalse_NoTransactionInjectedDataContext : SQuiLBaseDataContext
+partial class PositionalEnabledFalse_NoTransactionInjectedDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<PositionalEnabledFalse_NoTransactionInjectedResponse>> ProcessPositionalEnabledFalse_NoTransactionInjectedAsync(
 		PositionalEnabledFalse_NoTransactionInjectedRequest request,
@@ -68,7 +68,7 @@ partial class PositionalEnabledFalse_NoTransactionInjectedDataContext : SQuiLBas
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isCount) errors.Add(new(51001, 12, 1, 73, "Count", "Expected return scaler `Count`"));

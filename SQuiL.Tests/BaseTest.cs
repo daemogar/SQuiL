@@ -34,7 +34,7 @@ public abstract class BaseTest
 			namespace TestCase;
 		
 			{{string.Join("", attributes.Select(callback))}}
-			public partial class {{name}}DataContext(IConfiguration Configuration) : {{BaseDataContextClassName}}(Configuration)
+			public partial class {{name}}DataContext(IConfiguration Configuration) : SqlServerDataContext(Configuration)
 			{
 			}
 			""";

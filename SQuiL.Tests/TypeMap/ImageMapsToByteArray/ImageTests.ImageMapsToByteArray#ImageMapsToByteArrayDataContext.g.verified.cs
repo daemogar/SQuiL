@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class ImageMapsToByteArrayDataContext : SQuiLBaseDataContext
+partial class ImageMapsToByteArrayDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType> ProcessImageMapsToByteArrayAsync(
 		ImageMapsToByteArrayRequest request,
@@ -41,9 +41,9 @@ partial class ImageMapsToByteArrayDataContext : SQuiLBaseDataContext
 			await command.ExecuteNonQueryAsync(cancellationToken);
 			return SQuiLResultType.Success;
 		}
-		catch(Microsoft.Data.SqlClient.SqlException e)
+		catch(SqlException e)
 		{
-			return new SQuiLResultType(new SQuiLError(e));
+			return new SQuiLResultType(CreateError(e));
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""

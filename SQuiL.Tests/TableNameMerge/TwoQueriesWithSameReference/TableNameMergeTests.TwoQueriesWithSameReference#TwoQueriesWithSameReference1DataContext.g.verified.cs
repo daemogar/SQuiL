@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
+partial class TwoQueriesWithSameReferenceDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<TwoQueriesWithSameReference1Response>> ProcessTwoQueriesWithSameReference1Async(
 		TwoQueriesWithSameReference1Request request,
@@ -77,7 +77,7 @@ partial class TwoQueriesWithSameReferenceDataContext : SQuiLBaseDataContext
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isQuestions) errors.Add(new(51001, 12, 1, 82, "Questions", "Expected return table `Questions`"));

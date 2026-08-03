@@ -8,7 +8,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TransactionAttributeIsEmittedAndContextCompilesDataContext : SQuiLBaseDataContext
+partial class TransactionAttributeIsEmittedAndContextCompilesDataContext : SqlServerDataContext
 {
     public TransactionAttributeIsEmittedAndContextCompilesDataContext(IConfiguration Configuration) : base(Configuration) { }
 }

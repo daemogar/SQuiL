@@ -15,7 +15,7 @@ using SQuiL;
 
 namespace TestCase;
 
-partial class TransactionWithoutDebugAlwaysCommitsDataContext : SQuiLBaseDataContext
+partial class TransactionWithoutDebugAlwaysCommitsDataContext : SqlServerDataContext
 {
 	public async Task<SQuiLResultType<TransactionWithoutDebugAlwaysCommitsResponse>> ProcessTransactionWithoutDebugAlwaysCommitsAsync(
 		TransactionWithoutDebugAlwaysCommitsRequest request,
@@ -70,7 +70,7 @@ partial class TransactionWithoutDebugAlwaysCommitsDataContext : SQuiLBaseDataCon
 		}
 		catch(SqlException e)
 		{
-			errors.Add(new(e.Number, 11, e.State, e.LineNumber, e.Procedure, e.Message));
+			errors.Add(CreateError(e));
 		}
 		
 		if (!isCount) errors.Add(new(51001, 12, 1, 75, "Count", "Expected return scaler `Count`"));
