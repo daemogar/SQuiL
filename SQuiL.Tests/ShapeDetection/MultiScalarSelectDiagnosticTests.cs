@@ -62,7 +62,33 @@ public class MultiScalarSelectDiagnosticTests
 		Assert.Empty(diags.Where(d => d.Id == "SP0041"));
 	}
 
-	/// <summary>A scalar assignment is not a result set at all, so it never trips SP0041.</summary>
+	/// <summary>
+	/// A scalar assignment is not a result set at all, so it never trips SP0041 — this test asserts
+	/// exactly that (a legitimate no-false-positive guard) and no more.
+	///
+	/// <para>
+	/// <b>What this test does NOT prove:</b> it does not (and structurally cannot) exercise
+	/// <see cref="ScalarSelectAliaser"/>'s <c>ParseColumnList</c> assignment-form exclusion (the
+	/// logic that rejects <c>Select @X = …</c> as not a clean column list). <c>Select @Return_A =
+	/// Count(*) From People</c> accumulates only ONE bare-scalar column entry before hitting <c>=</c>,
+	/// and <c>FindMultiScalarSelects</c> requires <c>columns.Count &gt;= 2</c> before it looks at
+	/// anything — so this test passes whether or not the assignment-form exclusion works. There is
+	/// no legitimate (valid-T-SQL) way to get a second bare scalar into an assignment-form select to
+	/// close this gap: SQL Server rejects combining a variable assignment with data retrieval in one
+	/// SELECT, so a fixture like <c>Select @Return_A = Count(*), @Return_A From People</c> is invalid
+	/// syntax, not a real test case.
+	/// </para>
+	///
+	/// <para>
+	/// The assignment-form exclusion IS genuinely covered elsewhere:
+	/// <see cref="ScalarSelectAliaserTests.Rewrite_leaves_the_assignment_form_alone"/> exercises it
+	/// through <c>FindBareSelects</c> (the alias-rewrite path), where a SINGLE column entry is
+	/// exactly what matters — verified empirically (2026-08-11) by temporarily changing
+	/// <c>ParseColumnList</c>'s terminal-token <c>return null;</c> to <c>return columns;</c>: that
+	/// test failed (the rewrite wrongly inserted <c>As [Count]</c> into the assignment), confirming
+	/// it is real coverage, not another test that cannot fail.
+	/// </para>
+	/// </summary>
 	[Fact]
 	public void Scalar_assignment_is_clean()
 	{
