@@ -17,6 +17,25 @@ test('SP0042 hints on a bare scalar select', () => {
   assert.strictEqual(hints[0].declaredName, 'Count');
 });
 
+test('SP0042 message interpolates the real declared name in bracketed form, not a literal `<Name>` placeholder', () => {
+  // Regression for a defect that slipped past two review rounds: the message was built as
+  // the literal string 'The generator supplies `As <Name>`; ...' with no substitution, so a
+  // user saw the raw template token `<Name>` in the squiggle tooltip. The earlier tests above
+  // only assert on the `declaredName` FIELD, never on `.message`, which is exactly the gap
+  // that let it through — this test asserts on the message text directly.
+  const text = ['Declare @Return_Count int;', 'Use Db;', 'Select @Return_Count;'].join('\n');
+  const hints = scalarAliasHints(parseSQuiL(text), text, 'sqlserver');
+  assert.strictEqual(hints.length, 1);
+  assert.ok(
+    hints[0].message.includes('As [Count]'),
+    `message must contain the real declared name in BRACKETED form ("As [Count]"), matching what buildAddScalarAliasEdit actually inserts; got: ${hints[0].message}`,
+  );
+  assert.ok(
+    !hints[0].message.includes('<Name>'),
+    `message must not contain the unsubstituted literal placeholder "<Name>"; got: ${hints[0].message}`,
+  );
+});
+
 test('SP0042 hints on a bare scalar select with no semicolon', () => {
   const text = ['Declare @Return_Count int;', 'Use Db;', 'Select @Return_Count'].join('\n');
   assert.strictEqual(scalarAliasHints(parseSQuiL(text), text, 'sqlserver').length, 1);

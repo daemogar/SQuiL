@@ -239,7 +239,7 @@ export class SQuiLDiagnosticsProvider {
         vsDiags.push(this.toDiagnostic(document, d));
       }
 
-      // SP0042: the generator supplies `As <Name>` for a bare scalar select (editor-only Hint).
+      // SP0042: the generator supplies `As [<Name>]` for a bare scalar select (editor-only Hint).
       for (const hint of scalarAliasHints(parsed, bodyText, dialect)) {
         const line = Math.min(hint.line + bodyLineOffset, document.lineCount - 1);
         const lineLength = document.lineAt(line).text.length;

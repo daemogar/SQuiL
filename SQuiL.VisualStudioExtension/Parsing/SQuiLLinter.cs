@@ -575,7 +575,7 @@ internal static class SQuiLLinter
 
             diagnostics.Add(new SQuiLDiagnostic
             {
-                Message   = $"The generator supplies `As {declaredName}`; add it to make the column name explicit.",
+                Message   = $"The generator supplies `As [{declaredName}]`; add it to make the column name explicit.",
                 Line      = line,
                 StartChar = startChar,
                 EndChar   = startChar + bare.VariableLength,

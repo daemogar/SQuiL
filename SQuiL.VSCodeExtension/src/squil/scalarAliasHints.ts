@@ -58,7 +58,7 @@ export function scalarAliasHints(
     const pos = offsetToPosition(bodyText, bare.variableOffset);
     hints.push({
       code: 'SP0042',
-      message: 'The generator supplies `As <Name>`; add it to make the column name explicit.',
+      message: `The generator supplies \`As [${bare.declaredName}]\`; add it to make the column name explicit.`,
       line: pos.line,
       character: pos.character,
       length: bare.variableLength,
