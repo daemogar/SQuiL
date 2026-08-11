@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
-import { parseSQuiL, lintCardinalityCollision, lintShapeCollision, lintUnmatchedSelect, lintTimestampInput, lintScalarNullMarker } from './parser';
+import { parseSQuiL, lintCardinalityCollision, lintShapeCollision, lintUnmatchedSelect, lintTimestampInput, lintScalarNullMarker, lintMultiScalarSelect } from './parser';
 import { shapeHints } from './shapeHints';
 
 // Recognition parity with the generator's SQuiLParser: bare @SuppressDebug and
@@ -287,6 +287,71 @@ test('SP0031 ignores Select * and Insert Into', () => {
     'Insert Into @Returns_People Select PersonID, Name From People;',
     'Select * From @Returns_People;',
   ].join('\n');
+  assert.strictEqual(lintUnmatchedSelect(parseSQuiL(text), text).filter(d => d.code === 'SP0031').length, 0);
+});
+
+// ── SP0041: multi-scalar select cannot be routed ────────────────────────────
+test('SP0041 flags two output scalars in one select', () => {
+  const text = [
+    'Declare @Return_A int;',
+    'Declare @Return_B int;',
+    'Use Db;',
+    'Select @Return_A, @Return_B;',
+  ].join('\n');
+  const diags = lintMultiScalarSelect(parseSQuiL(text));
+  assert.strictEqual(diags.length, 1);
+  assert.strictEqual(diags[0].code, 'SP0041');
+  assert.strictEqual(diags[0].severity, 'error');
+});
+
+test('SP0041 flags an aliased multi-scalar select too', () => {
+  const text = [
+    'Declare @Return_A int;',
+    'Declare @Return_B int;',
+    'Use Db;',
+    'Select @Return_A As A, @Return_B As B;',
+  ].join('\n');
+  assert.strictEqual(lintMultiScalarSelect(parseSQuiL(text)).length, 1);
+});
+
+test('SP0041 stays silent with one select per scalar', () => {
+  const text = [
+    'Declare @Return_A int;',
+    'Declare @Return_B int;',
+    'Use Db;',
+    'Select @Return_A;',
+    'Select @Return_B;',
+  ].join('\n');
+  assert.strictEqual(lintMultiScalarSelect(parseSQuiL(text)).length, 0);
+});
+
+// ── SP0031 extended to scalar outputs: a MISMATCHED alias ───────────────────
+test('SP0031 flags a scalar select whose alias matches no declared output', () => {
+  const text = [
+    'Declare @Return_Count int;',
+    'Use Db;',
+    'Select @Return_Count As Foo;',
+  ].join('\n');
+  const diags = lintUnmatchedSelect(parseSQuiL(text), text);
+  assert.ok(diags.some(d => d.code === 'SP0031'), 'mismatched scalar alias flagged');
+});
+
+test('SP0031 stays silent on a correctly aliased scalar select', () => {
+  const text = [
+    'Declare @Return_Count int;',
+    'Use Db;',
+    'Select @Return_Count As Count;',
+  ].join('\n');
+  assert.strictEqual(lintUnmatchedSelect(parseSQuiL(text), text).filter(d => d.code === 'SP0031').length, 0);
+});
+
+test('SP0031 stays silent on a BARE scalar select (that is SP0042)', () => {
+  const text = ['Declare @Return_Count int;', 'Use Db;', 'Select @Return_Count;'].join('\n');
+  assert.strictEqual(lintUnmatchedSelect(parseSQuiL(text), text).filter(d => d.code === 'SP0031').length, 0);
+});
+
+test('SP0031 stays silent on the scalar assignment form', () => {
+  const text = ['Declare @Return_Count int;', 'Use Db;', 'Select @Return_Count = 1;'].join('\n');
   assert.strictEqual(lintUnmatchedSelect(parseSQuiL(text), text).filter(d => d.code === 'SP0031').length, 0);
 });
 

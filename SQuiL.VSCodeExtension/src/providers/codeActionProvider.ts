@@ -1,13 +1,17 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { parseSQuiL } from '../squil/parser';
 import {
   allTableVariables,
   availableLinkTargets,
   buildAddPrimaryKeyEdit,
   buildInsertLinkColumnEdit,
+  buildAddScalarAliasEdit,
   isCursorOnVariable,
   CodeActionEdit,
 } from '../squil/codeActions';
+import { scalarAliasHints } from '../squil/scalarAliasHints';
+import { resolveProjectDialect } from '../squil/contextResolver';
 
 /**
  * Nested-object authoring code actions (Task 16):
@@ -47,6 +51,28 @@ export class SQuiLCodeActionProvider implements vscode.CodeActionProvider {
         const edit = buildInsertLinkColumnEdit(lines, table, target);
         if (edit) actions.push(this.toCodeAction(document, edit));
       }
+    }
+
+    // SP0042 quick-fix: "Add `As [<Name>]`" on a bare scalar select the cursor sits on.
+    // Resolve the dialect the same way the diagnostics provider does — real fs access,
+    // since this provider (like diagnosticsProvider) runs in the extension host.
+    const fsReadFile = (p: string): string | undefined => {
+      try { return fs.readFileSync(p, 'utf-8'); } catch { return undefined; }
+    };
+    const fsListDir = (d: string): string[] => {
+      try { return fs.readdirSync(d).map(String); } catch { return []; }
+    };
+    const dialect = resolveProjectDialect(document.uri.fsPath, fsReadFile, fsListDir);
+    const databaseLine = parsed.databaseLine ?? -1;
+    const bodyLineOffset = databaseLine >= 0 ? databaseLine + 1 : 0;
+    const bodyText = databaseLine >= 0 && bodyLineOffset < lines.length
+      ? lines.slice(bodyLineOffset).join('\n')
+      : '';
+    for (const hint of scalarAliasHints(parsed, bodyText, dialect)) {
+      const absoluteLine = hint.line + bodyLineOffset;
+      if (absoluteLine !== cursorLine) continue;
+      const edit = buildAddScalarAliasEdit(lines, { ...hint, line: absoluteLine });
+      if (edit) actions.push(this.toCodeAction(document, edit));
     }
 
     return actions;
