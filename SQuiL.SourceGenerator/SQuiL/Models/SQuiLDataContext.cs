@@ -386,7 +386,7 @@ public class SQuiLDataContext(
 					// (name = the scalar's base name); a table/object's key is its ordered columns.
 					var shapeKey = (block.IsTable || block.IsObject)
 						? SQuiLShapeKey.ShapeKeyOf(block, Sql)
-						: SQuiLShapeKey.ScalarKeyOf(block.Name, block.CSharpType(block.Name));
+						: SQuiLShapeKey.ScalarKeyOf(block, Sql);
 
 					writer.Block($"""case "{shapeKey}":""", () =>
 					{
@@ -673,7 +673,7 @@ public class SQuiLDataContext(
 				}
 				else
 				{
-					var shapeKey = SQuiLShapeKey.ScalarKeyOf(block.Name, block.CSharpType(block.Name));
+					var shapeKey = SQuiLShapeKey.ScalarKeyOf(block, Sql);
 					writer.Block($"""case "{shapeKey}":""", () =>
 					{
 						writer.WriteLine($"if (is{block.Name}) throw new Exception(");
