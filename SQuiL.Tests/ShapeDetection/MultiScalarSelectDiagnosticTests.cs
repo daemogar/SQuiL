@@ -21,6 +21,28 @@ public class MultiScalarSelectDiagnosticTests
 		var sp = diags.Where(d => d.Id == "SP0041").ToList();
 		Assert.Single(sp);
 		Assert.Equal(DiagnosticSeverity.Error, sp[0].Severity);
+		// The diagnostic's Location is Location.None (AdditionalText SQL files carry no Roslyn
+		// Location), so the reported line is only observable inside the message text. The `--Name:
+		// S` header comment is stripped before the SQL reaches the validator, so line counting
+		// starts at the `Declare` line: 1-2: Declare, 3: Use, 4-5: Set, 6: Select.
+		Assert.Contains("line 6", sp[0].GetMessage());
+	}
+
+	/// <summary>
+	/// Regression for the review finding that <c>Detect</c>'s old <c>scalars.Count &lt; 2</c> guard
+	/// conflated "distinct declared scalars" with "column-list entries": a file declaring only ONE
+	/// output scalar can still trip SP0041 by referencing that single scalar twice in one select.
+	/// The runtime shape key for <c>Select @Return_A, @Return_A</c> is <c>"a:int|a:int"</c> — a
+	/// genuine two-column key matching no generated single-column case, exactly the failure SP0041
+	/// exists to catch.
+	/// </summary>
+	[Fact]
+	public void Single_declared_scalar_referenced_twice_is_SP0041_error()
+	{
+		var diags = TestHelper.RunForDiagnostics([TestHelper.BuildSource("S")], ["--Name: S\nDeclare @Return_A int;\nUse [Db];\nSet @Return_A = 1;\nSelect @Return_A, @Return_A;"], includeSqlServer: true, includeSqlite: false);
+		var sp = diags.Where(d => d.Id == "SP0041").ToList();
+		Assert.Single(sp);
+		Assert.Equal(DiagnosticSeverity.Error, sp[0].Severity);
 	}
 
 	/// <summary>Aliasing does not rescue a multi-scalar select — the key is still two columns.</summary>

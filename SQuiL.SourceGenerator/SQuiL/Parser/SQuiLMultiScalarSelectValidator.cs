@@ -46,8 +46,13 @@ public static class SQuiLMultiScalarSelectValidator
             scalars[$"@Return_{block.Name}".ToLowerInvariant()] = block.Name;
         }
 
+        // Fast-skip only when the file declares NO output scalars at all — a file with a single
+        // declared scalar can still trip SP0041 by referencing that one scalar twice in one select
+        // (`Select @Return_A, @Return_A`), which builds a genuine two-column runtime key
+        // ("a:int|a:int"). Do not raise this threshold to 2: that would conflate "distinct declared
+        // scalars" with "column-list entries" and let repeated-reference selects escape detection.
         var findings = new List<Finding>();
-        if (scalars.Count < 2)
+        if (scalars.Count == 0)
             return findings;
 
         foreach (var multi in ScalarSelectAliaser.FindMultiScalarSelects(sql, scalars))
