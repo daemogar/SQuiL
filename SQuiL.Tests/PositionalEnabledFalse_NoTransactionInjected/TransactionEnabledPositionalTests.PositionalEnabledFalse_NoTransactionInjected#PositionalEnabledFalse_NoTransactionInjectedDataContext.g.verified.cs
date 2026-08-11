@@ -85,7 +85,7 @@ partial class PositionalEnabledFalse_NoTransactionInjectedDataContext : SqlServe
 		
 		Update [Documents] set Status = 'Done' where Id = @Param_Id;
 		Set @Return_Count = @@RowCount;
-		Select @Return_Count As Count;
+		Select @Return_Count As [Count];
 		""";
 	}
 }

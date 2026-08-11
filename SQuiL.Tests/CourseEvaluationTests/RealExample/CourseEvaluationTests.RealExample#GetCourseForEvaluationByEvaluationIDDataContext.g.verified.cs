@@ -131,9 +131,9 @@ partial class CourseEvaluationDataContext : SqlServerDataContext
 						On p.PersonID = sf.PersonID
 		Where		Char(64 + sf.FacultyOrder) + Cast(sf.SectionFacultyID As varchar(10)) = @Param_EvaluationID;
 		
-		Select @Return_SectionID As SectionID;
-		Select @Return_PersonID As PersonID;
-		Select @Return_TermCode As TermCode;
+		Select @Return_SectionID As [SectionID];
+		Select @Return_PersonID As [PersonID];
+		Select @Return_TermCode As [TermCode];
 		""";
 	}
 }

@@ -92,7 +92,7 @@ partial class SpecialVariablePlacementIsEnforcedDataContext : SqlServerDataConte
 		
 		Declare @EnvironmentName varchar(50);
 		Set @Return_Count = 1;
-		Select @Return_Count As Count;
+		Select @Return_Count As [Count];
 		""";
 	}
 }

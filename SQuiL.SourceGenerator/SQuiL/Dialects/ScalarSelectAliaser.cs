@@ -68,10 +68,15 @@ public static class ScalarSelectAliaser
     };
 
     /// <summary>
-    /// Returns <paramref name="text"/> with <c>" As &lt;DeclaredName&gt;"</c> inserted after every
+    /// Returns <paramref name="text"/> with <c>" As [&lt;DeclaredName&gt;]"</c> inserted after every
     /// qualifying bare scalar select. <paramref name="scalarsByVariableName"/> maps a LOWER-CASED
     /// full variable name (e.g. <c>"@return_count"</c>) to its declared base name
     /// (e.g. <c>"Count"</c>). Text with no qualifying select is returned unchanged (reference-equal).
+    /// The alias is ALWAYS bracketed — an unbracketed alias is a T-SQL syntax error when the
+    /// declared name collides with a reserved keyword (e.g. <c>Order</c>, <c>Key</c>, <c>User</c>);
+    /// bracketing needs no keyword list and is safe unconditionally: <c>reader.GetName</c> strips
+    /// brackets, so the runtime shape key is unaffected, and the alias-parser below already accepts
+    /// a bracketed alias, so this stays idempotent against an author-written bracketed alias.
     /// </summary>
     public static string Rewrite(string text, IDictionary<string, string> scalarsByVariableName)
     {
@@ -84,7 +89,7 @@ public static class ScalarSelectAliaser
         foreach (var bare in found)
         {
             sb.Append(text, cursor, bare.InsertOffset - cursor);
-            sb.Append(" As ").Append(bare.DeclaredName);
+            sb.Append(" As [").Append(bare.DeclaredName).Append(']');
             cursor = bare.InsertOffset;
         }
         sb.Append(text, cursor, text.Length - cursor);

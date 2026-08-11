@@ -20,29 +20,53 @@ public class ScalarSelectAliaserTests
     private static Dictionary<string, string> CountAndTotal()
         => new() { ["@return_count"] = "Count", ["@return_total"] = "Total" };
 
+    /// <summary>One declared output scalar named after a T-SQL reserved keyword, `@Return_Order`
+    /// → base name `Order`. An unbracketed `As Order` is a syntax error, since `Order` collides
+    /// with `Order By`.</summary>
+    private static Dictionary<string, string> OrderKeyword()
+        => new() { ["@return_order"] = "Order" };
+
     [Fact]
     public void Rewrite_bare_select_with_semicolon()
         => Assert.Equal(
-            "Select @Return_Count As Count;",
+            "Select @Return_Count As [Count];",
             ScalarSelectAliaser.Rewrite("Select @Return_Count;", Count()));
 
     [Fact]
     public void Rewrite_bare_select_at_end_of_text_without_semicolon()
         => Assert.Equal(
-            "Select @Return_Count As Count",
+            "Select @Return_Count As [Count]",
             ScalarSelectAliaser.Rewrite("Select @Return_Count", Count()));
 
     [Fact]
     public void Rewrite_bare_select_followed_by_another_statement_without_semicolon()
         => Assert.Equal(
-            "Select @Return_Count As Count\nUpdate T Set X = 1",
+            "Select @Return_Count As [Count]\nUpdate T Set X = 1",
             ScalarSelectAliaser.Rewrite("Select @Return_Count\nUpdate T Set X = 1", Count()));
 
     [Fact]
     public void Rewrite_is_case_insensitive_and_emits_declared_casing()
         => Assert.Equal(
-            "select @return_count As Count;",
+            "select @return_count As [Count];",
             ScalarSelectAliaser.Rewrite("select @return_count;", Count()));
+
+    /// <summary>Regression: an unbracketed alias on a reserved-keyword declared name (e.g.
+    /// `Order`) is a T-SQL syntax error — SQL Server rejects the whole batch on "Incorrect syntax
+    /// near the keyword 'Order'". The alias must always be bracketed.</summary>
+    [Fact]
+    public void Rewrite_brackets_the_alias_when_the_declared_name_is_a_reserved_keyword()
+        => Assert.Equal(
+            "Select @Return_Order As [Order];",
+            ScalarSelectAliaser.Rewrite("Select @Return_Order;", OrderKeyword()));
+
+    /// <summary>Idempotence: an author who already wrote a bracketed alias by hand is detected
+    /// as already-aliased (the column-list parser's `As &lt;alias&gt;` branch accepts a bracketed
+    /// alias) and left unchanged — `Rewrite` never double-aliases.</summary>
+    [Fact]
+    public void Rewrite_leaves_an_already_bracketed_alias_alone()
+        => Assert.Equal(
+            "Select @Return_Order As [Order];",
+            ScalarSelectAliaser.Rewrite("Select @Return_Order As [Order];", OrderKeyword()));
 
     [Fact]
     public void Rewrite_leaves_an_already_aliased_select_alone()
@@ -112,7 +136,7 @@ public class ScalarSelectAliaserTests
     [Fact]
     public void Rewrite_aliases_a_live_select_following_a_nested_block_comment_containing_an_apostrophe()
         => Assert.Equal(
-            "/* /* nested */ it's dead */ Select @Return_Count As Count;",
+            "/* /* nested */ it's dead */ Select @Return_Count As [Count];",
             ScalarSelectAliaser.Rewrite("/* /* nested */ it's dead */ Select @Return_Count;", Count()));
 
     [Fact]
@@ -124,13 +148,13 @@ public class ScalarSelectAliaserTests
     [Fact]
     public void Rewrite_skips_a_comment_between_the_variable_and_the_semicolon()
         => Assert.Equal(
-            "Select @Return_Count As Count /* trailing */;",
+            "Select @Return_Count As [Count] /* trailing */;",
             ScalarSelectAliaser.Rewrite("Select @Return_Count /* trailing */;", Count()));
 
     [Fact]
     public void Rewrite_handles_two_bare_selects()
         => Assert.Equal(
-            "Select @Return_Count As Count;\nSelect @Return_Total As Total;",
+            "Select @Return_Count As [Count];\nSelect @Return_Total As [Total];",
             ScalarSelectAliaser.Rewrite("Select @Return_Count;\nSelect @Return_Total;", CountAndTotal()));
 
     [Fact]

@@ -86,7 +86,7 @@ partial class AsOfDataContext : SqlServerDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Set @Return_Count = (Select Count(*) From Logs Where CreatedOn <= @AsOfDate);
-		Select @Return_Count As Count;
+		Select @Return_Count As [Count];
 		""";
 	}
 }

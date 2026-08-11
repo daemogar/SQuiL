@@ -90,7 +90,7 @@ partial class ZeroConfigDataContext : SqlServerDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Set @Return_Count = (Select Count(*) From People Where PersonID = @Param_PersonID);
-		Select @Return_Count As Count;
+		Select @Return_Count As [Count];
 		""";
 	}
 }

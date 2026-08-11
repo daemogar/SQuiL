@@ -92,7 +92,7 @@ partial class ReadOnlyUnderTransactionWarnsSP0024DataContext : SqlServerDataCont
 		Use [{builder.InitialCatalog}];
 		
 		Set @Return_Count = (Select Count(*) From [Documents] Where Id = @Param_Id);
-		Select @Return_Count As Count;
+		Select @Return_Count As [Count];
 		""";
 	}
 }

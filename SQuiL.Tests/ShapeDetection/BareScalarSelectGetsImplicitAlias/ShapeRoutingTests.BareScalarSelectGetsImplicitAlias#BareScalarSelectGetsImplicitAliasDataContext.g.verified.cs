@@ -83,7 +83,7 @@ partial class BareScalarSelectGetsImplicitAliasDataContext : SqlServerDataContex
 		Use [{builder.InitialCatalog}];
 		
 		Set @Return_Count = (Select Count(*) From People);
-		Select @Return_Count As Count
+		Select @Return_Count As [Count]
 		""";
 	}
 }
