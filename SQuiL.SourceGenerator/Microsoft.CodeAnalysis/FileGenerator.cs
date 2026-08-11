@@ -115,6 +115,14 @@ public class FileGenerator(
 			if (SQuiLOrderingValidator.Detect(blocks, sql) is not null)
 				Context.ReportParamsBeforeReturns(method, dialect is SQuiL.Dialects.ITempTableHeaderDialect, Location.None);
 
+			// Multi-scalar select (SP0041): a Select listing 2+ output scalars builds a
+			// multi-column runtime shape key that matches no generated per-scalar case, so the
+			// result set is silently dropped. Reported for every dialect; emission continues, since
+			// the rest of the file may still be valid and the author gets a precise instruction.
+			// Location.None because AdditionalText SQL files carry no Roslyn Location.
+			foreach (var finding in SQuiLMultiScalarSelectValidator.Detect(blocks, sql))
+				Context.ReportMultiScalarSelect(method, string.Join(", ", finding.Names), finding.Line);
+
 			if (ShowDebugMessages)
 			{
 				foreach (var code in blocks)
