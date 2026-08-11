@@ -214,7 +214,7 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
 
 <span class="cm">-- ③ Body: your SQL logic</span>
 <span class="kw">Set</span> <span class="ret">@Return_Username</span> = (<span class="kw">Select</span> Name <span class="kw">From</span> Users <span class="kw">Where</span> ID = <span class="par">@Param_UserID</span>);
-<span class="kw">Select</span> <span class="ret">@Return_Username</span> <span class="kw">As</span> Username;  <span class="cm">-- alias must match declared base name</span></code></pre>
+<span class="kw">Select</span> <span class="ret">@Return_Username</span> <span class="kw">As</span> Username;  <span class="cm">-- optional on SQL Server — the generator adds "As [Username]" if you omit it</span></code></pre>
 
 <div class="tip">
   <strong>IntelliSense tips:</strong>
@@ -428,7 +428,9 @@ matching its runtime shape against every declared output. Supply <code>AS</code>
 <code>CAST</code> only where the <strong>base C# type</strong> differs from the source column;
 <strong>length casts are never required</strong> (e.g. casting <code>varchar(50)</code> to
 <code>varchar(100)</code> adds nothing — both map to <code>string</code>). A <code>Select</code> whose
-shape matches no declared output is skipped and reported as a missing return.</p>
+shape matches no declared output is skipped and reported as a missing return. (A scalar output is the
+one exception to "supply the alias yourself" — see <strong>Scalar convention</strong> below: on SQL
+Server, a bare scalar select gets its alias supplied automatically.)</p>
 <pre><code><span class="kw">Declare</span> <span class="ret">@Returns_Orders</span> <span class="tp">table</span> (
     OrderID <span class="tp">int</span>,
     Total   <span class="tp">decimal(18, 2)</span>
@@ -442,16 +444,31 @@ shape matches no declared output is skipped and reported as a missing return.</p
 <span class="kw">From</span>   Orders o;</code></pre>
 
 <h3>Scalar convention</h3>
-<p>For scalar outputs, alias the column to its declared base name so the single-column shape matches:</p>
+<p>When the select is a real expression rather than a bare variable reference (e.g. <code>Count(*)</code>),
+alias the column to the declared base name so the single-column shape matches:</p>
 <pre><code><span class="kw">Declare</span> <span class="ret">@Return_Count</span> <span class="tp">int</span>;
 
 <span class="kw">Use</span> MyDatabase;
 
 <span class="kw">Select</span> Count(*) <span class="kw">As</span> Count  <span class="cm">-- alias "Count" matches declared name @Return_Count</span>
 <span class="kw">From</span>   Orders;</code></pre>
-<p>Or set the variable and select it — but always alias the column so the shape key matches:</p>
+<p>Or set the variable and select it bare. On <strong>SQL Server</strong>, the alias on a bare
+<code class="ret">@Return_…</code> select is <strong>optional</strong> — if you leave it off, the
+generator appends a bracketed <code>As [Count]</code> to the emitted SQL for you (a bare, unbracketed
+alias would be a syntax error for a reserved word like <code>Order</code> or <code>Key</code>, so the
+generator always brackets it). The editor shows a quiet <code>SP0042</code> hint on a bare scalar
+select so you can see — and, via its quick-fix, accept — the exact alias that will be added. Writing it
+yourself is still good practice and produces no diagnostic:</p>
 <pre><code><span class="kw">Set</span> <span class="ret">@Return_Count</span> = (<span class="kw">Select</span> Count(*) <span class="kw">From</span> Orders);
-<span class="kw">Select</span> <span class="ret">@Return_Count</span> <span class="kw">As</span> Count;  <span class="cm">-- alias required: bare @Return_Count has no column name at runtime</span></code></pre>
+<span class="kw">Select</span> <span class="ret">@Return_Count</span> <span class="kw">As</span> Count;  <span class="cm">-- optional on SQL Server — the generator would add As [Count] if omitted</span></code></pre>
+<p>A written alias that does <strong>not</strong> match the declared base name (e.g. <code>As Foo</code>
+instead of <code>As Count</code>) is flagged as an <code>SP0031</code> warning. SQLite and PostgreSQL
+are unaffected by any of this — a scalar there is a single-column temp table, so you select a real
+named column and there is never an alias to synthesize. Also note that one <code>Select</code> may
+return only <strong>one</strong> output scalar: listing two or more (e.g.
+<code>Select @Return_A, @Return_B;</code>) is a build error (<code>SP0041</code>) on every dialect,
+because the runtime shape key becomes multi-column and matches no generated case — use one
+<code>Select</code> per scalar instead.</p>
 
 <h3>Collision diagnostic — SP0030</h3>
 <p>If two declared outputs share an identical shape (same ordered column names and C# types), SQuiL
@@ -476,7 +493,7 @@ name.</p>
     <span class="kw">Where</span>  u.UserID = <span class="par">@Param_UserID</span>
 );
 
-<span class="kw">Select</span> <span class="ret">@Return_Name</span> <span class="kw">As</span> Name;  <span class="cm">-- alias "Name" matches declared base name @Return_Name</span></code></pre>
+<span class="kw">Select</span> <span class="ret">@Return_Name</span> <span class="kw">As</span> Name;  <span class="cm">-- alias optional on SQL Server (shown for clarity) — generator adds As [Name] if omitted</span></code></pre>
 
 <p><strong>Generated C#:</strong></p>
 <pre><code><span class="cs-kw">public partial record</span> <span class="cs-cls">GetUserNameRequest</span>
@@ -557,7 +574,7 @@ name.</p>
 <span class="kw">From</span>        <span class="par">@Params_Tags</span> t;
 
 <span class="kw">Set</span> <span class="ret">@Return_RowsInserted</span> = @@RowCount;
-<span class="kw">Select</span> <span class="ret">@Return_RowsInserted</span> <span class="kw">As</span> RowsInserted;  <span class="cm">-- alias "RowsInserted" matches declared base name</span></code></pre>
+<span class="kw">Select</span> <span class="ret">@Return_RowsInserted</span> <span class="kw">As</span> RowsInserted;  <span class="cm">-- alias optional on SQL Server (shown for clarity) — generator adds As [RowsInserted] if omitted</span></code></pre>
 
 <p><strong>Generated C#:</strong></p>
 <pre><code><span class="cm">// in namespace ContentApplication.Data.Models:</span>
