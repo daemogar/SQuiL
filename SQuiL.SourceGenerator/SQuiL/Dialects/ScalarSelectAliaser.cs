@@ -53,8 +53,12 @@ public static class ScalarSelectAliaser
     /// <summary>
     /// Tokens that may legally follow a bare scalar select's single column. Anything NOT in this
     /// set (a comma, <c>As</c>, <c>From</c>, a dot, an operator, an open paren) means the variable
-    /// is part of a larger column expression, so the select does not qualify. The rule is therefore
-    /// complete: there is no ambiguous case where a qualifying select is skipped.
+    /// is part of a larger column expression, so the select does not qualify. The set is
+    /// deliberately conservative — it does not enumerate every valid T-SQL statement starter
+    /// (e.g. <c>grant</c>/<c>revoke</c>/<c>deny</c>/<c>open</c>/<c>fetch</c>/<c>close</c>/
+    /// <c>deallocate</c>/<c>backup</c>/<c>restore</c>/<c>dbcc</c>/<c>checkpoint</c> are omitted).
+    /// An unrecognized following token simply means the scanner declines to rewrite; that is the
+    /// safe direction — a missed alias is a no-op, never a false rewrite.
     /// </summary>
     private static readonly HashSet<string> StatementStarters = new(System.StringComparer.OrdinalIgnoreCase)
     {
@@ -271,7 +275,15 @@ public static class ScalarSelectAliaser
         }
     }
 
-    /// <summary>Skips whitespace and comments. Used between tokens inside a column list.</summary>
+    /// <summary>
+    /// Skips whitespace and comments. Used between tokens inside a column list. T-SQL
+    /// <c>/* */</c> comments NEST (unlike ANSI SQL), so a block comment is depth-tracked —
+    /// an inner <c>/*</c> increments depth, a <c>*/</c> decrements it, and only a <c>*/</c> at
+    /// depth 0 actually closes the comment. Everything between the opening <c>/*</c> and the
+    /// matching close (including quotes) is consumed as comment text, never re-entering the
+    /// quote/bracket handling in <see cref="SkipNonCode"/>. An unterminated comment simply runs
+    /// to end-of-text (no infinite loop).
+    /// </summary>
     private static void SkipTrivia(string text, ref int i)
     {
         while (i < text.Length)
@@ -284,9 +296,25 @@ public static class ScalarSelectAliaser
             }
             if (text[i] == '/' && i + 1 < text.Length && text[i + 1] == '*')
             {
+                var depth = 1;
                 i += 2;
-                while (i + 1 < text.Length && !(text[i] == '*' && text[i + 1] == '/')) i++;
-                i = System.Math.Min(i + 2, text.Length);
+                while (i < text.Length && depth > 0)
+                {
+                    if (text[i] == '/' && i + 1 < text.Length && text[i + 1] == '*')
+                    {
+                        depth++;
+                        i += 2;
+                    }
+                    else if (text[i] == '*' && i + 1 < text.Length && text[i + 1] == '/')
+                    {
+                        depth--;
+                        i += 2;
+                    }
+                    else
+                    {
+                        i++;
+                    }
+                }
                 continue;
             }
             return;

@@ -98,6 +98,23 @@ public class ScalarSelectAliaserTests
             "/* Select @Return_Count; */\nSelect 1;",
             ScalarSelectAliaser.Rewrite("/* Select @Return_Count; */\nSelect 1;", Count()));
 
+    /// <summary>T-SQL <c>/* */</c> comments nest; the whole span is one comment, so the select
+    /// inside it must not be aliased.</summary>
+    [Fact]
+    public void Rewrite_ignores_a_select_inside_a_nested_block_comment()
+        => Assert.Equal(
+            "/* /* nested */ Select @Return_Count; */",
+            ScalarSelectAliaser.Rewrite("/* /* nested */ Select @Return_Count; */", Count()));
+
+    /// <summary>A quote appearing after the nested comment's TRUE close (not its first, inner
+    /// <c>*/</c>) must not be mistaken for a string literal that swallows the rest of the text —
+    /// the live select following the comment must still be aliased.</summary>
+    [Fact]
+    public void Rewrite_aliases_a_live_select_following_a_nested_block_comment_containing_an_apostrophe()
+        => Assert.Equal(
+            "/* /* nested */ it's dead */ Select @Return_Count As Count;",
+            ScalarSelectAliaser.Rewrite("/* /* nested */ it's dead */ Select @Return_Count;", Count()));
+
     [Fact]
     public void Rewrite_ignores_a_string_literal()
         => Assert.Equal(
