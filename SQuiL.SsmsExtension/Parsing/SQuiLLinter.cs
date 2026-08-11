@@ -78,6 +78,8 @@ internal static class SQuiLLinter
         LintSimilarSignatures(text, diagnostics, dialect);
         LintCardinalityCollision(text, diagnostics, dialect);
         LintUnmatchedSelect(text, diagnostics, dialect);
+        LintMultiScalarSelect(text, diagnostics, dialect);
+        LintScalarAliasHint(text, diagnostics, dialect);
         LintTimestampInput(text, diagnostics, dialect);
         LintScalarNullMarker(text, diagnostics, dialect);
         LintKeyGraph(text, diagnostics, dialect);
@@ -140,6 +142,449 @@ internal static class SQuiLLinter
         }
     }
 
+    // ── SP0041 / SP0042 shared scanner: implicit scalar select alias ────────
+    //
+    // Port of ScalarSelectAliaser.cs (source generator) — change one, change all four
+    // (this file, the Visual Studio copy, the source generator, and parser.ts / VS Code).
+    //
+    // A bare `Select @Return_X;` returns an UNNAMED column, so the runtime shape-key
+    // router can't match it (SQL Server only — SQLite/PostgreSQL declare scalars as
+    // single-column temp tables and select a real named column). FindBareScalarSelects
+    // locates every qualifying bare single-scalar select (consumed by LintScalarAliasHint,
+    // SP0042, below); FindMultiScalarSelects locates every select whose top-level column
+    // list is 2+ output-scalar references, which can never be routed regardless of
+    // aliasing (consumed by LintMultiScalarSelect, SP0041, below). Both walk the same
+    // underlying scanner (EnumerateScalarSelects), which skips comments (`--`, NESTED
+    // `/* */` — T-SQL block comments nest, unlike ANSI SQL), string literals, quoted
+    // identifiers, and bracketed identifiers exactly like ScalarSelectAliaser.cs.
+
+    /// <summary>One parsed entry in a select's top-level column list — scanner-internal,
+    /// never returned to a caller. Mirrors ScalarSelectAliaser.cs's private Column.</summary>
+    private sealed class ScalarSelectColumn
+    {
+        public int SelectOffset;
+        public int VariableOffset;
+        public int VariableLength;
+        public string DeclaredName = "";
+        /// <summary><c>true</c> when the entry is EXACTLY a declared output-scalar
+        /// reference (optionally followed by an <c>As</c> alias) and nothing else.</summary>
+        public bool IsBareVariable;
+        public bool HasAlias;
+    }
+
+    /// <summary>A bare single-scalar select that qualifies for an implicit alias (SP0042).</summary>
+    internal sealed class BareScalarSelect
+    {
+        /// <summary>Offset of the <c>@Return_X</c> token.</summary>
+        public int VariableOffset;
+        /// <summary>Length of the <c>@Return_X</c> token.</summary>
+        public int VariableLength;
+        /// <summary>The declared base name, in its declared casing.</summary>
+        public string DeclaredName = "";
+    }
+
+    /// <summary>A select whose top-level column list is 2+ output-scalar references (SP0041).</summary>
+    internal sealed class MultiScalarSelect
+    {
+        /// <summary>Offset of the <c>Select</c> keyword.</summary>
+        public int SelectOffset;
+        /// <summary>The declared base names referenced, in source order.</summary>
+        public List<string> DeclaredNames = new();
+    }
+
+    /// <summary>Port of ScalarSelectAliaser.cs's StatementStarters — change one, change all four.</summary>
+    private static readonly HashSet<string> ScalarSelectStatementStarters = new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        "select", "insert", "update", "delete", "set", "declare", "if", "while", "begin", "end",
+        "exec", "execute", "return", "print", "use", "with", "merge", "truncate", "drop", "create",
+        "alter", "go", "else", "commit", "rollback", "throw", "raiserror", "waitfor",
+    };
+
+    /// <summary>Maps a lower-cased <c>"@return_&lt;name&gt;"</c> key to its declared base
+    /// name, for every declared output-scalar (<see cref="VariableRole.Return"/>) variable.
+    /// Shared by <see cref="LintMultiScalarSelect"/> (SP0041) and
+    /// <see cref="LintScalarAliasHint"/> (SP0042), and (as <c>internal</c>) by
+    /// <c>SQuiLSuggestedActionsSource.ComputeEdits</c> to resolve the SP0042 quick-fix's
+    /// declared name.</summary>
+    internal static Dictionary<string, string> BuildScalarsByVariableName(List<SQuiLVariable> variables)
+    {
+        var map = new Dictionary<string, string>();
+        foreach (var v in variables)
+            if (v.Role == VariableRole.Return)
+                map[$"@return_{v.Name}".ToLowerInvariant()] = v.Name;
+        return map;
+    }
+
+    /// <summary>
+    /// Port of ScalarSelectAliaser.cs's FindBareSelects — change one, change all four.
+    /// Every qualifying bare single-scalar select in <paramref name="text"/>, in source
+    /// order.
+    /// </summary>
+    internal static List<BareScalarSelect> FindBareScalarSelects(string text, Dictionary<string, string> scalarsByVariableName)
+    {
+        var results = new List<BareScalarSelect>();
+        foreach (var columns in EnumerateScalarSelects(text, scalarsByVariableName))
+        {
+            if (columns.Count != 1) continue;
+            var only = columns[0];
+            if (only.HasAlias || !only.IsBareVariable) continue;
+
+            results.Add(new BareScalarSelect
+            {
+                VariableOffset = only.VariableOffset,
+                VariableLength = only.VariableLength,
+                DeclaredName = only.DeclaredName,
+            });
+        }
+        return results;
+    }
+
+    /// <summary>
+    /// Port of ScalarSelectAliaser.cs's FindMultiScalarSelects — change one, change all
+    /// four. Every select whose top-level column list is 2+ output-scalar references
+    /// (aliased or not), in source order. A mixed list (a scalar reference plus a real
+    /// column) is NOT reported — that is SP0031's domain.
+    /// </summary>
+    internal static List<MultiScalarSelect> FindMultiScalarSelects(string text, Dictionary<string, string> scalarsByVariableName)
+    {
+        var results = new List<MultiScalarSelect>();
+        foreach (var columns in EnumerateScalarSelects(text, scalarsByVariableName))
+        {
+            if (columns.Count < 2) continue;
+            var allScalars = true;
+            foreach (var c in columns)
+                if (!c.IsBareVariable) { allScalars = false; break; }
+            if (!allScalars) continue;
+
+            var multi = new MultiScalarSelect { SelectOffset = columns[0].SelectOffset };
+            foreach (var c in columns)
+                multi.DeclaredNames.Add(c.DeclaredName);
+            results.Add(multi);
+        }
+        return results;
+    }
+
+    /// <summary>
+    /// Port of ScalarSelectAliaser.cs's EnumerateSelects — change one, change all four.
+    /// Walks <paramref name="text"/> and yields the top-level column list of every
+    /// <c>Select</c> statement whose list consists solely of comma-separated entries.
+    /// Comments (<c>--</c>, <c>/* */</c>), string literals (<c>'…'</c>), quoted
+    /// identifiers (<c>"…"</c>), and bracketed identifiers (<c>[…]</c>) are skipped so a
+    /// <c>Select</c> inside them is never seen. Any select whose list cannot be resolved
+    /// to a clean entry sequence yields nothing.
+    /// </summary>
+    private static IEnumerable<List<ScalarSelectColumn>> EnumerateScalarSelects(
+        string text, Dictionary<string, string> scalarsByVariableName)
+    {
+        var i = 0;
+        while (i < text.Length)
+        {
+            if (SkipScalarNonCode(text, ref i))
+                continue;
+
+            if (!IsScalarWordAt(text, i, "select"))
+            {
+                i = SkipScalarWord(text, i);
+                continue;
+            }
+
+            var selectOffset = i;
+            var cursor = i + "select".Length;
+            var columns = ParseScalarColumnList(text, cursor, selectOffset, scalarsByVariableName, out var listEnd);
+            if (columns is not null)
+                yield return columns;
+
+            i = listEnd > selectOffset ? listEnd : selectOffset + "select".Length;
+        }
+    }
+
+    /// <summary>
+    /// Port of ScalarSelectAliaser.cs's ParseColumnList — change one, change all four.
+    /// Parses the comma-separated top-level column list that starts at
+    /// <paramref name="start"/>. Returns <c>null</c> when the list is not a clean entry
+    /// sequence (e.g. an assignment <c>Select @X = …</c>, a <c>From</c> clause, a
+    /// parenthesised expression). On success, <paramref name="listEnd"/> is the offset
+    /// just past the list.
+    /// </summary>
+    private static List<ScalarSelectColumn>? ParseScalarColumnList(
+        string text, int start, int selectOffset,
+        Dictionary<string, string> scalarsByVariableName, out int listEnd)
+    {
+        var columns = new List<ScalarSelectColumn>();
+        var i = start;
+        listEnd = start;
+
+        while (true)
+        {
+            SkipScalarTrivia(text, ref i);
+            var column = new ScalarSelectColumn { SelectOffset = selectOffset };
+
+            // A declared output-scalar reference?
+            if (i < text.Length && text[i] == '@')
+            {
+                var nameStart = i;
+                var j = i + 1;
+                while (j < text.Length && (char.IsLetterOrDigit(text[j]) || text[j] == '_')) j++;
+                var variable = text.Substring(nameStart, j - nameStart);
+                if (scalarsByVariableName.TryGetValue(variable.ToLowerInvariant(), out var declared))
+                {
+                    column.VariableOffset = nameStart;
+                    column.VariableLength = j - nameStart;
+                    column.DeclaredName = declared;
+                    column.IsBareVariable = true;
+                    i = j;
+                }
+                else
+                {
+                    // An @variable that is not a declared output scalar: the statement is not ours.
+                    listEnd = i;
+                    return null;
+                }
+            }
+            else
+            {
+                // Not a scalar reference. Consume one identifier-ish token so a MIXED list is
+                // still recognisable as a list (FindMultiScalarSelects rejects it via IsBareVariable).
+                var j = i;
+                while (j < text.Length && (char.IsLetterOrDigit(text[j]) || text[j] == '_' || text[j] == '.')) j++;
+                if (j == i) { listEnd = i; return null; }   // punctuation/operator → not a plain list
+                i = j;
+            }
+
+            SkipScalarTrivia(text, ref i);
+
+            // Optional `As <alias>`.
+            if (IsScalarWordAt(text, i, "as"))
+            {
+                column.HasAlias = true;
+                i += 2;
+                SkipScalarTrivia(text, ref i);
+                var j = i;
+                if (j < text.Length && text[j] == '[')
+                {
+                    while (j < text.Length && text[j] != ']') j++;
+                    if (j < text.Length) j++;
+                }
+                else
+                {
+                    while (j < text.Length && (char.IsLetterOrDigit(text[j]) || text[j] == '_')) j++;
+                }
+                if (j == i) { listEnd = i; return null; }
+                i = j;
+                SkipScalarTrivia(text, ref i);
+            }
+
+            columns.Add(column);
+
+            if (i < text.Length && text[i] == ',')
+            {
+                i++;
+                continue;   // another entry
+            }
+
+            // End of the list. It only counts when the next significant token terminates the
+            // statement — otherwise the last entry was part of a larger expression.
+            listEnd = i;
+            if (i >= text.Length) return columns;                  // end of text
+            if (text[i] == ';') return columns;                    // explicit terminator
+            var word = PeekScalarWord(text, i);
+            if (word.Length > 0 && ScalarSelectStatementStarters.Contains(word)) return columns;
+            return null;                                            // `From`, an operator, `(`, `.` …
+        }
+    }
+
+    /// <summary>
+    /// Port of ScalarSelectAliaser.cs's SkipTrivia — change one, change all four. Skips
+    /// whitespace and comments. T-SQL <c>/* */</c> comments NEST (unlike ANSI SQL), so a
+    /// block comment is depth-tracked — an inner <c>/*</c> increments depth, a <c>*/</c>
+    /// decrements it, and only a <c>*/</c> at depth 0 actually closes the comment. An
+    /// unterminated comment simply runs to end-of-text (no infinite loop).
+    /// </summary>
+    private static void SkipScalarTrivia(string text, ref int i)
+    {
+        while (i < text.Length)
+        {
+            if (char.IsWhiteSpace(text[i])) { i++; continue; }
+            if (text[i] == '-' && i + 1 < text.Length && text[i + 1] == '-')
+            {
+                while (i < text.Length && text[i] != '\n') i++;
+                continue;
+            }
+            if (text[i] == '/' && i + 1 < text.Length && text[i + 1] == '*')
+            {
+                var depth = 1;
+                i += 2;
+                while (i < text.Length && depth > 0)
+                {
+                    if (text[i] == '/' && i + 1 < text.Length && text[i + 1] == '*')
+                    {
+                        depth++;
+                        i += 2;
+                    }
+                    else if (text[i] == '*' && i + 1 < text.Length && text[i + 1] == '/')
+                    {
+                        depth--;
+                        i += 2;
+                    }
+                    else
+                    {
+                        i++;
+                    }
+                }
+                continue;
+            }
+            return;
+        }
+    }
+
+    /// <summary>
+    /// Port of ScalarSelectAliaser.cs's SkipNonCode — change one, change all four. Skips
+    /// one span of non-code at <paramref name="i"/> — whitespace, a comment, a string
+    /// literal, a quoted identifier, or a bracketed identifier. Returns <c>true</c> when
+    /// <paramref name="i"/> advanced.
+    /// </summary>
+    private static bool SkipScalarNonCode(string text, ref int i)
+    {
+        var before = i;
+        SkipScalarTrivia(text, ref i);
+        if (i < text.Length && (text[i] == '\'' || text[i] == '"'))
+        {
+            var quote = text[i];
+            i++;
+            while (i < text.Length)
+            {
+                if (text[i] == quote)
+                {
+                    // Doubled quote is an escape inside the literal.
+                    if (i + 1 < text.Length && text[i + 1] == quote) { i += 2; continue; }
+                    i++;
+                    break;
+                }
+                i++;
+            }
+        }
+        else if (i < text.Length && text[i] == '[')
+        {
+            while (i < text.Length && text[i] != ']') i++;
+            if (i < text.Length) i++;
+        }
+        return i != before;
+    }
+
+    /// <summary>Port of ScalarSelectAliaser.cs's SkipWord — change one, change all four.
+    /// Advances past one word (or one character when the position is punctuation).</summary>
+    private static int SkipScalarWord(string text, int i)
+    {
+        if (i >= text.Length) return i + 1;
+        if (!char.IsLetter(text[i]) && text[i] != '_' && text[i] != '@') return i + 1;
+        var j = i;
+        if (text[j] == '@') j++;
+        while (j < text.Length && (char.IsLetterOrDigit(text[j]) || text[j] == '_')) j++;
+        return j > i ? j : i + 1;
+    }
+
+    /// <summary>
+    /// Port of ScalarSelectAliaser.cs's IsWordAt — change one, change all four.
+    /// <c>true</c> when <paramref name="word"/> sits at <paramref name="i"/> as a whole
+    /// word (case-insensitive, not preceded or followed by an identifier character).
+    /// </summary>
+    private static bool IsScalarWordAt(string text, int i, string word)
+    {
+        if (i < 0 || i + word.Length > text.Length) return false;
+        if (string.Compare(text, i, word, 0, word.Length, System.StringComparison.OrdinalIgnoreCase) != 0)
+            return false;
+        if (i > 0 && (char.IsLetterOrDigit(text[i - 1]) || text[i - 1] == '_' || text[i - 1] == '@'))
+            return false;
+        var after = i + word.Length;
+        if (after < text.Length && (char.IsLetterOrDigit(text[after]) || text[after] == '_'))
+            return false;
+        return true;
+    }
+
+    /// <summary>Port of ScalarSelectAliaser.cs's PeekWord — change one, change all four.
+    /// The identifier word at <paramref name="i"/>, or an empty string.</summary>
+    private static string PeekScalarWord(string text, int i)
+    {
+        if (i >= text.Length || (!char.IsLetter(text[i]) && text[i] != '_')) return "";
+        var j = i;
+        while (j < text.Length && (char.IsLetterOrDigit(text[j]) || text[j] == '_')) j++;
+        return text.Substring(i, j - i);
+    }
+
+    // ── SP0041: multi-scalar select detection ────────────────────────────────
+    //
+    // A Select whose top-level column list is 2+ declared output-scalar references
+    // cannot be routed to a response — only one scalar per Select is routable (splitting
+    // the select into one-per-scalar is the fix). Runs on every dialect: the scan
+    // naturally finds nothing on a temp-table-header dialect, since those authors
+    // reference real temp-table columns, never `@`-prefixed scalars, in the query body.
+    //
+    // Port of SQuiLMultiScalarSelectValidator.cs (source generator) and
+    // lintMultiScalarSelect() in parser.ts (VS Code) — change one, change all three.
+
+    internal static void LintMultiScalarSelect(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
+    {
+        var parsed = SQuiLParser.Parse(sql, dialect);
+        var scalarsByVariableName = BuildScalarsByVariableName(parsed.Variables);
+        if (scalarsByVariableName.Count == 0) return;
+
+        foreach (var multi in FindMultiScalarSelects(sql, scalarsByVariableName))
+        {
+            var (line, startChar) = OffsetToLineChar(sql, multi.SelectOffset);
+            var endChar = startChar + "select".Length;
+            var names = multi.DeclaredNames;
+
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message   = $"This Select returns more than one output scalar ({string.Join(", ", names)}), " +
+                            "which cannot be routed to a response. Use one Select per scalar.",
+                Line      = line,
+                StartChar = startChar,
+                EndChar   = endChar,
+                Severity  = DiagnosticSeverity.Error,
+                Code      = "SP0041",
+            });
+        }
+    }
+
+    // ── SP0042: implicit scalar select alias hint ────────────────────────────
+    //
+    // EDITOR-ONLY — must NOT appear in the source generator. Port of
+    // ScalarSelectAliaser.cs's FindBareSelects (source generator) and
+    // scalarAliasHints.ts (VS Code) — change one, change all four.
+    //
+    // The generator itself auto-appends `As [<Name>]` to a qualifying bare scalar select
+    // (SQL Server only — see ScalarSelectAliaser.Rewrite); this hint surfaces that silent
+    // rewrite to the author so they can write the alias themselves. Returns immediately
+    // for a temp-table-header dialect (SQLite, PostgreSQL): those declare scalars as
+    // single-column temp tables and select a real named column, so there is nothing to
+    // alias.
+
+    internal static void LintScalarAliasHint(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
+    {
+        if (SQuiLDialect.IsTempTableDialect(dialect)) return;
+
+        var parsed = SQuiLParser.Parse(sql, dialect);
+        var scalarsByVariableName = BuildScalarsByVariableName(parsed.Variables);
+        if (scalarsByVariableName.Count == 0) return;
+
+        foreach (var bare in FindBareScalarSelects(sql, scalarsByVariableName))
+        {
+            var (line, startChar) = OffsetToLineChar(sql, bare.VariableOffset);
+            var declaredName = bare.DeclaredName;
+
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message   = $"The generator supplies `As {declaredName}`; add it to make the column name explicit.",
+                Line      = line,
+                StartChar = startChar,
+                EndChar   = startChar + bare.VariableLength,
+                Severity  = DiagnosticSeverity.Info,
+                Code      = "SP0042",
+            });
+        }
+    }
+
     // ── SP0031: unmatched standalone SELECT (editor-only warning) ────────────
     //
     // Best-effort, name-focused. Fires when a standalone `Select <col-list> From …`
@@ -158,6 +603,25 @@ internal static class SQuiLLinter
         @"^\s*select\s+(?!\*)(.+?)\s+from\s",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    // Task 6 scalar extension: a bare `Select <expr>[;]` line (no FROM required), and the
+    // leading `@variable` + remainder split used to test whether that expression is a
+    // resolvable alias of a declared output scalar. Port of the `mBare`/`scalarMatch`
+    // regexes in lintUnmatchedSelect() in parser.ts (VS Code) — change one, change all three.
+    private static readonly Regex SelectBareRegex = new(
+        @"^\s*select\s+(?!\*)(.+?)\s*;?\s*$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex ScalarSelectExprRegex = new(
+        @"^\s*(@[A-Za-z_][A-Za-z0-9_]*)\s*(.*)$",
+        RegexOptions.Compiled);
+
+    // The alias, if bracketed (`As [Count]`), is unwrapped here just like ExtractSelectColumnNames's
+    // `\[?...\]?` groups below — an author-written bracketed alias (or the generator's own implicit
+    // one) still matches the declared name.
+    private static readonly Regex ScalarSelectAliasRegex = new(
+        @"^as\s+\[?([A-Za-z_][A-Za-z0-9_]*)\]?\s*$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     internal static void LintUnmatchedSelect(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
         var parsed = SQuiLParser.Parse(sql, dialect);
@@ -166,12 +630,19 @@ internal static class SQuiLLinter
             .Where(v => (v.Role == VariableRole.Returns || v.Role == VariableRole.ReturnTable)
                         && v.Columns != null && v.Columns.Count > 0)
             .ToList();
+        // Task 6 scalar extension: declared output-scalar (@Return_) variables participate too —
+        // a scalar select's ALIAS is checked against its declared name (a BARE reference and the
+        // assignment form are left alone; see below).
+        var scalars = parsed.Variables.Where(v => v.Role == VariableRole.Return).ToList();
 
-        if (outputs.Count == 0) return;
+        if (outputs.Count == 0 && scalars.Count == 0) return;
 
-        // Build the set of declared output column-name sequences (lower-cased).
+        // Build the set of declared output column-name sequences (lower-cased). Each declared
+        // output scalar's own name is a single-entry key too.
         var declaredNameKeys = new HashSet<string>(
             outputs.Select(v => string.Join("|", v.Columns!.Select(c => c.Name.ToLowerInvariant()))));
+        var scalarsByVariableName = BuildScalarsByVariableName(parsed.Variables);
+        foreach (var v in scalars) declaredNameKeys.Add(v.Name.ToLowerInvariant());
 
         // Determine body start: everything after the USE statement line.
         if (parsed.DatabaseLine is not { } databaseLine) return;
@@ -179,25 +650,64 @@ internal static class SQuiLLinter
         var allLines = sql.Split('\n');
         int bodyLineOffset = databaseLine + 1;
 
+        string expected = string.Join(" | ", outputs
+            .Select(v => string.Join(", ", v.Columns!.Select(c => c.Name)))
+            .Concat(scalars.Select(v => v.Name)));
+
         for (int i = 0; i < allLines.Length - bodyLineOffset; i++)
         {
             string raw = allLines[bodyLineOffset + i];
 
+            // Table case (unchanged): ^\s*select\s+ anchor already excludes Insert Into …
+            // Select … and Set … lines.
             var selectMatch = SelectFromRegex.Match(raw);
-            if (!selectMatch.Success) continue;             // only Select <list> From ...
+            if (selectMatch.Success)
+            {
+                var cols = ExtractSelectColumnNames(selectMatch.Groups[1].Value);
+                if (cols == null) continue;                     // not statically inferable -> skip
 
-            var cols = ExtractSelectColumnNames(selectMatch.Groups[1].Value);
-            if (cols == null) continue;                     // not statically inferable -> skip
+                string key = string.Join("|", cols.Select(c => c.ToLowerInvariant()));
+                if (declaredNameKeys.Contains(key)) continue;
 
-            string key = string.Join("|", cols.Select(c => c.ToLowerInvariant()));
-            if (declaredNameKeys.Contains(key)) continue;
+                diagnostics.Add(new SQuiLDiagnostic
+                {
+                    Message   = $"This SELECT's columns ({string.Join(", ", cols)}) match no declared @Returns_/@Return_ output signature. " +
+                                $"Expected one of: {expected}. " +
+                                "Add AS aliases (and CAST base types) to match, or use Insert Into @Returns_X … ; Select * From @Returns_X;.",
+                    Line      = bodyLineOffset + i,
+                    StartChar = 0,
+                    EndChar   = raw.Length,
+                    Severity  = DiagnosticSeverity.Warning,
+                    Code      = "SP0031",
+                });
+                continue;
+            }
 
-            string expected = string.Join(" | ", outputs.Select(v =>
-                string.Join(", ", v.Columns!.Select(c => c.Name))));
+            // Scalar case (the Task 6 extension): the FROM requirement is relaxed to also
+            // consider a bare `Select <expr>[;]` line, but only a RESOLVABLE alias that
+            // mismatches the declared name fires. A bare reference (no alias — SP0042's
+            // territory) and the assignment form (`Select @X = …`) are left alone.
+            if (scalars.Count == 0) continue;
+            var bareMatch = SelectBareRegex.Match(raw);
+            if (!bareMatch.Success) continue;
+            var scalarMatch = ScalarSelectExprRegex.Match(bareMatch.Groups[1].Value);
+            if (!scalarMatch.Success) continue;
+            if (!scalarsByVariableName.TryGetValue(scalarMatch.Groups[1].Value.ToLowerInvariant(), out var declaredName))
+                continue;                                       // not a declared output scalar reference
+
+            string rest = scalarMatch.Groups[2].Value.Trim();
+            if (rest.Length == 0) continue;                     // bare — SP0042's territory
+            if (rest.StartsWith("=")) continue;                 // assignment form
+
+            var aliasMatch = ScalarSelectAliasRegex.Match(rest);
+            if (!aliasMatch.Success) continue;                  // not a resolvable alias -> bail (best-effort)
+            string alias = aliasMatch.Groups[1].Value;
+            if (string.Equals(alias, declaredName, System.StringComparison.OrdinalIgnoreCase))
+                continue;                                       // correctly aliased
 
             diagnostics.Add(new SQuiLDiagnostic
             {
-                Message   = $"This SELECT's columns ({string.Join(", ", cols)}) match no declared @Returns_/@Return_ output signature. " +
+                Message   = $"This SELECT's columns ({alias}) match no declared @Returns_/@Return_ output signature. " +
                             $"Expected one of: {expected}. " +
                             "Add AS aliases (and CAST base types) to match, or use Insert Into @Returns_X … ; Select * From @Returns_X;.",
                 Line      = bodyLineOffset + i,
@@ -932,7 +1442,10 @@ internal static class SQuiLLinter
         });
     }
 
-    private static (int Line, int Char) OffsetToLineChar(string text, int offset)
+    /// <summary><c>internal</c> (not <c>private</c>) so <c>SQuiLSuggestedActionsSource</c>
+    /// can convert a <see cref="BareScalarSelect"/>'s offset to a (line, character) pair
+    /// when building the SP0042 quick-fix, without duplicating this conversion.</summary>
+    internal static (int Line, int Char) OffsetToLineChar(string text, int offset)
     {
         int line = 0, charPos = 0;
         for (int i = 0; i < offset && i < text.Length; i++)
