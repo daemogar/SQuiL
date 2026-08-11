@@ -34,6 +34,17 @@ public interface ISqlDialect
 	/// </summary>
 	string ScalarVariableDeclaration(CodeBlock block, string newLine);
 
+	/// <summary>
+	/// Rewrites the author's query body before it is baked into the generated command text.
+	/// SQL Server appends <c>As &lt;Name&gt;</c> to a bare single-scalar <c>Select @Return_X</c> so the
+	/// result set carries a column name the runtime shape key can route (see
+	/// <see cref="ScalarSelectAliaser"/>). Temp-table-header dialects (SQLite, PostgreSQL) return
+	/// the body unchanged — their scalars select a real column, which is already named.
+	/// </summary>
+	/// <param name="body">The author's query body, verbatim.</param>
+	/// <param name="outputs">Every <c>OUTPUT</c> block declared by the file.</param>
+	string RewriteOutputSelects(string body, IEnumerable<CodeBlock> outputs);
+
 	/// <summary>The <c>reader.GetXxx</c> accessor fragment for a column.</summary>
 	string ReaderAccessor(CodeItem item);
 

@@ -33,4 +33,23 @@ public class ShapeRoutingTests
             Select @Return_Count As Count;
             """]);
     }
+
+    /// <summary>
+    /// A bare `Select @Return_Count` (no `As Count`, no trailing semicolon) must be emitted into
+    /// the command text as `Select @Return_Count As Count` — otherwise SQL Server returns an
+    /// unnamed column, the runtime shape key is ":int", and the generated `case "count:int":`
+    /// never matches. See ScalarSelectAliaser.
+    /// </summary>
+    [Fact]
+    public Task BareScalarSelectGetsImplicitAlias()
+    {
+        var name = nameof(BareScalarSelectGetsImplicitAlias);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Return_Count int;
+            Use [Db];
+            Set @Return_Count = (Select Count(*) From People);
+            Select @Return_Count
+            """]);
+    }
 }

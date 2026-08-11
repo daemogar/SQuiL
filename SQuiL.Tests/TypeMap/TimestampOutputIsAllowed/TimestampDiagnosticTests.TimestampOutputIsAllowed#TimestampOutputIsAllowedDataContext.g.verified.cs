@@ -82,7 +82,7 @@ partial class TimestampOutputIsAllowedDataContext : SqlServerDataContext
 		
 		Use [{builder.InitialCatalog}];
 		
-		Select @Return_Version;
+		Select @Return_Version As Version;
 		""";
 	}
 }

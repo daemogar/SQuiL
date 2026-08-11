@@ -17,6 +17,10 @@ public class SqliteDialect : ITempTableHeaderDialect
 	public string VarCharType() => "Microsoft.Data.Sqlite.SqliteType.Text";
 	public string BitType() => "Microsoft.Data.Sqlite.SqliteType.Integer";
 
+	// Temp-table-header dialects declare scalars as single-column temp tables, so the author
+	// writes `Select X From Return_X` — a real, already-named column. Nothing to rewrite.
+	public string RewriteOutputSelects(string body, IEnumerable<SQuiL.SourceGenerator.Parser.CodeBlock> outputs) => body;
+
 	/// <summary>
 	/// The native SQLite temp-table declaration for an input/output table/object block, e.g.
 	/// <c>Drop Table If Exists Returns_Person; Create Temp Table Returns_Person (PersonID INTEGER Not Null, ...);</c>.

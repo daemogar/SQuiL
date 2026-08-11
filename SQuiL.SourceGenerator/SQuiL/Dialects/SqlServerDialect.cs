@@ -34,6 +34,27 @@ public class SqlServerDialect : ISqlDialect
 	public string ScalarVariableDeclaration(SQuiL.SourceGenerator.Parser.CodeBlock block, string newLine)
 		=> $"Declare {block.DatabaseType.Original};";
 
+	/// <summary>
+	/// Appends <c>As &lt;Name&gt;</c> to every bare single-scalar <c>Select @Return_X</c> in the body.
+	/// A bare variable select returns an UNNAMED column in T-SQL, which the runtime shape key
+	/// cannot route; the author writing the alias by hand is pure noise, since the name is already
+	/// stated in the Declare. See <see cref="ScalarSelectAliaser"/> for the exact rules.
+	/// </summary>
+	public string RewriteOutputSelects(string body, System.Collections.Generic.IEnumerable<SQuiL.SourceGenerator.Parser.CodeBlock> outputs)
+	{
+		var scalars = new System.Collections.Generic.Dictionary<string, string>();
+		foreach (var block in outputs)
+		{
+			if (block.CodeType != SQuiL.SourceGenerator.Parser.CodeType.OUTPUT_VARIABLE)
+				continue;
+			scalars[$"@Return_{block.Name}".ToLowerInvariant()] = block.Name;
+		}
+
+		return scalars.Count == 0
+			? body
+			: ScalarSelectAliaser.Rewrite(body, scalars);
+	}
+
 	/// <summary>The <c>reader.GetXxx</c> accessor fragment for a column (delegates to the type map).</summary>
 	public string ReaderAccessor(SQuiL.SourceGenerator.Parser.CodeItem item) => item.DataReader();
 

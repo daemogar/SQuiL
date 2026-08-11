@@ -159,9 +159,13 @@ public class SQuiLParser(List<Token> Tokens, ISqlDialect? Dialect = null)
 			return diff > 0;
 		}
 
-		// `Insert Into @Var` / `Select @Var` statements are now emitted verbatim as part of
-		// the body — no output-side injection. Result sets are routed at runtime by their
-		// column signature (shape key), so there is nothing to rewrite here; just advance.
+		// `Insert Into @Var` / `Select @Var` statements are emitted as part of the body — no
+		// output-side injection here. Result sets are routed at runtime by their column
+		// signature (shape key), so the parser has nothing to rewrite; just advance.
+		//
+		// NOTE: the emitted body is no longer byte-verbatim. `ISqlDialect.RewriteOutputSelects`
+		// (SQL Server only) appends `As <Name>` to a bare single-scalar `Select @Return_X` when
+		// the command text is assembled — see SQuiLDataContext.cs and ScalarSelectAliaser.
 		void ProcessInsertIntoTablesAndSelectVariables() => Consume();
 
 		void ProcessBodyStatement()

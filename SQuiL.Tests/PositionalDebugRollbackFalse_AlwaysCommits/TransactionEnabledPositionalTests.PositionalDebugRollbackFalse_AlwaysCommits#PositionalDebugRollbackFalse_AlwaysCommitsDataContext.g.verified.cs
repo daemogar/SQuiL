@@ -95,7 +95,7 @@ partial class PositionalDebugRollbackFalse_AlwaysCommitsDataContext : SqlServerD
 		
 		Update [Documents] set Status = 'Done';
 		Set @Return_Count = @@RowCount;
-		Select @Return_Count;
+		Select @Return_Count As Count;
 		""";
 	}
 }
