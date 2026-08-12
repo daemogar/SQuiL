@@ -42,6 +42,12 @@ export interface ScalarAliasHint {
  * SQL-Server-only: SQLite and PostgreSQL declare scalars as single-column temp tables and
  * select a real named column, so there is nothing to alias — returns `[]` immediately for
  * either temp-table-header dialect.
+ *
+ * Body-only, matching the generator: `SqlServerDialect.RewriteOutputSelects` is applied to
+ * the post-`Use` body, never the header. Guards on `parsed.databaseLine` internally (see
+ * below) rather than relying on the caller to have already emptied `bodyText` — this is the
+ * same layer the two C# `SQuiLLinter.cs` copies' `LintScalarAliasHint` guards at, which is
+ * what makes the body-only contract testable here without a `vscode` import.
  */
 export function scalarAliasHints(
   parsed: SQuiLParseResult,
@@ -49,6 +55,13 @@ export function scalarAliasHints(
   dialect: EditorDialect,
 ): ScalarAliasHint[] {
   if (isTempTableDialect(dialect)) return [];
+
+  // No `Use` statement means no body, so there is nothing the generator would rewrite.
+  // The caller (diagnosticsProvider) already passes an empty bodyText in that case, so this
+  // is defence in depth rather than a behaviour change — but it puts the guard at the same
+  // layer as the C# copies' LintScalarAliasHint, which receives the whole file and guards
+  // internally. That parity is what makes this contract testable without a `vscode` import.
+  if (parsed.databaseLine === undefined) return [];
 
   const scalarsByVariableName = buildScalarsByVariableName(parsed.variables);
   if (scalarsByVariableName.size === 0) return [];

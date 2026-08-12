@@ -565,11 +565,26 @@ internal static class SQuiLLinter
         if (SQuiLDialect.IsTempTableDialect(dialect)) return;
 
         var parsed = SQuiLParser.Parse(sql, dialect);
+
+        // Body-only, matching the generator: SqlServerDialect.RewriteOutputSelects is applied to
+        // the post-Use body, never the header. No Use statement means no body, so there is
+        // nothing the generator would rewrite and nothing to hint about. Same guard as
+        // LintUnmatchedSelect (SP0031), below — the two must agree, since they are mutually
+        // exclusive by construction.
+        if (parsed.DatabaseLine is not { } databaseLine) return;
+
         var scalarsByVariableName = BuildScalarsByVariableName(parsed.Variables);
         if (scalarsByVariableName.Count == 0) return;
 
+        // Offset of the first character AFTER the Use line. Filtering the scanner's results on
+        // this keeps every reported offset DOCUMENT-ABSOLUTE — slicing `sql` to the body would
+        // shift them and silently break both OffsetToLineChar and the SP0042 quick-fix range.
+        var bodyStartOffset = OffsetOfLineStart(sql, databaseLine + 1);
+
         foreach (var bare in FindBareScalarSelects(sql, scalarsByVariableName))
         {
+            if (bare.VariableOffset < bodyStartOffset) continue;
+
             var (line, startChar) = OffsetToLineChar(sql, bare.VariableOffset);
             var declaredName = bare.DeclaredName;
 
@@ -583,6 +598,21 @@ internal static class SQuiLLinter
                 Code      = "SP0042",
             });
         }
+    }
+
+    /// <summary>The absolute offset at which 0-based <paramref name="line"/> begins, or
+    /// <c>text.Length</c> when the text has fewer lines. The inverse of the line half of
+    /// <see cref="OffsetToLineChar"/>.</summary>
+    private static int OffsetOfLineStart(string text, int line)
+    {
+        if (line <= 0) return 0;
+        var seen = 0;
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] != '\n') continue;
+            if (++seen == line) return i + 1;
+        }
+        return text.Length;
     }
 
     // ── SP0031: unmatched standalone SELECT (editor-only warning) ────────────
