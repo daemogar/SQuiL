@@ -659,8 +659,11 @@ internal static class SQuiLLinter
             string raw = allLines[bodyLineOffset + i];
 
             // Table case (unchanged): ^\s*select\s+ anchor already excludes Insert Into …
-            // Select … and Set … lines.
-            var selectMatch = SelectFromRegex.Match(raw);
+            // Select … and Set … lines. Gated on outputs.Count > 0 — a file whose only
+            // declared output is a scalar has no table declaredNameKeys entries, so this
+            // branch can never match and must not run (previously fired a false-positive
+            // SP0031 on every multi-column SELECT).
+            var selectMatch = outputs.Count > 0 ? SelectFromRegex.Match(raw) : Match.Empty;
             if (selectMatch.Success)
             {
                 var cols = ExtractSelectColumnNames(selectMatch.Groups[1].Value);

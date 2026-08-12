@@ -355,6 +355,24 @@ test('SP0031 stays silent on the scalar assignment form', () => {
   assert.strictEqual(lintUnmatchedSelect(parseSQuiL(text), text).filter(d => d.code === 'SP0031').length, 0);
 });
 
+// ── SP0031: no false positive on a multi-column Insert…Select in a scalar-only-output file ──
+// Before the fix, relaxing the top guard to `outputs.length === 0 && scalars.length === 0` made
+// the TABLE branch below reachable for the first time in a file whose only declared output is a
+// scalar — with a declaredNameKeys set containing only scalar base names, so no multi-column
+// table select could ever match, and every such select (including this Insert…Select shape the
+// code's own comment claims is excluded) got warned.
+test('SP0031 stays silent on a multi-column Insert...Select when the only declared output is a scalar', () => {
+  const text = [
+    'Declare @Return_Count int;',
+    'Use [Db];',
+    'Insert Into dbo.Audit (UserID, Action)',
+    'Select UserID, Action From @Params_Events;',
+    'Select @Return_Count;',
+  ].join('\n');
+  const diags = lintUnmatchedSelect(parseSQuiL(text), text);
+  assert.strictEqual(diags.filter(d => d.code === 'SP0031').length, 0, 'no false-positive SP0031');
+});
+
 // SP0032: timestamp/rowversion is server-generated and read-only — forbidden as an input.
 test('SP0032 fires on a timestamp input scalar', () => {
   const diags = lintTimestampInput(parseSQuiL([

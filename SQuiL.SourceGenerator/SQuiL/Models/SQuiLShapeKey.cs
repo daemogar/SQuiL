@@ -36,17 +36,13 @@ public static class SQuiLShapeKey
         => string.Join("|", block.Properties.Select(p =>
             $"{p.Identifier.Value.ToLowerInvariant()}:{Canonical(RoutingType(p, dialect))}"));
 
-    /// <summary>Single-column signature of a scalar return (name = the scalar's declared base name).</summary>
-    public static string ScalarKeyOf(string name, string canonicalCSharpType)
-        => $"{name.ToLowerInvariant()}:{Canonical(canonicalCSharpType)}";
-
     /// <summary>
     /// Single-column signature of a scalar return, dialect-aware. The scalar counterpart of
     /// <see cref="ShapeKeyOf(CodeBlock, ISqlDialect)"/>: for every dialect other than SQLite this
-    /// is identical to <see cref="ScalarKeyOf(string, string)"/>, but SQLite's five storage-class
-    /// affinities require the same BOOLEAN/DATETIME/GUID coarsening a table column gets, or the
-    /// build key (e.g. <c>flag:bool</c>) can never match what SqliteDataContext.NormalizeType
-    /// observes on a live reader (<c>long</c>).
+    /// key is the scalar's declared base name plus its actual C# type, but SQLite's five
+    /// storage-class affinities require the same BOOLEAN/DATETIME/GUID coarsening a table column
+    /// gets, or the build key (e.g. <c>flag:bool</c>) can never match what
+    /// SqliteDataContext.NormalizeType observes on a live reader (<c>long</c>).
     /// </summary>
     public static string ScalarKeyOf(CodeBlock block, ISqlDialect dialect)
         => $"{block.Name.ToLowerInvariant()}:{Canonical(RoutingType(block, dialect))}";

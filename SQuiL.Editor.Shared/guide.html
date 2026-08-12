@@ -483,7 +483,10 @@ yourself is still good practice and produces no diagnostic:</p>
 <pre><code><span class="kw">Set</span> <span class="ret">@Return_Count</span> = (<span class="kw">Select</span> Count(*) <span class="kw">From</span> Orders);
 <span class="kw">Select</span> <span class="ret">@Return_Count</span> <span class="kw">As</span> Count;  <span class="cm">-- optional on SQL Server — the generator would add As [Count] if omitted</span></code></pre>
 <p>A written alias that does <strong>not</strong> match the declared base name (e.g. <code>As Foo</code>
-instead of <code>As Count</code>) is flagged as an <code>SP0031</code> warning. SQLite and PostgreSQL
+instead of <code>As Count</code>) is flagged as an <code>SP0031</code> warning — as long as the
+<code>Select</code> and its alias are on the <strong>same line</strong>; the check is
+line-anchored/best-effort, so a <code>Select @Return_Count</code> with <code>As Foo</code> wrapped
+onto the next line is not detected. SQLite and PostgreSQL
 are unaffected by any of this — a scalar there is a single-column temp table, so you select a real
 named column and there is never an alias to synthesize. Also note that one <code>Select</code> may
 return only <strong>one</strong> output scalar: listing two or more (e.g.

@@ -1516,8 +1516,10 @@ export function lintUnmatchedSelect(parsed: SQuiLParseResult, bodyText: string):
     const raw = lines[i];
 
     // Table case (unchanged): ^\s*select\s+ anchor already excludes Insert Into … Select …
-    // and Set … lines.
-    const mFrom = /^\s*select\s+(?!\*)(.+?)\s+from\s/i.exec(raw);
+    // and Set … lines. Gated on outputs.length > 0 — a file whose only declared output is a
+    // scalar has no table declaredNameKeys entries, so this branch can never match and must
+    // not run (previously fired a false-positive SP0031 on every multi-column SELECT).
+    const mFrom = outputs.length > 0 ? /^\s*select\s+(?!\*)(.+?)\s+from\s/i.exec(raw) : null;
     if (mFrom) {
       const cols = extractSelectColumnNames(mFrom[1]);
       if (!cols) continue;                                // not statically inferable -> skip (best-effort)
