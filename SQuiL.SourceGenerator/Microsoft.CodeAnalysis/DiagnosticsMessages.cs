@@ -469,6 +469,22 @@ public static class DiagnosticsMessages
 			Location.None));
 
 	/// <summary>
+	/// SP0043 — a plural direction prefix (<c>@Params_</c>/<c>@Returns_</c>) means a LIST, so the
+	/// declare must carry a <c>table(...)</c> type. A plural prefix on a scalar type is accepted
+	/// silently by the parser and then never routed at runtime (the implicit alias lookup is keyed
+	/// on the SINGULAR spelling, so a bare <c>Select @Returns_X</c> gets no alias and its result set
+	/// is dropped). Always an Error; SQL Server only, structurally.
+	/// </summary>
+	public static void ReportPluralScalarDeclare(
+		this SourceProductionContext context, string filename,
+		SQuiL.SourceGenerator.Parser.SQuiLPluralScalarValidator.Finding finding)
+		=> context.ReportDiagnostic(CreateDiagnostic(
+			DiagnosticSeverity.Error, "SP0043", "Plural Prefix Requires A Table Type",
+			$"{filename}: `{finding.Variable}` (line {finding.Line}) has a plural prefix but declares a scalar type. "
+			+ $"A plural prefix means a list — declare it as `table(...)`, or rename it to `{finding.Suggestion}`.",
+			Location.None));
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

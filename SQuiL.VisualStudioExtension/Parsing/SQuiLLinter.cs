@@ -82,6 +82,7 @@ internal static class SQuiLLinter
         LintScalarAliasHint(text, diagnostics, dialect);
         LintTimestampInput(text, diagnostics, dialect);
         LintScalarNullMarker(text, diagnostics, dialect);
+        LintPluralScalarDeclare(text, diagnostics, dialect);
         LintKeyGraph(text, diagnostics, dialect);
         LintParamsBeforeReturns(text, diagnostics, dialect);
         if (squilFilePath is not null)
@@ -895,6 +896,47 @@ internal static class SQuiLLinter
                 EndChar   = startChar + length,
                 Severity  = DiagnosticSeverity.Error,
                 Code      = "SP0037",
+            });
+        }
+    }
+
+    // ── Plural prefix on a scalar declare (SP0043) ───────────────────────────
+    //
+    // A plural direction prefix (@Params_/@Returns_) means a LIST, so the declare must
+    // carry a table(...) type. A plural prefix on a scalar type is a build error: the
+    // parser accepts it silently, but the generator's implicit-alias lookup is keyed on
+    // the SINGULAR spelling, so the column comes back unnamed and its result set is
+    // dropped.
+    //
+    // SQL Server only — a temp-table-header dialect's plural declaration always carries
+    // columns (only the SINGULAR single-column form collapses to a scalar).
+    //
+    // Port of SQuiLPluralScalarValidator.cs (source generator) — change one, change all.
+
+    internal static void LintPluralScalarDeclare(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
+    {
+        if (SQuiLDialect.IsTempTableDialect(dialect)) return;
+
+        var parsed = SQuiLParser.Parse(sql, dialect);
+
+        foreach (var v in parsed.Variables)
+        {
+            if (v.Role != VariableRole.Params && v.Role != VariableRole.Returns) continue;
+            if (v.Columns is not null && v.Columns.Count > 0) continue;
+
+            var singular = v.Role == VariableRole.Params
+                ? $"@Param_{v.Name}"
+                : $"@Return_{v.Name}";
+
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message   = $"`{v.RawName}` has a plural prefix but declares a scalar type. " +
+                            $"A plural prefix means a list — declare it as `table(...)`, or rename it to `{singular}`.",
+                Line      = v.Line,
+                StartChar = v.Character,
+                EndChar   = v.Character + v.RawName.Length,
+                Severity  = DiagnosticSeverity.Error,
+                Code      = "SP0043",
             });
         }
     }

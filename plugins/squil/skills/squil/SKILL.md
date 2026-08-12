@@ -458,6 +458,7 @@ temp-table dialect exactly like SQLite.
 - **Referencing `SQuiL.Core` without the matching provider package.** A data context resolves to a dialect (explicitly via `[SQuiLDialect]`, else inferred from the single referenced provider, else SqlServer) whose runtime base class (`SqlServerDataContext` / `SqliteDataContext` / `PostgresDataContext`) isn't referenced by the compilation — build error **SP0038**. Add the provider package (`SQuiL.SqlServer`, `SQuiL.Sqlite`, or `SQuiL.Postgres`) alongside `SQuiL.Core`.
 - **Referencing two providers with no `[SQuiLDialect]`.** If the project references 2+ of `SQuiL.SqlServer`/`SQuiL.Sqlite`/`SQuiL.Postgres`, the dialect is ambiguous — each context needs an explicit `[SQuiLDialect(...)]`. Missing it is build error **SP0039**.
 - **Declaring a temp-table-dialect output before all inputs.** In a SQLite or PostgreSQL `.squil`, every `Param_`/`Params_` temp table must be declared before any `Return_`/`Returns_` — out-of-order is build error **SP0040** (only a warning in SQL Server).
+- **Giving a plural-prefixed variable a scalar type.** `@Params_Name` and `@Returns_Name` are the plural (list) forms and must carry a `table(...)` type; `Declare @Returns_Total int;` is build error **SP0043** (SQL Server only) — rename it to `@Return_Total`, or give it a `table(...)` type if it really is a list. Left unfixed, the column comes back unnamed at runtime and the result set is silently dropped.
 
 ---
 

@@ -266,6 +266,11 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
     result.diagnostics.push(d);
   }
 
+  // SP0043: a plural prefix (@Params_/@Returns_) must declare a table(...), not a scalar.
+  for (const d of lintPluralScalarDeclare(result, dialect)) {
+    result.diagnostics.push(d);
+  }
+
   // SP0033 / SP0034: nested-object key-graph errors (ambiguous parent / cycle),
   // over BOTH the OUTPUT and INPUT graphs. SP0036: unsupported nested-input key type.
   for (const d of lintKeyGraph(result)) {
@@ -647,6 +652,46 @@ export function lintScalarNullMarker(result: SQuiLParseResult): SQuiLDiagnostic[
       endChar: startChar + length,
       severity: 'error',
       code: 'SP0037',
+    });
+  }
+
+  return diagnostics;
+}
+
+/** SP0043 — a plural direction prefix (`@Params_`/`@Returns_`) means a LIST, so the declare
+ *  must carry a `table(...)` type. A plural prefix on a scalar type is a build error.
+ *
+ *  Without this the parser silently treats `Declare @Returns_Total int;` as an ordinary output
+ *  scalar, while the generator's implicit-alias lookup is keyed on the SINGULAR spelling — so
+ *  the column comes back unnamed, the runtime shape key matches nothing, and the result set is
+ *  dropped with the response property left at its default.
+ *
+ *  SQL Server only: a temp-table-header dialect's plural declaration always carries columns
+ *  (only the SINGULAR single-column form collapses to a scalar), so the rule is vacuous there.
+ *
+ *  Same rule as SQuiLPluralScalarValidator.cs (generator) and LintPluralScalarDeclare in
+ *  SQuiLLinter.cs (SSMS + Visual Studio) — change one, change all.
+ */
+export function lintPluralScalarDeclare(result: SQuiLParseResult, dialect: EditorDialect): SQuiLDiagnostic[] {
+  if (isTempTableDialect(dialect)) return [];
+
+  const diagnostics: SQuiLDiagnostic[] = [];
+
+  for (const v of result.variables) {
+    if (v.role !== 'params' && v.role !== 'returns') continue;
+    if (v.columns && v.columns.length > 0) continue;
+
+    const singular = v.role === 'params' ? `@Param_${v.name}` : `@Return_${v.name}`;
+
+    diagnostics.push({
+      message:
+        `\`${v.rawName}\` has a plural prefix but declares a scalar type. ` +
+        `A plural prefix means a list — declare it as \`table(...)\`, or rename it to \`${singular}\`.`,
+      line: v.line,
+      startChar: v.character,
+      endChar: v.character + v.rawName.length,
+      severity: 'error',
+      code: 'SP0043',
     });
   }
 

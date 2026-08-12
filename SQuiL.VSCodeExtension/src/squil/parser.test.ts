@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
-import { parseSQuiL, lintCardinalityCollision, lintShapeCollision, lintUnmatchedSelect, lintTimestampInput, lintScalarNullMarker, lintMultiScalarSelect } from './parser';
+import { parseSQuiL, lintCardinalityCollision, lintShapeCollision, lintUnmatchedSelect, lintTimestampInput, lintScalarNullMarker, lintMultiScalarSelect, lintPluralScalarDeclare } from './parser';
 import { shapeHints } from './shapeHints';
 
 // Recognition parity with the generator's SQuiLParser: bare @SuppressDebug and
@@ -661,4 +661,46 @@ test('multi-line TABLE(...) declaration keeps every column even when an earlier 
   // declare line (1) — confirms scanTableColumnPositions ran on the FULL, correctly
   // joined declaration rather than a truncated one.
   assert.strictEqual(order!.columns!.find(c => c.name === 'CreatedOn')!.line, 5);
+});
+
+// ── SP0043: a plural prefix must declare a table ────────────────────────────
+test('SP0043 flags a plural output scalar', () => {
+  const diags = lintPluralScalarDeclare(parseSQuiL([
+    'Declare @Returns_Total int;',
+    'Use Db;',
+    'Select @Returns_Total;',
+  ].join('\n')), 'sqlserver');
+  assert.strictEqual(diags.length, 1);
+  assert.strictEqual(diags[0].code, 'SP0043');
+  assert.strictEqual(diags[0].severity, 'error');
+  assert.ok(diags[0].message.includes('@Return_Total'), 'message suggests the singular rename');
+});
+
+test('SP0043 flags a plural input scalar', () => {
+  const diags = lintPluralScalarDeclare(parseSQuiL([
+    'Declare @Params_Limit int;',
+    'Use Db;',
+    'Select 1;',
+  ].join('\n')), 'sqlserver');
+  assert.strictEqual(diags.length, 1);
+  assert.ok(diags[0].message.includes('@Param_Limit'), 'message suggests the singular rename');
+});
+
+test('SP0043 ignores a plural table declare', () => {
+  const diags = lintPluralScalarDeclare(parseSQuiL([
+    'Declare @Returns_People table(PersonID int, Name varchar(50));',
+    'Use Db;',
+    'Select * From @Returns_People;',
+  ].join('\n')), 'sqlserver');
+  assert.strictEqual(diags.length, 0);
+});
+
+test('SP0043 is silent on a temp-table dialect', () => {
+  // A SQLite plural temp table always carries columns, so the rule is vacuous there. This
+  // pins the vacuity rather than assuming it.
+  const diags = lintPluralScalarDeclare(parseSQuiL([
+    'Create Temp Table Returns_Total (Total INTEGER);',
+    'Select Total From Returns_Total;',
+  ].join('\n'), 'sqlite'), 'sqlite');
+  assert.strictEqual(diags.length, 0);
 });

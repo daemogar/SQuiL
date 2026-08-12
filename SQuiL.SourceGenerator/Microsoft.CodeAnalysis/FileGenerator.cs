@@ -106,6 +106,12 @@ public class FileGenerator(
 			foreach (var finding in SQuiLScalarMarkerValidator.Detect(blocks, sql))
 				Context.ReportScalarNullabilityMarker(method, finding);
 
+			// Plural-prefix-on-a-scalar validation (SP0043): @Params_/@Returns_ mean a LIST, so the
+			// declare must be a table(...). Emission continues (like SP0041) — the error already
+			// fails the build, and suppressing emission would only add cascade noise.
+			foreach (var finding in SQuiLPluralScalarValidator.Detect(blocks, sql))
+				Context.ReportPluralScalarDeclare(method, finding);
+
 			// Params-before-returns ordering (SP0040): every @Param/@Params (input) must be
 			// declared before any @Return/@Returns (output). Error for every temp-table-header
 			// dialect (SQLite, PostgreSQL — both declare positional temp tables rather than
