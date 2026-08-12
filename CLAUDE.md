@@ -315,7 +315,13 @@ SQuiL/
     differentiate); result sets can't be routed apart at runtime.
     **SP0031 is now TAKEN** — editor-only Warning: a standalone `Select <col-list>
     From …` in the query body matches no declared `@Returns_`/`@Return_` output
-    signature. NOT a build/generator diagnostic.
+    signature. NOT a build/generator diagnostic. **Extended (implicit-scalar-alias
+    feature) to scalar outputs too:** a scalar select carrying a *written* alias
+    that doesn't match its declared base name (e.g. `Select @Return_Count As Foo;`)
+    now also warns SP0031. A *bare* scalar select (no alias — SP0042's territory)
+    and the assignment form (`Select @X = …`) never trigger it; only a resolvable,
+    mismatched alias does. See `lintUnmatchedSelect` (`parser.ts`) and
+    `LintUnmatchedSelect` (both `SQuiLLinter.cs`).
     **SP0032 is now TAKEN** — build error (generator): a `timestamp`/`rowversion`
     column or scalar is declared on an input (`@Param_`/`@Params_`); timestamp is
     server-generated and read-only, so it may only appear on outputs
@@ -397,7 +403,27 @@ SQuiL/
     SP0040 bullet above was corrected from "SQLite" to "temp-table dialects
     (SQLite and PostgreSQL)" to reflect this (doc-lag fix flagged during Task 8
     / Phase 3B).
-    Next free: **SP0041**. (Verify an id is truly unreferenced with a repo-wide grep
+    **SP0041 is now TAKEN** — build error (generator), every dialect: a `Select`
+    whose top-level column list is 2+ output scalars (e.g.
+    `Select @Return_A, @Return_B;`) cannot be routed — its runtime shape key is
+    a multi-column signature that matches no generated per-scalar case.
+    Aliasing does not help; the fix is one `Select` per scalar. Mirrored as a
+    squiggle (Error) in all three editors — no quick-fix. See
+    `SQuiLMultiScalarSelectValidator.cs` +
+    `DiagnosticsMessages.ReportMultiScalarSelect`, and the editor mirrors
+    (`lintMultiScalarSelect` in `parser.ts`; `LintMultiScalarSelect` in both
+    `SQuiLLinter.cs`).
+    **SP0042 is now TAKEN** — **editor-only** Hint (VS Code) / Info (the two C#
+    extensions), **NOT a build/generator diagnostic**: a bare single-scalar
+    `Select @Return_X;` on a SQL Server query, surfaced so the author can see —
+    and, via its quick-fix, accept — the bracketed alias
+    (`As [<DeclaredName>]`) the generator supplies automatically at build time
+    (see `ISqlDialect.RewriteOutputSelects` below). SQLite/PostgreSQL never
+    trigger it (their scalars are already named columns). See
+    `scalarAliasHints.ts` (VS Code) and `LintScalarAliasHint` (both
+    `SQuiLLinter.cs`); the generator-side rewrite lives in
+    `ScalarSelectAliaser.cs`, not in a diagnostic.
+    Next free: **SP0043**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
   - Signature: `[SQuiLQueryTransaction(QueryFiles type, string setting = "SQuiLDatabase", bool enabled = true, bool debugRollback = true)]`
@@ -700,6 +726,30 @@ runtime base type isn't referenced by the compilation, the generator reports
 "type not found" (the context's constructor/base-class file is skipped so only
 SP0038 shows).
 
+**`ISqlDialect.RewriteOutputSelects` — the implicit scalar select alias
+(SQL Server only).** This is the ONE transformation the generator applies
+INSIDE the author's own query body (every other dialect seam only changes the
+header/shred/type-map scaffolding around it). `SqlServerDialect.RewriteOutputSelects`
+calls `ScalarSelectAliaser.Rewrite`, which scans the body text for a bare
+single-scalar select — `Select @Return_Count;`, with no `As` alias, no
+expression, no `From`, and not the assignment form (`Select @X = …`) — and
+inserts a bracketed `As [<DeclaredName>]` right after the variable token (e.g.
+`Select @Return_Count As [Count];`). Bracketing is unconditional (not just for
+keyword collisions): `reader.GetName` strips brackets either way, so the
+runtime shape key is unaffected, and it keeps the rewrite idempotent against
+an author-written bracketed alias. Reason: a bare `@Return_X` reference
+returns an UNNAMED column, so `SQuiLBaseDataContext.ShapeKey` (built from
+`reader.GetName(i)`) can't match any generated `case "x:int":` label without
+this. The rewrite also fires when the bare select is followed by another
+statement or ends the file (semicolon is optional). `SqliteDialect`/
+`PostgresDialect.RewriteOutputSelects` are no-ops — their scalars are
+single-column temp tables selected by a real column name, so there is nothing
+to alias. See `ScalarSelectAliaser.cs` + `SqlServerDialect.RewriteOutputSelects`
++ `SQuiLDataContext.cs`'s call site; ported to the editors as
+`scalarAliasHints.ts` (SP0042 hint) / `lintMultiScalarSelect` (SP0041) in
+`parser.ts`, and `LintScalarAliasHint`/`LintMultiScalarSelect` in both
+`SQuiLLinter.cs` copies.
+
 **SQLite dialect (Phase 3B) — `SqliteDialect` + `SQuiL.Sqlite`.** A consumer
 references BOTH `SQuiL.Core` AND `SQuiL.Sqlite` (EF-Core reference-both model;
 analyzers don't flow transitively). `SqliteDataContext : SQuiLBaseDataContext`
@@ -855,7 +905,7 @@ differ per dialect via `ISqlDialect`.
 - **No new diagnostic id.** PostgreSQL reuses SP0038 (missing provider
   package)/SP0039 (ambiguous dialect)/SP0040 (params-before-returns, error
   for PostgreSQL as a temp-table dialect) unchanged. Next free id stays
-  **SP0041**.
+  **SP0043**.
 
 Inheriting the provider base class explicitly is **not required**. When the context class declares no constructor of its own, the generator emits a `<Ctx>.Constructor.g.cs` file that supplies:
 
@@ -1129,8 +1179,12 @@ multi-DB missing-provider-package check; SP0039 taken by the ambiguous-dialect
 check (2+ providers, no `[SQuiLDialect]`); SP0040 taken by the
 params-before-returns ordering check (error for temp-table dialects — SQLite
 and PostgreSQL — warning elsewhere). PostgreSQL (Phase 3D, dialect id 2) added
-no new diagnostic id — it reuses SP0038/SP0039/SP0040 unchanged.
-Next free id: **SP0041**.
+no new diagnostic id — it reuses SP0038/SP0039/SP0040 unchanged. SP0031 is now
+also extended to scalar outputs (a mismatched written alias warns). SP0041
+(build error, every dialect — a multi-scalar `Select` can't be routed) and
+SP0042 (editor-only Hint/Info — the generator's implicit scalar alias) are
+taken by the implicit-scalar-select-alias feature.
+Next free id: **SP0043**.
 
 ## Special Handling
 

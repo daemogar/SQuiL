@@ -84,6 +84,16 @@ export interface SQuiLParseResult {
   databaseLine?: number;
   variables: SQuiLVariable[];
   diagnostics: SQuiLDiagnostic[];
+  /**
+   * SP0041 candidates found by scanning the FULL file text (populated by `parseSQuiL`,
+   * which already has the text in scope) for a `Select` whose top-level column list is
+   * 2+ declared output-scalar references. Not part of the public port-of-the-scanner
+   * surface — internal plumbing so `lintMultiScalarSelect` can work from the parse result
+   * alone with document-absolute positions (the scan covers the whole file, not just the
+   * body after `Use`, mirroring ScalarSelectAliaser.cs scanning the whole emitted command
+   * text). See `lintMultiScalarSelect`, below.
+   */
+  multiScalarSelects: { line: number; character: number; length: number; declaredNames: string[] }[];
 }
 
 import { validateVariables, findingMessage, findingSeverity } from './variableValidator';
@@ -107,6 +117,7 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
   const result: SQuiLParseResult = {
     variables: [],
     diagnostics: [],
+    multiScalarSelects: [],
   };
 
   let useCount = 0;
@@ -267,6 +278,18 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
   for (const d of lintParamsBeforeReturns(result, dialect)) {
     result.diagnostics.push(d);
   }
+
+  // SP0041 support data: scan the FULL file text (not just the body) for a Select whose
+  // top-level column list is 2+ declared output-scalar references. Stored on the result
+  // rather than pushed straight into result.diagnostics — lintMultiScalarSelect (an
+  // on-demand pass, like lintShapeCollision/lintUnmatchedSelect) is what turns this into
+  // SP0041 diagnostics, so it isn't double-emitted by both the automatic pass above and
+  // an explicit call site.
+  result.multiScalarSelects = findMultiScalarSelects(text, buildScalarsByVariableName(result.variables))
+    .map(m => {
+      const pos = offsetToPosition(text, m.selectOffset);
+      return { line: pos.line, character: pos.character, length: 'select'.length, declaredNames: m.declaredNames };
+    });
 
   return result;
 }
@@ -1116,6 +1139,342 @@ export function splitTopLevelCommas(str: string): string[] {
   return parts;
 }
 
+// ── SP0041 / SP0042 shared scanner: implicit scalar select alias ───────────
+//
+// Port of ScalarSelectAliaser.cs (source generator) — change one, change all four.
+//
+// A bare `Select @Return_X;` returns an UNNAMED column, so the runtime shape-key router
+// can't match it (SQL Server only — SQLite/PostgreSQL declare scalars as single-column
+// temp tables and select a real named column). `findBareScalarSelects` locates every
+// qualifying bare single-scalar select (consumed by scalarAliasHints.ts, SP0042);
+// `findMultiScalarSelects` locates every select whose top-level column list is 2+
+// output-scalar references, which can never be routed regardless of aliasing (SP0041,
+// below). Both walk the same underlying scanner (`enumerateScalarSelects`), which skips
+// comments (`--`, NESTED `/* */` — T-SQL block comments nest, unlike ANSI SQL), string
+// literals, quoted identifiers, and bracketed identifiers exactly like ScalarSelectAliaser.cs.
+
+interface ScalarSelectColumn {
+  selectOffset: number;
+  variableOffset: number;
+  variableLength: number;
+  declaredName: string;
+  /** true when the entry is EXACTLY a declared output-scalar reference (optionally
+   *  followed by an `As` alias) and nothing else. */
+  isBareVariable: boolean;
+  hasAlias: boolean;
+}
+
+/** Port of ScalarSelectAliaser.cs's StatementStarters — change one, change all four. */
+const SCALAR_SELECT_STATEMENT_STARTERS = new Set([
+  'select', 'insert', 'update', 'delete', 'set', 'declare', 'if', 'while', 'begin', 'end',
+  'exec', 'execute', 'return', 'print', 'use', 'with', 'merge', 'truncate', 'drop', 'create',
+  'alter', 'go', 'else', 'commit', 'rollback', 'throw', 'raiserror', 'waitfor',
+]);
+
+/** Maps a lower-cased `"@return_<name>"` key to its declared base name, for every
+ *  declared output-scalar (`role === 'return'`) variable — the scanner's
+ *  `scalarsByVariableName`. Shared by SP0041 (below) and SP0042 (scalarAliasHints.ts). */
+export function buildScalarsByVariableName(variables: SQuiLVariable[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const v of variables) {
+    if (v.role === 'return') {
+      map.set(`@return_${v.name}`.toLowerCase(), v.name);
+    }
+  }
+  return map;
+}
+
+/** Converts an absolute character offset within `text` into a 0-based (line, character)
+ *  position. Offsets returned by this scanner are always relative to whatever text was
+ *  handed to it (the full file for SP0041, a body-text slice for SP0042) — the caller
+ *  decides what, if any, line offset to add on top. */
+export function offsetToPosition(text: string, offset: number): { line: number; character: number } {
+  let line = 0;
+  let lineStart = 0;
+  const end = Math.min(Math.max(offset, 0), text.length);
+  for (let i = 0; i < end; i++) {
+    if (text[i] === '\n') {
+      line++;
+      lineStart = i + 1;
+    }
+  }
+  return { line, character: end - lineStart };
+}
+
+/**
+ * Port of ScalarSelectAliaser.cs's SkipTrivia — change one, change all four.
+ * Skips whitespace and comments. T-SQL block comments NEST (unlike ANSI SQL), so a block
+ * comment is depth-tracked — an opening delimiter increments depth, a closing one
+ * decrements it, and only a closing delimiter at depth 0 actually closes the comment. An
+ * unterminated comment simply runs to end-of-text (no infinite loop).
+ */
+function skipTrivia(text: string, cursor: { i: number }): void {
+  while (cursor.i < text.length) {
+    const c = text[cursor.i];
+    if (/\s/.test(c)) { cursor.i++; continue; }
+    if (c === '-' && text[cursor.i + 1] === '-') {
+      while (cursor.i < text.length && text[cursor.i] !== '\n') cursor.i++;
+      continue;
+    }
+    if (c === '/' && text[cursor.i + 1] === '*') {
+      let depth = 1;
+      cursor.i += 2;
+      while (cursor.i < text.length && depth > 0) {
+        if (text[cursor.i] === '/' && text[cursor.i + 1] === '*') { depth++; cursor.i += 2; }
+        else if (text[cursor.i] === '*' && text[cursor.i + 1] === '/') { depth--; cursor.i += 2; }
+        else { cursor.i++; }
+      }
+      continue;
+    }
+    return;
+  }
+}
+
+/**
+ * Port of ScalarSelectAliaser.cs's SkipNonCode — change one, change all four.
+ * Skips one span of non-code at the cursor — whitespace, a comment, a string literal, a
+ * quoted identifier, or a bracketed identifier. Returns true when the cursor advanced.
+ */
+function skipNonCode(text: string, cursor: { i: number }): boolean {
+  const before = cursor.i;
+  skipTrivia(text, cursor);
+  if (cursor.i < text.length && (text[cursor.i] === "'" || text[cursor.i] === '"')) {
+    const quote = text[cursor.i];
+    cursor.i++;
+    while (cursor.i < text.length) {
+      if (text[cursor.i] === quote) {
+        // Doubled quote is an escape inside the literal.
+        if (text[cursor.i + 1] === quote) { cursor.i += 2; continue; }
+        cursor.i++;
+        break;
+      }
+      cursor.i++;
+    }
+  } else if (cursor.i < text.length && text[cursor.i] === '[') {
+    while (cursor.i < text.length && text[cursor.i] !== ']') cursor.i++;
+    if (cursor.i < text.length) cursor.i++;
+  }
+  return cursor.i !== before;
+}
+
+/** Port of ScalarSelectAliaser.cs's IsWordAt — change one, change all four. */
+function isWordAt(text: string, i: number, word: string): boolean {
+  if (i < 0 || i + word.length > text.length) return false;
+  if (text.slice(i, i + word.length).toLowerCase() !== word.toLowerCase()) return false;
+  if (i > 0 && /[A-Za-z0-9_@]/.test(text[i - 1])) return false;
+  const after = text[i + word.length];
+  if (after !== undefined && /[A-Za-z0-9_]/.test(after)) return false;
+  return true;
+}
+
+/** Port of ScalarSelectAliaser.cs's PeekWord — change one, change all four. */
+function peekWord(text: string, i: number): string {
+  if (i >= text.length || !/[A-Za-z_]/.test(text[i])) return '';
+  let j = i;
+  while (j < text.length && /[A-Za-z0-9_]/.test(text[j])) j++;
+  return text.slice(i, j);
+}
+
+/** Port of ScalarSelectAliaser.cs's SkipWord — change one, change all four. */
+function skipWord(text: string, i: number): number {
+  if (i >= text.length) return i + 1;
+  if (!/[A-Za-z_@]/.test(text[i])) return i + 1;
+  let j = i;
+  if (text[j] === '@') j++;
+  while (j < text.length && /[A-Za-z0-9_]/.test(text[j])) j++;
+  return j > i ? j : i + 1;
+}
+
+/**
+ * Port of ScalarSelectAliaser.cs's ParseColumnList — change one, change all four.
+ * Parses the comma-separated top-level column list that starts at `start`. Returns
+ * `columns: null` when the list is not a clean entry sequence (an assignment
+ * `Select @X = …`, a `From` clause, a parenthesised expression, …) — `listEnd` is still
+ * set on failure so the caller can advance past the failed attempt.
+ */
+function parseScalarColumnList(
+  text: string,
+  start: number,
+  selectOffset: number,
+  scalarsByVariableName: ReadonlyMap<string, string>,
+): { columns: ScalarSelectColumn[] | null; listEnd: number } {
+  const columns: ScalarSelectColumn[] = [];
+  const cursor = { i: start };
+  let listEnd = start;
+
+  while (true) {
+    skipTrivia(text, cursor);
+
+    let variableOffset = -1;
+    let variableLength = 0;
+    let declaredName = '';
+    let isBareVariable = false;
+
+    // A declared output-scalar reference?
+    if (cursor.i < text.length && text[cursor.i] === '@') {
+      const nameStart = cursor.i;
+      let j = cursor.i + 1;
+      while (j < text.length && /[A-Za-z0-9_]/.test(text[j])) j++;
+      const variable = text.slice(nameStart, j);
+      const declared = scalarsByVariableName.get(variable.toLowerCase());
+      if (declared !== undefined) {
+        variableOffset = nameStart;
+        variableLength = j - nameStart;
+        declaredName = declared;
+        isBareVariable = true;
+        cursor.i = j;
+      } else {
+        // An @variable that is not a declared output scalar: the statement is not ours.
+        listEnd = cursor.i;
+        return { columns: null, listEnd };
+      }
+    } else {
+      // Not a scalar reference. Consume one identifier-ish token so a MIXED list is
+      // still recognisable as a list (findMultiScalarSelects rejects it via isBareVariable).
+      let j = cursor.i;
+      while (j < text.length && /[A-Za-z0-9_.]/.test(text[j])) j++;
+      if (j === cursor.i) { listEnd = cursor.i; return { columns: null, listEnd }; }   // punctuation/operator
+      cursor.i = j;
+    }
+
+    skipTrivia(text, cursor);
+
+    // Optional `As <alias>`.
+    let hasAlias = false;
+    if (isWordAt(text, cursor.i, 'as')) {
+      hasAlias = true;
+      cursor.i += 2;
+      skipTrivia(text, cursor);
+      let j = cursor.i;
+      if (j < text.length && text[j] === '[') {
+        while (j < text.length && text[j] !== ']') j++;
+        if (j < text.length) j++;
+      } else {
+        while (j < text.length && /[A-Za-z0-9_]/.test(text[j])) j++;
+      }
+      if (j === cursor.i) { listEnd = cursor.i; return { columns: null, listEnd }; }
+      cursor.i = j;
+      skipTrivia(text, cursor);
+    }
+
+    columns.push({ selectOffset, variableOffset, variableLength, declaredName, isBareVariable, hasAlias });
+
+    if (cursor.i < text.length && text[cursor.i] === ',') {
+      cursor.i++;
+      continue;   // another entry
+    }
+
+    // End of the list. It only counts when the next significant token terminates the
+    // statement — otherwise the last entry was part of a larger expression.
+    listEnd = cursor.i;
+    if (cursor.i >= text.length) return { columns, listEnd };                 // end of text
+    if (text[cursor.i] === ';') return { columns, listEnd };                  // explicit terminator
+    const word = peekWord(text, cursor.i);
+    if (word.length > 0 && SCALAR_SELECT_STATEMENT_STARTERS.has(word.toLowerCase())) return { columns, listEnd };
+    return { columns: null, listEnd };                                       // `From`, an operator, `(`, `.` …
+  }
+}
+
+/**
+ * Port of ScalarSelectAliaser.cs's EnumerateSelects — change one, change all four.
+ * Walks `text` and yields the top-level column list of every `Select` statement whose
+ * list consists solely of comma-separated entries. Comments (line and NESTED block),
+ * string literals (`'…'`), quoted identifiers (`"…"`), and bracketed identifiers (`[…]`)
+ * are skipped so a `Select` inside them is never seen. Any select whose list can't be
+ * resolved to a clean entry sequence yields nothing.
+ */
+function enumerateScalarSelects(
+  text: string,
+  scalarsByVariableName: ReadonlyMap<string, string>,
+): ScalarSelectColumn[][] {
+  const results: ScalarSelectColumn[][] = [];
+  const cursor = { i: 0 };
+
+  while (cursor.i < text.length) {
+    if (skipNonCode(text, cursor)) continue;
+
+    if (!isWordAt(text, cursor.i, 'select')) {
+      cursor.i = skipWord(text, cursor.i);
+      continue;
+    }
+
+    const selectOffset = cursor.i;
+    const listStart = cursor.i + 'select'.length;
+    const { columns, listEnd } = parseScalarColumnList(text, listStart, selectOffset, scalarsByVariableName);
+    if (columns) results.push(columns);
+
+    cursor.i = listEnd > selectOffset ? listEnd : selectOffset + 'select'.length;
+  }
+
+  return results;
+}
+
+/**
+ * Port of ScalarSelectAliaser.cs's FindBareSelects — change one, change all four.
+ * Every qualifying bare single-scalar select in `text`, in source order. Consumed by
+ * `scalarAliasHints.ts` (SP0042).
+ */
+export function findBareScalarSelects(
+  text: string,
+  scalarsByVariableName: ReadonlyMap<string, string>,
+): { variableOffset: number; variableLength: number; declaredName: string }[] {
+  const results: { variableOffset: number; variableLength: number; declaredName: string }[] = [];
+  for (const columns of enumerateScalarSelects(text, scalarsByVariableName)) {
+    if (columns.length !== 1) continue;
+    const only = columns[0];
+    if (only.hasAlias || !only.isBareVariable) continue;
+    results.push({
+      variableOffset: only.variableOffset,
+      variableLength: only.variableLength,
+      declaredName: only.declaredName,
+    });
+  }
+  return results;
+}
+
+/**
+ * Port of ScalarSelectAliaser.cs's FindMultiScalarSelects — change one, change all four.
+ * Every select whose top-level column list is 2+ output-scalar references (aliased or
+ * not), in source order. A mixed list (a scalar reference plus a real column) is NOT
+ * reported here — that is SP0031's domain. Consumed by `lintMultiScalarSelect` (SP0041,
+ * below).
+ */
+export function findMultiScalarSelects(
+  text: string,
+  scalarsByVariableName: ReadonlyMap<string, string>,
+): { selectOffset: number; declaredNames: string[] }[] {
+  const results: { selectOffset: number; declaredNames: string[] }[] = [];
+  for (const columns of enumerateScalarSelects(text, scalarsByVariableName)) {
+    if (columns.length < 2) continue;
+    if (!columns.every(c => c.isBareVariable)) continue;
+    results.push({ selectOffset: columns[0].selectOffset, declaredNames: columns.map(c => c.declaredName) });
+  }
+  return results;
+}
+
+/**
+ * SP0041 (Error) — a Select whose top-level column list is 2+ declared output-scalar
+ * references cannot be routed to a response; only one scalar per Select is routable
+ * (splitting the select into one-per-scalar is the fix — a REPLACE edit, so this
+ * diagnostic deliberately carries no quick-fix). The scan runs over the FULL file text at
+ * parse time (`parseSQuiL` populates `result.multiScalarSelects`, above), so these
+ * diagnostics are already document-absolute — no body-offset adjustment is needed when
+ * wiring this into the diagnostics provider.
+ *
+ * Port of ScalarSelectAliaser.cs's `FindMultiScalarSelects` — change one, change all four.
+ */
+export function lintMultiScalarSelect(result: SQuiLParseResult): SQuiLDiagnostic[] {
+  return result.multiScalarSelects.map(c => ({
+    message:
+      `This Select returns more than one output scalar (${c.declaredNames.join(', ')}), which cannot be routed to a response. Use one Select per scalar.`,
+    line: c.line,
+    startChar: c.character,
+    endChar: c.character + c.length,
+    severity: 'error' as const,
+    code: 'SP0041',
+  }));
+}
+
 // ── SP0031: unmatched standalone SELECT (editor-only warning) ──────────────
 //
 // Best-effort, name-focused. Fires when a standalone `Select <col-list> From …`
@@ -1126,26 +1485,76 @@ export function splitTopLevelCommas(str: string): string[] {
 //
 // EDITOR-ONLY — must NOT appear in the source generator.
 
-/** SP0031: compare standalone SELECT column names against declared output signatures. */
+/**
+ * SP0031: compare standalone SELECT column names against declared output signatures.
+ *
+ * Extended (alongside SP0041/SP0042) to cover scalar (`role === 'return'`) outputs too: a
+ * scalar select's ALIAS is checked against its declared name — but only when the select
+ * carries a resolvable alias. A BARE scalar reference (no alias — SP0042's territory) and
+ * the assignment form (`Select @X = …`) never fire here; only a written alias that doesn't
+ * match the declared name is a genuine mismatch.
+ */
 export function lintUnmatchedSelect(parsed: SQuiLParseResult, bodyText: string): SQuiLDiagnostic[] {
   const outputs = parsed.variables.filter(v => (v.role === 'returns' || v.role === 'return-table') && v.columns);
-  if (outputs.length === 0) return [];
+  const scalars = parsed.variables.filter(v => v.role === 'return');
+  if (outputs.length === 0 && scalars.length === 0) return [];
+
   // Set of declared output column-name sequences (lower-cased), for name-based matching.
+  // Each declared output scalar's own name is a single-entry key (the scalar extension).
   const declaredNameKeys = new Set(outputs.map(v => v.columns!.map(c => c.name.toLowerCase()).join('|')));
+  const scalarsByVariableName = buildScalarsByVariableName(parsed.variables);
+  for (const v of scalars) declaredNameKeys.add(v.name.toLowerCase());
+
+  const expectedSignatures = [
+    ...outputs.map(v => v.columns!.map(c => c.name).join(', ')),
+    ...scalars.map(v => v.name),
+  ];
 
   const diags: SQuiLDiagnostic[] = [];
   const lines = bodyText.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
-    // ^\s*select\s+ anchor already excludes Insert Into … Select … and Set … lines
-    const m = /^\s*select\s+(?!\*)(.+?)\s+from\s/i.exec(raw);
-    if (!m) continue;                                   // only Select <list> From ...
-    const cols = extractSelectColumnNames(m[1]);
-    if (!cols) continue;                                // not statically inferable -> skip (best-effort)
-    const key = cols.map(c => c.toLowerCase()).join('|');
-    if (declaredNameKeys.has(key)) continue;
+
+    // Table case (unchanged): ^\s*select\s+ anchor already excludes Insert Into … Select …
+    // and Set … lines. Gated on outputs.length > 0 — a file whose only declared output is a
+    // scalar has no table declaredNameKeys entries, so this branch can never match and must
+    // not run (previously fired a false-positive SP0031 on every multi-column SELECT).
+    const mFrom = outputs.length > 0 ? /^\s*select\s+(?!\*)(.+?)\s+from\s/i.exec(raw) : null;
+    if (mFrom) {
+      const cols = extractSelectColumnNames(mFrom[1]);
+      if (!cols) continue;                                // not statically inferable -> skip (best-effort)
+      const key = cols.map(c => c.toLowerCase()).join('|');
+      if (declaredNameKeys.has(key)) continue;
+      diags.push({
+        message: `This SELECT's columns (${cols.join(', ')}) match no declared @Returns_/@Return_ output signature. Expected one of: ${expectedSignatures.join(' | ')}. Add AS aliases (and CAST base types) to match, or use Insert Into @Returns_X … ; Select * From @Returns_X;.`,
+        line: i, startChar: 0, endChar: raw.length,
+        severity: 'warning', code: 'SP0031',
+      });
+      continue;
+    }
+
+    // Scalar case (the extension): the FROM requirement is relaxed to also consider a
+    // bare `Select <expr>[;]` line, but only a RESOLVABLE alias that mismatches the
+    // declared name fires. A bare reference (no alias) and the assignment form are left
+    // alone — they are not resolvable mismatches, just different shapes entirely.
+    if (scalars.length === 0) continue;
+    const mBare = /^\s*select\s+(?!\*)(.+?)\s*;?\s*$/i.exec(raw);
+    if (!mBare) continue;
+    const scalarMatch = /^\s*(@[A-Za-z_][A-Za-z0-9_]*)\s*(.*)$/.exec(mBare[1]);
+    if (!scalarMatch) continue;
+    const declaredName = scalarsByVariableName.get(scalarMatch[1].toLowerCase());
+    if (declaredName === undefined) continue;             // not a declared output scalar reference
+    const rest = scalarMatch[2].trim();
+    if (rest === '') continue;                            // bare — SP0042's territory
+    if (/^=/.test(rest)) continue;                        // assignment form
+
+    const aliasMatch = /^as\s+\[?([A-Za-z_][A-Za-z0-9_]*)\]?\s*$/i.exec(rest);
+    if (!aliasMatch) continue;                            // not a resolvable alias -> bail (best-effort)
+    const alias = aliasMatch[1];
+    if (alias.toLowerCase() === declaredName.toLowerCase()) continue;   // correctly aliased
+
     diags.push({
-      message: `This SELECT's columns (${cols.join(', ')}) match no declared @Returns_/@Return_ output signature. Expected one of: ${outputs.map(v => v.columns!.map(c => c.name).join(', ')).join(' | ')}. Add AS aliases (and CAST base types) to match, or use Insert Into @Returns_X … ; Select * From @Returns_X;.`,
+      message: `This SELECT's columns (${alias}) match no declared @Returns_/@Return_ output signature. Expected one of: ${expectedSignatures.join(' | ')}. Add AS aliases (and CAST base types) to match, or use Insert Into @Returns_X … ; Select * From @Returns_X;.`,
       line: i, startChar: 0, endChar: raw.length,
       severity: 'warning', code: 'SP0031',
     });

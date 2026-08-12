@@ -86,7 +86,17 @@ internal sealed class SQuiLSuggestedActionsSource : ISuggestedActionsSource
         var snapshot = _buffer.CurrentSnapshot;
         string text = snapshot.GetText();
         string[] lines = text.Split('\n');
-        var parsed = SQuiLParser.Parse(text);
+
+        // Resolve the dialect the way the tagger does (SQuiLErrorTagger.Recompute), rather
+        // than defaulting to SQL Server — SP0042's alias action is SQL-Server-only and must
+        // not be offered on a SQLite/Postgres file.
+        string? filePath = null;
+        if (_buffer.Properties.TryGetProperty(typeof(Microsoft.VisualStudio.Text.ITextDocument), out Microsoft.VisualStudio.Text.ITextDocument doc))
+            filePath = doc.FilePath;
+        var dialect = filePath is not null
+            ? SQuiLContextResolver.ResolveDialect(filePath)
+            : EditorDialect.SqlServer;
+        var parsed = SQuiLParser.Parse(text, dialect);
         int cursorLine = snapshot.GetLineFromPosition(range.Start.Position).LineNumber;
 
         var edits = new List<SQuiLCodeActions.CodeActionEdit>();
@@ -106,6 +116,33 @@ internal sealed class SQuiLSuggestedActionsSource : ISuggestedActionsSource
                 if (edit is not null) edits.Add(edit);
             }
         }
+
+        // SP0042 quick-fix: offer "Add `As [<Name>]`" for a bare single-scalar select whose
+        // token sits on the cursor's line. Uses the same scanner LintScalarAliasHint uses
+        // (rather than round-tripping through its diagnostics) so the declared name is
+        // available directly for BuildAddScalarAliasEdit.
+        if (!SQuiLDialect.IsTempTableDialect(dialect))
+        {
+            var scalarsByVariableName = SQuiLLinter.BuildScalarsByVariableName(parsed.Variables);
+            if (scalarsByVariableName.Count > 0)
+            {
+                foreach (var bare in SQuiLLinter.FindBareScalarSelects(text, scalarsByVariableName))
+                {
+                    var (line, startChar) = SQuiLLinter.OffsetToLineChar(text, bare.VariableOffset);
+                    if (line != cursorLine) continue;
+
+                    var hint = new SQuiLDiagnostic
+                    {
+                        Line = line,
+                        StartChar = startChar,
+                        EndChar = startChar + bare.VariableLength,
+                    };
+                    var edit = SQuiLCodeActions.BuildAddScalarAliasEdit(lines, hint, bare.DeclaredName);
+                    if (edit is not null) edits.Add(edit);
+                }
+            }
+        }
+
         return edits;
     }
 }

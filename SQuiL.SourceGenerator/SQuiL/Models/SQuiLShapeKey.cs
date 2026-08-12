@@ -36,9 +36,16 @@ public static class SQuiLShapeKey
         => string.Join("|", block.Properties.Select(p =>
             $"{p.Identifier.Value.ToLowerInvariant()}:{Canonical(RoutingType(p, dialect))}"));
 
-    /// <summary>Single-column signature of a scalar return (name = the scalar's declared base name).</summary>
-    public static string ScalarKeyOf(string name, string canonicalCSharpType)
-        => $"{name.ToLowerInvariant()}:{Canonical(canonicalCSharpType)}";
+    /// <summary>
+    /// Single-column signature of a scalar return, dialect-aware. The scalar counterpart of
+    /// <see cref="ShapeKeyOf(CodeBlock, ISqlDialect)"/>: for every dialect other than SQLite this
+    /// key is the scalar's declared base name plus its actual C# type, but SQLite's five
+    /// storage-class affinities require the same BOOLEAN/DATETIME/GUID coarsening a table column
+    /// gets, or the build key (e.g. <c>flag:bool</c>) can never match what
+    /// SqliteDataContext.NormalizeType observes on a live reader (<c>long</c>).
+    /// </summary>
+    public static string ScalarKeyOf(CodeBlock block, ISqlDialect dialect)
+        => $"{block.Name.ToLowerInvariant()}:{Canonical(RoutingType(block, dialect))}";
 
     /// <summary>
     /// Normalizes a C# type string to its canonical token: strips a trailing '?' so
@@ -67,6 +74,25 @@ public static class SQuiLShapeKey
             TokenType.TYPE_DATETIME => "string",  // SQLite: DATE/DATETIME has TEXT affinity
             TokenType.TYPE_GUID => "string",       // SQLite: GUID/UNIQUEIDENTIFIER has TEXT affinity
             _ => p.CSharpType(),
+        };
+    }
+
+    /// <summary>
+    /// The build-time routing token for a SCALAR block under <paramref name="dialect"/>. Same
+    /// coarsening rule as the <see cref="CodeItem"/> overload, keyed off the block's own type
+    /// token instead of a column's.
+    /// </summary>
+    private static string RoutingType(CodeBlock block, ISqlDialect dialect)
+    {
+        if (dialect is not SqliteDialect)
+            return block.CSharpType(block.Name);
+
+        return block.DatabaseType.Type switch
+        {
+            TokenType.TYPE_BOOLEAN => "long",     // SQLite: BOOLEAN has INTEGER affinity
+            TokenType.TYPE_DATETIME => "string",  // SQLite: DATE/DATETIME has TEXT affinity
+            TokenType.TYPE_GUID => "string",      // SQLite: GUID/UNIQUEIDENTIFIER has TEXT affinity
+            _ => block.CSharpType(block.Name),
         };
     }
 }

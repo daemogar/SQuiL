@@ -8,7 +8,9 @@ import {
   availableLinkTargets,
   buildInsertLinkColumnEdit,
   isCursorOnVariable,
+  buildAddScalarAliasEdit,
 } from './codeActions';
+import { ScalarAliasHint } from './scalarAliasHints';
 
 /** Applies a single-point insertion edit to a source string, for round-trip assertions. */
 function applyEdit(source: string, edit: { position: { line: number; character: number }; insertText: string }): string {
@@ -254,4 +256,31 @@ test('isCursorOnVariable spans every line of a multi-line declaration', () => {
   assert.ok(isCursorOnVariable(lines, child, 3));
   assert.ok(isCursorOnVariable(lines, child, 4));
   assert.ok(!isCursorOnVariable(lines, child, 5));
+});
+
+// ── SP0042 quick-fix: "Add `As [Name]`" ─────────────────────────────────────
+
+test('buildAddScalarAliasEdit inserts the bracketed alias form', () => {
+  const source = [
+    '--Name: BareScalar',
+    'Declare @Return_Count int;',
+    'Use [Db];',
+    'Select @Return_Count;',
+  ].join('\n');
+  const lines = source.split('\n');
+  const hint: ScalarAliasHint = { code: 'SP0042', message: 'x', line: 3, character: 7, length: 13, declaredName: 'Count' };
+
+  const edit = buildAddScalarAliasEdit(lines, hint);
+  assert.ok(edit);
+  assert.strictEqual(edit!.insertText, ' As [Count]');
+  assert.strictEqual(
+    applyEdit(source, edit!),
+    ['--Name: BareScalar', 'Declare @Return_Count int;', 'Use [Db];', 'Select @Return_Count As [Count];'].join('\n'),
+  );
+});
+
+test('buildAddScalarAliasEdit returns undefined when the hint line is out of range', () => {
+  const lines = ['Select @Return_Count;'];
+  const hint: ScalarAliasHint = { code: 'SP0042', message: 'x', line: 5, character: 7, length: 13, declaredName: 'Count' };
+  assert.strictEqual(buildAddScalarAliasEdit(lines, hint), undefined);
 });

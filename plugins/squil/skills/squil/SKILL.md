@@ -118,7 +118,7 @@ Use UnitTesting;
 
 Set @Return_Scaler = 42;
 
-Select @Return_Scaler As Scaler;  -- alias must match declared base name
+Select @Return_Scaler As Scaler;  -- optional on SQL Server — the generator adds "As [Scaler]" if you omit it
 ```
 
 ### Result-set authoring — two styles
@@ -140,7 +140,7 @@ From   Orders o;
 Select * From @Returns_Orders;  -- emits the result set
 ```
 
-**Direct-select style (lean)** — You can just `Select` directly — no table variable needed. SQuiL routes the result set by matching its runtime shape against every declared output. Supply `AS` aliases and `CAST` only where the **base C# type** differs from the source column; **length casts are never required** (e.g., casting `varchar(50)` to `varchar(100)` adds nothing — both map to `string`). A `Select` whose shape matches no declared output is skipped and reported as a missing return.
+**Direct-select style (lean)** — You can just `Select` directly — no table variable needed. SQuiL routes the result set by matching its runtime shape against every declared output. Supply `AS` aliases and `CAST` only where the **base C# type** differs from the source column; **length casts are never required** (e.g., casting `varchar(50)` to `varchar(100)` adds nothing — both map to `string`). A `Select` whose shape matches no declared output is skipped and reported as a missing return. (A scalar output is the one exception to "supply the alias yourself" — see **Scalar convention** below: on SQL Server, a bare scalar select gets its alias supplied automatically.)
 
 ```sql
 Declare @Returns_Orders table(
@@ -156,7 +156,7 @@ Select o.OrderID,
 From   Orders o;
 ```
 
-**Scalar convention** — For scalar outputs, alias the column to its declared base name so the single-column shape matches:
+**Scalar convention** — When the select is a real expression rather than a bare variable reference (e.g. `Count(*)`), alias the column to the declared base name so the single-column shape matches:
 
 ```sql
 Declare @Return_Count int;
@@ -167,12 +167,14 @@ Select Count(*) As Count  -- alias "Count" matches declared name @Return_Count
 From   Orders;
 ```
 
-Or set the variable and select it — but always alias the column so the shape key matches:
+Or set the variable and select it bare. On **SQL Server**, the alias on a bare `@Return_…` select is **optional** — if you leave it off, the generator appends a bracketed `As [Count]` to the emitted SQL for you (always bracketed, since an unbracketed alias would be a T-SQL syntax error for a reserved word like `Order` or `Key`). The editor surfaces this with a quiet **SP0042** hint (VS Code: Hint; SSMS/Visual Studio: Info) on the bare select, with a quick-fix that inserts the exact alias the generator would add. Writing it yourself is still good practice and produces no diagnostic:
 
 ```sql
 Set @Return_Count = (Select Count(*) From Orders);
-Select @Return_Count As Count;  -- alias required: bare @Return_Count has no column name at runtime
+Select @Return_Count As Count;  -- optional on SQL Server — the generator would add As [Count] if omitted
 ```
+
+A written alias that does **not** match the declared base name (e.g. `As Foo` instead of `As Count`) is flagged as an **SP0031** warning — as long as the `Select` and its alias are on the **same line**; the check is line-anchored/best-effort, so wrapping the alias onto its own line (e.g. `Select @Return_Count` then `As Foo` on the next line) is not detected. SQLite and PostgreSQL are unaffected — their scalars are single-column temp tables, so you select a real named column and there is never an alias to synthesize. Also, one `Select` may return only **one** output scalar: listing two or more (e.g. `Select @Return_A, @Return_B;`) is a build error (**SP0041**) on every dialect, because the runtime shape key becomes multi-column and matches no generated case — use one `Select` per scalar instead.
 
 **SP0030 collision** — If two declared outputs share an identical shape (same ordered column names and C# types), SQuiL cannot tell them apart at runtime. Differentiate them by changing a column name, adjusting the column order, using a different C# type, or combining them into one shared output with a single name.
 
@@ -684,7 +686,7 @@ Use MyDatabase;
 
 Update [Documents] set Status = 'Done' where ID = @Param_ID;
 Set @Return_RowsAffected = @@ROWCOUNT;
-Select @Return_RowsAffected As RowsAffected;  -- alias must match declared base name
+Select @Return_RowsAffected As RowsAffected;  -- optional on SQL Server (shown for clarity) — generator adds As [RowsAffected] if omitted
 ```
 
 ```csharp

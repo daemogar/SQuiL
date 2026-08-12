@@ -25,6 +25,7 @@
 import { SQuiLParseResult, SQuiLVariable, TableColumn, VariableRole } from './parser';
 import { OUTPUT_TABLE_ROLES, INPUT_TABLE_ROLES } from './keyGraph';
 import { tableVariablesFor } from './linkRoleHints';
+import { ScalarAliasHint } from './scalarAliasHints';
 
 export type TableVariable = SQuiLVariable & { columns: TableColumn[] };
 
@@ -193,4 +194,21 @@ export function buildInsertLinkColumnEdit(
 export function isCursorOnVariable(lines: string[], variable: SQuiLVariable, line: number): boolean {
   const span = tableVariableLineSpan(lines, variable);
   return line >= span.startLine && line <= span.endLine;
+}
+
+/**
+ * SP0042 quick-fix: "Add `As [<Name>]`" on a bare scalar select. Inserts the SAME
+ * bracketed alias the generator would have emitted (`ScalarSelectAliaser.Rewrite` always
+ * brackets the alias — an unbracketed alias is a T-SQL syntax error when the declared
+ * name collides with a reserved keyword, e.g. `Order`, `Key`, `User`), so accepting this
+ * fix produces exactly the generator's output. Returns `undefined` when `hint.line` falls
+ * outside `lines` (defensive — should not happen for a hint computed from this same file).
+ */
+export function buildAddScalarAliasEdit(lines: string[], hint: ScalarAliasHint): CodeActionEdit | undefined {
+  if (lines[hint.line] === undefined) return undefined;
+  return {
+    title: `SQuiL: Add \`As [${hint.declaredName}]\``,
+    position: { line: hint.line, character: hint.character + hint.length },
+    insertText: ` As [${hint.declaredName}]`,
+  };
 }

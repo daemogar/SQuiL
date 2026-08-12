@@ -18,6 +18,10 @@ public class PostgresDialect : ITempTableHeaderDialect
 	public string VarCharType() => "NpgsqlTypes.NpgsqlDbType.Varchar";
 	public string BitType() => "NpgsqlTypes.NpgsqlDbType.Boolean";
 
+	// Temp-table-header dialects declare scalars as single-column temp tables, so the author
+	// writes `Select X From Return_X` — a real, already-named column. Nothing to rewrite.
+	public string RewriteOutputSelects(string body, IEnumerable<SQuiL.SourceGenerator.Parser.CodeBlock> outputs) => body;
+
 	public string TableVariableDeclaration(SQuiL.SourceGenerator.Parser.CodeBlock block, string newLine)
 	{
 		var name = block.TempTableName ?? block.Name;

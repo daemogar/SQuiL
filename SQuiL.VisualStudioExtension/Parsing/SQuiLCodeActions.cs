@@ -224,4 +224,32 @@ internal static class SQuiLCodeActions
             InsertText = $", {target.PkColumn.Name} {target.PkColumn.SqlType}",
         };
     }
+
+    /// <summary>
+    /// Builds the "Add `As [&lt;Name&gt;]`" edit for a bare single-scalar select flagged by
+    /// SP0042 (<see cref="SQuiLLinter.LintScalarAliasHint"/>). <paramref name="hint"/>'s
+    /// <see cref="SQuiLDiagnostic.Line"/>/<see cref="SQuiLDiagnostic.EndChar"/> locate the end
+    /// of the <c>@Return_&lt;Name&gt;</c> token (the insertion point); <paramref name="declaredName"/>
+    /// is the scalar's declared base name (not carried on <see cref="SQuiLDiagnostic"/> itself).
+    ///
+    /// The alias is ALWAYS bracketed — an unbracketed alias is a T-SQL syntax error when the
+    /// declared name collides with a reserved keyword (e.g. <c>Order</c>, <c>Key</c>, <c>User</c>),
+    /// so accepting this fix produces exactly the generator's output
+    /// (<c>ScalarSelectAliaser.Rewrite</c>). Returns <c>null</c> when <paramref name="hint"/>'s
+    /// line falls outside <paramref name="lines"/> (defensive — should not happen for a hint
+    /// computed from this same file).
+    ///
+    /// Port of <c>buildAddScalarAliasEdit</c> in <c>codeActions.ts</c> (VS Code extension) —
+    /// change one side, change all three.
+    /// </summary>
+    public static CodeActionEdit? BuildAddScalarAliasEdit(string[] lines, SQuiLDiagnostic hint, string declaredName)
+    {
+        if (hint.Line < 0 || hint.Line >= lines.Length) return null;
+        return new CodeActionEdit
+        {
+            Title = $"SQuiL: Add `As [{declaredName}]`",
+            Position = new SourcePosition(hint.Line, hint.EndChar),
+            InsertText = $" As [{declaredName}]",
+        };
+    }
 }

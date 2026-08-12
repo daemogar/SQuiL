@@ -83,7 +83,7 @@ partial class CustomCtorDataContext : SqlServerDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Select @Return_Count = 1;
-		Select @Return_Count;
+		Select @Return_Count As [Count];
 		""";
 	}
 }

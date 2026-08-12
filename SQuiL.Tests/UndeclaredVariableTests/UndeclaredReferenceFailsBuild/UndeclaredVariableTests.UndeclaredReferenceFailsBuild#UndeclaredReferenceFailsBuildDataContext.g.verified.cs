@@ -90,7 +90,7 @@ partial class UndeclaredReferenceFailsBuildDataContext : SqlServerDataContext
 		Use [{builder.InitialCatalog}];
 		
 		Set @Return_Count = (Select Count(*) From People Where PersonID = @PersonID);
-		Select @Return_Count;
+		Select @Return_Count As [Count];
 		""";
 	}
 }

@@ -319,10 +319,16 @@ public class SQuiLDataContext(
 					QueryDeclareStatements();
 					// "{builder.InitialCatalog}" is deliberately the literal placeholder text (braces included), not a generator-time value: it is emitted verbatim into the generated data-context and resolved at THAT code's own runtime by its own `SqlConnectionStringBuilder builder` (see line ~138), not by this method's `StringBuilder builder`.
 					var databaseDirective = Sql.DatabaseDirective("{builder.InitialCatalog}");
+					// SQL Server appends `As <Name>` to a bare single-scalar `Select @Return_X` so the
+					// result set carries a column name the runtime shape key can route; the temp-table
+					// dialects return the body unchanged. This is the ONE transformation applied INSIDE
+					// the author's body — every other mutation (regenerated Declares, the param shred,
+					// the Use replacement, sample-DML stripping) happens around or outside it.
+					var rewrittenQuery = Sql.RewriteOutputSelects(query, outputs.Select(p => p.CodeBlock));
 					writer.Block($$""""
 									{{databaseDirective}}
 
-									{{query}}
+									{{rewrittenQuery}}
 									""";
 									"""");
 				});
@@ -380,7 +386,7 @@ public class SQuiLDataContext(
 					// (name = the scalar's base name); a table/object's key is its ordered columns.
 					var shapeKey = (block.IsTable || block.IsObject)
 						? SQuiLShapeKey.ShapeKeyOf(block, Sql)
-						: SQuiLShapeKey.ScalarKeyOf(block.Name, block.CSharpType(block.Name));
+						: SQuiLShapeKey.ScalarKeyOf(block, Sql);
 
 					writer.Block($"""case "{shapeKey}":""", () =>
 					{
@@ -667,7 +673,7 @@ public class SQuiLDataContext(
 				}
 				else
 				{
-					var shapeKey = SQuiLShapeKey.ScalarKeyOf(block.Name, block.CSharpType(block.Name));
+					var shapeKey = SQuiLShapeKey.ScalarKeyOf(block, Sql);
 					writer.Block($"""case "{shapeKey}":""", () =>
 					{
 						writer.WriteLine($"if (is{block.Name}) throw new Exception(");

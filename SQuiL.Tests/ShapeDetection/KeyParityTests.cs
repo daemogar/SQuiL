@@ -108,6 +108,55 @@ public class KeyParityTests
         return reader.GetDataTypeName(0);
     }
 
+    /// <summary>
+    /// SQL Server scalar counterpart of <see cref="AssertParity"/>: parses a scalar declare,
+    /// extracts the build-time routing token via the dialect-aware ScalarKeyOf overload, and
+    /// compares it against NormalizeType for the provider type name a reader reports.
+    /// </summary>
+    private static void AssertScalarParity(string sqlType, string providerTypeName)
+    {
+        var dialect = new SqlServerDialect();
+        var tokens = SQuiLTokenizer.GetTokens($"Declare @Return_V {sqlType};\nUse [Db];\nSelect @Return_V As V;");
+        var blocks = SQuiLParser.ParseTokens(tokens);
+        var block = blocks.Find(b => b.CodeType == CodeType.OUTPUT_VARIABLE);
+        Assert.NotNull(block);
+
+        var shapeKey = SQuiLShapeKey.ScalarKeyOf(block!, dialect);
+        var colonIdx = shapeKey.IndexOf(':');
+        Assert.True(colonIdx >= 0, $"ScalarKeyOf returned unexpected format: '{shapeKey}'");
+        var buildToken = shapeKey.Substring(colonIdx + 1);
+
+        var runtimeToken = new SqlServerProbe().NormalizeTypeForTest(providerTypeName);
+
+        Assert.Equal(buildToken, runtimeToken);
+    }
+
+    /// <summary>
+    /// SQLite scalar counterpart: a SQLite scalar is a collapsed single-column
+    /// <c>Create Temp Table</c>, so the build token must match what a LIVE Microsoft.Data.Sqlite
+    /// reader reports for that column's decltype — the same no-fictional-inputs discipline as
+    /// <see cref="AssertParitySqlite"/>. This is the case the non-dialect-aware ScalarKeyOf got
+    /// wrong for BOOLEAN/DATETIME/GUID.
+    /// </summary>
+    private static void AssertScalarParitySqlite(string sqlType)
+    {
+        var dialect = new SqliteDialect();
+        var tokens = SQuiLTokenizer.GetTokens($"Create Temp Table Return_V (V {sqlType});\nSelect V From Return_V;", dialect);
+        var blocks = SQuiLParser.ParseTokens(tokens, dialect);
+        var block = blocks.Find(b => b.CodeType == CodeType.OUTPUT_VARIABLE);
+        Assert.NotNull(block);
+
+        var shapeKey = SQuiLShapeKey.ScalarKeyOf(block!, dialect);
+        var colonIdx = shapeKey.IndexOf(':');
+        Assert.True(colonIdx >= 0, $"ScalarKeyOf returned unexpected format: '{shapeKey}'");
+        var buildToken = shapeKey.Substring(colonIdx + 1);
+
+        var providerTypeName = ReadProviderTypeName(sqlType);
+        var runtimeToken = new SqliteProbe().NormalizeTypeForTest(providerTypeName);
+
+        Assert.Equal(buildToken, runtimeToken);
+    }
+
     // Every spelling that tokenizes to one of the eight SQLite-supported token types (the set
     // SqliteDialect.SqliteReader maps to a typed reader accessor): TYPE_BIGINT, TYPE_STRING,
     // TYPE_DOUBLE, TYPE_VARBINARY, TYPE_DECIMAL, TYPE_BOOLEAN, TYPE_DATETIME, TYPE_GUID. Build
@@ -158,6 +207,21 @@ public class KeyParityTests
     [Fact] public void Parity_Xml() => AssertParity("xml", "xml");
     [Fact] public void Parity_Image() => AssertParity("image", "image");
     [Fact] public void Parity_Timestamp() => AssertParity("timestamp", "timestamp");
+
+    [Fact] public void ScalarParity_Int() => AssertScalarParity("int", "int");
+    [Fact] public void ScalarParity_Varchar() => AssertScalarParity("varchar(10)", "varchar");
+    [Fact] public void ScalarParity_Bit() => AssertScalarParity("bit", "bit");
+    [Fact] public void ScalarParity_Datetime() => AssertScalarParity("datetime", "datetime");
+    [Fact] public void ScalarParity_Uniqueidentifier() => AssertScalarParity("uniqueidentifier", "uniqueidentifier");
+    [Fact] public void ScalarParity_Decimal() => AssertScalarParity("decimal(18,2)", "decimal");
+
+    // The four cases the non-dialect-aware ScalarKeyOf got wrong: SQLite coarsens
+    // BOOLEAN → INTEGER and DATETIME/GUID → TEXT affinity.
+    [Fact] public void Sqlite_ScalarParity_Integer() => AssertScalarParitySqlite("INTEGER");
+    [Fact] public void Sqlite_ScalarParity_Text() => AssertScalarParitySqlite("TEXT");
+    [Fact] public void Sqlite_ScalarParity_Boolean() => AssertScalarParitySqlite("BOOLEAN");
+    [Fact] public void Sqlite_ScalarParity_Datetime() => AssertScalarParitySqlite("DATETIME");
+    [Fact] public void Sqlite_ScalarParity_Guid() => AssertScalarParitySqlite("GUID");
 
     /// <summary>
     /// Zero-churn identity guard for the generator's dialect-aware emission (Task 4 follow-up

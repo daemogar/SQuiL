@@ -455,6 +455,20 @@ public static class DiagnosticsMessages
 			location));
 
 	/// <summary>
+	/// SP0041 — a <c>Select</c> whose top-level column list is 2+ output scalars. Its runtime shape
+	/// key is a multi-column signature (e.g. <c>"a:int|b:int"</c>) that matches no generated
+	/// per-scalar case, so the result set is silently skipped at runtime. Aliasing does not help;
+	/// the fix is one <c>Select</c> per scalar. Always an Error, on every dialect.
+	/// </summary>
+	public static void ReportMultiScalarSelect(
+		this SourceProductionContext context, string filename, string names, int line)
+		=> context.ReportDiagnostic(CreateDiagnostic(
+			DiagnosticSeverity.Error, "SP0041", "Multi-Scalar Select Cannot Be Routed",
+			$"{filename}: the Select on line {line} returns more than one output scalar ({names}), "
+			+ "which cannot be routed to a response. Use one Select per scalar.",
+			Location.None));
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

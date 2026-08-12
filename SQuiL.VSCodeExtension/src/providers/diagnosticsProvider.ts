@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import { parseSQuiL, SQuiLDiagnostic, lintShapeCollision, lintUnmatchedSelect, sqliteBodyStartLine, isTempTableDialect } from '../squil/parser';
+import { parseSQuiL, SQuiLDiagnostic, lintShapeCollision, lintUnmatchedSelect, lintMultiScalarSelect, sqliteBodyStartLine, isTempTableDialect } from '../squil/parser';
 import { nullabilityHints } from '../squil/nullabilityHints';
+import { scalarAliasHints } from '../squil/scalarAliasHints';
 import { shapeHints } from '../squil/shapeHints';
 import { transactionHints } from '../squil/transactionHints';
 import { nestedObjectHints } from '../squil/nestedObjectHints';
@@ -231,6 +232,25 @@ export class SQuiLDiagnosticsProvider {
       for (const d of lintUnmatchedSelect(parsed, bodyText)) {
         // d.line is 0-based within bodyText — adjust to document-absolute line.
         vsDiags.push(this.toDiagnostic(document, { ...d, line: d.line + bodyLineOffset }));
+      }
+
+      // SP0041: a Select listing 2+ output scalars cannot be routed (build error mirror).
+      for (const d of lintMultiScalarSelect(parsed)) {
+        vsDiags.push(this.toDiagnostic(document, d));
+      }
+
+      // SP0042: the generator supplies `As [<Name>]` for a bare scalar select (editor-only Hint).
+      for (const hint of scalarAliasHints(parsed, bodyText, dialect)) {
+        const line = Math.min(hint.line + bodyLineOffset, document.lineCount - 1);
+        const lineLength = document.lineAt(line).text.length;
+        const range = new vscode.Range(
+          new vscode.Position(line, Math.min(hint.character, lineLength)),
+          new vscode.Position(line, Math.min(hint.character + hint.length, lineLength)),
+        );
+        const d = new vscode.Diagnostic(range, hint.message, vscode.DiagnosticSeverity.Hint);
+        d.source = 'squil';
+        d.code = hint.code;
+        vsDiags.push(d);
       }
     }
 
