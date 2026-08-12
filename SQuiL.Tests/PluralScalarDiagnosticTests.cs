@@ -71,4 +71,23 @@ public class PluralScalarDiagnosticTests
 			includeSqlServer: true, includeSqlite: false);
 		Assert.Empty(diags.Where(d => d.Id == "SP0043"));
 	}
+
+	/// <summary>
+	/// The generator's validator carries NO dialect gate — its self-exclusion on SQLite/PostgreSQL
+	/// is purely structural, via the leading-`@` check in <c>LeadingVariable</c> (SQL Server's
+	/// <c>DatabaseType.Original</c> is <c>@Params_Total INTEGER</c>; a SQLite temp table's is the
+	/// bare <c>Returns_Total INTEGER</c>, no `@`). This pins the domain fact end to end: a PLURAL
+	/// single-column SQLite temp table never collapses to a scalar in the first place (only the
+	/// SINGULAR single-column form does — see <c>SqliteHeaderTests.Returns_prefix_single_column_stays_output_list_not_scalar</c>),
+	/// so the plural path never even reaches the scalar validator, and SP0043 stays silent.
+	/// </summary>
+	[Fact]
+	public void Sqlite_plural_single_column_temp_table_is_clean()
+	{
+		var diags = TestHelper.RunForDiagnostics(
+			[TestHelper.TestHeaderSqlite(["S"])],
+			["--Name: S\nCreate Temp Table Returns_Total (Total INTEGER);\nSelect Total From Returns_Total;"],
+			includeSqlServer: false, includeSqlite: true);
+		Assert.Empty(diags.Where(d => d.Id == "SP0043"));
+	}
 }

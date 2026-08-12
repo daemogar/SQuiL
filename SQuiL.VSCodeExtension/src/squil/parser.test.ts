@@ -696,11 +696,26 @@ test('SP0043 ignores a plural table declare', () => {
 });
 
 test('SP0043 is silent on a temp-table dialect', () => {
-  // A SQLite plural temp table always carries columns, so the rule is vacuous there. This
-  // pins the vacuity rather than assuming it.
+  // The dialect gate short-circuits first; this pins the gate itself. The deeper vacuity
+  // claim is pinned separately, below.
   const diags = lintPluralScalarDeclare(parseSQuiL([
     'Create Temp Table Returns_Total (Total INTEGER);',
     'Select Total From Returns_Total;',
   ].join('\n'), 'sqlite'), 'sqlite');
   assert.strictEqual(diags.length, 0);
+});
+
+test('SP0043 is vacuous on a temp-table declaration even with the dialect gate open', () => {
+  // The domain fact SP0043's SQL-Server-only scope rests on: a PLURAL temp-table declaration
+  // always carries columns, because only the SINGULAR single-column form collapses to a scalar.
+  // Linting SQLite-parsed variables as 'sqlserver' bypasses the dialect gate, so this exercises
+  // the columns exclusion directly instead of stopping at the short-circuit.
+  const parsed = parseSQuiL([
+    'Create Temp Table Returns_Total (Total INTEGER);',
+    'Select Total From Returns_Total;',
+  ].join('\n'), 'sqlite');
+  const plural = parsed.variables.find(v => v.role === 'returns');
+  assert.ok(plural, 'the plural temp table parses as a returns-role variable');
+  assert.ok((plural!.columns?.length ?? 0) > 0, 'and it carries columns — the fact the rule rests on');
+  assert.strictEqual(lintPluralScalarDeclare(parsed, 'sqlserver').length, 0);
 });
