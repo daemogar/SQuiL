@@ -47,5 +47,5 @@ Open any `.squil` file and you get:
 Extensions view → find **SQuiL SQL Editor** → gear icon → **Uninstall**. Or:
 
 ```bash
-code --uninstall-extension southern.squil-editor
+code --uninstall-extension squil.squil-editor
 ```

@@ -3,7 +3,7 @@
   "displayName": "SQuiL SQL Editor",
   "description": "Language support for SQuiL — the C# SQL source generator ORM",
   "version": "0.1.0",
-  "publisher": "southern",
+  "publisher": "squil",
   "license": "MIT",
   "repository": {
     "type": "git",
