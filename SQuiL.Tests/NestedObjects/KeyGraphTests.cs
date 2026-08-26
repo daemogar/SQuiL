@@ -57,27 +57,31 @@ public class KeyGraphTests
     // NOTE (Task 1 of the containment-direction feature, Ruling R2): declaration-order orientation
     // means every edge now points from the earlier-declared block to the later-declared one
     // (`SQuiLKeyEdge.Parent`/`Child` — see `order`/`pairs` in `SQuiLKeyGraph.Build`). Two direct
-    // consequences for these two fixtures, both accepted per the plan's pre-flight ruling:
-    //   - Ambiguity detection ("a block links to >1 container") is deleted in this task outright —
-    //     Task 2 reintroduces it under the new pair/order model.
+    // consequences, both accepted per the plan's pre-flight ruling:
+    //   - The OLD ambiguity check ("a child's column matches >1 table's Primary Key") is deleted in
+    //     Task 1 outright. Task 2 (this task, Ruling R0) reintroduces SP0033 under an entirely NEW
+    //     condition — see `TwoBlocksSharingAKeyNameIsADuplicatePrimaryKeyError` below.
     //   - Cycle detection is structurally impossible now: `childOf[Child] = Parent` always satisfies
     //     order(Parent) < order(Child), so no chain through `childOf` can ever return to its start.
     //     The cycle-detection code itself is retained unchanged (not deleted) per Ruling R2 — it
     //     simply never finds one under order-based edges. Task 3 (multi-container resolution, which
     //     inverts edges) is what makes cycles reachable again and may reopen this.
     [Fact]
-    public void ChildMatchingTwoPrimaryKeysIsNotAmbiguousError()
+    public void TwoBlocksSharingAKeyNameIsADuplicatePrimaryKeyError()
     {
-        // "SharedID" is the PK of BOTH A and B; C carries SharedID. Under declaration order this no
-        // longer reports an "ambiguous" finding (Task 2 restores an ambiguity diagnostic here) — the
-        // graph still builds without throwing.
+        // "SharedID" is declared `Primary Key` on BOTH A and B — R0 (Task 2) forbids this outright,
+        // regardless of C carrying SharedID (that's a separate, unrelated concern: which table C
+        // nests under). B is the second declaration, so it is the error's `Name`; A (first) is
+        // `OtherName`.
         var g = Graph("""
             Declare @Returns_A table(SharedID int Primary Key, N int);
             Declare @Returns_B table(SharedID int Primary Key, M int);
             Declare @Returns_C table(CID int, SharedID int);
             Use Db; Select 1;
             """);
-        Assert.DoesNotContain(g.Errors, f => f.Kind == "ambiguous");
+        var finding = Assert.Single(g.Errors, f => f.Kind == "duplicate-pk");
+        Assert.Equal("B", finding.Name);
+        Assert.Equal("A", finding.OtherName);
     }
 
     [Fact]

@@ -17,7 +17,7 @@
  * `@Returns_` blocks, or `INPUT_TABLE_ROLES` for `@Param_`/`@Params_` blocks.
  *
  * Detects the same two error findings the generator reports as build errors
- * (SP0033 ambiguous / SP0034 cycle), plus an editor-only orphan-PK hint
+ * (SP0033 duplicate-pk / SP0034 cycle), plus an editor-only orphan-PK hint
  * (SP0035) that only fires when at least one real link exists elsewhere in
  * the file (`hasLinks`).
  *
@@ -27,12 +27,12 @@
 import { SQuiLVariable, TableColumn, VariableRole } from './parser';
 
 export interface KeyGraphFinding {
-  kind: 'ambiguous' | 'cycle' | 'orphan';
-  /** The subject variable (child for ambiguous, cycle-start for cycle, PK owner for orphan). */
+  kind: 'duplicate-pk' | 'cycle' | 'orphan';
+  /** The subject variable (second declarer for duplicate-pk, cycle-start for cycle, PK owner for orphan). */
   variable: SQuiLVariable;
-  /** The subject PK column (orphan only); undefined for ambiguous/cycle. */
+  /** The subject PK column (orphan only); undefined for duplicate-pk/cycle. */
   column?: TableColumn;
-  /** The counterpart variable named in the message (other parent / cycle partner). */
+  /** The counterpart variable named in the message (first declarer / cycle partner). */
   otherVariable: SQuiLVariable;
 }
 
@@ -65,20 +65,28 @@ export function buildKeyGraph(
       roles.has(v.role) && Array.isArray(v.columns) && v.columns.length > 0,
   );
 
-  // Key column name (lowercased) -> owning variable(s). A variable's key = its
-  // single Primary-Key column.
-  const pkOwners = new Map<string, SQuiLVariable[]>();
+  const errors: KeyGraphFinding[] = [];
+
+  // R0 (Ruling R0): exactly one variable may declare a Primary Key on a given key name — a key
+  // name identifies one relationship, so it can have only one "one" side. Key column name
+  // (lowercased) -> its single owning variable. A SECOND variable claiming a key name already
+  // owned is a duplicate-primary-key error (SP0033) and does NOT enter pkOwners/pkColumnOf — its
+  // (invalid) Primary Key marker is ignored for every purpose below (edge orientation, isEmbed,
+  // orphan hints).
+  const pkOwners = new Map<string, SQuiLVariable>();
   const pkColumnOf = new Map<SQuiLVariable, TableColumn>();
   for (const v of list) {
     const pk = v.columns.find(c => c.isPrimaryKey);
     if (!pk) continue;
-    pkColumnOf.set(v, pk);
     const key = pk.name.toLowerCase();
-    const owners = pkOwners.get(key);
-    if (owners) { owners.push(v); } else { pkOwners.set(key, [v]); }
+    const first = pkOwners.get(key);
+    if (first) {
+      errors.push({ kind: 'duplicate-pk', variable: v, otherVariable: first });
+      continue;
+    }
+    pkOwners.set(key, v);
+    pkColumnOf.set(v, pk);
   }
-
-  const errors: KeyGraphFinding[] = [];
 
   // R1: orientation follows declaration order, not which side owns the Primary Key.
   // `list` is already in declaration order, so its index is the declaration ordinal.
@@ -88,43 +96,42 @@ export function buildKeyGraph(
   // Distinct unordered pairs {block, pkOwner} that share a key column name. Dedupe is keyed on the
   // PAIR alone (lo, hi) — NOT (lo, hi, key) — so two blocks connected by two different reciprocal
   // key columns (each side's column matching the other's Primary Key) still yield exactly one
-  // edge. The first matching key column found (declaration order over blocks, then columns, then
-  // owners) wins, mirroring `SQuiLKeyGraph.Build`'s `pairSeen`/`pairs`. Without this, a pair like
-  // `@Return_A table(AID int Primary Key, BID int)` / `@Return_B table(BID int Primary Key, AID
-  // int)` would produce two edges with the same parent/child. Key-name comparisons throughout are
-  // lower-cased for case-insensitive matching (matching the generator's `OrdinalIgnoreCase`); the
-  // stored `keyName` itself keeps the author's original casing.
+  // edge. The first matching key column found (declaration order over blocks, then columns) wins,
+  // mirroring `SQuiLKeyGraph.Build`'s `pairSeen`/`pairs`. Without this, a pair like `@Return_A
+  // table(AID int Primary Key, BID int)` / `@Return_B table(BID int Primary Key, AID int)` would
+  // produce two edges with the same parent/child. Since R0 (above) guarantees at most one owner
+  // per key name, each matching column now yields at most one candidate pair. Key-name comparisons
+  // throughout are lower-cased for case-insensitive matching (matching the generator's
+  // `OrdinalIgnoreCase`); the stored `keyName` itself keeps the author's original casing.
   const pairSeen = new Set<string>();
   const edges: KeyGraphEdge[] = [];
   for (const block of list) {
     for (const col of block.columns) {
-      const owners = pkOwners.get(col.name.toLowerCase());
-      if (!owners) continue;
-      for (const owner of owners) {
-        if (owner === block) continue; // own PK column
-        const lo = Math.min(order.get(block)!, order.get(owner)!);
-        const hi = Math.max(order.get(block)!, order.get(owner)!);
-        const id = `${lo}|${hi}`;
-        if (pairSeen.has(id)) continue;
-        pairSeen.add(id);
-        const nested = list[hi];
-        const nestedPk = pkColumnOf.get(nested);
-        edges.push({
-          parent: list[lo],
-          child: nested,
-          keyName: col.name,
-          isEmbed: !!nestedPk && nestedPk.name.toLowerCase() === col.name.toLowerCase(),
-        });
-      }
+      const owner = pkOwners.get(col.name.toLowerCase());
+      if (!owner) continue;
+      if (owner === block) continue; // own PK column
+      const lo = Math.min(order.get(block)!, order.get(owner)!);
+      const hi = Math.max(order.get(block)!, order.get(owner)!);
+      const id = `${lo}|${hi}`;
+      if (pairSeen.has(id)) continue;
+      pairSeen.add(id);
+      const nested = list[hi];
+      const nestedPk = pkColumnOf.get(nested);
+      edges.push({
+        parent: list[lo],
+        child: nested,
+        keyName: col.name,
+        isEmbed: !!nestedPk && nestedPk.name.toLowerCase() === col.name.toLowerCase(),
+      });
     }
   }
 
-  // childOf drives cycle detection below. Ambiguity handling (a block linked to more than one
-  // container) is reintroduced under the new pair/order model in Task 2 — this task is the
-  // orientation seam only, so `errors` collects cycles alone. Cycle detection is structurally
-  // unreachable under single-parent, order-oriented edges (every edge points from the
-  // earlier-declared block to the later one) until Task 3 (multi-container resolution, which
-  // inverts edges) makes it reachable again.
+  // childOf drives cycle detection below. A variable linked to more than one DIFFERENT container
+  // (via two different key names) is not itself an error under R0 — R0 only forbids two variables
+  // from declaring a Primary Key on the SAME key name (handled above, before `pairs`/edges are
+  // built). Cycle detection is structurally unreachable under single-parent, order-oriented edges
+  // (every edge points from the earlier-declared block to the later one) until Task 3
+  // (multi-container resolution, which inverts edges) makes it reachable again.
   const childOf = new Map<SQuiLVariable, SQuiLVariable>();
   for (const e of edges) childOf.set(e.child, e.parent);
 

@@ -492,18 +492,18 @@ test('SP0037 does not fire on table-column null/not null markers', () => {
 // ── SP0033 / SP0034: nested-object key-graph errors (editor squiggle parity
 // with the generator's build-time SQuiLKeyGraph.Errors) ─────────────────────
 //
-// TRANSITIONAL (containment-direction feature, Task 1 / Ruling R2): declaration-order edge
-// orientation lands in Task 1 with the old PK-oriented ambiguity check deleted outright (Task 2
-// reintroduces it under the new pair/order model) and cycle detection left structurally
-// unreachable — every edge now points from the earlier-declared block to the later one, so no
-// chain through `childOf` can ever return to its start. The two tests below assert the diagnostic
-// is currently ABSENT for fixtures that used to trigger it under the old algorithm. Task 3
-// (multi-container resolution, which inverts edges) is what makes cycles reachable again and may
-// reopen SP0034.
+// HISTORY (containment-direction feature, Ruling R2): declaration-order edge orientation landed in
+// Task 1 with the OLD PK-oriented ambiguity check (a child's column matching more than one table's
+// Primary Key) deleted outright, and cycle detection left structurally unreachable — every edge
+// now points from the earlier-declared block to the later one, so no chain through `childOf` can
+// ever return to its start. Task 2 (Ruling R0) reintroduces SP0033 under an entirely NEW
+// condition — NOT "a child matches 2+ parents' PKs", but "two blocks both declare a Primary Key on
+// the same key name" (see the positive test just below). Task 3 (multi-container resolution, which
+// inverts edges) is what makes cycles reachable again and may reopen SP0034.
 
-test('SP0033 does not fire under declaration-order orientation (Task 2 restores an ambiguity diagnostic)', () => {
+test('SP0033 fires when two blocks declare a Primary Key on the same key name', () => {
   const result = parseSQuiL([
-    '--Name: Ambiguous',
+    '--Name: DuplicatePrimaryKey',
     'Declare @Returns_A table(SharedID int Primary Key, N int);',
     'Declare @Returns_B table(SharedID int Primary Key, M int);',
     'Declare @Returns_C table(CID int, SharedID int);',
@@ -512,7 +512,14 @@ test('SP0033 does not fire under declaration-order orientation (Task 2 restores 
   ].join('\n'));
 
   const sp0033 = result.diagnostics.filter(d => d.code === 'SP0033');
-  assert.strictEqual(sp0033.length, 0);
+  assert.strictEqual(sp0033.length, 1);
+  assert.strictEqual(sp0033[0].severity, 'error');
+  assert.ok(sp0033[0].message.includes('`B`'), 'message should name the second declaration');
+  assert.ok(sp0033[0].message.includes('`A`'), 'message should name the first declaration');
+  assert.ok(
+    sp0033[0].message.includes('declares `Primary Key` on the same key name as'),
+    'message should describe the duplicate-pk condition',
+  );
 });
 
 test('SP0034 does not fire under declaration-order orientation (cycles are now structurally impossible)', () => {
@@ -528,7 +535,7 @@ test('SP0034 does not fire under declaration-order orientation (cycles are now s
   assert.strictEqual(sp0034.length, 0);
 });
 
-test('SP0033/SP0034 stay silent on a well-formed tree (no ambiguity, no cycle)', () => {
+test('SP0033/SP0034 stay silent on a well-formed tree (no duplicate-pk, no cycle)', () => {
   const result = parseSQuiL([
     '--Name: Tree',
     'Declare @Returns_Parent table(ParentID int Primary Key, Name varchar(50));',
@@ -544,9 +551,9 @@ test('SP0033/SP0034 stay silent on a well-formed tree (no ambiguity, no cycle)',
 // ── SP0033 / SP0034 on the INPUT (`@Param_`/`@Params_`) key graph — the same
 // checks applied to a second, independent graph (Task 15) ──────────────────
 
-test('SP0033 does not fire on the INPUT graph under declaration-order orientation (Task 2 restores an ambiguity diagnostic)', () => {
+test('SP0033 fires on the INPUT graph when two blocks declare a Primary Key on the same key name', () => {
   const result = parseSQuiL([
-    '--Name: AmbiguousInput',
+    '--Name: DuplicatePrimaryKeyInput',
     'Declare @Params_A table(SharedID int Primary Key, N int);',
     'Declare @Params_B table(SharedID int Primary Key, M int);',
     'Declare @Params_C table(CID int, SharedID int);',
@@ -557,7 +564,9 @@ test('SP0033 does not fire on the INPUT graph under declaration-order orientatio
   ].join('\n'));
 
   const sp0033 = result.diagnostics.filter(d => d.code === 'SP0033');
-  assert.strictEqual(sp0033.length, 0);
+  assert.strictEqual(sp0033.length, 1);
+  assert.ok(sp0033[0].message.includes('`B`'), 'message should name the second declaration');
+  assert.ok(sp0033[0].message.includes('`A`'), 'message should name the first declaration');
 });
 
 test('SP0034 does not fire on the INPUT graph under declaration-order orientation (cycles are now structurally impossible)', () => {
@@ -574,7 +583,7 @@ test('SP0034 does not fire on the INPUT graph under declaration-order orientatio
   assert.strictEqual(sp0034.length, 0);
 });
 
-test('SP0033/SP0034 on the INPUT graph do not fire from an unrelated OUTPUT-side ambiguity/cycle (graphs stay independent)', () => {
+test('SP0033/SP0034 on the INPUT graph do not fire from an unrelated OUTPUT-side duplicate-pk/cycle (graphs stay independent)', () => {
   const result = parseSQuiL([
     '--Name: MixedTree',
     'Declare @Returns_Parent table(ParentID int Primary Key, Name varchar(50));',

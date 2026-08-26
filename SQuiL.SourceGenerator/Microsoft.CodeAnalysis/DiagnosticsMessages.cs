@@ -367,19 +367,17 @@ public static class DiagnosticsMessages
 	}
 
 	/// <summary>
-	/// SP0033 — Within one query file's nested-object key graph, a child table/object's column
-	/// matches the declared Primary Key of more than one other table/object. A nested-object
-	/// child must resolve to exactly one parent, so an ambiguous match is a build error and
-	/// the file's code emission is skipped.
+	/// SP0033 — Two table/object blocks in one query file both declare `Primary Key` on the same key
+	/// name. A key name identifies one relationship and must have exactly one "one" side.
 	/// </summary>
-	public static void ReportAmbiguousKeyLink(
+	public static void ReportDuplicatePrimaryKey(
 		this SourceProductionContext context, string filename,
 		SQuiL.Models.SQuiLKeyFinding finding)
 	{
-		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0033", "Ambiguous Key Link",
-			$"{filename}: `{finding.Name}` (line {finding.Line}) links to more than one table — it also matches " +
-			$"`{finding.OtherName}`'s (line {finding.OtherLine}) primary key. A nested-object child must have " +
-			"exactly one parent — rename one of the key columns so only one match remains."));
+		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0033", "Duplicate Primary Key",
+			$"{filename}: `{finding.Name}` (line {finding.Line}) declares `Primary Key` on the same key name as " +
+			$"`{finding.OtherName}` (line {finding.OtherLine}). A key name identifies one relationship and may have " +
+			"only one primary-key owner — rename one of the key columns."));
 	}
 
 	/// <summary>

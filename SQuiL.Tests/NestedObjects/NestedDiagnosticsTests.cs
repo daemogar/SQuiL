@@ -12,19 +12,21 @@ using Xunit;
 
 /// <summary>
 /// Verifies the two build-time key-graph diagnostics:
-///   SP0033 — a nested-object child's column matches more than one declared Primary Key (ambiguous parent).
+///   SP0033 — two table/object blocks both declare `Primary Key` on the same key name (duplicate-pk).
 ///   SP0034 — following Primary-Key/Foreign-Key links forms a cycle.
 /// Both diagnostics come from <see cref="SQuiL.Models.SQuiLKeyGraph.Errors"/>, reported by
 /// <c>Microsoft.CodeAnalysis.FileGenerator.Create</c>. The generator run is inspected directly
 /// (mirroring <c>TransactionDiagnosticTests.DebugRollbackWithoutDebugDoesNotEmitSP0026AtBuildTime</c>)
 /// rather than via full snapshot comparison, since only the diagnostic Id matters here.
 ///
-/// TRANSITIONAL (containment-direction feature, Task 1 / Ruling R2): declaration-order edge
-/// orientation lands in Task 1 with the old PK-oriented ambiguity check deleted outright and cycle
-/// detection left structurally unreachable (see the per-test remarks below). Both fixtures below
-/// therefore assert the diagnostic is currently ABSENT; Task 2 reintroduces SP0033 under the new
-/// pair/order model, and Task 3 (multi-container resolution, which inverts edges) is what makes
-/// cycles reachable again and may reopen SP0034.
+/// HISTORY (containment-direction feature, Ruling R2): declaration-order edge orientation landed in
+/// Task 1 with the OLD PK-oriented ambiguity check (a child's column matching more than one table's
+/// Primary Key) deleted outright, and cycle detection left structurally unreachable (every edge now
+/// points from the earlier-declared block to the later one). Task 2 (this task, Ruling R0)
+/// reintroduces SP0033 under an entirely NEW condition — not "a child matches 2+ parents' PKs", but
+/// "two blocks both declare `Primary Key` on the same key name" — see
+/// <see cref="TwoBlocksDeclaringTheSameKeyNameReportsSP0033"/> below. Task 3 (multi-container
+/// resolution, which inverts edges) is what makes cycles reachable again and may reopen SP0034.
 /// </summary>
 public class NestedDiagnosticsTests
 {
@@ -60,16 +62,17 @@ public class NestedDiagnosticsTests
 	}
 
 	/// <summary>
-	/// SP0033 — "C" carries a column ("SharedID") matching the Primary Key of both "A" and "B".
-	/// Task 1 of the containment-direction feature (Ruling R2) deletes the old PK-oriented ambiguity
-	/// check outright — Task 2 reintroduces an ambiguity diagnostic under the new declaration-order/
-	/// pair model. Until then this fixture reports no SP0033 (and, having no graph errors, the file
-	/// generates successfully instead of bailing out).
+	/// SP0033 (Ruling R0, this task) — "A" and "B" both declare `Primary Key` on the SAME key name
+	/// ("SharedID"). A key name identifies one relationship and must have exactly one "one" side, so
+	/// the second declaration ("B") is a build error. Note this is the SAME fixture Task 1 left
+	/// negatively asserted (no SP0033) under the OLD "ambiguous parent" reading — the meaning of
+	/// SP0033 changed, and this fixture now happens to satisfy the NEW condition too (two blocks,
+	/// not a child matching two parents), so the assertion flips to positive.
 	/// </summary>
 	[Fact]
-	public void ChildMatchingTwoPrimaryKeysDoesNotReportSP0033()
+	public void TwoBlocksDeclaringTheSameKeyNameReportsSP0033()
 	{
-		var name = nameof(ChildMatchingTwoPrimaryKeysDoesNotReportSP0033);
+		var name = nameof(TwoBlocksDeclaringTheSameKeyNameReportsSP0033);
 		var diagnostics = Run(name, """
 			Declare @Returns_A table(SharedID int Primary Key, N int);
 			Declare @Returns_B table(SharedID int Primary Key, M int);
@@ -79,7 +82,32 @@ public class NestedDiagnosticsTests
 			""");
 
 		var sp0033 = diagnostics.Where(d => d.Id == "SP0033").ToList();
-		Assert.Empty(sp0033);
+		var diagnostic = Assert.Single(sp0033);
+		var message = diagnostic.GetMessage();
+		Assert.Contains("`B` (line 2)", message);   // second declaration
+		Assert.Contains("`A` (line 1)", message);    // first declaration
+		Assert.Contains("declares `Primary Key` on the same key name as", message);
+	}
+
+	/// <summary>
+	/// SP0033 fires exactly once per SECOND (and later) claimant — a third block declaring the same
+	/// key name reports its OWN finding against the first owner, not a cascade of pairwise findings.
+	/// </summary>
+	[Fact]
+	public void ThreeBlocksDeclaringTheSameKeyNameReportsSP0033TwiceAgainstTheFirst()
+	{
+		var name = nameof(ThreeBlocksDeclaringTheSameKeyNameReportsSP0033TwiceAgainstTheFirst);
+		var diagnostics = Run(name, """
+			Declare @Returns_A table(SharedID int Primary Key, N int);
+			Declare @Returns_B table(SharedID int Primary Key, M int);
+			Declare @Returns_C table(SharedID int Primary Key, P int);
+			Use [Db];
+			Select 1;
+			""");
+
+		var sp0033 = diagnostics.Where(d => d.Id == "SP0033").ToList();
+		Assert.Equal(2, sp0033.Count);
+		Assert.All(sp0033, d => Assert.Contains("`A`", d.GetMessage()));
 	}
 
 	/// <summary>

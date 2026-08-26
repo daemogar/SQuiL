@@ -260,7 +260,7 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
     result.diagnostics.push(d);
   }
 
-  // SP0033 / SP0034: nested-object key-graph errors (ambiguous parent / cycle),
+  // SP0033 / SP0034: nested-object key-graph errors (duplicate primary key / cycle),
   // over BOTH the OUTPUT and INPUT graphs. SP0036: unsupported nested-input key type.
   for (const d of lintKeyGraph(result)) {
     result.diagnostics.push(d);
@@ -321,16 +321,17 @@ export function lintParamsBeforeReturns(result: SQuiLParseResult, dialect: Edito
 }
 
 /**
- * SP0033 (Error) — a nested-object child's column matches the declared Primary
- * Key of more than one other table/object (ambiguous parent — a nested-object
- * child must resolve to exactly one parent).
+ * SP0033 (Error) — two table/object blocks both declare a Primary Key on the
+ * SAME key name (duplicate-pk — Ruling R0). A key name identifies one
+ * relationship and must have exactly one "one" side; the second declaration
+ * is the error.
  *
  * SP0034 (Error) — following Primary-Key/Foreign-Key links from a table
  * eventually returns to that same table (cycle — nested objects require a tree).
  *
  * Both are build errors in the generator (`SQuiLKeyGraph.Errors`,
- * `DiagnosticsMessages.ReportAmbiguousKeyLink` / `ReportKeyCycle`) — this is the
- * editor-squiggle mirror. Port of `LintKeyGraph` in `SQuiLLinter.cs`
+ * `DiagnosticsMessages.ReportDuplicatePrimaryKey` / `ReportKeyCycle`) — this is
+ * the editor-squiggle mirror. Port of `LintKeyGraph` in `SQuiLLinter.cs`
  * (SSMS + Visual Studio) — change one side, change all three.
  *
  * Applied to BOTH the OUTPUT (`@Return_`/`@Returns_`) and INPUT (`@Param_`/
@@ -348,12 +349,12 @@ export function lintKeyGraph(result: SQuiLParseResult): SQuiLDiagnostic[] {
       const v = finding.variable;
       const other = finding.otherVariable;
 
-      if (finding.kind === 'ambiguous') {
+      if (finding.kind === 'duplicate-pk') {
         diagnostics.push({
           message:
-            `\`${v.name}\` (line ${v.line + 1}) links to more than one table — it also matches ` +
-            `\`${other.name}\`'s (line ${other.line + 1}) primary key. A nested-object child must have ` +
-            `exactly one parent — rename one of the key columns so only one match remains.`,
+            `\`${v.name}\` (line ${v.line + 1}) declares \`Primary Key\` on the same key name as ` +
+            `\`${other.name}\` (line ${other.line + 1}). A key name identifies one relationship and may ` +
+            `have only one primary-key owner — rename one of the key columns.`,
           line: v.line,
           startChar: v.character,
           endChar: v.character + v.rawName.length,
@@ -362,7 +363,7 @@ export function lintKeyGraph(result: SQuiLParseResult): SQuiLDiagnostic[] {
           relatedLine: other.line,
           relatedStartChar: other.character,
           relatedEndChar: other.character + other.rawName.length,
-          relatedMessage: "matches this table's primary key",
+          relatedMessage: 'also declares Primary Key on this key name',
         });
       } else {
         // cycle

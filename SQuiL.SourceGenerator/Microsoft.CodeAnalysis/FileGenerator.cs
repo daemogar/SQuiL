@@ -145,7 +145,7 @@ public class FileGenerator(
 			}
 
 			// Nested-objects (Task 4/7): build the key graph from OUTPUT blocks only (INPUT
-			// nesting is out of scope). An errored graph (ambiguous/cycle) is a build error —
+			// nesting is out of scope). An errored graph (duplicate-pk/cycle) is a build error —
 			// report SP0033/SP0034 for each finding and skip emitting this file's models and
 			// data-context entirely (same "bail out of Create" shape as the DiagnosticException
 			// catch below), rather than silently falling back to the flat path.
@@ -158,13 +158,13 @@ public class FileGenerator(
 					if (finding.Kind == "cycle")
 						Context.ReportKeyCycle(method, finding);
 					else
-						Context.ReportAmbiguousKeyLink(method, finding);
+						Context.ReportDuplicatePrimaryKey(method, finding);
 				}
 				return default;
 			}
 
 			// Nested-objects (Task 13): build the key graph from INPUT blocks (@Param*/@Params*
-			// table/object). An ambiguous/cyclic input graph is a build error (reuse SP0033/SP0034);
+			// table/object). A duplicate-pk/cyclic input graph is a build error (reuse SP0033/SP0034);
 			// SP0036 fires when an input link column's declared type cannot have a key synthesized
 			// (neither integer-family nor uniqueidentifier). Any of these skips this file's emission.
 			var inputBlocksForGraph = blocks.Where(b => (b.CodeType & CodeType.INPUT) == CodeType.INPUT);
@@ -176,7 +176,7 @@ public class FileGenerator(
 					if (finding.Kind == "cycle")
 						Context.ReportKeyCycle(method, finding);
 					else
-						Context.ReportAmbiguousKeyLink(method, finding);
+						Context.ReportDuplicatePrimaryKey(method, finding);
 				}
 				return default;
 			}

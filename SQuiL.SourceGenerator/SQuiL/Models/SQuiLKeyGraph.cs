@@ -11,7 +11,7 @@ using System.Linq;
 /// carries it (the classic one-to-many child).</summary>
 public sealed record SQuiLKeyEdge(CodeBlock Parent, CodeBlock Child, string KeyName, bool IsEmbed);
 
-/// <summary>A relationship diagnostic. <c>Kind</c> ∈ "ambiguous" | "cycle" | "orphan".</summary>
+/// <summary>A relationship diagnostic. <c>Kind</c> ∈ "duplicate-pk" | "cycle" | "orphan".</summary>
 public sealed record SQuiLKeyFinding(string Kind, string Name, string OtherName, int Line, int OtherLine);
 
 /// <summary>
@@ -46,20 +46,30 @@ public sealed class SQuiLKeyGraph
 	{
 		var list = blocks.Where(b => b.IsTable || b.IsObject).ToList();
 
-		// key column name -> owning block(s). A block's key = its single Primary-Key column.
-		var pkOwners = new Dictionary<string, List<CodeBlock>>(System.StringComparer.OrdinalIgnoreCase);
+		var errors = new List<SQuiLKeyFinding>();
+
+		// R0 (this task): exactly one block may declare `Primary Key` on a given key name — a
+		// key name identifies one relationship, so it can have only one "one" side. Key column
+		// name -> its single owning block. A SECOND block claiming a key name already owned is a
+		// build error (SP0033, "duplicate-pk") and does NOT enter pkOwners/pkNameOf — its
+		// (invalid) Primary Key marker is ignored for every purpose below (edge orientation,
+		// IsEmbed, orphan hints).
+		var pkOwners = new Dictionary<string, CodeBlock>(System.StringComparer.OrdinalIgnoreCase);
 		var pkNameOf = new Dictionary<CodeBlock, string>();
 		foreach (var b in list)
 		{
 			var pk = b.Properties?.FirstOrDefault(p => p.IsPrimaryKey);
 			if (pk is null) continue;
 			var k = pk.Identifier.Value;
+			if (pkOwners.TryGetValue(k, out var first))
+			{
+				errors.Add(new("duplicate-pk", b.Name, first.Name,
+					LineOf(sql, b.DatabaseType.Offset), LineOf(sql, first.DatabaseType.Offset)));
+				continue;
+			}
+			pkOwners[k] = b;
 			pkNameOf[b] = k;
-			if (!pkOwners.TryGetValue(k, out var owners)) pkOwners[k] = owners = [];
-			owners.Add(b);
 		}
-
-		var errors = new List<SQuiLKeyFinding>();
 
 		// R1: orientation follows declaration order, not which side owns the Primary Key.
 		// `list` is already in declaration order, so its index is the declaration ordinal.
@@ -70,25 +80,23 @@ public sealed class SQuiLKeyGraph
 		// on the PAIR alone (lo, hi) — NOT (lo, hi, key) — so two blocks connected by two different
 		// reciprocal key columns (each side's column matching the other's Primary Key) still yield
 		// exactly one edge. The first matching key column found (declaration order over blocks,
-		// then columns, then owners) wins, mirroring the pre-R1 algorithm's `matches[0].Key`.
-		// Without this, a pair like `@Return_A table(AID int Primary Key, BID int)` /
-		// `@Return_B table(BID int Primary Key, AID int)` would produce two edges with the same
-		// Parent/Child — one property emitted per edge — and duplicate members (CS0102).
+		// then columns) wins, mirroring the pre-R1 algorithm's `matches[0].Key`. Without this, a
+		// pair like `@Return_A table(AID int Primary Key, BID int)` / `@Return_B table(BID int
+		// Primary Key, AID int)` would produce two edges with the same Parent/Child — one property
+		// emitted per edge — and duplicate members (CS0102). Since R0 (above) guarantees at most
+		// one owner per key name, each matching column now yields at most one candidate pair.
 		var pairs = new List<(CodeBlock A, CodeBlock B, string Key)>();
 		var pairSeen = new HashSet<(int, int)>();
 		foreach (var block in list)
 		{
 			foreach (var col in block.Properties ?? [])
 			{
-				if (!pkOwners.TryGetValue(col.Identifier.Value, out var owners)) continue;
-				foreach (var owner in owners)
-				{
-					if (ReferenceEquals(owner, block)) continue;      // its own PK column
-					var lo = System.Math.Min(order[block], order[owner]);
-					var hi = System.Math.Max(order[block], order[owner]);
-					if (!pairSeen.Add((lo, hi))) continue;
-					pairs.Add((list[lo], list[hi], col.Identifier.Value));
-				}
+				if (!pkOwners.TryGetValue(col.Identifier.Value, out var owner)) continue;
+				if (ReferenceEquals(owner, block)) continue;      // its own PK column
+				var lo = System.Math.Min(order[block], order[owner]);
+				var hi = System.Math.Max(order[block], order[owner]);
+				if (!pairSeen.Add((lo, hi))) continue;
+				pairs.Add((list[lo], list[hi], col.Identifier.Value));
 			}
 		}
 
@@ -101,9 +109,11 @@ public sealed class SQuiLKeyGraph
 			edges.Add(new(a, b, key, nestedOwnsKey));
 		}
 
-		// childOf drives cycle detection and root computation below. Ambiguity handling (a block
-		// linked to more than one container) is reintroduced under the new pair/order model in a
-		// later task — this task is the orientation seam only, so `errors` collects cycles alone.
+		// childOf drives cycle detection and root computation below. A block linked to more than
+		// one DIFFERENT container (via two different key names) is not itself an error under R0 —
+		// R0 only forbids two blocks from declaring `Primary Key` on the SAME key name (handled
+		// above, before `pairs` is built). Multi-container resolution (a block that is a genuine
+		// child of two containers via two different keys) is a later task's concern.
 		var childOf = new Dictionary<CodeBlock, CodeBlock>();
 		foreach (var e in edges) childOf[e.Child] = e.Parent;
 
@@ -133,8 +143,9 @@ public sealed class SQuiLKeyGraph
 			}
 		}
 
-		// Roots = blocks that are not a child of anyone (declaration order). Ambiguous children
-		// are treated as roots for degradation but the build error stops generation anyway.
+		// Roots = blocks that are not a child of anyone (declaration order). A block whose Primary
+		// Key was rejected as a duplicate (R0, above) is treated as a root for degradation, but the
+		// build error stops generation anyway.
 		var roots = list.Where(b => !childOf.ContainsKey(b)).ToList();
 
 		var hasLinks = edges.Count > 0;
