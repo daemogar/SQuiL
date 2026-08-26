@@ -113,15 +113,39 @@ public sealed class SQuiLKeyGraph
 		// EVERY such edge — allowed, each container references the same row) or a junction / mixed
 		// case (keep the earliest-declared container; invert the rest so the dropped container
 		// becomes an embed INTO this block). Dropping or inverting can create a NEW multi-container
-		// block, so iterate until stable. `guard` bounds the loop against a pathological graph.
-		for (var guard = 0; guard < list.Count + 1; guard++)
+		// block, so iterate until stable.
+		//
+		// TERMINATION PROOF (review round 1, C2 — `guard < list.Count + 1` was NOT a valid bound;
+		// one inversion can spawn several new conflicts, so iterations are not bounded by block
+		// count): the invariant `IsEmbed == true` iff `Child` owns `KeyName` holds for every edge,
+		// original or inverted (inversion is only performed when the DROPPED edge's Parent owns the
+		// key, and the new edge's Child is that same Parent). Key ownership is unique per name
+		// (R0/SP0033), so an embed edge, once dropped, can never be re-inverted — dropping it only
+		// ever REMOVES an edge (`#edges` falls). A non-embed edge, when dropped, is ALWAYS inverted
+		// (its Parent owns the key by construction — see the pairs loop above and R1's
+		// `nestedOwnsKey`), so dropping it converts it to an embed edge (`#nonEmbed` falls, `#edges`
+		// unchanged). A qualifying group (`byNested`) always has AT LEAST ONE non-embed edge — an
+		// all-embed group is explicitly excluded by the `!g.All(...)` guard — so every iteration
+		// drops at least one non-embed edge, meaning `#nonEmbed` strictly falls at least once every
+		// `#nonEmbed` iterations, and `#edges` never rises. So the pair `(#nonEmbed, #edges)`,
+		// ordered lexicographically, strictly decreases every iteration. Both counters are bounded
+		// below by 0 and start at most `edges.Count`, so the loop terminates in at most
+		// `2 * edges.Count` iterations. Hitting the bound below is therefore proof of a BUG in this
+		// algorithm, not a possible shape of user input — it throws rather than silently returning a
+		// half-resolved graph.
+		var guardLimit = 2 * edges.Count;
+		for (var guard = 0; ; guard++)
 		{
 			var byNested = edges.GroupBy(e => e.Child)
 				.FirstOrDefault(g => g.Count() > 1 && !g.All(e => e.IsEmbed));
 			if (byNested is null) break;
+			if (guard >= guardLimit)
+				throw new System.InvalidOperationException(
+					$"SQuiLKeyGraph R3 resolution did not reach a fixed point within {guardLimit} " +
+					"iterations. This violates the algorithm's proven termination bound and indicates " +
+					"a bug in SQuiLKeyGraph.Build's R3 loop, not a malformed query file.");
 
 			var ordered = byNested.OrderBy(e => order[e.Parent]).ToList();
-			var keep = ordered[0];
 			foreach (var drop in ordered.Skip(1))
 			{
 				edges.Remove(drop);
@@ -133,52 +157,79 @@ public sealed class SQuiLKeyGraph
 			}
 		}
 
-		// childOf drives cycle detection and root computation below. After R3 (above), a block can
-		// still legitimately appear as Child in 2+ SURVIVING edges (the "all embed" shared-lookup
-		// case) — `childOf` keeps only the LAST one written (matching the editors' documented
-		// last-write-wins convention), which is fine here: `ChildrenOf(parent)` (the method
-		// consumers actually use to enumerate nested members) filters the full `edges` list by
-		// `Parent`, not `childOf`, so a shared lookup still nests under every one of its containers.
-		// `childOf` itself is only a cycle-detection/roots convenience.
-		var childOf = new Dictionary<CodeBlock, CodeBlock>();
-		foreach (var e in edges) childOf[e.Child] = e.Parent;
-
-		// Cycle / self-reference detection over the childOf map. Report each cycle ONCE
-		// and name the actual partner (cur) whose FK closes the loop back to start.
-		var reportedCycle = new HashSet<CodeBlock>();
-		foreach (var start in list)
+		// Cycle detection (review round 1, C1 — MUST walk the full `edges` set, never a
+		// last-write-wins `childOf` map). After R3, a block can legitimately keep 2+ SURVIVING
+		// parents (the "all embed" shared-lookup case), and R3's inversion can point an edge
+		// backward in declaration order (breaking the `order(Parent) < order(Child)` invariant every
+		// RAW pre-R3 edge satisfies). A `childOf[Child] = Parent` map — one entry per Child,
+		// overwritten by whichever edge is enumerated last — can therefore lose the exact edge that
+		// closes a cycle while keeping an unrelated, non-cyclic parent for that same Child, letting a
+		// genuine cycle slip past SP0034 undetected. A missed cycle is not merely a wrong diagnostic:
+		// `SQuiLDataContext.cs`'s `DeepestFirstEdges.Visit` recurses over exactly this edge set at
+		// build-code-generation time with no cycle guard of its own, so an undetected cycle here
+		// means unbounded recursion there — a stack overflow that kills the compiler process with no
+		// diagnostic at all. Standard white/gray/black DFS over the true Parent -> Children adjacency
+		// (every edge, not one-per-child) closes that gap: a GRAY (currently-on-the-DFS-stack) node
+		// reached again is definitionally a cycle, regardless of how many OTHER parents that node
+		// also has.
+		var childrenOf = new Dictionary<CodeBlock, List<CodeBlock>>();
+		foreach (var e in edges)
 		{
-			if (reportedCycle.Contains(start)) continue;
-			var seen = new HashSet<CodeBlock>();
-			var cur = start;
-			while (childOf.TryGetValue(cur, out var next))
-			{
-				if (ReferenceEquals(next, start))
-				{
-					errors.Add(new("cycle", start.Name, cur.Name,
-						LineOf(sql, start.DatabaseType.Offset), LineOf(sql, cur.DatabaseType.Offset)));
-					// Mark every member of this cycle so it is not re-reported from another start.
-					reportedCycle.Add(start);
-					var w = start;
-					while (childOf.TryGetValue(w, out var n) && reportedCycle.Add(n))
-						w = n;
-					break;
-				}
-				if (!seen.Add(next)) break;
-				cur = next;
-			}
+			if (!childrenOf.TryGetValue(e.Parent, out var kids))
+				childrenOf[e.Parent] = kids = new List<CodeBlock>();
+			kids.Add(e.Child);
 		}
+
+		var color = new Dictionary<CodeBlock, int>(); // 0 = unvisited (absent), 1 = gray (on stack), 2 = black (done)
+		var reportedCycle = new HashSet<CodeBlock>();
+
+		void Dfs(CodeBlock u)
+		{
+			color[u] = 1;
+			if (childrenOf.TryGetValue(u, out var kids))
+				foreach (var v in kids)
+				{
+					if (color.TryGetValue(v, out var cv))
+					{
+						if (cv == 2) continue;             // already fully explored — no cycle through here
+						// cv == 1: v is a GRAY ancestor on the current DFS path — the edge u -> v
+						// closes a cycle back to v. Report once per cycle (both endpoints of the
+						// closing edge are marked so re-discovering the same cycle from a different
+						// back edge doesn't double-report it).
+						if (!reportedCycle.Contains(u) && !reportedCycle.Contains(v))
+							errors.Add(new("cycle", u.Name, v.Name,
+								LineOf(sql, u.DatabaseType.Offset), LineOf(sql, v.DatabaseType.Offset)));
+						reportedCycle.Add(u);
+						reportedCycle.Add(v);
+						continue;
+					}
+					Dfs(v);
+				}
+			color[u] = 2;
+		}
+
+		foreach (var start in list)
+			if (!color.ContainsKey(start))
+				Dfs(start);
 
 		// Roots = blocks that are not a child of anyone (declaration order). A block whose Primary
 		// Key was rejected as a duplicate (R0, above) is treated as a root for degradation, but the
 		// build error stops generation anyway.
-		var roots = list.Where(b => !childOf.ContainsKey(b)).ToList();
+		var hasParent = new HashSet<CodeBlock>(edges.Select(e => e.Child));
+		var roots = list.Where(b => !hasParent.Contains(b)).ToList();
 
+		// Orphan PK hint (review round 1, I3): a PK owner is orphaned when its key name is NOT the
+		// KeyName of any surviving edge — NOT merely "not a Parent of any edge". The old
+		// `!edges.Any(e => ReferenceEquals(e.Parent, kv.Key))` check false-positived on every embed
+		// edge (the owner is the EDGE'S CHILD there, by definition — a shared lookup or an inverted
+		// junction owner is legitimately linked, just never as a Parent) and on the INVERTED edges
+		// R3 introduces. Since R0/SP0033 guarantees one owner per key name, matching by KeyName is
+		// exact and doesn't care which side of the edge the owner ended up on.
 		var hasLinks = edges.Count > 0;
 		var hints = new List<SQuiLKeyFinding>();
 		if (hasLinks)
-			foreach (var kv in pkNameOf)              // orphan PK = a PK no child links to
-				if (!edges.Any(e => ReferenceEquals(e.Parent, kv.Key)))
+			foreach (var kv in pkNameOf)
+				if (!edges.Any(e => string.Equals(e.KeyName, kv.Value, System.StringComparison.OrdinalIgnoreCase)))
 					hints.Add(new("orphan", kv.Key.Name, "", LineOf(sql, kv.Key.DatabaseType.Offset), 0));
 
 		return new SQuiLKeyGraph(edges, roots, errors, hints);

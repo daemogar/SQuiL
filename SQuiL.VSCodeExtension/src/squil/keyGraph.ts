@@ -130,8 +130,19 @@ export function buildKeyGraph(
   // such edge — allowed, each container references the same row) or a junction / mixed case (keep
   // the earliest-declared container; invert the rest so the dropped container becomes an embed
   // INTO this block). Dropping or inverting can create a NEW multi-container block, so iterate
-  // until stable. `guard` bounds the loop against a pathological graph.
-  for (let guard = 0; guard < list.length + 1; guard++) {
+  // until stable.
+  //
+  // TERMINATION PROOF (review round 1, C2 — `guard < list.length + 1` was NOT a valid bound; see
+  // keyGraph.ts's C# twin, SQuiLKeyGraph.cs, for the full proof): the pair `(#nonEmbed, #edges)`,
+  // ordered lexicographically, strictly decreases every iteration — every qualifying group has at
+  // least one non-embed edge (an all-embed group never qualifies), and dropping a non-embed edge
+  // always inverts it (`#nonEmbed` falls), while dropping an already-embed edge never re-inverts
+  // (`#edges` falls, since key ownership is unique per name — R0/SP0033). Both counters are
+  // bounded below by 0 and start at most `edges.length`, so the loop terminates within
+  // `2 * edges.length` iterations. Hitting that bound is proof of a bug in this algorithm, not a
+  // possible SQuiL file.
+  const guardLimit = 2 * edges.length;
+  for (let guard = 0; ; guard++) {
     const groups = new Map<SQuiLVariable, KeyGraphEdge[]>();
     for (const e of edges) {
       const g = groups.get(e.child);
@@ -142,6 +153,13 @@ export function buildKeyGraph(
       if (g.length > 1 && !g.every(e => e.isEmbed)) { byNested = g; break; }
     }
     if (!byNested) break;
+    if (guard >= guardLimit) {
+      throw new Error(
+        `buildKeyGraph R3 resolution did not reach a fixed point within ${guardLimit} iterations. ` +
+        'This violates the algorithm\'s proven termination bound and indicates a bug in the R3 loop, ' +
+        'not a malformed query file.',
+      );
+    }
 
     const ordered = [...byNested].sort((a, b) => order.get(a.parent)! - order.get(b.parent)!);
     for (const drop of ordered.slice(1)) {
@@ -155,48 +173,57 @@ export function buildKeyGraph(
     }
   }
 
-  // childOf drives cycle detection below. After R3 (above), a block can still legitimately appear
-  // as Child in 2+ SURVIVING edges (the "all embed" shared-lookup case) — `childOf` keeps only the
-  // LAST one written (last-write-wins), which is fine here: consumers that enumerate nested
-  // members filter the full `edges` array by `parent`, not `childOf`, so a shared lookup still
-  // nests under every one of its containers. `childOf` itself is only a cycle-detection convenience.
-  const childOf = new Map<SQuiLVariable, SQuiLVariable>();
-  for (const e of edges) childOf.set(e.child, e.parent);
+  // Cycle detection (review round 1, C1 — MUST walk the full `edges` array, never a
+  // last-write-wins `childOf` map; mirrors SQuiLKeyGraph.cs's identical fix). After R3, a block
+  // can legitimately keep 2+ SURVIVING parents (the "all embed" shared-lookup case), and R3's
+  // inversion can point an edge backward in declaration order. A `childOf` map — one entry per
+  // Child, overwritten by whichever edge is enumerated last — can lose the exact edge that closes
+  // a cycle while keeping an unrelated, non-cyclic parent for that same Child, letting a genuine
+  // cycle slip past undetected. Standard white/gray/black DFS over the true parent -> children
+  // adjacency (every edge, not one per child) closes that gap.
+  const childrenOf = new Map<SQuiLVariable, SQuiLVariable[]>();
+  for (const e of edges) {
+    const kids = childrenOf.get(e.parent);
+    if (kids) kids.push(e.child); else childrenOf.set(e.parent, [e.child]);
+  }
 
-  // Cycle / self-reference detection over the childOf map. Report each cycle
-  // ONCE and name the actual partner (cur) whose FK closes the loop back to start.
+  const color = new Map<SQuiLVariable, 1 | 2>(); // 1 = gray (on stack), 2 = black (done); absent = unvisited
   const reportedCycle = new Set<SQuiLVariable>();
-  for (const start of list) {
-    if (reportedCycle.has(start)) continue;
-    const seen = new Set<SQuiLVariable>();
-    let cur: SQuiLVariable = start;
-    while (childOf.has(cur)) {
-      const next = childOf.get(cur)!;
-      if (next === start) {
-        errors.push({ kind: 'cycle', variable: start, otherVariable: cur });
-        // Mark every member of this cycle so it is not re-reported from another start.
-        reportedCycle.add(start);
-        let w: SQuiLVariable = start;
-        while (childOf.has(w)) {
-          const n = childOf.get(w)!;
-          if (reportedCycle.has(n)) break;
-          reportedCycle.add(n);
-          w = n;
+
+  function dfs(u: SQuiLVariable): void {
+    color.set(u, 1);
+    for (const v of childrenOf.get(u) ?? []) {
+      const cv = color.get(v);
+      if (cv === 2) continue; // already fully explored — no cycle through here
+      if (cv === 1) {
+        // v is a GRAY ancestor on the current DFS path — u -> v closes a cycle back to v.
+        if (!reportedCycle.has(u) && !reportedCycle.has(v)) {
+          errors.push({ kind: 'cycle', variable: u, otherVariable: v });
         }
-        break;
+        reportedCycle.add(u);
+        reportedCycle.add(v);
+        continue;
       }
-      if (seen.has(next)) break;
-      seen.add(next);
-      cur = next;
+      dfs(v);
     }
+    color.set(u, 2);
+  }
+
+  for (const start of list) {
+    if (!color.has(start)) dfs(start);
   }
 
   const hasLinks = edges.length > 0;
   const hints: KeyGraphFinding[] = [];
   if (hasLinks) {
-    // Orphan PK = a PK no child links to.
+    // Orphan PK hint (review round 1, I3): a PK owner is orphaned when its key name is NOT the
+    // keyName of any surviving edge — NOT merely "not a parent of any edge". The old
+    // `!edges.some(e => e.parent === v)` check false-positived on every embed edge (the owner is
+    // the edge's CHILD there) and on every R3-inverted edge. Since R0/SP0033 guarantees one owner
+    // per key name, matching by keyName is exact regardless of which side of the edge the owner
+    // ended up on.
     for (const [v, col] of pkColumnOf) {
-      if (!edges.some(e => e.parent === v)) {
+      if (!edges.some(e => e.keyName.toLowerCase() === col.name.toLowerCase())) {
         hints.push({ kind: 'orphan', variable: v, column: col, otherVariable: v });
       }
     }

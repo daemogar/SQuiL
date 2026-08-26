@@ -668,8 +668,25 @@ public class SQuiLDataContext(
 		{
 			var result = new List<SQuiLKeyEdge>();
 
+			// `visited` (review round 1, defense in depth): a shared-lookup child (Task 3's R3 —
+			// e.g. a lookup table two different containers both embed) is reached by `Visit` once
+			// per container, but its OWN descendants must only be walked (and their stitch edges
+			// added to `result`) ONCE — without this guard, a shared lookup that itself has
+			// children would get those descendant stitch loops emitted once per container (valid
+			// but redundant C#). The guard only skips the RECURSION into a node's own children —
+			// each container's OWN edge to the shared child (e.g. both Structure->Contact and
+			// Widget->Contact) is still added exactly once, from that container's own loop.
+			// This is also the last line of defense against unbounded recursion if
+			// SQuiLKeyGraph.Build's cycle detection is ever wrong again (as it was, pre-fix — see
+			// SQuiLKeyGraph.cs's cycle-detection comment and
+			// NestedDiagnosticsTests.FiveBlockCycleThroughACollapsedChildOfEntryReportsSP0034AtBuildTime):
+			// a cyclic `EffectiveGraph` that reaches this method now terminates instead of
+			// overflowing the stack.
+			var visited = new HashSet<CodeBlock>();
+
 			void Visit(CodeBlock parent)
 			{
+				if (!visited.Add(parent)) return;
 				foreach (var edge in EffectiveGraph.ChildrenOf(parent))
 				{
 					Visit(edge.Child);

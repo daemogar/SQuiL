@@ -1211,18 +1211,37 @@ internal static class SQuiLLinter
         // the key in EVERY such edge — allowed, each container references the same row) or a
         // junction / mixed case (keep the earliest-declared container; invert the rest so the
         // dropped container becomes an embed INTO this variable). Dropping or inverting can create
-        // a NEW multi-container variable, so iterate until stable. `guard` bounds the loop against a
-        // pathological graph. This is what makes cycle detection below reachable again — an inverted
-        // edge's new Parent is the higher-order block, breaking the order(Parent) < order(Child)
-        // invariant every RAW (pre-R3) edge satisfies.
-        for (var guard = 0; guard < list.Count + 1; guard++)
+        // a NEW multi-container variable, so iterate until stable. This is what makes cycle
+        // detection below reachable again — an inverted edge's new Parent is the higher-order
+        // block, breaking the order(Parent) < order(Child) invariant every RAW (pre-R3) edge
+        // satisfies.
+        //
+        // TERMINATION PROOF (review round 1, C2 — `guard < list.Count + 1` was NOT a valid bound;
+        // see SQuiLKeyGraph.cs's identical comment for the generator-side original): the invariant
+        // `IsEmbed == true` iff `Child` owns `KeyName` holds for every edge, original or inverted.
+        // Key ownership is unique per name (R0/SP0033), so an embed edge, once dropped, can never
+        // be re-inverted (`#edges` falls). A qualifying group always has at least one non-embed
+        // edge (an all-embed group never qualifies — see the `!g.All(...)` guard), and a non-embed
+        // edge, when dropped, is ALWAYS inverted (its Parent owns the key by construction — R1's
+        // `nestedOwnsKey`), so every iteration drops at least one non-embed edge (`#nonEmbed`
+        // falls, `#edges` never rises). The pair `(#nonEmbed, #edges)`, ordered lexicographically,
+        // strictly decreases every iteration, both bounded below by 0 and starting at most
+        // `graph.Edges.Count`, so the loop terminates within `2 * graph.Edges.Count` iterations.
+        // Hitting that bound is proof of a bug in this algorithm, not a possible user file — it
+        // throws rather than silently returning a half-resolved graph.
+        var guardLimit = 2 * graph.Edges.Count;
+        for (var guard = 0; ; guard++)
         {
             var byNested = graph.Edges.GroupBy(e => e.Child)
                 .FirstOrDefault(g => g.Count() > 1 && !g.All(e => e.IsEmbed));
             if (byNested is null) break;
+            if (guard >= guardLimit)
+                throw new System.InvalidOperationException(
+                    $"BuildKeyGraph R3 resolution did not reach a fixed point within {guardLimit} " +
+                    "iterations. This violates the algorithm's proven termination bound and indicates " +
+                    "a bug in BuildKeyGraph's R3 loop, not a malformed query file.");
 
             var ordered = byNested.OrderBy(e => order[e.Parent]).ToList();
-            var keep = ordered[0];
             foreach (var drop in ordered.Skip(1))
             {
                 graph.Edges.Remove(drop);
@@ -1387,63 +1406,85 @@ internal static class SQuiLLinter
             });
         }
 
-        // Last-write-wins (matches the generator's `childOf[e.Child] = e.Parent` in
-        // SQuiLKeyGraph.cs and keyGraph.ts's `Map.set`) — deliberately NOT `.ToDictionary(...)`.
-        // A child can still appear in more than one edge after R3 (the "all embed" shared-lookup
-        // case, allowed to stand — see `BuildKeyGraph`'s R3 loop), so `.ToDictionary` would throw
-        // `ArgumentException` on the duplicate key. `LintKeyGraph` is called unguarded from
-        // `Lint(...)`, which `SQuiLErrorTagger.cs` calls with no try/catch, so an uncaught throw
-        // here aborts every lint pass scheduled after this one (LintParamsBeforeReturns,
-        // LintOrphanContext, LintMutationDiagnostics, LintDebugRollbackHint).
-        var childOf = new Dictionary<SQuiLVariable, SQuiLVariable>();
-        foreach (var e in graph.Edges) childOf[e.Child] = e.Parent;
-
-        // Cycle / self-reference detection over the childOf map. Report each cycle
-        // ONCE and name the actual partner (cur) whose FK closes the loop back to start.
-        var reportedCycle = new HashSet<SQuiLVariable>();
-        foreach (var start in list)
+        // Cycle detection (review round 1, C1 — MUST walk the full `graph.Edges` set, never a
+        // last-write-wins `childOf` map; mirrors SQuiLKeyGraph.cs's identical fix). After R3, a
+        // variable can legitimately keep 2+ SURVIVING parents (the "all embed" shared-lookup
+        // case), and R3's inversion can point an edge backward in declaration order. A
+        // `childOf[Child] = Parent` map — one entry per Child, overwritten by whichever edge is
+        // enumerated last — can lose the exact edge that closes a cycle while keeping an
+        // unrelated, non-cyclic parent for that same Child, letting a genuine cycle slip past
+        // SP0034 undetected (see `SQuiLLinterKeyGraphTests.cs` for the reproduction). Standard
+        // white/gray/black DFS over the true Parent -> Children adjacency (every edge, not one per
+        // child) closes that gap.
+        var childrenOf = new Dictionary<SQuiLVariable, List<SQuiLVariable>>();
+        foreach (var e in graph.Edges)
         {
-            if (reportedCycle.Contains(start)) continue;
-            var seen = new HashSet<SQuiLVariable>();
-            var cur = start;
-            while (childOf.TryGetValue(cur, out var next))
-            {
-                if (ReferenceEquals(next, start))
-                {
-                    diagnostics.Add(new SQuiLDiagnostic
-                    {
-                        Message = $"`{start.Name}` (line {start.Line + 1}) and `{cur.Name}` (line {cur.Line + 1}) " +
-                                  "form a primary-key/foreign-key cycle. Nested objects cannot be recursive — remove one of the links.",
-                        Line = start.Line,
-                        StartChar = start.Character,
-                        EndChar = start.Character + start.RawName.Length,
-                        Severity = DiagnosticSeverity.Error,
-                        Code = "SP0034",
-                        RelatedLine = cur.Line,
-                        RelatedStartChar = cur.Character,
-                        RelatedEndChar = cur.Character + cur.RawName.Length,
-                        RelatedMessage = "cycle partner declared here",
-                    });
-                    // Mark every member of this cycle so it is not re-reported from another start.
-                    reportedCycle.Add(start);
-                    var w = start;
-                    while (childOf.TryGetValue(w, out var n) && reportedCycle.Add(n))
-                        w = n;
-                    break;
-                }
-                if (!seen.Add(next)) break;
-                cur = next;
-            }
+            if (!childrenOf.TryGetValue(e.Parent, out var kids))
+                childrenOf[e.Parent] = kids = new List<SQuiLVariable>();
+            kids.Add(e.Child);
         }
 
+        var color = new Dictionary<SQuiLVariable, int>(); // 0 = unvisited (absent), 1 = gray (on stack), 2 = black (done)
+        var reportedCycle = new HashSet<SQuiLVariable>();
+
+        void Dfs(SQuiLVariable u)
+        {
+            color[u] = 1;
+            if (childrenOf.TryGetValue(u, out var kids))
+                foreach (var v in kids)
+                {
+                    if (color.TryGetValue(v, out var cv))
+                    {
+                        if (cv == 2) continue;             // already fully explored — no cycle through here
+                        // cv == 1: v is a GRAY ancestor on the current DFS path — u -> v closes a
+                        // cycle back to v. Report once per cycle.
+                        if (!reportedCycle.Contains(u) && !reportedCycle.Contains(v))
+                        {
+                            diagnostics.Add(new SQuiLDiagnostic
+                            {
+                                Message = $"`{u.Name}` (line {u.Line + 1}) and `{v.Name}` (line {v.Line + 1}) " +
+                                          "form a primary-key/foreign-key cycle. Nested objects cannot be recursive — remove one of the links.",
+                                Line = u.Line,
+                                StartChar = u.Character,
+                                EndChar = u.Character + u.RawName.Length,
+                                Severity = DiagnosticSeverity.Error,
+                                Code = "SP0034",
+                                RelatedLine = v.Line,
+                                RelatedStartChar = v.Character,
+                                RelatedEndChar = v.Character + v.RawName.Length,
+                                RelatedMessage = "cycle partner declared here",
+                            });
+                        }
+                        reportedCycle.Add(u);
+                        reportedCycle.Add(v);
+                        continue;
+                    }
+                    Dfs(v);
+                }
+            color[u] = 2;
+        }
+
+        foreach (var start in list)
+            if (!color.ContainsKey(start))
+                Dfs(start);
+
         // SP0035: orphan PK hint — only when at least one real link exists (hasLinks).
+        //
+        // Review round 1, I3 — orphan means "this Primary Key's name is not the KeyName of any
+        // surviving edge", NOT "this variable is never a Parent". The old `!edges.Any(e =>
+        // ReferenceEquals(e.Parent, v))` check false-positived on every embed edge (the owner is
+        // the edge's CHILD there, by definition) and on every R3-inverted edge — including a
+        // regression Task 3's own inversion introduced (pre-R3 a junction owner like Course was
+        // always a Parent; post-R3, an inverted junction owner is embedded as a Child instead).
+        // Since R0/SP0033 guarantees one owner per key name, matching by KeyName is exact and
+        // doesn't care which side of the edge the owner ended up on.
         if (graph.Edges.Count > 0)
         {
             foreach (var kv in graph.PkColumnOf)
             {
                 var v = kv.Key;
                 var col = kv.Value;
-                if (graph.Edges.Any(e => ReferenceEquals(e.Parent, v))) continue;
+                if (graph.Edges.Any(e => string.Equals(e.KeyName, col.Name, System.StringComparison.OrdinalIgnoreCase))) continue;
 
                 diagnostics.Add(new SQuiLDiagnostic
                 {

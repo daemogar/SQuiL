@@ -205,4 +205,73 @@ public class SQuiLLinterKeyGraphTests
 		Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
 		Assert.Contains("cycle", diagnostic.Message, System.StringComparison.OrdinalIgnoreCase);
 	}
+
+	/// <summary>
+	/// C1 regression (review round 1): editor-parity companion to
+	/// NestedDiagnosticsTests.FiveBlockCycleThroughACollapsedChildOfEntryReportsSP0034AtBuildTime /
+	/// KeyGraphTests.CycleThroughACollapsedChildOfEntryIsStillDetected — the SAME 5-block fixture
+	/// where a `childOf`-based walk collapses B's TWO valid embed parents (C and D) down to one and
+	/// misses the C-&gt;B-&gt;E-&gt;C cycle that runs through the discarded one.
+	/// </summary>
+	[Fact]
+	public void LintKeyGraphReportsSP0034ForACycleThroughACollapsedChildOfEntry()
+	{
+		const string sql = """
+			Declare @Returns_A table(AID int Primary Key, CID int);
+			Declare @Returns_B table(BID int Primary Key, N int);
+			Declare @Returns_C table(CID int Primary Key, BID int);
+			Declare @Returns_D table(DN int, AID int, BID int);
+			Declare @Returns_E table(EN int, BID int, CID int);
+			Use [Db]; Select 1;
+			""";
+
+		var diagnostics = new List<SQuiLDiagnostic>();
+		SQuiLLinter.LintKeyGraph(sql, diagnostics);
+
+		var sp0034 = diagnostics.Where(d => d.Code == "SP0034").ToList();
+		Assert.Single(sp0034);
+	}
+
+	/// <summary>
+	/// C2 regression (review round 1): editor-parity companion to
+	/// KeyGraphTests.MultiContainerResolutionReachesTheTrueFixedPointBeyondTheOldGuardBound — the
+	/// SAME 5-block fixture where the OLD `list.Count + 1` guard bound cut resolution off before C
+	/// reached its true single-parent fixed point.
+	/// </summary>
+	[Fact]
+	public void BuildKeyGraphReachesTheTrueFixedPointBeyondTheOldGuardBound()
+	{
+		const string sql = """
+			Declare @Returns_A table(AID int Primary Key, N int);
+			Declare @Returns_B table(BID int Primary Key, AID int);
+			Declare @Returns_C table(CID int Primary Key, AID int, BID int);
+			Declare @Returns_D table(DN int, AID int, BID int);
+			Declare @Returns_E table(EN int, AID int, BID int, CID int);
+			Use [Db]; Select 1;
+			""";
+
+		var parsed = SQuiLParser.Parse(sql, EditorDialect.SqlServer);
+		var outputList = SQuiLLinter.OutputTableVariables(parsed);
+		var graph = SQuiLLinter.BuildKeyGraph(outputList);
+
+		Assert.Empty(graph.DuplicatePrimaryKeys);
+		Assert.Equal(4, graph.Edges.Count);
+		Assert.All(graph.Edges, e => Assert.Equal("A", e.Parent.Name));
+		Assert.All(graph.Edges, e => Assert.False(e.IsEmbed));
+	}
+
+	/// <summary>
+	/// I3 regression (review round 1): Contact's Primary Key IS linked (both Structure and Widget
+	/// embed it) — SP0035 must NOT fire just because Contact is never a `Parent` (the old, wrong
+	/// orphan predicate). Editor-parity companion to
+	/// KeyGraphTests.SharedLookupAllowsOnePkOwnerInManyContainers's Hints assertion.
+	/// </summary>
+	[Fact]
+	public void LintKeyGraphDoesNotReportSP0035ForASharedLookupsPrimaryKey()
+	{
+		var diagnostics = new List<SQuiLDiagnostic>();
+		SQuiLLinter.LintKeyGraph(SharedLookupSql, diagnostics);
+
+		Assert.DoesNotContain(diagnostics, d => d.Code == "SP0035");
+	}
 }

@@ -150,18 +150,33 @@ internal static class SQuiLPreviewGenerator
         // the key in EVERY such edge — allowed, each container references the same row) or a
         // junction / mixed case (keep the earliest-declared container; invert the rest so the
         // dropped container becomes an embed INTO this variable). Dropping or inverting can create
-        // a NEW multi-container variable, so iterate until stable. `guard` bounds the loop against a
-        // pathological graph. Kept in the preview (not just build/lint) because silently dropping a
-        // legitimate shared-lookup child (the pre-R3 "first link wins" behavior) rendered a WRONG
-        // shape, not just an approximate one — see the class doc comment above.
-        for (var guard = 0; guard < tableVars.Count + 1; guard++)
+        // a NEW multi-container variable, so iterate until stable. Kept in the preview (not just
+        // build/lint) because silently dropping a legitimate shared-lookup child (the pre-R3
+        // "first link wins" behavior) rendered a WRONG shape, not just an approximate one — see
+        // the class doc comment above.
+        //
+        // TERMINATION PROOF (review round 1, C2 — `guard < tableVars.Count + 1` was NOT a valid
+        // bound; see SQuiLKeyGraph.cs's identical comment for the full proof): the pair
+        // `(#nonEmbed, #edges)`, ordered lexicographically, strictly decreases every iteration —
+        // every qualifying group has at least one non-embed edge (the `!g.All(...)` guard
+        // excludes all-embed groups), and dropping a non-embed edge always inverts it (`#nonEmbed`
+        // falls), while dropping an already-embed edge never re-inverts (`#edges` falls, since key
+        // ownership is unique per name). Both counters are bounded below by 0 and start at most
+        // `edges.Count`, so the loop terminates within `2 * edges.Count` iterations. Hitting that
+        // bound is proof of a bug in this algorithm, not a possible user file.
+        var guardLimit = 2 * edges.Count;
+        for (var guard = 0; ; guard++)
         {
             var byNested = edges.GroupBy(e => e.Child)
                 .FirstOrDefault(g => g.Count() > 1 && !g.All(e => e.IsEmbed));
             if (byNested is null) break;
+            if (guard >= guardLimit)
+                throw new System.InvalidOperationException(
+                    $"BuildNestedGraph R3 resolution did not reach a fixed point within {guardLimit} " +
+                    "iterations. This violates the algorithm's proven termination bound and indicates " +
+                    "a bug in BuildNestedGraph's R3 loop, not a malformed query file.");
 
             var ordered = byNested.OrderBy(e => order[e.Parent]).ToList();
-            var keep = ordered[0];
             foreach (var drop in ordered.Skip(1))
             {
                 edges.Remove(drop);

@@ -170,4 +170,42 @@ public class NestedDiagnosticsTests
 		var message = diagnostic.GetMessage();
 		Assert.Contains("cycle", message, System.StringComparison.OrdinalIgnoreCase);
 	}
+
+	/// <summary>
+	/// C1 regression (review round 1), full pipeline. This is the fixture where a `childOf`-based
+	/// walk (one parent remembered per Child, last-write-wins) misses the cycle entirely — see
+	/// <c>KeyGraphTests.CycleThroughACollapsedChildOfEntryIsStillDetected</c> for why. It matters
+	/// here specifically because THIS is the test that would crash without the fix: when SP0034
+	/// stays silent, <c>FileGenerator.cs</c> does not bail out of code generation, and
+	/// <c>SQuiLDataContext.cs</c>'s <c>DeepestFirstEdges</c> local function (a build-time,
+	/// generator-side post-order traversal — NOT emitted runtime code) recurses over
+	/// <c>EffectiveGraph.ChildrenOf(...)</c> with no cycle guard. A cyclic graph sends it into
+	/// unbounded recursion, i.e. a stack overflow that kills the process running the generator
+	/// (`dotnet test`/`dotnet build`/VBCSCompiler) with no diagnostic output at all. Confirmed by
+	/// temporarily reverting to the pre-fix `childOf`-based cycle walk and observing this exact
+	/// test crash the test host (exit code -1073741571 / 0xC00000FD STATUS_STACK_OVERFLOW) rather
+	/// than fail an assertion — see task-3-report.md's "Fix report — review round 1" section for
+	/// the exact repro transcript.
+	/// </summary>
+	[Fact]
+	public void FiveBlockCycleThroughACollapsedChildOfEntryReportsSP0034AtBuildTime()
+	{
+		var name = nameof(FiveBlockCycleThroughACollapsedChildOfEntryReportsSP0034AtBuildTime);
+		var diagnostics = Run(name, """
+			Declare @Returns_A table(AID int Primary Key, CID int);
+			Declare @Returns_B table(BID int Primary Key, N int);
+			Declare @Returns_C table(CID int Primary Key, BID int);
+			Declare @Returns_D table(DN int, AID int, BID int);
+			Declare @Returns_E table(EN int, BID int, CID int);
+			Use [Db];
+			Select * From @Returns_A;
+			Select * From @Returns_B;
+			Select * From @Returns_C;
+			Select * From @Returns_D;
+			Select * From @Returns_E;
+			""");
+
+		var sp0034 = diagnostics.Where(d => d.Id == "SP0034").ToList();
+		Assert.Single(sp0034);
+	}
 }

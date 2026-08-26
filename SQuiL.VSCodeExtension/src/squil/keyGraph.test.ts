@@ -101,6 +101,11 @@ test('a junction keeps its earliest container and inverts the rest', () => {
 
   assert.strictEqual(roots.length, 1);
   assert.strictEqual(roots[0].name, 'Student');
+
+  // Review round 1, I3 regression: Course's Primary Key IS linked (Enrollment embeds it) — it
+  // must NOT be flagged orphan just because Course is never a `parent` (the old, wrong predicate).
+  const { hints } = buildKeyGraph(parsed.variables);
+  assert.strictEqual(hints.length, 0);
 });
 
 test('a shared lookup allows one Primary-Key owner in many containers', () => {
@@ -115,12 +120,16 @@ test('a shared lookup allows one Primary-Key owner in many containers', () => {
     'Select * From @Returns_Contact;',
   ].join('\n'));
 
-  const { edges } = buildKeyGraph(parsed.variables);
+  const { edges, hints } = buildKeyGraph(parsed.variables);
   const roots = rootsOf(parsed.variables, edges);
   assert.strictEqual(edges.length, 2);
   assert.ok(edges.every(e => e.isEmbed));
   assert.ok(edges.every(e => e.child.name === 'Contact'));
   assert.deepStrictEqual(roots.map(r => r.name), ['Structure', 'Widget']);
+
+  // Review round 1, I3 regression: Contact's Primary Key IS linked (both Structure and Widget
+  // embed it) — must not be flagged orphan just because Contact is never a `parent`.
+  assert.strictEqual(hints.length, 0);
 });
 
 // A single R3 pass is NOT enough here — see the matching C# test
@@ -187,4 +196,62 @@ test('multi-container resolution can cascade into a cycle', () => {
     assert.ok(['Category', 'Product', 'Junction'].includes(name), `${name} should be one of the rotating containers`);
   }
   assert.ok(!participants.includes('Summary'));
+});
+
+// ── Review round 1 fixes ────────────────────────────────────────────────
+
+// C1 regression: B ends up with TWO valid embed parents post-R3 (C and D) — a legitimate
+// shared-lookup shape on its own. But C ALSO has an edge back from E (E->C, embed), and B also
+// contains E (B->E) — closing a genuine cycle C->B->E->C that a `childOf`-based walk (one entry
+// per Child, overwritten by whichever edge is enumerated LAST) can miss entirely. See the matching
+// C# test (`CycleThroughACollapsedChildOfEntryIsStillDetected`) for the full trace.
+test('a cycle through a collapsed childOf entry is still detected', () => {
+  const parsed = parseSQuiL([
+    '--Name: CollapsedCycle',
+    'Declare @Returns_A table(AID int Primary Key, CID int);',
+    'Declare @Returns_B table(BID int Primary Key, N int);',
+    'Declare @Returns_C table(CID int Primary Key, BID int);',
+    'Declare @Returns_D table(DN int, AID int, BID int);',
+    'Declare @Returns_E table(EN int, BID int, CID int);',
+    'Use [Db];',
+    'Select * From @Returns_A;',
+    'Select * From @Returns_B;',
+    'Select * From @Returns_C;',
+    'Select * From @Returns_D;',
+    'Select * From @Returns_E;',
+  ].join('\n'));
+
+  const { errors } = buildKeyGraph(parsed.variables);
+  const cycles = errors.filter(f => f.kind === 'cycle');
+  assert.strictEqual(cycles.length, 1);
+});
+
+// C2 regression: the OLD guard bound (`list.length + 1` = 6 for these 5 blocks) cuts this fixture
+// off after only 6 resolving passes, leaving C multi-parented — not a fixed point at all under
+// R3's own predicate. The TRUE fixed point needs 7 resolving passes and converges on a flat tree:
+// A (order 0, the global tie-winner) ends up the sole container of B, C, D, and E directly. See
+// the matching C# test (`MultiContainerResolutionReachesTheTrueFixedPointBeyondTheOldGuardBound`)
+// for the full trace.
+test('multi-container resolution reaches the true fixed point beyond the old guard bound', () => {
+  const parsed = parseSQuiL([
+    '--Name: TrueFixedPoint',
+    'Declare @Returns_A table(AID int Primary Key, N int);',
+    'Declare @Returns_B table(BID int Primary Key, AID int);',
+    'Declare @Returns_C table(CID int Primary Key, AID int, BID int);',
+    'Declare @Returns_D table(DN int, AID int, BID int);',
+    'Declare @Returns_E table(EN int, AID int, BID int, CID int);',
+    'Use [Db];',
+    'Select * From @Returns_A;',
+    'Select * From @Returns_B;',
+    'Select * From @Returns_C;',
+    'Select * From @Returns_D;',
+    'Select * From @Returns_E;',
+  ].join('\n'));
+
+  const { edges, errors } = buildKeyGraph(parsed.variables);
+  assert.strictEqual(errors.length, 0);
+  assert.strictEqual(edges.length, 4);
+  assert.ok(edges.every(e => e.parent.name === 'A'));
+  assert.ok(edges.every(e => !e.isEmbed));
+  assert.deepStrictEqual(edges.map(e => e.child.name).sort(), ['B', 'C', 'D', 'E']);
 });
