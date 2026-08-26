@@ -1207,6 +1207,9 @@ interface ScalarSelectColumn {
    *  followed by an `As` alias) and nothing else. */
   isBareVariable: boolean;
   hasAlias: boolean;
+  /** The word that terminated the column list, when that word was a statement starter
+   *  (otherwise empty). Only `throw`/`go` are ambiguous — see AMBIGUOUS_ALIAS_STARTERS. */
+  terminator: string;
 }
 
 /** Port of ScalarSelectAliaser.cs's StatementStarters — change one, change all four. */
@@ -1215,6 +1218,17 @@ const SCALAR_SELECT_STATEMENT_STARTERS = new Set([
   'exec', 'execute', 'return', 'print', 'use', 'with', 'merge', 'truncate', 'drop', 'create',
   'alter', 'go', 'else', 'commit', 'rollback', 'throw', 'raiserror', 'waitfor',
 ]);
+
+/**
+ * Port of ScalarSelectAliaser.cs's AmbiguousAliasStarters — change one, change all four.
+ * The members of SCALAR_SELECT_STATEMENT_STARTERS that are NOT T-SQL reserved words, and are
+ * therefore equally valid as an AS-less column alias. `Select @Return_X Throw;` is genuinely
+ * ambiguous: T-SQL reads it as an alias, this scanner reads it as a statement break. Appending
+ * an alias would emit `Select @Return_X As [X] Throw;`, which does not parse — so the rewrite
+ * declines and SP0044 asks the author to disambiguate. Every other member of the set is
+ * reserved and cannot be an alias, so it stays unambiguous.
+ */
+const AMBIGUOUS_ALIAS_STARTERS = new Set(['throw', 'go']);
 
 /** Maps a lower-cased `"@return_<name>"` key to its declared base name, for every
  *  declared output-scalar (`role === 'return'`) variable — the scanner's
@@ -1402,7 +1416,7 @@ function parseScalarColumnList(
       skipTrivia(text, cursor);
     }
 
-    columns.push({ selectOffset, variableOffset, variableLength, declaredName, isBareVariable, hasAlias });
+    columns.push({ selectOffset, variableOffset, variableLength, declaredName, isBareVariable, hasAlias, terminator: '' });
 
     if (cursor.i < text.length && text[cursor.i] === ',') {
       cursor.i++;
@@ -1415,7 +1429,10 @@ function parseScalarColumnList(
     if (cursor.i >= text.length) return { columns, listEnd };                 // end of text
     if (text[cursor.i] === ';') return { columns, listEnd };                  // explicit terminator
     const word = peekWord(text, cursor.i);
-    if (word.length > 0 && SCALAR_SELECT_STATEMENT_STARTERS.has(word.toLowerCase())) return { columns, listEnd };
+    if (word.length > 0 && SCALAR_SELECT_STATEMENT_STARTERS.has(word.toLowerCase())) {
+      for (const c of columns) c.terminator = word;
+      return { columns, listEnd };
+    }
     return { columns: null, listEnd };                                       // `From`, an operator, `(`, `.` …
   }
 }
@@ -1468,10 +1485,40 @@ export function findBareScalarSelects(
     if (columns.length !== 1) continue;
     const only = columns[0];
     if (only.hasAlias || !only.isBareVariable) continue;
+    // An ambiguous terminator (`throw`/`go`) could be an AS-less alias the author wrote.
+    // Rewriting would corrupt valid T-SQL, so decline — SP0044 reports it instead.
+    if (AMBIGUOUS_ALIAS_STARTERS.has(only.terminator.toLowerCase())) continue;
     results.push({
       variableOffset: only.variableOffset,
       variableLength: only.variableLength,
       declaredName: only.declaredName,
+    });
+  }
+  return results;
+}
+
+/**
+ * Port of ScalarSelectAliaser.cs's FindAmbiguousScalarSelects — change one, change all four.
+ * Every bare single-scalar select whose terminating word is a statement starter that is ALSO a
+ * legal AS-less column alias (`throw`/`go` — the only non-reserved members of the set). These
+ * are excluded from `findBareScalarSelects` so the generator never rewrites them, and reported
+ * as SP0044 instead.
+ */
+export function findAmbiguousScalarSelects(
+  text: string,
+  scalarsByVariableName: ReadonlyMap<string, string>,
+): { variableOffset: number; variableLength: number; declaredName: string; terminator: string }[] {
+  const results: { variableOffset: number; variableLength: number; declaredName: string; terminator: string }[] = [];
+  for (const columns of enumerateScalarSelects(text, scalarsByVariableName)) {
+    if (columns.length !== 1) continue;
+    const only = columns[0];
+    if (only.hasAlias || !only.isBareVariable) continue;
+    if (!AMBIGUOUS_ALIAS_STARTERS.has(only.terminator.toLowerCase())) continue;
+    results.push({
+      variableOffset: only.variableOffset,
+      variableLength: only.variableLength,
+      declaredName: only.declaredName,
+      terminator: only.terminator,
     });
   }
   return results;
@@ -1518,6 +1565,42 @@ export function lintMultiScalarSelect(result: SQuiLParseResult): SQuiLDiagnostic
     severity: 'error' as const,
     code: 'SP0041',
   }));
+}
+
+/**
+ * SP0044 (Error) — a bare output-scalar Select followed by `throw`/`go`, which T-SQL reads as an
+ * AS-less column alias and this scanner reads as the next statement. The generator declines to
+ * rewrite these (rewriting emitted SQL that does not parse); this diagnostic makes the author
+ * disambiguate rather than silently lose the result set. Scans the FULL file text and is
+ * document-absolute, like SP0041 — no body-offset adjustment. No quick-fix: the remedy is a
+ * choice between two intents, not a single edit.
+ *
+ * Port of SQuiLAmbiguousAliasValidator.cs — change one, change all four.
+ */
+export function lintAmbiguousScalarAlias(
+  parsed: SQuiLParseResult,
+  text: string,
+  dialect: EditorDialect,
+): SQuiLDiagnostic[] {
+  if (isTempTableDialect(dialect)) return [];
+
+  const scalars = buildScalarsByVariableName(parsed.variables);
+  if (scalars.size === 0) return [];
+
+  return findAmbiguousScalarSelects(text, scalars).map(a => {
+    const pos = offsetToPosition(text, a.variableOffset);
+    return {
+      message:
+        `This Select of \`@Return_${a.declaredName}\` is followed by \`${a.terminator}\`, ` +
+        `which could be a column alias or the next statement. ` +
+        `Write \`As [${a.terminator}]\` if it is an alias, or end the Select with \`;\` before the statement.`,
+      line: pos.line,
+      startChar: pos.character,
+      endChar: pos.character + a.variableLength,
+      severity: 'error' as const,
+      code: 'SP0044',
+    };
+  });
 }
 
 // ── SP0031: unmatched standalone SELECT (editor-only warning) ──────────────

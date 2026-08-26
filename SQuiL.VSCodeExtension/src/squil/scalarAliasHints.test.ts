@@ -139,3 +139,13 @@ test('SP0042 still fires normally once a Use line is present', () => {
   assert.strictEqual(hints.length, 1);
   assert.strictEqual(hints[0].declaredName, 'Count');
 });
+
+test('SP0042 declines the ambiguous Throw terminator (SP0044 territory)', () => {
+  const text = [
+    'Declare @Return_Count int;',
+    'Use Db;',
+    'Select @Return_Count Throw;',
+  ].join('\n');
+  const hints = scalarAliasHints(parseSQuiL(text), text, 'sqlserver');
+  assert.strictEqual(hints.length, 0, 'the scanner must not offer an alias it would refuse to emit');
+});

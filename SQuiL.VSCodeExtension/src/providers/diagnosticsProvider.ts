@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import { parseSQuiL, SQuiLDiagnostic, lintShapeCollision, lintUnmatchedSelect, lintMultiScalarSelect, sqliteBodyStartLine, isTempTableDialect } from '../squil/parser';
+import { parseSQuiL, SQuiLDiagnostic, lintShapeCollision, lintUnmatchedSelect, lintMultiScalarSelect, lintAmbiguousScalarAlias, sqliteBodyStartLine, isTempTableDialect } from '../squil/parser';
 import { nullabilityHints } from '../squil/nullabilityHints';
 import { scalarAliasHints } from '../squil/scalarAliasHints';
 import { shapeHints } from '../squil/shapeHints';
@@ -236,6 +236,12 @@ export class SQuiLDiagnosticsProvider {
 
       // SP0041: a Select listing 2+ output scalars cannot be routed (build error mirror).
       for (const d of lintMultiScalarSelect(parsed)) {
+        vsDiags.push(this.toDiagnostic(document, d));
+      }
+
+      // SP0044: `Select @Return_X Throw;` is ambiguous — the generator declines to rewrite it,
+      // so the author must disambiguate. Document-absolute, like SP0041.
+      for (const d of lintAmbiguousScalarAlias(parsed, text, dialect)) {
         vsDiags.push(this.toDiagnostic(document, d));
       }
 

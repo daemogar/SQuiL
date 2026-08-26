@@ -39,6 +39,10 @@ public static class ScalarSelectAliaser
         public int InsertOffset;
         /// <summary>The declared base name, in its declared casing.</summary>
         public string DeclaredName = "";
+        /// <summary>The word that terminated the select's column list, when that word was a
+        /// statement starter (otherwise empty). Only <c>throw</c>/<c>go</c> are ambiguous —
+        /// see <see cref="AmbiguousAliasStarters"/>.</summary>
+        public string Terminator = "";
     }
 
     /// <summary>A select whose top-level column list is 2+ output-scalar references (SP0041).</summary>
@@ -65,6 +69,19 @@ public static class ScalarSelectAliaser
         "select", "insert", "update", "delete", "set", "declare", "if", "while", "begin", "end",
         "exec", "execute", "return", "print", "use", "with", "merge", "truncate", "drop", "create",
         "alter", "go", "else", "commit", "rollback", "throw", "raiserror", "waitfor",
+    };
+
+    /// <summary>
+    /// The members of <see cref="StatementStarters"/> that are NOT T-SQL reserved words, and are
+    /// therefore equally valid as an AS-less column alias. `Select @Return_X Throw;` is genuinely
+    /// ambiguous: T-SQL reads it as an alias, this scanner reads it as a statement break. Appending
+    /// an alias would emit `Select @Return_X As [X] Throw;`, which does not parse — so the rewrite
+    /// declines and SP0044 asks the author to disambiguate. Every other member of the set is
+    /// reserved and cannot be an alias, so it stays unambiguous.
+    /// </summary>
+    private static readonly HashSet<string> AmbiguousAliasStarters = new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        "throw", "go",
     };
 
     /// <summary>
@@ -107,6 +124,9 @@ public static class ScalarSelectAliaser
             if (columns.Count != 1) continue;
             var only = columns[0];
             if (only.HasAlias || !only.IsBareVariable) continue;
+            // An ambiguous terminator (`throw`/`go`) could be an AS-less alias the author wrote.
+            // Rewriting would corrupt valid T-SQL, so decline — SP0044 reports it instead.
+            if (AmbiguousAliasStarters.Contains(only.Terminator)) continue;
 
             results.Add(new BareSelect
             {
@@ -114,6 +134,34 @@ public static class ScalarSelectAliaser
                 VariableLength = only.VariableLength,
                 InsertOffset = only.VariableOffset + only.VariableLength,
                 DeclaredName = only.DeclaredName,
+            });
+        }
+        return results;
+    }
+
+    /// <summary>
+    /// Every bare single-scalar select whose terminating word is AMBIGUOUS — a member of
+    /// <see cref="AmbiguousAliasStarters"/>, i.e. a statement starter that is also a legal
+    /// AS-less column alias. These are deliberately excluded from
+    /// <see cref="FindBareSelects"/> (so the rewrite never corrupts them) and reported as SP0044.
+    /// </summary>
+    public static List<BareSelect> FindAmbiguousScalarSelects(string text, IDictionary<string, string> scalarsByVariableName)
+    {
+        var results = new List<BareSelect>();
+        foreach (var columns in EnumerateSelects(text, scalarsByVariableName))
+        {
+            if (columns.Count != 1) continue;
+            var only = columns[0];
+            if (only.HasAlias || !only.IsBareVariable) continue;
+            if (!AmbiguousAliasStarters.Contains(only.Terminator)) continue;
+
+            results.Add(new BareSelect
+            {
+                VariableOffset = only.VariableOffset,
+                VariableLength = only.VariableLength,
+                InsertOffset = only.VariableOffset + only.VariableLength,
+                DeclaredName = only.DeclaredName,
+                Terminator = only.Terminator,
             });
         }
         return results;
@@ -154,6 +202,7 @@ public static class ScalarSelectAliaser
         /// (optionally followed by an <c>As</c> alias) and nothing else.</summary>
         public bool IsBareVariable;
         public bool HasAlias;
+        public string Terminator = "";
     }
 
     /// <summary>
@@ -275,7 +324,11 @@ public static class ScalarSelectAliaser
             if (i >= text.Length) return columns;                  // end of text
             if (text[i] == ';') return columns;                    // explicit terminator
             var word = PeekWord(text, i);
-            if (word.Length > 0 && StatementStarters.Contains(word)) return columns;
+            if (word.Length > 0 && StatementStarters.Contains(word))
+            {
+                foreach (var c in columns) c.Terminator = word;
+                return columns;
+            }
             return null;                                            // `From`, an operator, `(`, `.` …
         }
     }

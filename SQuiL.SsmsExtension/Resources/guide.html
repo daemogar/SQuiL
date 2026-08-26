@@ -481,6 +481,13 @@ return only <strong>one</strong> output scalar: listing two or more (e.g.
 <code>Select @Return_A, @Return_B;</code>) is a build error (<code>SP0041</code>) on every dialect,
 because the runtime shape key becomes multi-column and matches no generated case — use one
 <code>Select</code> per scalar instead.</p>
+<p>One word of care on SQL Server: <code>Throw</code> and <code>go</code> are the only two words that
+are <em>both</em> a statement starter and a legal alias written without <code>As</code>. That makes
+<code>Select @Return_Count Throw;</code> genuinely ambiguous — T-SQL reads <code>Throw</code> as the
+column's alias, while SQuiL reads it as the start of the next statement — so SQuiL refuses to guess
+and fails the build with <code>SP0044</code>. Say which you meant: write
+<code>Select @Return_Count As [Throw];</code> if it is an alias, or end the select first
+(<code>Select @Return_Count; Throw;</code>) if it is the next statement.</p>
 
 <h3>Collision diagnostic — SP0030</h3>
 <p>If two declared outputs share an identical shape (same ordered column names and C# types), SQuiL

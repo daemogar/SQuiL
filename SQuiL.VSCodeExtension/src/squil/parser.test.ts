@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
-import { parseSQuiL, lintCardinalityCollision, lintShapeCollision, lintUnmatchedSelect, lintTimestampInput, lintScalarNullMarker, lintMultiScalarSelect, lintPluralScalarDeclare } from './parser';
+import { parseSQuiL, lintCardinalityCollision, lintShapeCollision, lintUnmatchedSelect, lintTimestampInput, lintScalarNullMarker, lintMultiScalarSelect, lintPluralScalarDeclare, lintAmbiguousScalarAlias } from './parser';
 import { shapeHints } from './shapeHints';
 
 // Recognition parity with the generator's SQuiLParser: bare @SuppressDebug and
@@ -718,4 +718,46 @@ test('SP0043 is vacuous on a temp-table declaration even with the dialect gate o
   assert.ok(plural, 'the plural temp table parses as a returns-role variable');
   assert.ok((plural!.columns?.length ?? 0) > 0, 'and it carries columns — the fact the rule rests on');
   assert.strictEqual(lintPluralScalarDeclare(parsed, 'sqlserver').length, 0);
+});
+
+// ── SP0044: ambiguous token after an output-scalar select ───────────────────────
+
+test('SP0044 flags a Throw terminator after a bare scalar select', () => {
+  const text = [
+    'Declare @Return_Count int;',
+    'Use Db;',
+    'Select @Return_Count Throw;',
+  ].join('\n');
+  const diags = lintAmbiguousScalarAlias(parseSQuiL(text), text, 'sqlserver');
+  assert.strictEqual(diags.length, 1);
+  assert.strictEqual(diags[0].code, 'SP0044');
+  assert.strictEqual(diags[0].severity, 'error');
+  assert.ok(diags[0].message.includes('As [Throw]'), 'message offers the bracketed alias');
+  assert.ok(diags[0].message.includes('@Return_Count'), 'message names the offending scalar');
+});
+
+test('SP0044 ignores an ordinary bare scalar select', () => {
+  const text = [
+    'Declare @Return_Count int;',
+    'Use Db;',
+    'Select @Return_Count;',
+  ].join('\n');
+  assert.strictEqual(lintAmbiguousScalarAlias(parseSQuiL(text), text, 'sqlserver').length, 0);
+});
+
+test('SP0044 ignores an unambiguous reserved-word statement break', () => {
+  const text = [
+    'Declare @Return_Count int;',
+    'Use Db;',
+    'Select @Return_Count Insert Into T Values(1);',
+  ].join('\n');
+  assert.strictEqual(lintAmbiguousScalarAlias(parseSQuiL(text), text, 'sqlserver').length, 0);
+});
+
+test('SP0044 is silent on a temp-table dialect', () => {
+  const text = [
+    'Create Temp Table Return_Count (Count INTEGER);',
+    'Select Count From Return_Count;',
+  ].join('\n');
+  assert.strictEqual(lintAmbiguousScalarAlias(parseSQuiL(text, 'sqlite'), text, 'sqlite').length, 0);
 });

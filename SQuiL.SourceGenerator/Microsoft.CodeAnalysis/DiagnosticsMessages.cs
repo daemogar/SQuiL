@@ -485,6 +485,26 @@ public static class DiagnosticsMessages
 			Location.None));
 
 	/// <summary>
+	/// SP0044 — a bare output-scalar <c>Select</c> followed by <c>throw</c>/<c>go</c>, which are
+	/// both statement starters and legal AS-less column aliases. The scanner cannot resolve the
+	/// ambiguity, and guessing "statement" used to emit an alias that broke the batch. The rewrite
+	/// declines for these; this error asks the author to write the alias explicitly or terminate
+	/// the select. Always an Error; SQL Server only.
+	/// </summary>
+	public static void ReportAmbiguousScalarAlias(
+		this SourceProductionContext context, string filename,
+		SQuiL.SourceGenerator.Parser.SQuiLAmbiguousAliasValidator.Finding finding)
+		=> context.ReportDiagnostic(CreateDiagnostic(
+			DiagnosticSeverity.Error, "SP0044", "Ambiguous Scalar Select Alias",
+			// The scalar is named as the author wrote it (`@Return_X`) rather than as the bare base
+			// name SP0041 renders — the variable spelling is what the author can grep for, and this
+			// message reports exactly one select.
+			$"{filename}: the Select of `@Return_{finding.Name}` on line {finding.Line} is followed by "
+			+ $"`{finding.Terminator}`, which could be a column alias or the next statement. "
+			+ $"Write `As [{finding.Terminator}]` if it is an alias, or end the Select with `;` before the statement.",
+			Location.None));
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

@@ -129,6 +129,13 @@ public class FileGenerator(
 			foreach (var finding in SQuiLMultiScalarSelectValidator.Detect(blocks, sql))
 				Context.ReportMultiScalarSelect(method, string.Join(", ", finding.Names), finding.Line);
 
+			// Ambiguous scalar-select alias (SP0044): `Select @Return_X Throw;` reads as an AS-less
+			// alias in T-SQL but as a statement break to the scanner. ScalarSelectAliaser declines to
+			// rewrite these, so the emitted body is never corrupted; this error makes the author
+			// disambiguate rather than silently lose the result set. Emission continues.
+			foreach (var finding in SQuiLAmbiguousAliasValidator.Detect(blocks, sql))
+				Context.ReportAmbiguousScalarAlias(method, finding);
+
 			if (ShowDebugMessages)
 			{
 				foreach (var code in blocks)
