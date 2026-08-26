@@ -61,13 +61,20 @@ partial class ReturnErrorTableEmitsNormallyDataContext : SqlServerDataContext
 						if (response.Error is not null)
 							throw new Exception("Error was already set.");
 						
+						var indexNumber = reader.GetOrdinal("Number");
+						var indexSeverity = reader.GetOrdinal("Severity");
+						var indexState = reader.GetOrdinal("State");
+						var indexLine = reader.GetOrdinal("Line");
+						var indexProcedure = reader.GetOrdinal("Procedure");
+						var indexMessage = reader.GetOrdinal("Message");
+						
 						response.Error = new(
-							reader.GetInt32(reader.GetOrdinal("Number")),
-							reader.GetInt32(reader.GetOrdinal("Severity")),
-							reader.GetInt32(reader.GetOrdinal("State")),
-							reader.GetInt32(reader.GetOrdinal("Line")),
-							reader.GetString(reader.GetOrdinal("Procedure")),
-							reader.GetString(reader.GetOrdinal("Message")));
+							reader.GetInt32(indexNumber),
+							reader.GetInt32(indexSeverity),
+							reader.GetInt32(indexState),
+							reader.GetInt32(indexLine),
+							reader.GetString(indexProcedure),
+							reader.GetString(indexMessage));
 						
 						if (await reader.ReadAsync(cancellationToken))
 							throw new Exception(
@@ -84,7 +91,7 @@ partial class ReturnErrorTableEmitsNormallyDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isError) errors.Add(new(51001, 12, 1, 86, "Error", "Expected return object `Error`"));
+		if (!isError) errors.Add(new(51001, 12, 1, 93, "Error", "Expected return object `Error`"));
 		
 		if(errors.Count == 0)
 			return new(response);

@@ -415,24 +415,60 @@ public class SQuiLDataContext(
 									throw new Exception("{block.Name} was already set.");
 
 								""");
+							foreach (var item in block.Properties)
+								writer.WriteLine($"""var index{item.Identifier.Value} = reader.GetOrdinal("{item.Identifier.Value}");""");
+
+							writer.WriteLine();
+
+							// A table with column defaults generates a HYBRID record: non-defaulted
+							// columns are positional constructor parameters, defaulted ones are
+							// { get; init; } properties. Those must be set through an object initializer
+							// rather than passed positionally, or the constructor arity is wrong
+							// (CS1729). Mirrors the identical split in LoopProperties.
+							var objectPositional = block.Properties.Where(p => p.DefaultValue is null).ToList();
+							var objectDefaulted = block.Properties.Where(p => p.DefaultValue is not null).ToList();
+
 							writer.Write($"response.{block.Name} = new(");
 							writer.Indent++;
 							var comma = "";
-							foreach (var item in block.Properties)
+							foreach (var item in objectPositional)
 							{
 								writer.WriteLine(comma);
+								ReadColumn(item);
+								comma = ",";
+							}
+							writer.Indent--;
+							if (objectDefaulted.Count == 0)
+							{
+								writer.WriteLine(");");
+							}
+							else
+							{
+								writer.WriteLine(")");
+								writer.WriteLine("{");
+								writer.Indent++;
+								foreach (var item in objectDefaulted)
+								{
+									writer.Write($"{item.Identifier.Value} = ");
+									ReadColumn(item);
+									writer.WriteLine(",");
+								}
+								writer.Indent--;
+								writer.WriteLine("};");
+							}
+
+							// Emits the reader expression for one column of the object being constructed.
+							void ReadColumn(CodeItem item)
+							{
 								if (item.IsNullable)
 									// Must be default(<nullable type>), not default!. A bare `default!`
 									// takes the ternary's best-common-type from the other branch
 									// (e.g. int), so a NULL value-type column reads back as 0 /
 									// DateTime.MinValue instead of null. The explicit nullable type
 									// forces the null. (TODO #19)
-									writer.Write($"""reader.IsDBNull(reader.GetOrdinal("{item.Identifier.Value}")) ? default({item.CSharpType()}) : """);
-								writer.Write($"""{Sql.ReaderAccessor(item)}(reader.GetOrdinal("{item.Identifier.Value}"))""");
-								comma = ",";
+									writer.Write($"""reader.IsDBNull(index{item.Identifier.Value}) ? default({item.CSharpType()}) : """);
+								writer.Write($"""{Sql.ReaderAccessor(item)}(index{item.Identifier.Value})""");
 							}
-							writer.Indent--;
-							writer.WriteLine(");");
 							writer.Block($"""
 
 								if (await reader.ReadAsync(cancellationToken))
