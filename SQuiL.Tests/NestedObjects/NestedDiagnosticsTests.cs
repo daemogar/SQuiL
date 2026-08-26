@@ -21,12 +21,14 @@ using Xunit;
 ///
 /// HISTORY (containment-direction feature, Ruling R2): declaration-order edge orientation landed in
 /// Task 1 with the OLD PK-oriented ambiguity check (a child's column matching more than one table's
-/// Primary Key) deleted outright, and cycle detection left structurally unreachable (every edge now
-/// points from the earlier-declared block to the later one). Task 2 (this task, Ruling R0)
+/// Primary Key) deleted outright, and cycle detection left structurally unreachable directly out of
+/// edge construction (every RAW edge points from the earlier-declared block to the later one). Task 2
 /// reintroduces SP0033 under an entirely NEW condition — not "a child matches 2+ parents' PKs", but
 /// "two blocks both declare `Primary Key` on the same key name" — see
-/// <see cref="TwoBlocksDeclaringTheSameKeyNameReportsSP0033"/> below. Task 3 (multi-container
-/// resolution, which inverts edges) is what makes cycles reachable again and may reopen SP0034.
+/// <see cref="TwoBlocksDeclaringTheSameKeyNameReportsSP0033"/> below. Task 3's R3 multi-container
+/// resolution CAN invert an edge (new Parent = the higher-order block), which makes SP0034 reachable
+/// again at build time — see <see cref="MultiContainerCascadeReportsSP0034AtBuildTime"/> below for a
+/// real, minimal (4-block) fixture that fires it.
 /// </summary>
 public class NestedDiagnosticsTests
 {
@@ -113,11 +115,12 @@ public class NestedDiagnosticsTests
 	/// <summary>
 	/// SP0034 — A links to B via BID and B links back to A via AID. Under the OLD PK-oriented
 	/// algorithm this was a two-node cycle. Under declaration-order orientation (Task 1, Ruling R2)
-	/// every edge points from the earlier-declared block to the later one, so `childOf[Child] =
-	/// Parent` always strictly decreases declaration order — a cycle can no longer form from this
-	/// fixture. The cycle-detection code itself is retained (not deleted); it simply finds nothing
-	/// here. Task 3 (multi-container resolution, which inverts edges) is what makes cycles reachable
-	/// again and may reopen SP0034.
+	/// every RAW edge points from the earlier-declared block to the later one, so a cycle can't form
+	/// from edge construction alone. `pairSeen` also dedupes this pair to exactly ONE edge (A->B),
+	/// so this fixture never has a block that is Child of 2+ edges — R3's resolution loop (Task 3)
+	/// never runs on it, and it stays acyclic permanently, not just "for now" (see
+	/// <see cref="MultiContainerCascadeReportsSP0034AtBuildTime"/> below for the real, reachable
+	/// case — it needs 4+ blocks, proved exhaustively for 3).
 	/// </summary>
 	[Fact]
 	public void PrimaryForeignKeyCycleDoesNotReportSP0034()
@@ -132,5 +135,39 @@ public class NestedDiagnosticsTests
 
 		var sp0034 = diagnostics.Where(d => d.Id == "SP0034").ToList();
 		Assert.Empty(sp0034);
+	}
+
+	/// <summary>
+	/// SP0034, actually reachable (Task 3): the minimal 4-block cycle, confirmed at build time
+	/// through the full generator pipeline (not just the <c>SQuiLKeyGraph.Build</c> unit test — see
+	/// <c>KeyGraphTests.MultiContainerResolutionCanCascadeIntoACycle</c> for the pass-by-pass trace).
+	/// Category owns CategoryID; Product owns ProductID and carries CategoryID (FK to Category);
+	/// Junction carries both CategoryID and ProductID (a many-to-many junction); Summary, declared
+	/// first, carries ProductID too (embeds Product). R3 resolves Product's conflict (Summary wins
+	/// over Category, inverting Category's link into Product-&gt;Category), then Junction's conflict
+	/// (Category wins over Product, inverting Product's link into Junction-&gt;Product) — closing the
+	/// loop Category-&gt;Junction-&gt;Product-&gt;Category. Also confirms generation is suppressed
+	/// entirely for the file (no partial/flat-path fallback), matching SP0033's behavior.
+	/// </summary>
+	[Fact]
+	public void MultiContainerCascadeReportsSP0034AtBuildTime()
+	{
+		var name = nameof(MultiContainerCascadeReportsSP0034AtBuildTime);
+		var diagnostics = Run(name, """
+			Declare @Returns_Summary table(ProductID varchar(10));
+			Declare @Returns_Category table(CategoryID int Primary Key, Name varchar(50));
+			Declare @Returns_Product table(ProductID varchar(10) Primary Key, CategoryID int, Title varchar(50));
+			Declare @Returns_Junction table(CategoryID int, ProductID varchar(10), Note varchar(50));
+			Use [Db];
+			Select * From @Returns_Summary;
+			Select * From @Returns_Category;
+			Select * From @Returns_Product;
+			Select * From @Returns_Junction;
+			""");
+
+		var sp0034 = diagnostics.Where(d => d.Id == "SP0034").ToList();
+		var diagnostic = Assert.Single(sp0034);
+		var message = diagnostic.GetMessage();
+		Assert.Contains("cycle", message, System.StringComparison.OrdinalIgnoreCase);
 	}
 }

@@ -1080,11 +1080,13 @@ internal static class SQuiLLinter
     // the earlier-declared table/object is always the container, regardless of which side owns the
     // Primary Key; KeyGraphEdge.IsEmbed records which) landed in Task 1 with the OLD PK-oriented
     // ambiguity check (a child's column matching more than one table's Primary Key) deleted outright,
-    // and SP0034 left structurally unreachable — every edge now points from the earlier-declared
-    // block to the later one, so no chain through `childOf` can ever return to its start. Task 2
-    // (this task, Ruling R0) reintroduces SP0033 under an entirely NEW condition (see above) — NOT a
-    // reintroduction of the old check. Task 3 (multi-container resolution, which inverts edges) is
-    // what makes cycles reachable again and may reopen SP0034.
+    // and SP0034 left structurally unreachable directly out of edge construction — every RAW edge
+    // points from the earlier-declared block to the later one, so no chain through `childOf` could
+    // ever return to its start. Task 2 reintroduces SP0033 under an entirely NEW condition (see
+    // above) — NOT a reintroduction of the old check. Task 3's R3 multi-container resolution (see
+    // `BuildKeyGraph`'s R3 loop) CAN invert an edge (new Parent = the higher-order block), which
+    // makes SP0034 reachable again — a real cycle needs 4+ blocks (proved exhaustively for 3 during
+    // Task 3); see `SQuiLLinterKeyGraphTests.cs` for a minimal reachable fixture.
 
     // ── Shared key-graph builder ─────────────────────────────────────────────
     //
@@ -1197,15 +1199,39 @@ internal static class SQuiLLinter
         //
         // A variable linked to more than one DIFFERENT container (via two different key names) is
         // not itself an error under R0 — R0 only forbids two variables from declaring `Primary Key`
-        // on the SAME key name (handled above, before `pairs` is built). Cycle detection below is
-        // retained unchanged and stays structurally unreachable under single-parent, order-oriented
-        // edges until Task 3 (multi-container resolution, which inverts edges) makes it reachable
-        // again.
+        // on the SAME key name (handled above, before `pairs` is built).
         foreach (var (a, b, key) in pairs)
         {
             var nestedOwnsKey = pkNameOf.TryGetValue(b, out var bKey)
                 && string.Equals(bKey, key, System.StringComparison.OrdinalIgnoreCase);
             graph.Edges.Add(new KeyGraphEdge { Parent = a, Child = b, KeyName = key, IsEmbed = nestedOwnsKey });
+        }
+
+        // R3 (Task 3): a variable with more than one container is either a shared lookup (it owns
+        // the key in EVERY such edge — allowed, each container references the same row) or a
+        // junction / mixed case (keep the earliest-declared container; invert the rest so the
+        // dropped container becomes an embed INTO this variable). Dropping or inverting can create
+        // a NEW multi-container variable, so iterate until stable. `guard` bounds the loop against a
+        // pathological graph. This is what makes cycle detection below reachable again — an inverted
+        // edge's new Parent is the higher-order block, breaking the order(Parent) < order(Child)
+        // invariant every RAW (pre-R3) edge satisfies.
+        for (var guard = 0; guard < list.Count + 1; guard++)
+        {
+            var byNested = graph.Edges.GroupBy(e => e.Child)
+                .FirstOrDefault(g => g.Count() > 1 && !g.All(e => e.IsEmbed));
+            if (byNested is null) break;
+
+            var ordered = byNested.OrderBy(e => order[e.Parent]).ToList();
+            var keep = ordered[0];
+            foreach (var drop in ordered.Skip(1))
+            {
+                graph.Edges.Remove(drop);
+                // Invert only when the dropped container owns the key — otherwise there is nothing
+                // to embed and the link is simply discarded.
+                if (pkNameOf.TryGetValue(drop.Parent, out var parentKey)
+                    && string.Equals(parentKey, drop.KeyName, System.StringComparison.OrdinalIgnoreCase))
+                    graph.Edges.Add(new KeyGraphEdge { Parent = drop.Child, Child = drop.Parent, KeyName = drop.KeyName, IsEmbed = true });
+            }
         }
 
         return graph;
@@ -1363,10 +1389,9 @@ internal static class SQuiLLinter
 
         // Last-write-wins (matches the generator's `childOf[e.Child] = e.Parent` in
         // SQuiLKeyGraph.cs and keyGraph.ts's `Map.set`) — deliberately NOT `.ToDictionary(...)`.
-        // A child can still appear in more than one edge when it links to 2+ DIFFERENT containers
-        // via 2+ DIFFERENT key names (not itself an error under R0 — multi-container resolution is
-        // a later task's concern; see the comment above `BuildKeyGraph`'s pairs loop), so
-        // `.ToDictionary` would throw `ArgumentException` on the duplicate key. `LintKeyGraph` is called unguarded from
+        // A child can still appear in more than one edge after R3 (the "all embed" shared-lookup
+        // case, allowed to stand — see `BuildKeyGraph`'s R3 loop), so `.ToDictionary` would throw
+        // `ArgumentException` on the duplicate key. `LintKeyGraph` is called unguarded from
         // `Lint(...)`, which `SQuiLErrorTagger.cs` calls with no try/catch, so an uncaught throw
         // here aborts every lint pass scheduled after this one (LintParamsBeforeReturns,
         // LintOrphanContext, LintMutationDiagnostics, LintDebugRollbackHint).

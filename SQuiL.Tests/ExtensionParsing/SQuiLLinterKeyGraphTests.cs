@@ -37,20 +37,46 @@ using Xunit;
 /// copy is required byte-identical modulo the namespace/using lines (CLAUDE.md); this project
 /// only compiles the SSMS copy, so a future edit that touches only the VS copy is caught by that
 /// byte-diff check, not by this test.
+///
+/// UPDATE (Task 3, R3 multi-container resolution): <c>MultiContainerSql</c> below — C carrying
+/// two DIFFERENT keys (AID, BID), neither of which C owns — is exactly the "junction, mixed case"
+/// R3 now resolves: A (declared first) keeps C; B's link is dropped and, because B owns the
+/// dropped edge's key (BID), inverted into a NEW edge C-&gt;B. So this fixture no longer produces a
+/// repeated <c>Child</c> in <c>graph.Edges</c> — it resolves to a clean two-edge chain (A-&gt;C,
+/// C-&gt;B) — see <c>BuildKeyGraphResolvesTheDualParentJunctionIntoAChain</c> below (renamed from
+/// the pre-R3 <c>BuildKeyGraphProducesRepeatedChildAndLintKeyGraphStillDoesNotThrow</c>, whose
+/// assertion is no longer true). The genuinely-surviving repeated-<c>Child</c> case post-R3 is the
+/// SHARED-LOOKUP scenario (2+ containers, ALL embedding the SAME owned key) — R3 allows that to
+/// stand, so the crash-safety property (`childOf`'s last-write-wins construction) is now exercised
+/// by <c>SharedLookupSql</c> / <c>BuildKeyGraphProducesRepeatedChildForASharedLookupAndDoesNotThrow</c>.
 /// </summary>
 public class SQuiLLinterKeyGraphTests
 {
 	/// <summary>
 	/// C carries BOTH "AID" (A's Primary Key) and "BID" (B's Primary Key) — two DIFFERENT key
-	/// columns, each matching a DIFFERENT single-owner Primary Key — so C is a genuine child of
-	/// TWO containers (A and B). This is NOT a duplicate-pk violation (A and B declare Primary Key
-	/// on two DIFFERENT names), so SP0033 must stay silent; it is the dual-parent/repeated-Child
-	/// case the crash-safety fix below guards against.
+	/// columns, each matching a DIFFERENT single-owner Primary Key — so C is (pre-R3) a candidate
+	/// child of TWO containers (A and B). This is NOT a duplicate-pk violation (A and B declare
+	/// Primary Key on two DIFFERENT names), so SP0033 must stay silent. Post-R3 (Task 3), this
+	/// resolves to a chain (A-&gt;C, C-&gt;B) rather than surviving as a repeated Child — see the
+	/// class doc comment above.
 	/// </summary>
 	private const string MultiContainerSql = """
 		Declare @Returns_A table(AID int Primary Key, N int);
 		Declare @Returns_B table(BID int Primary Key, M int);
 		Declare @Returns_C table(CID int, AID int, BID int);
+		Use [Db]; Select 1;
+		""";
+
+	/// <summary>
+	/// Shared lookup (Task 3, R3): Structure and Widget are both declared before Contact and both
+	/// carry ContactID (Contact's own Primary Key) — R3's "all embed" exception allows Contact to
+	/// keep BOTH containers, so this is the fixture that genuinely still produces a repeated
+	/// <c>Child</c> in <c>graph.Edges</c> after R3 runs.
+	/// </summary>
+	private const string SharedLookupSql = """
+		Declare @Returns_Structure table(Title varchar(50), ContactID varchar(10));
+		Declare @Returns_Widget table(Label varchar(50), ContactID varchar(10));
+		Declare @Returns_Contact table(ContactID varchar(10) Primary Key, Name varchar(50));
 		Use [Db]; Select 1;
 		""";
 
@@ -66,16 +92,49 @@ public class SQuiLLinterKeyGraphTests
 	}
 
 	/// <summary>
-	/// The narrower, more direct repro: <c>BuildKeyGraph</c> alone must produce an <c>Edges</c>
-	/// list with a repeated <c>Child</c> (C appears twice — once linked from A, once from B) for
-	/// this fixture, proving the scenario the fix guards against is genuinely reachable (not
-	/// filtered out upstream), then that <c>LintKeyGraph</c> built directly on top of it does not
-	/// throw either.
+	/// Post-R3 (Task 3): <c>BuildKeyGraph</c> no longer leaves C with two competing containers —
+	/// A (declared first) keeps C, and B's link is dropped and inverted (B owns the dropped edge's
+	/// key, BID) into a new edge C-&gt;B. The result is a clean two-edge chain, not a repeated
+	/// Child. <c>LintKeyGraph</c> built on top of it still must not throw.
 	/// </summary>
 	[Fact]
-	public void BuildKeyGraphProducesRepeatedChildAndLintKeyGraphStillDoesNotThrow()
+	public void BuildKeyGraphResolvesTheDualParentJunctionIntoAChain()
 	{
 		var parsed = SQuiLParser.Parse(MultiContainerSql, EditorDialect.SqlServer);
+		var outputList = SQuiLLinter.OutputTableVariables(parsed);
+		var graph = SQuiLLinter.BuildKeyGraph(outputList);
+
+		Assert.Empty(graph.DuplicatePrimaryKeys);
+		Assert.Equal(2, graph.Edges.Count);
+
+		var childCounts = new Dictionary<SQuiLVariable, int>();
+		foreach (var edge in graph.Edges)
+			childCounts[edge.Child] = childCounts.TryGetValue(edge.Child, out var n) ? n + 1 : 1;
+		Assert.All(childCounts, kv => Assert.Equal(1, kv.Value));
+
+		var toC = Assert.Single(graph.Edges, e => e.Child.Name == "C");
+		Assert.Equal("A", toC.Parent.Name);
+		Assert.False(toC.IsEmbed);
+
+		var toB = Assert.Single(graph.Edges, e => e.Child.Name == "B");
+		Assert.Equal("C", toB.Parent.Name);
+		Assert.True(toB.IsEmbed);
+
+		var diagnostics = new List<SQuiLDiagnostic>();
+		var exception = Record.Exception(() => SQuiLLinter.LintKeyGraph(MultiContainerSql, diagnostics));
+		Assert.Null(exception);
+	}
+
+	/// <summary>
+	/// The genuinely-surviving repeated-Child case post-R3: Contact legitimately keeps BOTH
+	/// Structure and Widget as containers (R3's "all embed" shared-lookup exception), so
+	/// <c>LintKeyGraph</c>'s manual last-write-wins <c>childOf</c> construction is the thing
+	/// actually protecting against an <c>ArgumentException</c> here.
+	/// </summary>
+	[Fact]
+	public void BuildKeyGraphProducesRepeatedChildForASharedLookupAndDoesNotThrow()
+	{
+		var parsed = SQuiLParser.Parse(SharedLookupSql, EditorDialect.SqlServer);
 		var outputList = SQuiLLinter.OutputTableVariables(parsed);
 		var graph = SQuiLLinter.BuildKeyGraph(outputList);
 
@@ -85,9 +144,10 @@ public class SQuiLLinterKeyGraphTests
 		foreach (var edge in graph.Edges)
 			childCounts[edge.Child] = childCounts.TryGetValue(edge.Child, out var n) ? n + 1 : 1;
 		Assert.Contains(childCounts, kv => kv.Value > 1);
+		Assert.All(graph.Edges, e => Assert.True(e.IsEmbed));
 
 		var diagnostics = new List<SQuiLDiagnostic>();
-		var exception = Record.Exception(() => SQuiLLinter.LintKeyGraph(MultiContainerSql, diagnostics));
+		var exception = Record.Exception(() => SQuiLLinter.LintKeyGraph(SharedLookupSql, diagnostics));
 		Assert.Null(exception);
 	}
 
@@ -117,5 +177,32 @@ public class SQuiLLinterKeyGraphTests
 		Assert.Contains("`B`", diagnostic.Message);
 		Assert.Contains("`A`", diagnostic.Message);
 		Assert.Contains("declares `Primary Key` on the same key name as", diagnostic.Message);
+	}
+
+	/// <summary>
+	/// SP0034, actually reachable (Task 3): editor-parity companion to
+	/// NestedDiagnosticsTests.MultiContainerCascadeReportsSP0034AtBuildTime — the SAME minimal
+	/// 4-block cycle fixture, verifying <c>SQuiLLinter.LintKeyGraph</c> squiggles it too. See that
+	/// generator test's doc comment (and KeyGraphTests.MultiContainerResolutionCanCascadeIntoACycle)
+	/// for the full pass-by-pass R3 trace.
+	/// </summary>
+	[Fact]
+	public void LintKeyGraphReportsSP0034ForAMultiContainerCascade()
+	{
+		const string sql = """
+			Declare @Returns_Summary table(ProductID varchar(10));
+			Declare @Returns_Category table(CategoryID int Primary Key, Name varchar(50));
+			Declare @Returns_Product table(ProductID varchar(10) Primary Key, CategoryID int, Title varchar(50));
+			Declare @Returns_Junction table(CategoryID int, ProductID varchar(10), Note varchar(50));
+			Use [Db]; Select 1;
+			""";
+
+		var diagnostics = new List<SQuiLDiagnostic>();
+		SQuiLLinter.LintKeyGraph(sql, diagnostics);
+
+		var sp0034 = diagnostics.Where(d => d.Code == "SP0034").ToList();
+		var diagnostic = Assert.Single(sp0034);
+		Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+		Assert.Contains("cycle", diagnostic.Message, System.StringComparison.OrdinalIgnoreCase);
 	}
 }

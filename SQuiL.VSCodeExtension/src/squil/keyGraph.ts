@@ -126,12 +126,40 @@ export function buildKeyGraph(
     }
   }
 
-  // childOf drives cycle detection below. A variable linked to more than one DIFFERENT container
-  // (via two different key names) is not itself an error under R0 — R0 only forbids two variables
-  // from declaring a Primary Key on the SAME key name (handled above, before `pairs`/edges are
-  // built). Cycle detection is structurally unreachable under single-parent, order-oriented edges
-  // (every edge points from the earlier-declared block to the later one) until Task 3
-  // (multi-container resolution, which inverts edges) makes it reachable again.
+  // R3: a block with more than one container is either a shared lookup (it owns the key in EVERY
+  // such edge — allowed, each container references the same row) or a junction / mixed case (keep
+  // the earliest-declared container; invert the rest so the dropped container becomes an embed
+  // INTO this block). Dropping or inverting can create a NEW multi-container block, so iterate
+  // until stable. `guard` bounds the loop against a pathological graph.
+  for (let guard = 0; guard < list.length + 1; guard++) {
+    const groups = new Map<SQuiLVariable, KeyGraphEdge[]>();
+    for (const e of edges) {
+      const g = groups.get(e.child);
+      if (g) g.push(e); else groups.set(e.child, [e]);
+    }
+    let byNested: KeyGraphEdge[] | undefined;
+    for (const g of groups.values()) {
+      if (g.length > 1 && !g.every(e => e.isEmbed)) { byNested = g; break; }
+    }
+    if (!byNested) break;
+
+    const ordered = [...byNested].sort((a, b) => order.get(a.parent)! - order.get(b.parent)!);
+    for (const drop of ordered.slice(1)) {
+      edges.splice(edges.indexOf(drop), 1);
+      // Invert only when the dropped container owns the key — otherwise there is nothing to
+      // embed and the link is simply discarded.
+      const parentKey = pkColumnOf.get(drop.parent);
+      if (parentKey && parentKey.name.toLowerCase() === drop.keyName.toLowerCase()) {
+        edges.push({ parent: drop.child, child: drop.parent, keyName: drop.keyName, isEmbed: true });
+      }
+    }
+  }
+
+  // childOf drives cycle detection below. After R3 (above), a block can still legitimately appear
+  // as Child in 2+ SURVIVING edges (the "all embed" shared-lookup case) — `childOf` keeps only the
+  // LAST one written (last-write-wins), which is fine here: consumers that enumerate nested
+  // members filter the full `edges` array by `parent`, not `childOf`, so a shared lookup still
+  // nests under every one of its containers. `childOf` itself is only a cycle-detection convenience.
   const childOf = new Map<SQuiLVariable, SQuiLVariable>();
   for (const e of edges) childOf.set(e.child, e.parent);
 

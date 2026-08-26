@@ -64,6 +64,19 @@ internal static class SQuiLPreviewGenerator
         public void MarkEmbed(SQuiLVariable v) => _embeds.Add(v);
     }
 
+    /// <summary>One container→nested link, local to the preview builder — mirrors the generator's
+    /// <c>SQuiLKeyEdge</c> (<c>SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs</c>) closely
+    /// enough to run the same R3 resolution below, without pulling in the full diagnostics-carrying
+    /// <c>KeyGraph</c>/<c>KeyGraphEdge</c> types from <c>SQuiLLinter.cs</c> (this stays a preview,
+    /// not a diagnostics source).</summary>
+    private sealed class PreviewEdge
+    {
+        public SQuiLVariable Parent { get; set; } = null!;
+        public SQuiLVariable Child { get; set; } = null!;
+        public string KeyName { get; set; } = "";
+        public bool IsEmbed { get; set; }
+    }
+
     /// <summary>
     /// Minimal preview mirror of the generator's <c>SQuiLKeyGraph</c>
     /// (<c>SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs</c>): two table/object variables
@@ -74,20 +87,29 @@ internal static class SQuiLPreviewGenerator
     /// (<c>@Param*</c>) table/object variables (never mixed), matching the generator building one
     /// graph per side (FileGenerator.cs's <c>keyGraph</c> / <c>inputGraph</c>).
     ///
-    /// Simplified relative to the generator: ambiguous (&gt;1 distinct parent) or cyclic
-    /// links are build-time errors owned by the generator/editor diagnostics, not the
-    /// preview — here the first matching link silently wins so the preview always renders
-    /// something reasonable (graceful degradation to the flat shape when there are no links
-    /// at all).
+    /// UPDATE (Task 3): R3 multi-container resolution (shared lookups / many-to-many junctions) IS
+    /// now ported here, unlike SP0033/SP0034/SP0035/SP0036 — those stay diagnostics-only, reported
+    /// by the generator/linter, never by the preview. The distinction: R3 changes the SHAPE the
+    /// preview renders (which variable nests under which), so skipping it made the preview actively
+    /// WRONG for a common, valid pattern (a shared lookup silently vanished from every container but
+    /// the first) — not just approximate. A genuinely ambiguous/cyclic file (SP0033/SP0034) is still
+    /// a build error the generator/linter will squiggle; this preview does not re-detect cycles —
+    /// R3 here can, in that pathological case, leave two variables each nested inside the other,
+    /// which renders as slightly odd (mutually-referencing) preview text rather than crashing, since
+    /// <c>EmitTableRecord</c> below is a flat, non-recursive pass over <c>tableVars</c>.
     /// </summary>
     private static NestedGraph BuildNestedGraph(List<SQuiLVariable> tableVars)
     {
         var pkOwner = new Dictionary<string, SQuiLVariable>(System.StringComparer.OrdinalIgnoreCase);
+        var pkNameOf = new Dictionary<SQuiLVariable, string>();
         foreach (var v in tableVars)
         {
             var pk = v.Columns?.FirstOrDefault(c => c.IsPrimaryKey);
             if (pk is not null && !pkOwner.ContainsKey(pk.Name))
+            {
                 pkOwner[pk.Name] = v;
+                pkNameOf[v] = pk.Name;
+            }
         }
 
         // R1: orientation follows declaration order, not which side owns the Primary Key.
@@ -95,9 +117,12 @@ internal static class SQuiLPreviewGenerator
         var order = new Dictionary<SQuiLVariable, int>();
         for (var i = 0; i < tableVars.Count; i++) order[tableVars[i]] = i;
 
-        // Distinct unordered pairs {block, pkOwner} that share a key column name.
+        // Distinct unordered pairs {block, pkOwner} that share a key column name. Dedupe is keyed
+        // on the PAIR alone (lo, hi) — matching the generator/linter/VS Code copies — so two
+        // reciprocal key columns between the same two blocks still yield exactly one edge, and R3
+        // below only ever sees a genuine THIRD block as a competing container.
         var pairs = new List<(SQuiLVariable A, SQuiLVariable B, string Key)>();
-        var pairSeen = new HashSet<(int, int, string)>();
+        var pairSeen = new HashSet<(int, int)>();
         foreach (var block in tableVars)
         {
             foreach (var col in block.Columns ?? new List<TableColumn>())
@@ -106,35 +131,58 @@ internal static class SQuiLPreviewGenerator
                     continue;
                 var lo = System.Math.Min(order[block], order[owner]);
                 var hi = System.Math.Max(order[block], order[owner]);
-                if (!pairSeen.Add((lo, hi, col.Name))) continue;
+                if (!pairSeen.Add((lo, hi))) continue;
                 pairs.Add((tableVars[lo], tableVars[hi], col.Name));
             }
         }
 
         // R1: the earlier-declared variable is the container (parent). Embed when the
         // later-declared (nested) variable owns the shared key as its own Primary Key.
-        var parentOf = new Dictionary<SQuiLVariable, SQuiLVariable>();
-        var embeds = new HashSet<SQuiLVariable>();
+        var edges = new List<PreviewEdge>();
         foreach (var (a, b, key) in pairs)
         {
-            if (parentOf.ContainsKey(b)) continue;     // first matching link wins (preview simplification)
-            parentOf[b] = a;
-            var bPk = b.Columns?.FirstOrDefault(c => c.IsPrimaryKey);
-            if (bPk is not null && string.Equals(bPk.Name, key, System.StringComparison.OrdinalIgnoreCase))
-                embeds.Add(b);
+            var nestedOwnsKey = pkNameOf.TryGetValue(b, out var bKey)
+                && string.Equals(bKey, key, System.StringComparison.OrdinalIgnoreCase);
+            edges.Add(new PreviewEdge { Parent = a, Child = b, KeyName = key, IsEmbed = nestedOwnsKey });
+        }
+
+        // R3 (Task 3): a variable with more than one container is either a shared lookup (it owns
+        // the key in EVERY such edge — allowed, each container references the same row) or a
+        // junction / mixed case (keep the earliest-declared container; invert the rest so the
+        // dropped container becomes an embed INTO this variable). Dropping or inverting can create
+        // a NEW multi-container variable, so iterate until stable. `guard` bounds the loop against a
+        // pathological graph. Kept in the preview (not just build/lint) because silently dropping a
+        // legitimate shared-lookup child (the pre-R3 "first link wins" behavior) rendered a WRONG
+        // shape, not just an approximate one — see the class doc comment above.
+        for (var guard = 0; guard < tableVars.Count + 1; guard++)
+        {
+            var byNested = edges.GroupBy(e => e.Child)
+                .FirstOrDefault(g => g.Count() > 1 && !g.All(e => e.IsEmbed));
+            if (byNested is null) break;
+
+            var ordered = byNested.OrderBy(e => order[e.Parent]).ToList();
+            var keep = ordered[0];
+            foreach (var drop in ordered.Skip(1))
+            {
+                edges.Remove(drop);
+                if (pkNameOf.TryGetValue(drop.Parent, out var parentKey)
+                    && string.Equals(parentKey, drop.KeyName, System.StringComparison.OrdinalIgnoreCase))
+                    edges.Add(new PreviewEdge { Parent = drop.Child, Child = drop.Parent, KeyName = drop.KeyName, IsEmbed = true });
+            }
         }
 
         var graph = new NestedGraph();
-        foreach (var v in tableVars)
+        var hasParent = new HashSet<SQuiLVariable>();
+        foreach (var e in edges)
         {
-            if (!parentOf.TryGetValue(v, out var parent)) continue;
-            graph.MarkChild(v);
-            if (embeds.Contains(v)) graph.MarkEmbed(v);
-            if (!graph.ChildrenOf.TryGetValue(parent, out var list))
-                graph.ChildrenOf[parent] = list = new List<SQuiLVariable>();
-            list.Add(v);
+            hasParent.Add(e.Child);
+            graph.MarkChild(e.Child);
+            if (e.IsEmbed) graph.MarkEmbed(e.Child);
+            if (!graph.ChildrenOf.TryGetValue(e.Parent, out var list))
+                graph.ChildrenOf[e.Parent] = list = new List<SQuiLVariable>();
+            list.Add(e.Child);
         }
-        graph.Roots.AddRange(tableVars.Where(v => !parentOf.ContainsKey(v)));
+        graph.Roots.AddRange(tableVars.Where(v => !hasParent.Contains(v)));
         return graph;
     }
 

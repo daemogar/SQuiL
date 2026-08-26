@@ -61,11 +61,14 @@ public class KeyGraphTests
     //   - The OLD ambiguity check ("a child's column matches >1 table's Primary Key") is deleted in
     //     Task 1 outright. Task 2 (this task, Ruling R0) reintroduces SP0033 under an entirely NEW
     //     condition — see `TwoBlocksSharingAKeyNameIsADuplicatePrimaryKeyError` below.
-    //   - Cycle detection is structurally impossible now: `childOf[Child] = Parent` always satisfies
-    //     order(Parent) < order(Child), so no chain through `childOf` can ever return to its start.
-    //     The cycle-detection code itself is retained unchanged (not deleted) per Ruling R2 — it
-    //     simply never finds one under order-based edges. Task 3 (multi-container resolution, which
-    //     inverts edges) is what makes cycles reachable again and may reopen this.
+    //   - Cycle detection was structurally impossible directly out of `pairs`/edge construction:
+    //     every RAW edge satisfies order(Parent) < order(Child), so no chain through `childOf` could
+    //     ever return to its start. Task 3's R3 multi-container resolution (below `pairs` in
+    //     `SQuiLKeyGraph.Build`) can INVERT an edge (new Parent = the higher-order block), which
+    //     breaks that invariant and makes cycles reachable again — see
+    //     `MultiContainerResolutionCanCascadeIntoACycle` below for a real, reachable one. A cycle
+    //     needs 4+ blocks (proved exhaustively for 3 during Task 3 spike work); the classic 2-block
+    //     reciprocal fixture below (`CycleIsNotAnError`) still can never cycle — see its comment.
     [Fact]
     public void TwoBlocksSharingAKeyNameIsADuplicatePrimaryKeyError()
     {
@@ -110,12 +113,16 @@ public class KeyGraphTests
         Assert.Equal("BID", edge.KeyName);
         Assert.True(edge.IsEmbed);
 
-        // TASK 3 (multi-container resolution, which inverts edges) may make this fixture cyclic
-        // again. When that lands, uncomment the specific cycle assertions below:
-        // Assert.Contains(g.Errors, f => f.Kind == "cycle");
-        // var cycles = g.Errors.Where(f => f.Kind == "cycle").ToList();
-        // Assert.Single(cycles);
-        // Assert.Equal(new[] { "A", "B" }, new[] { cycles[0].Name, cycles[0].OtherName }.OrderBy(x => x).ToArray());
+        // TASK 3 FOLLOW-UP (resolved, not just deferred): Task 3's R3 resolution runs over GROUPS of
+        // edges that share a Child, dropping/inverting all-but-the-earliest container. This 2-block
+        // fixture dedupes to exactly ONE edge (asserted above, via `pairSeen` in `SQuiLKeyGraph.Build`
+        // — a pair of blocks can only ever produce one edge between them, however many reciprocal key
+        // columns they share), so no `Child` here is EVER the Child of 2+ edges — R3's resolution loop
+        // has nothing to group and never runs. A cycle requires R3 to actually invert something, which
+        // in turn requires a genuine multi-container conflict; that's structurally unreachable with
+        // only 2 blocks (verified exhaustively over every 3-block pair/owner/key-sharing configuration
+        // too — see `MultiContainerResolutionCanCascadeIntoACycle` below for the minimal 4-block
+        // fixture that DOES cycle). So this fixture staying acyclic is permanent, not provisional.
     }
 
     [Fact]
@@ -174,5 +181,152 @@ public class KeyGraphTests
             """);
         Assert.Contains(g.Hints, f => f.Kind == "orphan" && f.Name == "X");
         Assert.DoesNotContain(g.Hints, f => f.Name == "A"); // A's PK is linked by B
+    }
+
+    // ── Task 3: R3 multi-container resolution ────────────────────────────────
+
+    [Fact]
+    public void JunctionKeepsEarliestContainerAndInvertsTheRest()
+    {
+        var sql = """
+            Declare @Returns_Student table(StudentID int Primary Key, Name varchar(50));
+            Declare @Returns_Course table(CourseID int Primary Key, Title varchar(50));
+            Declare @Returns_Enrollment table(StudentID int, CourseID int, Grade varchar(2));
+            Use [Db];
+            Select * From @Returns_Student;
+            Select * From @Returns_Course;
+            Select * From @Returns_Enrollment;
+            """;
+
+        var g = Graph(sql);
+
+        Assert.Equal(2, g.Edges.Count);
+        var kept = Assert.Single(g.Edges, e => e.Child.Name == "Enrollment");
+        Assert.Equal("Student", kept.Parent.Name);
+        Assert.False(kept.IsEmbed);
+
+        var inverted = Assert.Single(g.Edges, e => e.Child.Name == "Course");
+        Assert.Equal("Enrollment", inverted.Parent.Name);
+        Assert.True(inverted.IsEmbed);
+
+        Assert.Equal("Student", Assert.Single(g.Roots).Name);
+    }
+
+    [Fact]
+    public void SharedLookupAllowsOnePkOwnerInManyContainers()
+    {
+        var sql = """
+            Declare @Returns_Structure table(Title varchar(50), ContactID varchar(10));
+            Declare @Returns_Widget table(Label varchar(50), ContactID varchar(10));
+            Declare @Returns_Contact table(ContactID varchar(10) Primary Key, Name varchar(50));
+            Use [Db];
+            Select * From @Returns_Structure;
+            Select * From @Returns_Widget;
+            Select * From @Returns_Contact;
+            """;
+
+        var g = Graph(sql);
+
+        Assert.Equal(2, g.Edges.Count);
+        Assert.All(g.Edges, e => Assert.True(e.IsEmbed));
+        Assert.All(g.Edges, e => Assert.Equal("Contact", e.Child.Name));
+        Assert.Equal(["Structure", "Widget"], g.Roots.Select(r => r.Name).ToArray());
+    }
+
+    [Fact]
+    public void MultiContainerResolutionIteratesToAFixedPoint()
+    {
+        // A single R3 pass is NOT enough here. A owns AID and carries a column CID (an FK to C);
+        // B owns BID and carries a column AID (an FK to A); C owns CID and carries a column BID
+        // (an FK to B) — a rotation of three "many owns one" links, plus A additionally referencing
+        // C directly (A embeds C, since C is declared after A and owns the shared key).
+        //
+        // Pass 1 resolves C's conflict (A embeds C vs. B contains C): A wins (declared first), so
+        // B's B->C edge is dropped and inverted (C owns CID) into a NEW edge C->B. That INVERTED
+        // edge is what creates a SECOND, previously-nonexistent conflict at B (A->B, from A's own
+        // AID column, vs. the brand-new C->B) — pass 2 resolves it: A wins again (declared first),
+        // and this time C->B is dropped WITHOUT re-inverting, because the edge being dropped is
+        // already an embed (C does not own BID — B does — so the invert guard's `pkNameOf[dropped
+        // Parent] == dropped key` check fails and the link is simply discarded).
+        //
+        // A naive single-pass implementation would stop after pass 1 and report 3 edges (A->B,
+        // A->C, C->B) with B double-parented; the fixed-point loop converges on exactly 2.
+        var sql = """
+            Declare @Returns_A table(AID int Primary Key, CID int);
+            Declare @Returns_B table(BID int Primary Key, AID int);
+            Declare @Returns_C table(CID int Primary Key, BID int);
+            Use [Db];
+            Select * From @Returns_A;
+            Select * From @Returns_B;
+            Select * From @Returns_C;
+            """;
+
+        var g = Graph(sql);
+
+        Assert.Empty(g.Errors);
+        Assert.Equal(2, g.Edges.Count);
+
+        var toB = Assert.Single(g.Edges, e => e.Child.Name == "B");
+        Assert.Equal("A", toB.Parent.Name);
+        Assert.Equal("AID", toB.KeyName);
+        Assert.False(toB.IsEmbed);
+
+        var toC = Assert.Single(g.Edges, e => e.Child.Name == "C");
+        Assert.Equal("A", toC.Parent.Name);
+        Assert.Equal("CID", toC.KeyName);
+        Assert.True(toC.IsEmbed);
+
+        Assert.Equal("A", Assert.Single(g.Roots).Name);
+    }
+
+    [Fact]
+    public void MultiContainerResolutionCanCascadeIntoACycle()
+    {
+        // The minimal reachable cycle (verified by exhaustive search over every 3-block
+        // configuration — none cycle; this is the smallest of the 4-block configurations that do).
+        //
+        // Category owns CategoryID; Product owns ProductID and carries CategoryID (an FK to
+        // Category); Junction carries BOTH CategoryID (FK to Category) and ProductID (FK to
+        // Product) — the classic many-to-many junction shape. Summary, declared FIRST, carries
+        // ProductID too (an FK to Product) — since Product is declared after Summary and owns the
+        // shared key, this is an embed (Summary embeds Product).
+        //
+        // Pass 1: Product has two competing containers — Summary (embed, declared first) and
+        // Category (plain child, via Product's own CategoryID column). Summary wins (lower
+        // declaration order); Category's Category->Product edge is dropped and INVERTED (Product
+        // owns ProductID... no — the dropped edge's key is CategoryID, owned by Category) into
+        // Product->Category.
+        // Pass 2: Junction has two competing containers — Category (plain child, via CategoryID)
+        // and Product (plain child, via ProductID). Category wins (lower declaration order);
+        // Product's Product->Junction edge is dropped and INVERTED (Product owns ProductID) into
+        // Junction->Product.
+        // Pass 3: no group qualifies as a conflict — Product is now Child of both Summary (embed)
+        // and Junction (embed), an ALL-embed shared-lookup group, which R3 allows to stand.
+        //
+        // The surviving edges are Summary->Product, Category->Junction, and Junction->Product —
+        // PLUS, from pass 1, Product->Category. Category->Junction->Product->Category is a genuine
+        // 3-block cycle among Category/Product/Junction: each contains the next.
+        var sql = """
+            Declare @Returns_Summary table(ProductID varchar(10));
+            Declare @Returns_Category table(CategoryID int Primary Key, Name varchar(50));
+            Declare @Returns_Product table(ProductID varchar(10) Primary Key, CategoryID int, Title varchar(50));
+            Declare @Returns_Junction table(CategoryID int, ProductID varchar(10), Note varchar(50));
+            Use [Db];
+            Select * From @Returns_Summary;
+            Select * From @Returns_Category;
+            Select * From @Returns_Product;
+            Select * From @Returns_Junction;
+            """;
+
+        var g = Graph(sql);
+
+        var cycles = g.Errors.Where(f => f.Kind == "cycle").ToList();
+        var cycle = Assert.Single(cycles);
+        // The cycle's two named participants are both drawn from {Category, Product, Junction} —
+        // the three blocks actually rotating containment — never Summary, which only ever embeds
+        // Product and is not itself part of the loop.
+        Assert.Subset(new HashSet<string> { "Category", "Product", "Junction" },
+            new HashSet<string> { cycle.Name, cycle.OtherName });
+        Assert.DoesNotContain("Summary", new[] { cycle.Name, cycle.OtherName });
     }
 }

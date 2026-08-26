@@ -109,11 +109,37 @@ public sealed class SQuiLKeyGraph
 			edges.Add(new(a, b, key, nestedOwnsKey));
 		}
 
-		// childOf drives cycle detection and root computation below. A block linked to more than
-		// one DIFFERENT container (via two different key names) is not itself an error under R0 —
-		// R0 only forbids two blocks from declaring `Primary Key` on the SAME key name (handled
-		// above, before `pairs` is built). Multi-container resolution (a block that is a genuine
-		// child of two containers via two different keys) is a later task's concern.
+		// R3: a block with more than one container is either a shared lookup (it owns the key in
+		// EVERY such edge — allowed, each container references the same row) or a junction / mixed
+		// case (keep the earliest-declared container; invert the rest so the dropped container
+		// becomes an embed INTO this block). Dropping or inverting can create a NEW multi-container
+		// block, so iterate until stable. `guard` bounds the loop against a pathological graph.
+		for (var guard = 0; guard < list.Count + 1; guard++)
+		{
+			var byNested = edges.GroupBy(e => e.Child)
+				.FirstOrDefault(g => g.Count() > 1 && !g.All(e => e.IsEmbed));
+			if (byNested is null) break;
+
+			var ordered = byNested.OrderBy(e => order[e.Parent]).ToList();
+			var keep = ordered[0];
+			foreach (var drop in ordered.Skip(1))
+			{
+				edges.Remove(drop);
+				// Invert only when the dropped container owns the key — otherwise there is nothing
+				// to embed and the link is simply discarded.
+				if (pkNameOf.TryGetValue(drop.Parent, out var parentKey)
+					&& string.Equals(parentKey, drop.KeyName, System.StringComparison.OrdinalIgnoreCase))
+					edges.Add(new(drop.Child, drop.Parent, drop.KeyName, true));
+			}
+		}
+
+		// childOf drives cycle detection and root computation below. After R3 (above), a block can
+		// still legitimately appear as Child in 2+ SURVIVING edges (the "all embed" shared-lookup
+		// case) — `childOf` keeps only the LAST one written (matching the editors' documented
+		// last-write-wins convention), which is fine here: `ChildrenOf(parent)` (the method
+		// consumers actually use to enumerate nested members) filters the full `edges` list by
+		// `Parent`, not `childOf`, so a shared lookup still nests under every one of its containers.
+		// `childOf` itself is only a cycle-detection/roots convenience.
 		var childOf = new Dictionary<CodeBlock, CodeBlock>();
 		foreach (var e in edges) childOf[e.Child] = e.Parent;
 

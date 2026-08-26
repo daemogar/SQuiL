@@ -494,12 +494,16 @@ test('SP0037 does not fire on table-column null/not null markers', () => {
 //
 // HISTORY (containment-direction feature, Ruling R2): declaration-order edge orientation landed in
 // Task 1 with the OLD PK-oriented ambiguity check (a child's column matching more than one table's
-// Primary Key) deleted outright, and cycle detection left structurally unreachable — every edge
-// now points from the earlier-declared block to the later one, so no chain through `childOf` can
-// ever return to its start. Task 2 (Ruling R0) reintroduces SP0033 under an entirely NEW
-// condition — NOT "a child matches 2+ parents' PKs", but "two blocks both declare a Primary Key on
-// the same key name" (see the positive test just below). Task 3 (multi-container resolution, which
-// inverts edges) is what makes cycles reachable again and may reopen SP0034.
+// Primary Key) deleted outright, and cycle detection left structurally unreachable directly out of
+// edge construction — every RAW edge points from the earlier-declared block to the later one, so no
+// chain through `childOf` could ever return to its start. Task 2 (Ruling R0) reintroduces SP0033
+// under an entirely NEW condition — NOT "a child matches 2+ parents' PKs", but "two blocks both
+// declare a Primary Key on the same key name" (see the positive test just below). Task 3's R3
+// multi-container resolution CAN invert an edge (new parent = the higher-order block), which makes
+// cycles reachable again — see keyGraph.test.ts's `multi-container resolution can cascade into a
+// cycle` for a real, minimal (4-block) one. The 2-block reciprocal fixture in the test just below
+// still can never cycle on its own (see its comment) — R3 only resolves conflicts across 3+ blocks,
+// and even 3 is not enough (proved exhaustively).
 
 test('SP0033 fires when two blocks declare a Primary Key on the same key name', () => {
   const result = parseSQuiL([
@@ -522,7 +526,12 @@ test('SP0033 fires when two blocks declare a Primary Key on the same key name', 
   );
 });
 
-test('SP0034 does not fire under declaration-order orientation (cycles are now structurally impossible)', () => {
+test('SP0034 does not fire on a 2-block reciprocal pair (dedupe collapses it to one edge, permanently)', () => {
+  // A and B are linked by TWO reciprocal key columns, but dedupe (pairSeen) still collapses them to
+  // exactly ONE edge (see the `two reciprocal key columns...` test in keyGraph.test.ts) — a pair of
+  // blocks can only ever produce one edge between them. R3's resolution loop only acts on a block
+  // that is the Child of 2+ edges, which requires 3+ blocks; this 2-block fixture never reaches
+  // that condition, so it stays acyclic permanently, not just "for now".
   const result = parseSQuiL([
     '--Name: Cycle',
     'Declare @Return_A table(AID int Primary Key, BID int);',
@@ -569,7 +578,7 @@ test('SP0033 fires on the INPUT graph when two blocks declare a Primary Key on t
   assert.ok(sp0033[0].message.includes('`A`'), 'message should name the first declaration');
 });
 
-test('SP0034 does not fire on the INPUT graph under declaration-order orientation (cycles are now structurally impossible)', () => {
+test('SP0034 does not fire on a 2-block reciprocal pair on the INPUT graph (dedupe collapses it to one edge, permanently)', () => {
   const result = parseSQuiL([
     '--Name: CycleInput',
     'Declare @Param_A table(AID int Primary Key, BID int);',
