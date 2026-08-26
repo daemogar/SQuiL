@@ -63,10 +63,10 @@ public class KeyGraphTests
     //   - Cycle detection is structurally impossible now: `childOf[Child] = Parent` always satisfies
     //     order(Parent) < order(Child), so no chain through `childOf` can ever return to its start.
     //     The cycle-detection code itself is retained unchanged (not deleted) per Ruling R2 — it
-    //     simply never finds one under order-based edges. Multi-container handling in a later task
-    //     may reopen the possibility.
+    //     simply never finds one under order-based edges. Task 3 (multi-container resolution, which
+    //     inverts edges) is what makes cycles reachable again and may reopen this.
     [Fact]
-    public void ChildMatchingTwoPrimaryKeysIsAmbiguousError()
+    public void ChildMatchingTwoPrimaryKeysIsNotAmbiguousError()
     {
         // "SharedID" is the PK of BOTH A and B; C carries SharedID. Under declaration order this no
         // longer reports an "ambiguous" finding (Task 2 restores an ambiguity diagnostic here) — the
@@ -81,12 +81,13 @@ public class KeyGraphTests
     }
 
     [Fact]
-    public void CycleIsAnError()
+    public void CycleIsNotAnError()
     {
-        // A.AID is PK, B carries AID; B.BID is PK, A carries BID. Under the OLD PK-oriented algorithm
-        // this was a two-node cycle (A child-of B and B child-of A). Under declaration-order
-        // orientation both edges point A -> B (A declared first), so no cycle can form — this is a
-        // structural consequence of R1, not a bug in this fixture.
+        // A.AID is PK, B carries AID; B.BID is PK, A carries BID — A and B are linked by TWO
+        // reciprocal key columns. Under the OLD PK-oriented algorithm this was a two-node cycle
+        // (A child-of B and B child-of A). Under declaration-order orientation both matches point
+        // A -> B (A declared first), so no cycle can form — a structural consequence of R1, not a
+        // bug in this fixture.
         var g = Graph("""
             Declare @Return_A table(AID int Primary Key, BID int);
             Declare @Return_B table(BID int Primary Key, AID int);
@@ -94,6 +95,23 @@ public class KeyGraphTests
             """);
         Assert.DoesNotContain(g.Errors, f => f.Kind == "cycle");
         Assert.All(g.Edges, e => Assert.Equal("A", e.Parent.Name));
+
+        // C1 regression: two reciprocal key columns between the SAME pair must still dedupe to
+        // exactly one edge (a naive per-key dedupe produced two edges with the same Parent/Child,
+        // which the generator turned into a duplicate emitted member — CS0102). The first matching
+        // key column found in declaration order (A's BID column, matching B's own Primary Key) wins.
+        var edge = Assert.Single(g.Edges);
+        Assert.Equal("A", edge.Parent.Name);
+        Assert.Equal("B", edge.Child.Name);
+        Assert.Equal("BID", edge.KeyName);
+        Assert.True(edge.IsEmbed);
+
+        // TASK 3 (multi-container resolution, which inverts edges) may make this fixture cyclic
+        // again. When that lands, uncomment the specific cycle assertions below:
+        // Assert.Contains(g.Errors, f => f.Kind == "cycle");
+        // var cycles = g.Errors.Where(f => f.Kind == "cycle").ToList();
+        // Assert.Single(cycles);
+        // Assert.Equal(new[] { "A", "B" }, new[] { cycles[0].Name, cycles[0].OtherName }.OrderBy(x => x).ToArray());
     }
 
     [Fact]

@@ -38,3 +38,24 @@ test('keeps classic child orientation when the Primary-Key owner is declared fir
   assert.strictEqual(edges[0].child.name, 'Institution');
   assert.strictEqual(edges[0].isEmbed, false);
 });
+
+// C1 regression (Task 1 review): A and B are linked by TWO reciprocal key columns (A carries
+// B's Primary Key "BID"; B carries A's Primary Key "AID"). Dedupe must be keyed on the pair
+// alone, not (pair, key) — otherwise this produces two edges with the same parent/child, which
+// the generator's mirror turned into a duplicate emitted member (CS0102).
+test('two reciprocal key columns between the same pair still produce exactly one edge', () => {
+  const parsed = parseSQuiL([
+    '--Name: ReciprocalKeys',
+    'Declare @Return_A table(AID int Primary Key, BID int);',
+    'Declare @Return_B table(BID int Primary Key, AID int);',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n'));
+
+  const { edges } = buildKeyGraph(parsed.variables);
+  assert.strictEqual(edges.length, 1);
+  assert.strictEqual(edges[0].parent.name, 'A');
+  assert.strictEqual(edges[0].child.name, 'B');
+  assert.strictEqual(edges[0].keyName, 'BID');
+  assert.strictEqual(edges[0].isEmbed, true);
+});

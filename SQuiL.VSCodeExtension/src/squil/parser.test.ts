@@ -497,7 +497,9 @@ test('SP0037 does not fire on table-column null/not null markers', () => {
 // reintroduces it under the new pair/order model) and cycle detection left structurally
 // unreachable — every edge now points from the earlier-declared block to the later one, so no
 // chain through `childOf` can ever return to its start. The two tests below assert the diagnostic
-// is currently ABSENT for fixtures that used to trigger it under the old algorithm.
+// is currently ABSENT for fixtures that used to trigger it under the old algorithm. Task 3
+// (multi-container resolution, which inverts edges) is what makes cycles reachable again and may
+// reopen SP0034.
 
 test('SP0033 does not fire under declaration-order orientation (Task 2 restores an ambiguity diagnostic)', () => {
   const result = parseSQuiL([

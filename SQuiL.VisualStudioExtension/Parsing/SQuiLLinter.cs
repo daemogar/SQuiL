@@ -1074,6 +1074,17 @@ internal static class SQuiLLinter
     // are also build-time errors there; SP0036 mirrors FileGenerator.cs's
     // IsSynthesizableKeyType/ReportUnsupportedKeyType) and keyGraph.ts /
     // nestedObjectHints.ts (VS Code extension) — change one side, change all three.
+    //
+    // TRANSITIONAL (containment-direction feature, Task 1 / Ruling R2): declaration-order edge
+    // orientation (R1 — the earlier-declared table/object is always the container, regardless of
+    // which side owns the Primary Key; KeyGraphEdge.IsEmbed records which) lands in Task 1 with the
+    // old PK-oriented ambiguity check deleted outright (Task 2 reintroduces SP0033 under the new
+    // pair/order model) and SP0034 left structurally unreachable — every edge now points from the
+    // earlier-declared block to the later one, so no chain through `childOf` can ever return to its
+    // start. Task 3 (multi-container resolution, which inverts edges) is what makes cycles reachable
+    // again. Until then this file reports neither SP0033 nor SP0034, matching the generator and
+    // keyGraph.ts (this was previously a parity gap: this file kept orienting by PK ownership and
+    // kept squiggling SP0033/SP0034 as Errors on files the compiler now accepts).
 
     // ── Shared key-graph builder ─────────────────────────────────────────────
     //
@@ -1088,6 +1099,11 @@ internal static class SQuiLLinter
         public SQuiLVariable Parent { get; set; } = null!;
         public SQuiLVariable Child { get; set; } = null!;
         public string KeyName { get; set; } = "";
+        /// <summary>True when <see cref="Child"/> OWNS the key (embedded lookup — R1, declaration-
+        /// order orientation); false for a classic FK-carrier child. Mirrors
+        /// <c>SQuiLKeyEdge.IsEmbed</c> in the generator and <c>KeyGraphEdge.isEmbed</c> in
+        /// keyGraph.ts.</summary>
+        public bool IsEmbed { get; set; }
     }
 
     internal sealed class KeyGraphAmbiguity
@@ -1124,42 +1140,64 @@ internal static class SQuiLLinter
         // Key column name -> owning variable(s). A variable's key = its single
         // Primary-Key column.
         var pkOwners = new Dictionary<string, List<SQuiLVariable>>(System.StringComparer.OrdinalIgnoreCase);
+        var pkNameOf = new Dictionary<SQuiLVariable, string>();
         foreach (var v in list)
         {
             var pk = v.Columns!.FirstOrDefault(c => c.IsPrimaryKey);
             if (pk is null) continue;
             graph.PkColumnOf[v] = pk;
+            pkNameOf[v] = pk.Name;
             if (!pkOwners.TryGetValue(pk.Name, out var owners))
                 pkOwners[pk.Name] = owners = new List<SQuiLVariable>();
             owners.Add(v);
         }
 
-        foreach (var child in list)
+        // R1: orientation follows declaration order, not which side owns the Primary Key.
+        // `list` is already in declaration order, so its index is the declaration ordinal.
+        var order = new Dictionary<SQuiLVariable, int>();
+        for (var i = 0; i < list.Count; i++) order[list[i]] = i;
+
+        // Distinct unordered pairs {block, pkOwner} that share a key column name. Dedupe is keyed
+        // on the PAIR alone (lo, hi) — NOT (lo, hi, key) — so two blocks connected by two different
+        // reciprocal key columns (each side's column matching the other's Primary Key) still yield
+        // exactly one edge. The first matching key column found (declaration order over blocks,
+        // then columns, then owners) wins, mirroring `SQuiLKeyGraph.Build`'s `pairSeen`/`pairs`.
+        // Without this, a pair like `@Return_A table(AID int Primary Key, BID int)` /
+        // `@Return_B table(BID int Primary Key, AID int)` would produce two edges with the same
+        // Parent/Child — `childOf = graph.Edges.ToDictionary(e => e.Child, e => e.Parent)` below
+        // would then throw (duplicate key) instead of merely mis-diagnosing.
+        var pairs = new List<(SQuiLVariable A, SQuiLVariable B, string Key)>();
+        var pairSeen = new HashSet<(int, int)>();
+        foreach (var block in list)
         {
-            // Which declared keys does this variable carry a matching column for
-            // (excluding its own PK)?
-            var matches = new List<(string Key, SQuiLVariable Parent)>();
-            foreach (var col in child.Columns!)
+            foreach (var col in block.Columns!)
             {
                 if (!pkOwners.TryGetValue(col.Name, out var owners)) continue;
                 foreach (var owner in owners)
                 {
-                    if (ReferenceEquals(owner, child)) continue; // own PK column
-                    matches.Add((col.Name, owner));
+                    if (ReferenceEquals(owner, block)) continue; // own PK column
+                    var lo = System.Math.Min(order[block], order[owner]);
+                    var hi = System.Math.Max(order[block], order[owner]);
+                    if (!pairSeen.Add((lo, hi))) continue;
+                    pairs.Add((list[lo], list[hi], col.Name));
                 }
             }
-            if (matches.Count == 0) continue;
+        }
 
-            // A child column matching >1 distinct parent → ambiguous (graph must be a tree).
-            var distinctParents = matches.Select(m => m.Parent).Distinct().ToList();
-            if (distinctParents.Count > 1)
-            {
-                var other = distinctParents.First(p => !ReferenceEquals(p, distinctParents[0]));
-                graph.Ambiguities.Add(new KeyGraphAmbiguity { Child = child, OtherParent = other });
-                continue;
-            }
-
-            graph.Edges.Add(new KeyGraphEdge { Parent = distinctParents[0], Child = child, KeyName = matches[0].Key });
+        // R1: the earlier-declared variable is the container (Parent). IsEmbed when the
+        // later-declared (nested) variable owns the shared key as its own Primary Key.
+        //
+        // Ambiguity handling (a block linked to more than one container) is reintroduced under the
+        // new pair/order model in Task 2 — this task is the orientation seam only, so
+        // graph.Ambiguities stays empty here (matches SQuiLKeyGraph.Build / keyGraph.ts). Cycle
+        // detection below is retained unchanged and stays structurally unreachable under
+        // single-parent, order-oriented edges until Task 3 (multi-container resolution, which
+        // inverts edges) makes it reachable again.
+        foreach (var (a, b, key) in pairs)
+        {
+            var nestedOwnsKey = pkNameOf.TryGetValue(b, out var bKey)
+                && string.Equals(bKey, key, System.StringComparison.OrdinalIgnoreCase);
+            graph.Edges.Add(new KeyGraphEdge { Parent = a, Child = b, KeyName = key, IsEmbed = nestedOwnsKey });
         }
 
         return graph;

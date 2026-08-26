@@ -85,7 +85,15 @@ export function buildKeyGraph(
   const order = new Map<SQuiLVariable, number>();
   list.forEach((v, i) => order.set(v, i));
 
-  // Distinct unordered pairs {block, pkOwner} that share a key column name.
+  // Distinct unordered pairs {block, pkOwner} that share a key column name. Dedupe is keyed on the
+  // PAIR alone (lo, hi) — NOT (lo, hi, key) — so two blocks connected by two different reciprocal
+  // key columns (each side's column matching the other's Primary Key) still yield exactly one
+  // edge. The first matching key column found (declaration order over blocks, then columns, then
+  // owners) wins, mirroring `SQuiLKeyGraph.Build`'s `pairSeen`/`pairs`. Without this, a pair like
+  // `@Return_A table(AID int Primary Key, BID int)` / `@Return_B table(BID int Primary Key, AID
+  // int)` would produce two edges with the same parent/child. Key-name comparisons throughout are
+  // lower-cased for case-insensitive matching (matching the generator's `OrdinalIgnoreCase`); the
+  // stored `keyName` itself keeps the author's original casing.
   const pairSeen = new Set<string>();
   const edges: KeyGraphEdge[] = [];
   for (const block of list) {
@@ -96,7 +104,7 @@ export function buildKeyGraph(
         if (owner === block) continue; // own PK column
         const lo = Math.min(order.get(block)!, order.get(owner)!);
         const hi = Math.max(order.get(block)!, order.get(owner)!);
-        const id = `${lo}|${hi}|${col.name.toLowerCase()}`;
+        const id = `${lo}|${hi}`;
         if (pairSeen.has(id)) continue;
         pairSeen.add(id);
         const nested = list[hi];
@@ -112,8 +120,11 @@ export function buildKeyGraph(
   }
 
   // childOf drives cycle detection below. Ambiguity handling (a block linked to more than one
-  // container) is reintroduced under the new pair/order model in a later task — this task is the
-  // orientation seam only, so `errors` collects cycles alone.
+  // container) is reintroduced under the new pair/order model in Task 2 — this task is the
+  // orientation seam only, so `errors` collects cycles alone. Cycle detection is structurally
+  // unreachable under single-parent, order-oriented edges (every edge points from the
+  // earlier-declared block to the later one) until Task 3 (multi-container resolution, which
+  // inverts edges) makes it reachable again.
   const childOf = new Map<SQuiLVariable, SQuiLVariable>();
   for (const e of edges) childOf.set(e.child, e.parent);
 

@@ -66,9 +66,16 @@ public sealed class SQuiLKeyGraph
 		var order = new Dictionary<CodeBlock, int>();
 		for (var i = 0; i < list.Count; i++) order[list[i]] = i;
 
-		// Distinct unordered pairs {block, pkOwner} that share a key column name.
+		// Distinct unordered pairs {block, pkOwner} that share a key column name. Dedupe is keyed
+		// on the PAIR alone (lo, hi) — NOT (lo, hi, key) — so two blocks connected by two different
+		// reciprocal key columns (each side's column matching the other's Primary Key) still yield
+		// exactly one edge. The first matching key column found (declaration order over blocks,
+		// then columns, then owners) wins, mirroring the pre-R1 algorithm's `matches[0].Key`.
+		// Without this, a pair like `@Return_A table(AID int Primary Key, BID int)` /
+		// `@Return_B table(BID int Primary Key, AID int)` would produce two edges with the same
+		// Parent/Child — one property emitted per edge — and duplicate members (CS0102).
 		var pairs = new List<(CodeBlock A, CodeBlock B, string Key)>();
-		var pairSeen = new HashSet<(int, int, string)>();
+		var pairSeen = new HashSet<(int, int)>();
 		foreach (var block in list)
 		{
 			foreach (var col in block.Properties ?? [])
@@ -79,7 +86,7 @@ public sealed class SQuiLKeyGraph
 					if (ReferenceEquals(owner, block)) continue;      // its own PK column
 					var lo = System.Math.Min(order[block], order[owner]);
 					var hi = System.Math.Max(order[block], order[owner]);
-					if (!pairSeen.Add((lo, hi, col.Identifier.Value))) continue;
+					if (!pairSeen.Add((lo, hi))) continue;
 					pairs.Add((list[lo], list[hi], col.Identifier.Value));
 				}
 			}

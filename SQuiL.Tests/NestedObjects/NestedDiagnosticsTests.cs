@@ -23,7 +23,8 @@ using Xunit;
 /// orientation lands in Task 1 with the old PK-oriented ambiguity check deleted outright and cycle
 /// detection left structurally unreachable (see the per-test remarks below). Both fixtures below
 /// therefore assert the diagnostic is currently ABSENT; Task 2 reintroduces SP0033 under the new
-/// pair/order model and a later task's multi-container handling may reopen SP0034.
+/// pair/order model, and Task 3 (multi-container resolution, which inverts edges) is what makes
+/// cycles reachable again and may reopen SP0034.
 /// </summary>
 public class NestedDiagnosticsTests
 {
@@ -66,9 +67,9 @@ public class NestedDiagnosticsTests
 	/// generates successfully instead of bailing out).
 	/// </summary>
 	[Fact]
-	public void ChildMatchingTwoPrimaryKeysReportsSP0033()
+	public void ChildMatchingTwoPrimaryKeysDoesNotReportSP0033()
 	{
-		var name = nameof(ChildMatchingTwoPrimaryKeysReportsSP0033);
+		var name = nameof(ChildMatchingTwoPrimaryKeysDoesNotReportSP0033);
 		var diagnostics = Run(name, """
 			Declare @Returns_A table(SharedID int Primary Key, N int);
 			Declare @Returns_B table(SharedID int Primary Key, M int);
@@ -87,12 +88,13 @@ public class NestedDiagnosticsTests
 	/// every edge points from the earlier-declared block to the later one, so `childOf[Child] =
 	/// Parent` always strictly decreases declaration order — a cycle can no longer form from this
 	/// fixture. The cycle-detection code itself is retained (not deleted); it simply finds nothing
-	/// here. A later task's multi-container handling may reopen the possibility.
+	/// here. Task 3 (multi-container resolution, which inverts edges) is what makes cycles reachable
+	/// again and may reopen SP0034.
 	/// </summary>
 	[Fact]
-	public void PrimaryForeignKeyCycleReportsSP0034()
+	public void PrimaryForeignKeyCycleDoesNotReportSP0034()
 	{
-		var name = nameof(PrimaryForeignKeyCycleReportsSP0034);
+		var name = nameof(PrimaryForeignKeyCycleDoesNotReportSP0034);
 		var diagnostics = Run(name, """
 			Declare @Return_A table(AID int Primary Key, BID int);
 			Declare @Return_B table(BID int Primary Key, AID int);
