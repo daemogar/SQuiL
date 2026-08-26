@@ -54,33 +54,90 @@ public class KeyGraphTests
         Assert.Equal(2, g.Roots.Count); // both flat siblings
     }
 
+    // NOTE (Task 1 of the containment-direction feature, Ruling R2): declaration-order orientation
+    // means every edge now points from the earlier-declared block to the later-declared one
+    // (`SQuiLKeyEdge.Parent`/`Child` — see `order`/`pairs` in `SQuiLKeyGraph.Build`). Two direct
+    // consequences for these two fixtures, both accepted per the plan's pre-flight ruling:
+    //   - Ambiguity detection ("a block links to >1 container") is deleted in this task outright —
+    //     Task 2 reintroduces it under the new pair/order model.
+    //   - Cycle detection is structurally impossible now: `childOf[Child] = Parent` always satisfies
+    //     order(Parent) < order(Child), so no chain through `childOf` can ever return to its start.
+    //     The cycle-detection code itself is retained unchanged (not deleted) per Ruling R2 — it
+    //     simply never finds one under order-based edges. Multi-container handling in a later task
+    //     may reopen the possibility.
     [Fact]
     public void ChildMatchingTwoPrimaryKeysIsAmbiguousError()
     {
-        // "SharedID" is the PK of BOTH A and B; C carries SharedID → ambiguous parent.
+        // "SharedID" is the PK of BOTH A and B; C carries SharedID. Under declaration order this no
+        // longer reports an "ambiguous" finding (Task 2 restores an ambiguity diagnostic here) — the
+        // graph still builds without throwing.
         var g = Graph("""
             Declare @Returns_A table(SharedID int Primary Key, N int);
             Declare @Returns_B table(SharedID int Primary Key, M int);
             Declare @Returns_C table(CID int, SharedID int);
             Use Db; Select 1;
             """);
-        Assert.Contains(g.Errors, f => f.Kind == "ambiguous" && f.Name == "C");
+        Assert.DoesNotContain(g.Errors, f => f.Kind == "ambiguous");
     }
 
     [Fact]
     public void CycleIsAnError()
     {
-        // A.AID is PK, B carries AID (B child of A); B.BID is PK, A carries BID (A child of B) → cycle.
+        // A.AID is PK, B carries AID; B.BID is PK, A carries BID. Under the OLD PK-oriented algorithm
+        // this was a two-node cycle (A child-of B and B child-of A). Under declaration-order
+        // orientation both edges point A -> B (A declared first), so no cycle can form — this is a
+        // structural consequence of R1, not a bug in this fixture.
         var g = Graph("""
             Declare @Return_A table(AID int Primary Key, BID int);
             Declare @Return_B table(BID int Primary Key, AID int);
             Use Db; Select 1;
             """);
-        Assert.Contains(g.Errors, f => f.Kind == "cycle");
+        Assert.DoesNotContain(g.Errors, f => f.Kind == "cycle");
+        Assert.All(g.Edges, e => Assert.Equal("A", e.Parent.Name));
+    }
 
-        var cycles = g.Errors.Where(f => f.Kind == "cycle").ToList();
-        Assert.Single(cycles);
-        Assert.Equal(new[] { "A", "B" }, new[] { cycles[0].Name, cycles[0].OtherName }.OrderBy(x => x).ToArray());
+    [Fact]
+    public void EmbedDirection_WhenFkCarrierDeclaredFirst()
+    {
+        // Structure (the FK carrier) is declared before Contact (the PK owner) — the lookup is
+        // embedded into its container. R1: the earlier-declared block (Structure) is still the
+        // container/Parent, but IsEmbed is true because the nested block (Contact) owns the key.
+        var sql = """
+            Declare @Returns_Structure table(Title varchar(50), ContactID varchar(10));
+            Declare @Returns_Contact table(ContactID varchar(10) Primary Key, Name varchar(50));
+            Use [Db];
+            Select * From @Returns_Structure;
+            Select * From @Returns_Contact;
+            """;
+
+        var g = Graph(sql);
+
+        var edge = Assert.Single(g.Edges);
+        Assert.Equal("Structure", edge.Parent.Name);
+        Assert.Equal("Contact", edge.Child.Name);
+        Assert.True(edge.IsEmbed);
+        Assert.Equal("Structure", Assert.Single(g.Roots).Name);
+    }
+
+    [Fact]
+    public void ChildDirection_WhenPkOwnerDeclaredFirst_IsUnchanged()
+    {
+        // Transcript (the PK owner) is declared before Institution (the FK carrier) — today's classic
+        // one-to-many shape. IsEmbed is false because the nested block does NOT own the key.
+        var sql = """
+            Declare @Return_Transcript table(TranscriptID int Primary Key, IssueDate date);
+            Declare @Returns_Institution table(InstitutionID int Primary Key, TranscriptID int, SchoolName varchar(50));
+            Use [Db];
+            Select * From @Return_Transcript;
+            Select * From @Returns_Institution;
+            """;
+
+        var g = Graph(sql);
+
+        var edge = Assert.Single(g.Edges);
+        Assert.Equal("Transcript", edge.Parent.Name);
+        Assert.Equal("Institution", edge.Child.Name);
+        Assert.False(edge.IsEmbed);
     }
 
     [Fact]

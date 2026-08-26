@@ -49,31 +49,36 @@ internal static class SQuiLPreviewGenerator
 
     /// <summary>Parent → its direct children (declaration order) plus a lookup for "is this
     /// variable someone's child" — the child collapses into the parent record and drops off
-    /// the Response top level.</summary>
+    /// the Response top level. <c>Embeds</c> marks which children are R1 "embed" nestings — the
+    /// nested variable OWNS the shared key (a many-to-one lookup embedded into its FK carrier),
+    /// mirroring the generator's <c>SQuiLKeyEdge.IsEmbed</c>.</summary>
     private sealed class NestedGraph
     {
         public List<SQuiLVariable> Roots { get; } = new();
         public Dictionary<SQuiLVariable, List<SQuiLVariable>> ChildrenOf { get; } = new();
         private readonly HashSet<SQuiLVariable> _children = new();
+        private readonly HashSet<SQuiLVariable> _embeds = new();
         public bool IsChild(SQuiLVariable v) => _children.Contains(v);
         public void MarkChild(SQuiLVariable v) => _children.Add(v);
+        public bool IsEmbed(SQuiLVariable v) => _embeds.Contains(v);
+        public void MarkEmbed(SQuiLVariable v) => _embeds.Add(v);
     }
 
     /// <summary>
     /// Minimal preview mirror of the generator's <c>SQuiLKeyGraph</c>
-    /// (<c>SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs</c>): a table/object
-    /// variable's key is its single <c>Primary Key</c> column; any OTHER variable in the
-    /// SAME universe carrying a column of that exact name becomes its child. Variables
-    /// nobody links to are roots. Called once for OUTPUT (<c>@Return*</c>) table/object
-    /// variables and once for INPUT (<c>@Param*</c>) table/object variables (never mixed),
-    /// matching the generator building one graph per side (FileGenerator.cs's
-    /// <c>keyGraph</c> / <c>inputGraph</c>).
+    /// (<c>SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs</c>): two table/object variables
+    /// that share a key column name are linked; ORIENTATION follows declaration order — the
+    /// earlier-declared variable is always the container (parent), regardless of which side owns
+    /// the Primary Key (<c>NestedGraph.IsEmbed</c> records which). Variables nobody links to are
+    /// roots. Called once for OUTPUT (<c>@Return*</c>) table/object variables and once for INPUT
+    /// (<c>@Param*</c>) table/object variables (never mixed), matching the generator building one
+    /// graph per side (FileGenerator.cs's <c>keyGraph</c> / <c>inputGraph</c>).
     ///
     /// Simplified relative to the generator: ambiguous (&gt;1 distinct parent) or cyclic
     /// links are build-time errors owned by the generator/editor diagnostics, not the
-    /// preview — here the first matching PK owner silently wins so the preview always
-    /// renders something reasonable (graceful degradation to the flat shape when there are
-    /// no links at all).
+    /// preview — here the first matching link silently wins so the preview always renders
+    /// something reasonable (graceful degradation to the flat shape when there are no links
+    /// at all).
     /// </summary>
     private static NestedGraph BuildNestedGraph(List<SQuiLVariable> tableVars)
     {
@@ -85,16 +90,38 @@ internal static class SQuiLPreviewGenerator
                 pkOwner[pk.Name] = v;
         }
 
-        var parentOf = new Dictionary<SQuiLVariable, SQuiLVariable>();
-        foreach (var child in tableVars)
+        // R1: orientation follows declaration order, not which side owns the Primary Key.
+        // `tableVars` is already in declaration order, so its index is the declaration ordinal.
+        var order = new Dictionary<SQuiLVariable, int>();
+        for (var i = 0; i < tableVars.Count; i++) order[tableVars[i]] = i;
+
+        // Distinct unordered pairs {block, pkOwner} that share a key column name.
+        var pairs = new List<(SQuiLVariable A, SQuiLVariable B, string Key)>();
+        var pairSeen = new HashSet<(int, int, string)>();
+        foreach (var block in tableVars)
         {
-            foreach (var col in child.Columns ?? new List<TableColumn>())
+            foreach (var col in block.Columns ?? new List<TableColumn>())
             {
-                if (!pkOwner.TryGetValue(col.Name, out var owner) || ReferenceEquals(owner, child))
+                if (!pkOwner.TryGetValue(col.Name, out var owner) || ReferenceEquals(owner, block))
                     continue;
-                parentOf[child] = owner;
-                break;
+                var lo = System.Math.Min(order[block], order[owner]);
+                var hi = System.Math.Max(order[block], order[owner]);
+                if (!pairSeen.Add((lo, hi, col.Name))) continue;
+                pairs.Add((tableVars[lo], tableVars[hi], col.Name));
             }
+        }
+
+        // R1: the earlier-declared variable is the container (parent). Embed when the
+        // later-declared (nested) variable owns the shared key as its own Primary Key.
+        var parentOf = new Dictionary<SQuiLVariable, SQuiLVariable>();
+        var embeds = new HashSet<SQuiLVariable>();
+        foreach (var (a, b, key) in pairs)
+        {
+            if (parentOf.ContainsKey(b)) continue;     // first matching link wins (preview simplification)
+            parentOf[b] = a;
+            var bPk = b.Columns?.FirstOrDefault(c => c.IsPrimaryKey);
+            if (bPk is not null && string.Equals(bPk.Name, key, System.StringComparison.OrdinalIgnoreCase))
+                embeds.Add(b);
         }
 
         var graph = new NestedGraph();
@@ -102,6 +129,7 @@ internal static class SQuiLPreviewGenerator
         {
             if (!parentOf.TryGetValue(v, out var parent)) continue;
             graph.MarkChild(v);
+            if (embeds.Contains(v)) graph.MarkEmbed(v);
             if (!graph.ChildrenOf.TryGetValue(parent, out var list))
                 graph.ChildrenOf[parent] = list = new List<SQuiLVariable>();
             list.Add(v);

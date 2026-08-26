@@ -491,8 +491,15 @@ test('SP0037 does not fire on table-column null/not null markers', () => {
 
 // ── SP0033 / SP0034: nested-object key-graph errors (editor squiggle parity
 // with the generator's build-time SQuiLKeyGraph.Errors) ─────────────────────
+//
+// TRANSITIONAL (containment-direction feature, Task 1 / Ruling R2): declaration-order edge
+// orientation lands in Task 1 with the old PK-oriented ambiguity check deleted outright (Task 2
+// reintroduces it under the new pair/order model) and cycle detection left structurally
+// unreachable — every edge now points from the earlier-declared block to the later one, so no
+// chain through `childOf` can ever return to its start. The two tests below assert the diagnostic
+// is currently ABSENT for fixtures that used to trigger it under the old algorithm.
 
-test('SP0033 fires when a child column matches more than one declared Primary Key (ambiguous)', () => {
+test('SP0033 does not fire under declaration-order orientation (Task 2 restores an ambiguity diagnostic)', () => {
   const result = parseSQuiL([
     '--Name: Ambiguous',
     'Declare @Returns_A table(SharedID int Primary Key, N int);',
@@ -503,13 +510,10 @@ test('SP0033 fires when a child column matches more than one declared Primary Ke
   ].join('\n'));
 
   const sp0033 = result.diagnostics.filter(d => d.code === 'SP0033');
-  assert.strictEqual(sp0033.length, 1, 'should emit exactly one SP0033 diagnostic');
-  assert.strictEqual(sp0033[0].severity, 'error');
-  assert.ok(sp0033[0].message.includes('C'), 'message should name the ambiguous child');
-  assert.ok(sp0033[0].message.includes('A'), 'message should name a matched parent');
+  assert.strictEqual(sp0033.length, 0);
 });
 
-test('SP0034 fires when Primary-Key/Foreign-Key links form a cycle', () => {
+test('SP0034 does not fire under declaration-order orientation (cycles are now structurally impossible)', () => {
   const result = parseSQuiL([
     '--Name: Cycle',
     'Declare @Return_A table(AID int Primary Key, BID int);',
@@ -519,9 +523,7 @@ test('SP0034 fires when Primary-Key/Foreign-Key links form a cycle', () => {
   ].join('\n'));
 
   const sp0034 = result.diagnostics.filter(d => d.code === 'SP0034');
-  assert.strictEqual(sp0034.length, 1, 'should emit exactly one SP0034 diagnostic');
-  assert.strictEqual(sp0034[0].severity, 'error');
-  assert.ok(sp0034[0].message.includes('A') && sp0034[0].message.includes('B'), 'message should name both tables');
+  assert.strictEqual(sp0034.length, 0);
 });
 
 test('SP0033/SP0034 stay silent on a well-formed tree (no ambiguity, no cycle)', () => {
@@ -540,7 +542,7 @@ test('SP0033/SP0034 stay silent on a well-formed tree (no ambiguity, no cycle)',
 // ── SP0033 / SP0034 on the INPUT (`@Param_`/`@Params_`) key graph — the same
 // checks applied to a second, independent graph (Task 15) ──────────────────
 
-test('SP0033 fires on the INPUT graph when a child column matches more than one declared Primary Key', () => {
+test('SP0033 does not fire on the INPUT graph under declaration-order orientation (Task 2 restores an ambiguity diagnostic)', () => {
   const result = parseSQuiL([
     '--Name: AmbiguousInput',
     'Declare @Params_A table(SharedID int Primary Key, N int);',
@@ -553,13 +555,10 @@ test('SP0033 fires on the INPUT graph when a child column matches more than one 
   ].join('\n'));
 
   const sp0033 = result.diagnostics.filter(d => d.code === 'SP0033');
-  assert.strictEqual(sp0033.length, 1, 'should emit exactly one SP0033 diagnostic for the input graph');
-  assert.strictEqual(sp0033[0].severity, 'error');
-  assert.ok(sp0033[0].message.includes('C'), 'message should name the ambiguous child');
-  assert.ok(sp0033[0].message.includes('A'), 'message should name a matched parent');
+  assert.strictEqual(sp0033.length, 0);
 });
 
-test('SP0034 fires on the INPUT graph when Primary-Key/Foreign-Key links form a cycle', () => {
+test('SP0034 does not fire on the INPUT graph under declaration-order orientation (cycles are now structurally impossible)', () => {
   const result = parseSQuiL([
     '--Name: CycleInput',
     'Declare @Param_A table(AID int Primary Key, BID int);',
@@ -570,9 +569,7 @@ test('SP0034 fires on the INPUT graph when Primary-Key/Foreign-Key links form a 
   ].join('\n'));
 
   const sp0034 = result.diagnostics.filter(d => d.code === 'SP0034');
-  assert.strictEqual(sp0034.length, 1, 'should emit exactly one SP0034 diagnostic for the input graph');
-  assert.strictEqual(sp0034[0].severity, 'error');
-  assert.ok(sp0034[0].message.includes('A') && sp0034[0].message.includes('B'), 'message should name both tables');
+  assert.strictEqual(sp0034.length, 0);
 });
 
 test('SP0033/SP0034 on the INPUT graph do not fire from an unrelated OUTPUT-side ambiguity/cycle (graphs stay independent)', () => {

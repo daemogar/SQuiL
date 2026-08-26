@@ -2,11 +2,13 @@
  * Editor mirror of the generator's nested-object key graph
  * (`SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs`).
  *
- * Build-time parent/child graph inferred from Primary-Key columns and
+ * Build-time container/nested graph inferred from Primary-Key columns and
  * matching-named "foreign key by convention" columns, over one query file's
- * table/object blocks. A table's key is its single Primary-Key column name;
- * any OTHER block carrying a column of that exact name is its child. Graceful
- * degradation: no PKs / no matches → no links (flat model).
+ * table/object blocks. Two blocks that share a key column name are linked;
+ * ORIENTATION follows declaration order — the earlier-declared block is
+ * always the container (`parent`), regardless of which side owns the
+ * Primary Key (`isEmbed` records which). Graceful degradation: no PKs / no
+ * matches → no links (flat model).
  *
  * Two independent universes participate, never mixed in the same graph —
  * matches the generator, which calls `SQuiLKeyGraph.Build` once for OUTPUT
@@ -38,6 +40,8 @@ export interface KeyGraphEdge {
   parent: SQuiLVariable;
   child: SQuiLVariable;
   keyName: string;
+  /** True when `child` OWNS the key (embedded lookup); false for a classic FK-carrier child. */
+  isEmbed: boolean;
 }
 
 export interface KeyGraphResult {
@@ -74,36 +78,44 @@ export function buildKeyGraph(
     if (owners) { owners.push(v); } else { pkOwners.set(key, [v]); }
   }
 
-  const edges: KeyGraphEdge[] = [];
   const errors: KeyGraphFinding[] = [];
-  const childOf = new Map<SQuiLVariable, SQuiLVariable>();
 
-  for (const child of list) {
-    // Which declared keys does this variable carry a matching column for
-    // (excluding its own PK)?
-    const matches: { key: string; parent: SQuiLVariable }[] = [];
-    for (const col of child.columns) {
+  // R1: orientation follows declaration order, not which side owns the Primary Key.
+  // `list` is already in declaration order, so its index is the declaration ordinal.
+  const order = new Map<SQuiLVariable, number>();
+  list.forEach((v, i) => order.set(v, i));
+
+  // Distinct unordered pairs {block, pkOwner} that share a key column name.
+  const pairSeen = new Set<string>();
+  const edges: KeyGraphEdge[] = [];
+  for (const block of list) {
+    for (const col of block.columns) {
       const owners = pkOwners.get(col.name.toLowerCase());
       if (!owners) continue;
       for (const owner of owners) {
-        if (owner === child) continue; // own PK column
-        matches.push({ key: col.name, parent: owner });
+        if (owner === block) continue; // own PK column
+        const lo = Math.min(order.get(block)!, order.get(owner)!);
+        const hi = Math.max(order.get(block)!, order.get(owner)!);
+        const id = `${lo}|${hi}|${col.name.toLowerCase()}`;
+        if (pairSeen.has(id)) continue;
+        pairSeen.add(id);
+        const nested = list[hi];
+        const nestedPk = pkColumnOf.get(nested);
+        edges.push({
+          parent: list[lo],
+          child: nested,
+          keyName: col.name,
+          isEmbed: !!nestedPk && nestedPk.name.toLowerCase() === col.name.toLowerCase(),
+        });
       }
     }
-    if (matches.length === 0) continue;
-
-    // A child column matching >1 distinct parent → ambiguous (graph must be a tree).
-    const distinctParents = matches.map(m => m.parent).filter((p, i, arr) => arr.indexOf(p) === i);
-    if (distinctParents.length > 1) {
-      const other = distinctParents.find(p => p !== distinctParents[0])!;
-      errors.push({ kind: 'ambiguous', variable: child, otherVariable: other });
-      continue;
-    }
-
-    const parent = distinctParents[0];
-    edges.push({ parent, child, keyName: matches[0].key });
-    childOf.set(child, parent);
   }
+
+  // childOf drives cycle detection below. Ambiguity handling (a block linked to more than one
+  // container) is reintroduced under the new pair/order model in a later task — this task is the
+  // orientation seam only, so `errors` collects cycles alone.
+  const childOf = new Map<SQuiLVariable, SQuiLVariable>();
+  for (const e of edges) childOf.set(e.child, e.parent);
 
   // Cycle / self-reference detection over the childOf map. Report each cycle
   // ONCE and name the actual partner (cur) whose FK closes the loop back to start.

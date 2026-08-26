@@ -4,18 +4,23 @@ using SQuiL.SourceGenerator.Parser;
 using System.Collections.Generic;
 using System.Linq;
 
-/// <summary>One parent→child relationship: the child carries a column named <paramref name="KeyName"/>
-/// that matches the parent's Primary-Key column name.</summary>
-public sealed record SQuiLKeyEdge(CodeBlock Parent, CodeBlock Child, string KeyName);
+/// <summary>One container→nested relationship. <paramref name="Parent"/> is the container,
+/// <paramref name="Child"/> the nested block, and <paramref name="KeyName"/> the shared key column.
+/// <paramref name="IsEmbed"/> is true when <paramref name="Child"/> OWNS the primary key (a
+/// many-to-one lookup embedded into its FK carrier) and false when <paramref name="Child"/> merely
+/// carries it (the classic one-to-many child).</summary>
+public sealed record SQuiLKeyEdge(CodeBlock Parent, CodeBlock Child, string KeyName, bool IsEmbed);
 
 /// <summary>A relationship diagnostic. <c>Kind</c> ∈ "ambiguous" | "cycle" | "orphan".</summary>
 public sealed record SQuiLKeyFinding(string Kind, string Name, string OtherName, int Line, int OtherLine);
 
 /// <summary>
-/// Build-time parent/child graph inferred from Primary-Key columns and matching-named
+/// Build-time container/nested graph inferred from Primary-Key columns and matching-named
 /// "foreign key by convention" columns, over one query file's OUTPUT (or INPUT) table/object blocks.
-/// A table's key = its single Primary-Key column name; any OTHER block carrying a column of that
-/// exact name is its child. Graceful degradation: no PKs / no matches → no links (today's flat model).
+/// Two blocks that share a key column name are linked; ORIENTATION follows declaration order — the
+/// earlier-declared block is always the container (<see cref="SQuiLKeyEdge.Parent"/>), regardless of
+/// which side owns the Primary Key (<see cref="SQuiLKeyEdge.IsEmbed"/> records which). Graceful
+/// degradation: no PKs / no matches → no links (today's flat model).
 /// </summary>
 public sealed class SQuiLKeyGraph
 {
@@ -54,39 +59,46 @@ public sealed class SQuiLKeyGraph
 			owners.Add(b);
 		}
 
-		var edges = new List<SQuiLKeyEdge>();
 		var errors = new List<SQuiLKeyFinding>();
-		var childOf = new Dictionary<CodeBlock, CodeBlock>();
 
-		foreach (var child in list)
+		// R1: orientation follows declaration order, not which side owns the Primary Key.
+		// `list` is already in declaration order, so its index is the declaration ordinal.
+		var order = new Dictionary<CodeBlock, int>();
+		for (var i = 0; i < list.Count; i++) order[list[i]] = i;
+
+		// Distinct unordered pairs {block, pkOwner} that share a key column name.
+		var pairs = new List<(CodeBlock A, CodeBlock B, string Key)>();
+		var pairSeen = new HashSet<(int, int, string)>();
+		foreach (var block in list)
 		{
-			// Which declared keys does this block carry a matching column for (excluding its own PK)?
-			var matches = new List<(string Key, CodeBlock Parent)>();
-			foreach (var col in child.Properties ?? [])
+			foreach (var col in block.Properties ?? [])
 			{
 				if (!pkOwners.TryGetValue(col.Identifier.Value, out var owners)) continue;
 				foreach (var owner in owners)
 				{
-					if (ReferenceEquals(owner, child)) continue;          // own PK column
-					matches.Add((col.Identifier.Value, owner));
+					if (ReferenceEquals(owner, block)) continue;      // its own PK column
+					var lo = System.Math.Min(order[block], order[owner]);
+					var hi = System.Math.Max(order[block], order[owner]);
+					if (!pairSeen.Add((lo, hi, col.Identifier.Value))) continue;
+					pairs.Add((list[lo], list[hi], col.Identifier.Value));
 				}
 			}
-			if (matches.Count == 0) continue;
-
-			// A child column matching >1 distinct parent → ambiguous (graph must be a tree).
-			var distinctParents = matches.Select(m => m.Parent).Distinct().ToList();
-			if (distinctParents.Count > 1)
-			{
-				var other = distinctParents.First(p => !ReferenceEquals(p, distinctParents[0]));
-				errors.Add(new("ambiguous", child.Name, distinctParents[0].Name,
-					LineOf(sql, child.DatabaseType.Offset), LineOf(sql, other.DatabaseType.Offset)));
-				continue;
-			}
-
-			var parent = distinctParents[0];
-			edges.Add(new(parent, child, matches[0].Key));
-			childOf[child] = parent;
 		}
+
+		// R1: the earlier-declared block is the container. IsEmbed when the nested block owns the key.
+		var edges = new List<SQuiLKeyEdge>();
+		foreach (var (a, b, key) in pairs)
+		{
+			var nestedOwnsKey = pkNameOf.TryGetValue(b, out var bKey)
+				&& string.Equals(bKey, key, System.StringComparison.OrdinalIgnoreCase);
+			edges.Add(new(a, b, key, nestedOwnsKey));
+		}
+
+		// childOf drives cycle detection and root computation below. Ambiguity handling (a block
+		// linked to more than one container) is reintroduced under the new pair/order model in a
+		// later task — this task is the orientation seam only, so `errors` collects cycles alone.
+		var childOf = new Dictionary<CodeBlock, CodeBlock>();
+		foreach (var e in edges) childOf[e.Child] = e.Parent;
 
 		// Cycle / self-reference detection over the childOf map. Report each cycle ONCE
 		// and name the actual partner (cur) whose FK closes the loop back to start.

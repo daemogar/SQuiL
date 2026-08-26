@@ -18,6 +18,12 @@ using Xunit;
 /// <c>Microsoft.CodeAnalysis.FileGenerator.Create</c>. The generator run is inspected directly
 /// (mirroring <c>TransactionDiagnosticTests.DebugRollbackWithoutDebugDoesNotEmitSP0026AtBuildTime</c>)
 /// rather than via full snapshot comparison, since only the diagnostic Id matters here.
+///
+/// TRANSITIONAL (containment-direction feature, Task 1 / Ruling R2): declaration-order edge
+/// orientation lands in Task 1 with the old PK-oriented ambiguity check deleted outright and cycle
+/// detection left structurally unreachable (see the per-test remarks below). Both fixtures below
+/// therefore assert the diagnostic is currently ABSENT; Task 2 reintroduces SP0033 under the new
+/// pair/order model and a later task's multi-container handling may reopen SP0034.
 /// </summary>
 public class NestedDiagnosticsTests
 {
@@ -52,7 +58,13 @@ public class NestedDiagnosticsTests
 		return driver.GetRunResult().Diagnostics;
 	}
 
-	/// <summary>SP0033 — "C" carries a column ("SharedID") matching the Primary Key of both "A" and "B".</summary>
+	/// <summary>
+	/// SP0033 — "C" carries a column ("SharedID") matching the Primary Key of both "A" and "B".
+	/// Task 1 of the containment-direction feature (Ruling R2) deletes the old PK-oriented ambiguity
+	/// check outright — Task 2 reintroduces an ambiguity diagnostic under the new declaration-order/
+	/// pair model. Until then this fixture reports no SP0033 (and, having no graph errors, the file
+	/// generates successfully instead of bailing out).
+	/// </summary>
 	[Fact]
 	public void ChildMatchingTwoPrimaryKeysReportsSP0033()
 	{
@@ -66,12 +78,17 @@ public class NestedDiagnosticsTests
 			""");
 
 		var sp0033 = diagnostics.Where(d => d.Id == "SP0033").ToList();
-		Assert.Single(sp0033);
-		Assert.Equal(DiagnosticSeverity.Error, sp0033[0].Severity);
-		Assert.Contains("C", sp0033[0].GetMessage());
+		Assert.Empty(sp0033);
 	}
 
-	/// <summary>SP0034 — A links to B via BID and B links back to A via AID, forming a cycle.</summary>
+	/// <summary>
+	/// SP0034 — A links to B via BID and B links back to A via AID. Under the OLD PK-oriented
+	/// algorithm this was a two-node cycle. Under declaration-order orientation (Task 1, Ruling R2)
+	/// every edge points from the earlier-declared block to the later one, so `childOf[Child] =
+	/// Parent` always strictly decreases declaration order — a cycle can no longer form from this
+	/// fixture. The cycle-detection code itself is retained (not deleted); it simply finds nothing
+	/// here. A later task's multi-container handling may reopen the possibility.
+	/// </summary>
 	[Fact]
 	public void PrimaryForeignKeyCycleReportsSP0034()
 	{
@@ -84,7 +101,6 @@ public class NestedDiagnosticsTests
 			""");
 
 		var sp0034 = diagnostics.Where(d => d.Id == "SP0034").ToList();
-		Assert.Single(sp0034);
-		Assert.Equal(DiagnosticSeverity.Error, sp0034[0].Severity);
+		Assert.Empty(sp0034);
 	}
 }
