@@ -61,8 +61,10 @@ partial class SharedTableDataContext : SqlServerDataContext
 						if (response.Bob is not null)
 							throw new Exception("Bob was already set.");
 						
+						var indexID = reader.GetOrdinal("ID");
+						
 						response.Bob = new(
-							reader.GetInt32(reader.GetOrdinal("ID")));
+							reader.GetInt32(indexID));
 						
 						if (await reader.ReadAsync(cancellationToken))
 							throw new Exception(
@@ -79,7 +81,7 @@ partial class SharedTableDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isBob) errors.Add(new(51001, 12, 1, 81, "Bob", "Expected return object `Bob`"));
+		if (!isBob) errors.Add(new(51001, 12, 1, 83, "Bob", "Expected return object `Bob`"));
 		
 		if(errors.Count == 0)
 			return new(response);

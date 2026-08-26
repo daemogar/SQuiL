@@ -153,4 +153,22 @@ public class CompilationTests : BaseTest
 
 		Assert.Contains("UndefinedType", exception.Message);
 	}
+
+	[Fact]
+	public void ObjectReturnWithColumnDefaultCompiles()
+	{
+		// A single-object return whose table declares a column default produces a hybrid
+		// record: the defaulted column is a { get; init; } property, NOT a constructor
+		// parameter. The reader must set it through an object initializer — passing it
+		// positionally is CS1729 ("no constructor takes N arguments"), which a Verify
+		// snapshot alone would not catch.
+		CompilationAssert.GeneratedCodeCompiles(
+			[TestHeader([nameof(ObjectReturnWithColumnDefaultCompiles)])],
+			[$"""
+			--Name: {nameof(ObjectReturnWithColumnDefaultCompiles)}
+			Declare @Return_Person table(PersonID int, Note varchar(50) default 'hello', Score int null);
+			Use [Database];
+			Select PersonID, Note, Score From dbo.People;
+			"""]);
+	}
 }

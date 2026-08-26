@@ -77,10 +77,14 @@ partial class FullVariableDataContext : SqlServerDataContext
 						if (response.Object is not null)
 							throw new Exception("Object was already set.");
 						
+						var indexObjectID = reader.GetOrdinal("ObjectID");
+						var indexIsMale = reader.GetOrdinal("IsMale");
+						var indexFirstName = reader.GetOrdinal("FirstName");
+						
 						response.Object = new(
-							reader.GetInt32(reader.GetOrdinal("ObjectID")),
-							reader.GetBoolean(reader.GetOrdinal("IsMale")),
-							reader.GetString(reader.GetOrdinal("FirstName")));
+							reader.GetInt32(indexObjectID),
+							reader.GetBoolean(indexIsMale),
+							reader.GetString(indexFirstName));
 						
 						if (await reader.ReadAsync(cancellationToken))
 							throw new Exception(
@@ -122,9 +126,9 @@ partial class FullVariableDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isScaler) errors.Add(new(51001, 12, 1, 124, "Scaler", "Expected return scaler `Scaler`"));
-		if (!isObject) errors.Add(new(51001, 12, 1, 125, "Object", "Expected return object `Object`"));
-		if (!isTable) errors.Add(new(51001, 12, 1, 126, "Table", "Expected return table `Table`"));
+		if (!isScaler) errors.Add(new(51001, 12, 1, 128, "Scaler", "Expected return scaler `Scaler`"));
+		if (!isObject) errors.Add(new(51001, 12, 1, 129, "Object", "Expected return object `Object`"));
+		if (!isTable) errors.Add(new(51001, 12, 1, 130, "Table", "Expected return table `Table`"));
 		
 		if(errors.Count == 0)
 			return new(response);

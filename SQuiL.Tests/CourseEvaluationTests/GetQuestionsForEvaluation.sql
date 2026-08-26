@@ -34,7 +34,7 @@ Select		s.SectionID,
 				When 'section' Then s.CourseTitle + ' Questions (' + s.CourseCode + ')'
 				When 'service_learning' Then 'Service Learning Questions'
 				When 'nursing' Then 'Nursing Questions'
-				When 'connections' Then 'Southern Connections Questions'
+				When 'connections' Then 'Connections Questions'
 				When 'private_music_instruction' Then 'Private Music Leason Questions'
 				Else Null
 			End,

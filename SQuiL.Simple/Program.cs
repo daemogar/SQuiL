@@ -8,9 +8,9 @@ Console.WriteLine("Hello, World!");
 ConfigurationBuilder builder = new();
 builder.AddInMemoryCollection(new Dictionary<string, string?>
 {
-	["ConnectionStrings:SQuiLDatabase"] = "Data Source=sqldev.intranet.southern.edu;Initial Catalog=UnitTesting;Integrated Security=True;App=TestCondition;Connect Timeout=120;TrustServerCertificate=True;",
-	["ConnectionStrings:ExampleOne"] = "Data Source=sqldev.intranet.southern.edu;Initial Catalog=UnitTesting;Integrated Security=True;App=TestCondition;Connect Timeout=120;TrustServerCertificate=True;",
-	["ConnectionStrings:ExampleTwo"] = "Data Source=sqldev.intranet.southern.edu;Initial Catalog=UnitTesting;Integrated Security=True;App=TestCondition;Connect Timeout=120;TrustServerCertificate=True;"
+	["ConnectionStrings:SQuiLDatabase"] = "Data Source=localhost;Initial Catalog=UnitTesting;Integrated Security=True;App=TestCondition;Connect Timeout=120;TrustServerCertificate=True;",
+	["ConnectionStrings:ExampleOne"] = "Data Source=localhost;Initial Catalog=UnitTesting;Integrated Security=True;App=TestCondition;Connect Timeout=120;TrustServerCertificate=True;",
+	["ConnectionStrings:ExampleTwo"] = "Data Source=localhost;Initial Catalog=UnitTesting;Integrated Security=True;App=TestCondition;Connect Timeout=120;TrustServerCertificate=True;"
 });
 
 ServiceCollection services = new();

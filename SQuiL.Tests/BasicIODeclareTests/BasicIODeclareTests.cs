@@ -180,6 +180,21 @@ public class BasicIODeclareTests
 	}
 
 	[Fact]
+	public Task ObjectColumnDefault()
+	{
+		// A SINGLE-OBJECT return (@Return_, singular) with a column default gets the same
+		// hybrid record as a table: the defaulted column is a { get; init; } property, so
+		// the reader sets it via an object initializer instead of a positional argument.
+		var name = nameof(ObjectColumnDefault);
+		return TestHelper.Verify([TestHeader([name])], [$$"""
+			--Name: {{name}}
+			Declare @Return_Person table(PersonID int, Note varchar(50) default 'hello', Score int null);
+			Use [Database];
+			Select PersonID, Note, Score From dbo.People;
+			"""]);
+	}
+
+	[Fact]
 	public Task ColumnDefaultBeforeRequired()
 	{
 		// A default may now sit before a required column: the table becomes a hybrid

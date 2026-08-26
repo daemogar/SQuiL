@@ -62,11 +62,16 @@ partial class TestQueryParamsAndReturnsDataContext : SqlServerDataContext
 						if (response.Student is not null)
 							throw new Exception("Student was already set.");
 						
+						var indexStudentID = reader.GetOrdinal("StudentID");
+						var indexFirstName = reader.GetOrdinal("FirstName");
+						var indexLastName = reader.GetOrdinal("LastName");
+						var indexAge = reader.GetOrdinal("Age");
+						
 						response.Student = new(
-							reader.GetInt32(reader.GetOrdinal("StudentID")),
-							reader.IsDBNull(reader.GetOrdinal("FirstName")) ? default(string?) : reader.GetString(reader.GetOrdinal("FirstName")),
-							reader.GetString(reader.GetOrdinal("LastName")),
-							reader.IsDBNull(reader.GetOrdinal("Age")) ? default(int?) : reader.GetInt32(reader.GetOrdinal("Age")));
+							reader.GetInt32(indexStudentID),
+							reader.IsDBNull(indexFirstName) ? default(string?) : reader.GetString(indexFirstName),
+							reader.GetString(indexLastName),
+							reader.IsDBNull(indexAge) ? default(int?) : reader.GetInt32(indexAge));
 						
 						if (await reader.ReadAsync(cancellationToken))
 							throw new Exception(
@@ -111,8 +116,8 @@ partial class TestQueryParamsAndReturnsDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isStudent) errors.Add(new(51001, 12, 1, 113, "Student", "Expected return object `Student`"));
-		if (!isParents) errors.Add(new(51001, 12, 1, 114, "Parents", "Expected return table `Parents`"));
+		if (!isStudent) errors.Add(new(51001, 12, 1, 118, "Student", "Expected return object `Student`"));
+		if (!isParents) errors.Add(new(51001, 12, 1, 119, "Parents", "Expected return table `Parents`"));
 		
 		if(errors.Count == 0)
 			return new(response);
