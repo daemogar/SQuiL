@@ -1353,7 +1353,16 @@ internal static class SQuiLLinter
             });
         }
 
-        var childOf = graph.Edges.ToDictionary(e => e.Child, e => e.Parent);
+        // Last-write-wins (matches the generator's `childOf[e.Child] = e.Parent` in
+        // SQuiLKeyGraph.cs and keyGraph.ts's `Map.set`) — deliberately NOT `.ToDictionary(...)`.
+        // A child can appear in more than one edge when it links to 2+ containers (ambiguity
+        // handling is deferred to Task 2 — see the TRANSITIONAL note above), so `.ToDictionary`
+        // throws `ArgumentException` on the duplicate key. `LintKeyGraph` is called unguarded from
+        // `Lint(...)`, which `SQuiLErrorTagger.cs` calls with no try/catch, so an uncaught throw
+        // here aborts every lint pass scheduled after this one (LintParamsBeforeReturns,
+        // LintOrphanContext, LintMutationDiagnostics, LintDebugRollbackHint).
+        var childOf = new Dictionary<SQuiLVariable, SQuiLVariable>();
+        foreach (var e in graph.Edges) childOf[e.Child] = e.Parent;
 
         // Cycle / self-reference detection over the childOf map. Report each cycle
         // ONCE and name the actual partner (cur) whose FK closes the loop back to start.
