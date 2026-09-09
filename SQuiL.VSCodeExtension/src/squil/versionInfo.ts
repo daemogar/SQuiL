@@ -3,9 +3,9 @@
 // Studio extensions — change one, change the others (see CLAUDE.md port table).
 
 export interface ParsedTag {
-  /** SDK-version segment, e.g. [10, 0, 100] from "10.0.100.0042-beta". */
+  /** Core-version segments except the last, e.g. [1, 0] from "1.0.0-beta.188". */
   sdk: number[];
-  /** Build segment (github.run_number), e.g. 42 from ".0042". */
+  /** Last core-version segment, e.g. 0 from "1.0.0-beta.188". */
   build: number;
   /** True when the tag carries a prerelease suffix such as "-beta". */
   prerelease: boolean;
@@ -26,8 +26,10 @@ export interface UpdateResult {
   htmlUrl: string;
 }
 
-// <sdk>.<build>[-suffix] — sdk is dotted (10.0.100), build is the last numeric
-// segment, suffix (if any) marks a prerelease.
+// <core>[-suffix] — the dotted core (1.0.0) splits into sdk plus a trailing
+// build segment; the suffix (if any) marks a prerelease. Current tags carry the
+// run number in that suffix ("1.0.0-beta.188"); the older "10.0.100.0042-beta"
+// scheme still parses.
 const TAG_RE = /^(\d+(?:\.\d+)*)\.(\d+)(-[0-9A-Za-z.-]+)?$/;
 
 export function parseTag(tag: string): ParsedTag | undefined {
