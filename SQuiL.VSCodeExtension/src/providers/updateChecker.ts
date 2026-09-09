@@ -93,13 +93,13 @@ export async function checkForUpdates(
   const update = selectUpdate(RELEASE_TAG, releases);
   if (!update) {
     if (opts.manual) {
-      void vscode.window.showInformationMessage('SQuiL: you are running the latest version.');
+      void vscode.window.showInformationMessage(`SQuiL: you are running the latest version (${RELEASE_TAG}).`);
     }
     return;
   }
 
   const choice = await vscode.window.showInformationMessage(
-    `SQuiL ${update.tag} is available.`,
+    `SQuiL ${update.tag} is available (you have ${RELEASE_TAG}).`,
     'View Release',
     'Dismiss',
   );
