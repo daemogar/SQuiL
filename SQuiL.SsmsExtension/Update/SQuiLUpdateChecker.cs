@@ -83,11 +83,11 @@ internal static class SQuiLUpdateChecker
         if (update is null)
         {
             if (manual)
-                await ShowMessageAsync(package, "You are running the latest version.");
+                await ShowMessageAsync(package, $"You are running the latest version ({currentTag}).");
             return;
         }
 
-        await ShowUpdateInfoBarAsync(package, update.Tag, update.HtmlUrl);
+        await ShowUpdateInfoBarAsync(package, update.Tag, update.HtmlUrl, currentTag);
     }
 
     private static List<SQuiLVersion.ReleaseInfo> ParseReleases(string json)
@@ -139,7 +139,7 @@ internal static class SQuiLUpdateChecker
             OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
     }
 
-    private static async Task ShowUpdateInfoBarAsync(AsyncPackage package, string tag, string htmlUrl)
+    private static async Task ShowUpdateInfoBarAsync(AsyncPackage package, string tag, string htmlUrl, string currentTag)
     {
         await package.JoinableTaskFactory.SwitchToMainThreadAsync();
 
@@ -148,7 +148,7 @@ internal static class SQuiLUpdateChecker
         if (shell is null || factory is null)
         {
             VsShellUtilities.ShowMessageBox(
-                package, $"SQuiL {tag} is available: {htmlUrl}", "SQuiL",
+                package, $"SQuiL {tag} is available (you have {currentTag}): {htmlUrl}", "SQuiL",
                 OLEMSGICON.OLEMSGICON_INFO, OLEMSGBUTTON.OLEMSGBUTTON_OK,
                 OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
             return;
@@ -160,7 +160,7 @@ internal static class SQuiLUpdateChecker
             return;
 
         var model = new InfoBarModel(
-            new[] { new InfoBarTextSpan($"SQuiL {tag} is available.") },
+            new[] { new InfoBarTextSpan($"SQuiL {tag} is available (you have {currentTag}).") },
             new[] { new InfoBarHyperlink("View Release", htmlUrl) },
             KnownMonikers.StatusInformation,
             isCloseButtonVisible: true);
