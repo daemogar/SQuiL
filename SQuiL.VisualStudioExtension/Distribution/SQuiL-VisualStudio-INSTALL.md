@@ -1,8 +1,8 @@
 # Installing SQuiL for Visual Studio 2026
 
-The release asset is a single file: **`SQuiL.VisualStudioExtension.vsix`**.
+The release asset is a single file: **`SQuiL-VisualStudio.vsix`**.
 
-> **Easiest:** download `install.cmd` from the same release and double-click
+> **Easiest:** download `SQuiL-Install.cmd` from the same release and double-click
 > it. It detects every supported product on your machine — Visual Studio 2026
 > (Community/Professional/Enterprise) *and* SSMS 22+ — downloads whatever
 > `.vsix` files it needs, and installs the matching SQuiL extension into each.
@@ -27,7 +27,7 @@ The release asset is a single file: **`SQuiL.VisualStudioExtension.vsix`**.
 
 Close Visual Studio first, then **either**:
 
-**Double-click** `SQuiL.VisualStudioExtension.vsix` — the VSIX Installer opens,
+**Double-click** `SQuiL-VisualStudio.vsix` — the VSIX Installer opens,
 lists "Visual Studio 2026", and installs.
 
 **Or from PowerShell** (adjust the edition segment — `Enterprise` /
@@ -35,7 +35,7 @@ lists "Visual Studio 2026", and installs.
 
 ```powershell
 $installer = "${env:ProgramFiles}\Microsoft Visual Studio\18\Enterprise\Common7\IDE\VSIXInstaller.exe"
-$vsix      = "SQuiL.VisualStudioExtension.vsix"   # or the full path to the file you downloaded
+$vsix      = "SQuiL-VisualStudio.vsix"   # or the full path to the file you downloaded
 
 # Close any running VS instances:
 Get-Process devenv -ErrorAction SilentlyContinue | Stop-Process -Force

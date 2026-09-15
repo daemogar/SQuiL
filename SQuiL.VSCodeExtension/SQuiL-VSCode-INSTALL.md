@@ -1,6 +1,6 @@
 # Installing SQuiL for Visual Studio Code
 
-The release asset is a single file: **`squil-editor-<version>.vsix`**.
+The release asset is a single file: **`SQuiL-VSCode.vsix`**.
 
 ## Install
 
@@ -10,14 +10,14 @@ Pick whichever you prefer.
 anything that ships the `code` CLI):
 
 ```bash
-code --install-extension squil-editor-<version>.vsix
+code --install-extension SQuiL-VSCode.vsix
 ```
 
 **From the VS Code UI:**
 
 1. Open the **Extensions** view (`Ctrl+Shift+X`).
 2. Click the **`···`** menu at the top of the view → **Install from VSIX…**
-3. Select the downloaded `squil-editor-<version>.vsix`.
+3. Select the downloaded `SQuiL-VSCode.vsix`.
 4. Reload when prompted.
 
 ## Requirements

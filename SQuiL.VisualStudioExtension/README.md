@@ -39,7 +39,7 @@ experience — that's an SSMS feature.
 ## Installing (no need to build)
 
 The compiled VSIX is the only artefact you need. Grab
-`SQuiL.VisualStudioExtension.vsix` from the
+`SQuiL-VisualStudio.vsix` from the
 [GitHub release assets](https://github.com/daemogar/SQuiL/releases/latest), or
 build it (see below).
 
@@ -48,7 +48,7 @@ opens, lists "Visual Studio 2026", and installs per-user. Or from PowerShell:
 
 ```powershell
 $installer = "${env:ProgramFiles}\Microsoft Visual Studio\18\Enterprise\Common7\IDE\VSIXInstaller.exe"
-$vsix      = "C:\path\to\SQuiL.VisualStudioExtension.vsix"
+$vsix      = "C:\path\to\SQuiL-VisualStudio.vsix"
 
 Get-Process devenv -ErrorAction SilentlyContinue | Stop-Process -Force
 & $installer $vsix

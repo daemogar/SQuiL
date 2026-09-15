@@ -5,7 +5,13 @@ import { RELEASE_TAG } from '../buildInfo';
 import { parseTag, selectUpdate, isDevTag, ReleaseInfo } from '../squil/versionInfo';
 
 const RELEASES_URL = 'https://api.github.com/repos/daemogar/SQuiL/releases';
-const ASSET_PREFIX = 'squil-editor-';
+// Accepted release-asset names. The VS Code asset was renamed to a stable
+// SQuiL-VSCode.vsix; the legacy 'squil-editor-<version>.vsix' is still published
+// for a transition window so builds shipped before the rename keep detecting
+// updates. Drop LEGACY_ASSET_PREFIX (and the workflow duplicate) once those
+// builds are gone. Mirrors AssetNames in both SQuiLUpdateChecker.cs copies.
+const ASSET_NAME = 'SQuiL-VSCode.vsix';
+const LEGACY_ASSET_PREFIX = 'squil-editor-';
 const THROTTLE_KEY = 'squil.lastUpdateCheck';
 const THROTTLE_MS = 24 * 60 * 60 * 1000;
 
@@ -44,7 +50,8 @@ function toReleaseInfos(raw: unknown): ReleaseInfo[] {
       Array.isArray(r?.assets) &&
       r.assets.some((a: any) => {
         const name = String(a?.name ?? '');
-        return name.startsWith(ASSET_PREFIX) && name.endsWith('.vsix');
+        if (name.toLowerCase() === ASSET_NAME.toLowerCase()) return true;
+        return name.startsWith(LEGACY_ASSET_PREFIX) && name.endsWith('.vsix');
       }),
   }));
 }
