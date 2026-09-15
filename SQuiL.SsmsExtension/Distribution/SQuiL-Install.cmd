@@ -1,7 +1,7 @@
 <# :
 @echo off & setlocal
 :: =====================================================================
-:: SQuiL extension installer  (install.cmd) — SSMS 22+ and Visual Studio 2026
+:: SQuiL extension installer  (SQuiL-Install.cmd) — SSMS 22+ and Visual Studio 2026
 ::
 :: WHY THIS FILE IS A .cmd AND NOT A .ps1
 ::   Browsers tag every download with the "Mark of the Web", and Windows
@@ -155,7 +155,7 @@ function Get-SquilTargets {
                 InstanceId  = $i.instanceId
                 Installer   = $installer
                 ProductPath = $i.productPath          # Ssms.exe — needed for /setup
-                AssetName   = 'SQuiL.SsmsExtension.vsix'
+                AssetName   = 'SQuiL-SSMS.vsix'
                 Process     = 'ssms'
             }
         }
@@ -166,7 +166,7 @@ function Get-SquilTargets {
                 InstanceId  = $i.instanceId
                 Installer   = $installer
                 ProductPath = $i.productPath          # devenv.exe
-                AssetName   = 'SQuiL.VisualStudioExtension.vsix'
+                AssetName   = 'SQuiL-VisualStudio.vsix'
                 Process     = 'devenv'
             }
         }
@@ -182,7 +182,7 @@ function Get-SquilVsix {
     [Net.ServicePointManager]::SecurityProtocol =
         [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
-    $apiHeaders = @{ 'User-Agent' = 'SQuiL-install.cmd'; 'Accept' = 'application/vnd.github+json' }
+    $apiHeaders = @{ 'User-Agent' = 'SQuiL-Install.cmd'; 'Accept' = 'application/vnd.github+json' }
 
     if ($Tag) {
         $release = Invoke-RestMethod -Headers $apiHeaders `
@@ -213,7 +213,7 @@ function Get-SquilVsix {
     $prev = $ProgressPreference
     $ProgressPreference = 'SilentlyContinue'   # IWR is far faster without the progress bar
     try {
-        Invoke-WebRequest -Headers @{ 'User-Agent' = 'SQuiL-install.cmd' } `
+        Invoke-WebRequest -Headers @{ 'User-Agent' = 'SQuiL-Install.cmd' } `
             -Uri $asset.browser_download_url -OutFile $dest
     }
     finally { $ProgressPreference = $prev }
@@ -298,7 +298,7 @@ try {
     $principal = New-Object Security.Principal.WindowsPrincipal(
         [Security.Principal.WindowsIdentity]::GetCurrent())
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        throw "Not running elevated. Run install.cmd (it self-elevates via UAC) rather than invoking this script body directly."
+        throw "Not running elevated. Run SQuiL-Install.cmd (it self-elevates via UAC) rather than invoking this script body directly."
     }
 
     # The batch header exported the .cmd's own folder; use it to find a
@@ -319,7 +319,7 @@ try {
     # ── Resolve one .vsix per product family that is present ───────────────
     $vsixByAsset = @{}
     foreach ($assetName in ($targets | Select-Object -ExpandProperty AssetName -Unique)) {
-        $explicit = if ($assetName -eq 'SQuiL.SsmsExtension.vsix') { $SsmsVsixPath } else { $VsVsixPath }
+        $explicit = if ($assetName -eq 'SQuiL-SSMS.vsix') { $SsmsVsixPath } else { $VsVsixPath }
         $vsixByAsset[$assetName] = Resolve-SquilVsix -Explicit $explicit -AssetName $assetName -ScriptDir $scriptDir
     }
 

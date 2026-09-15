@@ -151,7 +151,7 @@
     "vscode:prepublish": "npm run sync-shared && npm run compile",
     "compile": "npm run sync-shared && tsc -p ./",
     "watch": "npm run sync-shared && tsc -watch -p ./",
-    "package": "vsce package",
+    "package": "vsce package --out SQuiL-VSCode.vsix",
     "test": "npm run compile && node --test ./out"
   },
   "devDependencies": {

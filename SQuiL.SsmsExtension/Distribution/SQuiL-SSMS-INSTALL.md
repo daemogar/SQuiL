@@ -2,9 +2,9 @@
 
 You may have up to three files:
 
-- `SQuiL.SsmsExtension.vsix`  ← the extension package (optional — `install.cmd` downloads it if absent)
-- `install.cmd`              ← runs the install for you. **You can download just this one file and double-click it** — it self-elevates (UAC prompt) and fetches the `.vsix` from GitHub if it isn't sitting next to it. It detects **every supported product on your machine** — SSMS 22+ *and* Visual Studio 2026 (Community/Professional/Enterprise) — and installs the matching SQuiL extension into each.
-- `INSTALL.md`                ← this file
+- `SQuiL-SSMS.vsix`        ← the extension package (optional — `SQuiL-Install.cmd` downloads it if absent)
+- `SQuiL-Install.cmd`      ← runs the install for you. **You can download just this one file and double-click it** — it self-elevates (UAC prompt) and fetches the `.vsix` from GitHub if it isn't sitting next to it. It detects **every supported product on your machine** — SSMS 22+ *and* Visual Studio 2026 (Community/Professional/Enterprise) — and installs the matching SQuiL extension into each.
+- `SQuiL-SSMS-INSTALL.md`  ← this file
 
 ## Things to know before you install
 
@@ -21,23 +21,23 @@ You may have up to three files:
   — SSMS's normal SQL behaviour is untouched for them.
 - **Install is per-user.** Don't pass `/admin` to VSIXInstaller — that
   changes the install scope and isn't needed; `VSIXInstaller /quiet
-  path-to-vsix.vsix` is enough. (Note: the bundled `install.cmd` still
+  path-to-vsix.vsix` is enough. (Note: the bundled `SQuiL-Install.cmd` still
   self-elevates so it can reliably force-close SSMS — but it does **not** pass
   `/admin` to VSIXInstaller.)
 
 ## Install (easiest)
 
-**Download `install.cmd` and double-click it.** It prompts for administrator
+**Download `SQuiL-Install.cmd` and double-click it.** It prompts for administrator
 rights (UAC), discovers every supported product on the machine via `vswhere`
 (SSMS 22+ and Visual Studio 2026 Community/Professional/Enterprise), then runs
 the gated steps for you — force-close the affected apps, install each VSIX into
 its instance, and `Ssms.exe /setup` for SSMS. **Before it closes anything it
 pauses and asks you to save any open work**, so nothing is lost (press any key
 to continue, or close the window to cancel). You don't need the `.vsix` files
-locally; whatever isn't sitting next to `install.cmd` is downloaded
+locally; whatever isn't sitting next to `SQuiL-Install.cmd` is downloaded
 automatically (the release tag is baked into the file at publish time).
 
-`install.cmd` is a single file that is both a batch script and a PowerShell
+`SQuiL-Install.cmd` is a single file that is both a batch script and a PowerShell
 script ("polyglot"). Because it runs as a `.cmd`, Windows does **not** block it
 under the PowerShell execution policy and there is no Mark-of-the-Web prompt —
 so there's no `Set-ExecutionPolicy`/`-ExecutionPolicy Bypass` dance and no
@@ -50,7 +50,7 @@ Close SSMS first. Then run all four steps in **PowerShell**:
 ```powershell
 $installer = "C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\VSIXInstaller.exe"
 $ssms      = "C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\Ssms.exe"
-$vsix      = "SQuiL.SsmsExtension.vsix"   # or full path to the .vsix you received
+$vsix      = "SQuiL-SSMS.vsix"   # or full path to the .vsix you received
 
 # 1. Install the VSIX:
 & $installer /quiet $vsix
@@ -63,7 +63,7 @@ $vsix      = "SQuiL.SsmsExtension.vsix"   # or full path to the .vsix you receiv
 & $ssms /setup
 ```
 
-> **Tip:** you don't have to run these by hand — `install.cmd` (see
+> **Tip:** you don't have to run these by hand — `SQuiL-Install.cmd` (see
 > **Install (easiest)** above) performs exactly these three gated steps for
 > you, prompting you to save open work first and aborting if any step fails
 > (e.g. `/setup` never runs unless the VSIX install returned 0). The manual
@@ -124,7 +124,7 @@ relaunch:
 ```powershell
 $installer = "C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\VSIXInstaller.exe"
 $ssms      = "C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\Ssms.exe"
-$vsix      = "$PSScriptRoot\SQuiL.SsmsExtension.vsix"   # adjust if elsewhere
+$vsix      = "$PSScriptRoot\SQuiL-SSMS.vsix"   # adjust if elsewhere
 
 # Find your SSMS instance folder (it ends in _<id> — e.g. _f16a3f6a):
 $ssmsLocal = (Get-ChildItem "$env:LOCALAPPDATA\Microsoft\SSMS" -Directory |

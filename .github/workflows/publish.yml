@@ -254,7 +254,7 @@ jobs:
       SSMS_MANIFEST: SQuiL.SsmsExtension/source.extension.vsixmanifest
       VS_PROJECT: SQuiL.VisualStudioExtension/SQuiL.VisualStudioExtension.csproj
       VS_OUTPUT: SQuiL.VisualStudioExtension/bin/Release
-      VS_INSTALL_DOC: SQuiL.VisualStudioExtension/Distribution/INSTALL-VisualStudio.md
+      VS_INSTALL_DOC: SQuiL.VisualStudioExtension/Distribution/SQuiL-VisualStudio-INSTALL.md
       VS_MANIFEST: SQuiL.VisualStudioExtension/source.extension.vsixmanifest
 
     steps:
@@ -308,22 +308,23 @@ jobs:
     - name: Build SSMS Extension (VSIX)
       run: msbuild ${{ env.SSMS_PROJECT }} /t:Build /p:Configuration=Release /p:DeployExtension=false
 
-    # The build copies Distribution\INSTALL.md and Distribution\install.cmd to
-    # the output root (see the .csproj), so all three SSMS assets sit together.
+    # The build copies Distribution\SQuiL-SSMS-INSTALL.md and
+    # Distribution\SQuiL-Install.cmd to the output root (see the .csproj), so all
+    # three SSMS assets sit together.
 
-    # Bake this release's tag into install.cmd so a downloaded copy installs
+    # Bake this release's tag into SQuiL-Install.cmd so a downloaded copy installs
     # the exact matching .vsix with no version argument (replaces the
     # __SQUIL_RELEASE_TAG__ placeholder in the PowerShell body of the polyglot).
-    - name: Stamp release version into install.cmd
+    - name: Stamp release version into SQuiL-Install.cmd
       shell: pwsh
       run: |
-        $p = "${{ env.SSMS_OUTPUT }}/install.cmd"
+        $p = "${{ env.SSMS_OUTPUT }}/SQuiL-Install.cmd"
         $stamped = (Get-Content $p -Raw) -replace '__SQUIL_RELEASE_TAG__', '${{ needs.build.outputs.version }}'
         if ($stamped -notmatch [regex]::Escape('${{ needs.build.outputs.version }}')) {
-          throw "Failed to stamp release tag into install.cmd — placeholder __SQUIL_RELEASE_TAG__ not found."
+          throw "Failed to stamp release tag into SQuiL-Install.cmd — placeholder __SQUIL_RELEASE_TAG__ not found."
         }
         Set-Content $p -Value $stamped -Encoding UTF8
-        Write-Host "Stamped install.cmd with release tag '${{ needs.build.outputs.version }}'."
+        Write-Host "Stamped SQuiL-Install.cmd with release tag '${{ needs.build.outputs.version }}'."
 
     # ── Visual Studio 2026 extension ──────────────────────────────────────
     # Stamp a unique, increasing VSIX version (1.0.<run_number>) so VSIXInstaller
@@ -359,19 +360,36 @@ jobs:
     - name: Build Visual Studio Extension (VSIX)
       run: msbuild ${{ env.VS_PROJECT }} /t:Build /p:Configuration=Release /p:DeployExtension=false
 
-    - name: Verify release assets exist
+    # ── Stage the assets under their PUBLISHED names ──────────────────────
+    # Build output keeps the project-derived names (SQuiL.SsmsExtension.vsix,
+    # …). The release presents one pair per product — SQuiL-<Product>.vsix next
+    # to SQuiL-<Product>-INSTALL.md — so the asset list sorts into groups
+    # instead of scattering each doc away from its package.
+    #
+    # TRANSITION (remove later): the two legacy .vsix names are also published,
+    # as byte-identical copies. Every shipped extension gates update detection
+    # on its own asset name (AssetNames in both SQuiLUpdateChecker.cs copies),
+    # so dropping the old names outright would leave every already-installed
+    # build convinced it is up to date forever. Builds from this release on
+    # accept either name — delete the two legacy Copy-Item lines below, and the
+    # legacy entry in each checker, once pre-rename installs are gone.
+    - name: Stage release assets
       shell: pwsh
       run: |
-        $files = @(
-          "${{ env.SSMS_OUTPUT }}/SQuiL.SsmsExtension.vsix",
-          "${{ env.SSMS_OUTPUT }}/INSTALL.md",
-          "${{ env.SSMS_OUTPUT }}/install.cmd",
-          "${{ env.VS_OUTPUT }}/SQuiL.VisualStudioExtension.vsix",
-          "${{ env.VS_INSTALL_DOC }}"
-        )
-        $missing = $files | Where-Object { -not (Test-Path $_) }
+        $stage = [ordered]@{
+          "${{ env.SSMS_OUTPUT }}/SQuiL.SsmsExtension.vsix"       = "SQuiL-SSMS.vsix"
+          "${{ env.SSMS_OUTPUT }}/SQuiL-SSMS-INSTALL.md"          = "SQuiL-SSMS-INSTALL.md"
+          "${{ env.SSMS_OUTPUT }}/SQuiL-Install.cmd"              = "SQuiL-Install.cmd"
+          "${{ env.VS_OUTPUT }}/SQuiL.VisualStudioExtension.vsix" = "SQuiL-VisualStudio.vsix"
+          "${{ env.VS_INSTALL_DOC }}"                             = "SQuiL-VisualStudio-INSTALL.md"
+        }
+        $missing = $stage.Keys | Where-Object { -not (Test-Path $_) }
         if ($missing) { throw "Missing expected release asset(s): $($missing -join ', ')" }
-        Get-ChildItem $files | Select-Object Name, Length
+        New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+        foreach ($src in $stage.Keys) { Copy-Item $src (Join-Path 'release-assets' $stage[$src]) -Force }
+        Copy-Item release-assets/SQuiL-SSMS.vsix         release-assets/SQuiL.SsmsExtension.vsix -Force          # legacy, transition only
+        Copy-Item release-assets/SQuiL-VisualStudio.vsix release-assets/SQuiL.VisualStudioExtension.vsix -Force  # legacy, transition only
+        Get-ChildItem release-assets | Select-Object Name, Length
 
     - name: Attach VSIX assets to release
       uses: ncipollo/release-action@v1.21.0
@@ -384,10 +402,10 @@ jobs:
         replacesArtifacts: true
         prerelease: ${{ needs.build.outputs.prerelease }}
         artifactErrorsFailBuild: true
-        artifacts: "${{ env.SSMS_OUTPUT }}/SQuiL.SsmsExtension.vsix,${{ env.SSMS_OUTPUT }}/INSTALL.md,${{ env.SSMS_OUTPUT }}/install.cmd,${{ env.VS_OUTPUT }}/SQuiL.VisualStudioExtension.vsix,${{ env.VS_INSTALL_DOC }}"
+        artifacts: "release-assets/*"
 
   # ───────────────────────────────────────────────────────────────────────
-  # Build the VS Code extension VSIX (squil-editor-<version>.vsix) and attach
+  # Build the VS Code extension VSIX (SQuiL-VSCode.vsix) and attach
   # it — plus its install doc — to the release. Pure Node tooling, so this
   # runs on Linux. `vsce package` runs `vscode:prepublish` (sync-shared +
   # tsc compile) first, so the shared grammar/guide assets are bundled.
@@ -424,16 +442,47 @@ jobs:
         Set-Content $p -Value $stamped -Encoding UTF8
         Write-Host "Stamped buildInfo.ts with '${{ needs.build.outputs.version }}'."
 
-    - name: Package VS Code Extension (VSIX)
-      run: npx --no-install @vscode/vsce package --allow-missing-repository
-
-    - name: Verify VS Code asset exists
+    # Stamp the release version into package.json. This is what VS Code shows as
+    # the installed extension's version; the committed 0.1.0 is the local-dev
+    # value and used to ship on every release regardless of the tag. Update
+    # DETECTION does not depend on it (that reads buildInfo.ts) — this is the
+    # displayed version and VS Code's own "is this .vsix newer" comparison.
+    # vsce accepts a prerelease version (1.0.0-beta.<N>) and carries it into the
+    # VSIX Identity unchanged.
+    - name: Stamp release version into package.json
       shell: pwsh
       run: |
-        $vsix = Get-ChildItem -Filter 'squil-editor-*.vsix' | Select-Object -First 1
-        if (-not $vsix) { throw "VS Code VSIX not produced (squil-editor-*.vsix not found)." }
-        if (-not (Test-Path 'INSTALL-VSCode.md')) { throw "Missing INSTALL-VSCode.md." }
-        Get-ChildItem $vsix.FullName, 'INSTALL-VSCode.md' | Select-Object Name, Length
+        $p = 'package.json'
+        $json = Get-Content $p -Raw
+        $stamped = $json -replace '(?m)^(  "version": ")[^"]+(")', "`${1}${{ needs.build.outputs.version }}`$2"
+        if ($stamped -eq $json) {
+          throw "Failed to stamp version into package.json — the top-level version property was not found."
+        }
+        Set-Content $p -Value $stamped -Encoding UTF8
+        Write-Host "Stamped package.json version = '${{ needs.build.outputs.version }}'."
+
+    # --out pins the asset name. Without it vsce derives the filename from
+    # package.json's name+version (squil-editor-0.1.0.vsix) — a version that is
+    # NOT the release version and drifts on its own. Matches the `package`
+    # script in package.json.
+    - name: Package VS Code Extension (VSIX)
+      run: npx --no-install @vscode/vsce package --allow-missing-repository --out SQuiL-VSCode.vsix
+
+    # TRANSITION (remove later): also publish the legacy
+    # squil-editor-<version>.vsix name. VS Code builds shipped before the rename
+    # gate update detection on that prefix (LEGACY_ASSET_PREFIX in
+    # updateChecker.ts), so dropping it outright would strand them on "up to
+    # date" forever. Builds from this release on accept either name — delete the
+    # Copy-Item line below, and LEGACY_ASSET_PREFIX, once those installs are gone.
+    - name: Stage VS Code release assets
+      shell: pwsh
+      run: |
+        $files = @('SQuiL-VSCode.vsix', 'SQuiL-VSCode-INSTALL.md')
+        $missing = $files | Where-Object { -not (Test-Path $_) }
+        if ($missing) { throw "Missing expected release asset(s): $($missing -join ', ')" }
+        $legacy = 'squil-editor-${{ needs.build.outputs.version }}.vsix'
+        Copy-Item 'SQuiL-VSCode.vsix' $legacy -Force
+        Get-ChildItem ($files + $legacy) | Select-Object Name, Length
 
     - name: Attach VS Code assets to release
       uses: ncipollo/release-action@v1.21.0
@@ -446,4 +495,4 @@ jobs:
         replacesArtifacts: true
         prerelease: ${{ needs.build.outputs.prerelease }}
         artifactErrorsFailBuild: true
-        artifacts: "SQuiL.VSCodeExtension/squil-editor-*.vsix,SQuiL.VSCodeExtension/INSTALL-VSCode.md"
+        artifacts: "SQuiL.VSCodeExtension/SQuiL-VSCode.vsix,SQuiL.VSCodeExtension/SQuiL-VSCode-INSTALL.md,SQuiL.VSCodeExtension/squil-editor-*.vsix"

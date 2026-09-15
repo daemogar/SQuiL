@@ -10,6 +10,6 @@ tsconfig.json
 .gitignore
 .git/**
 .claude/**
-INSTALL-VSCode.md
+SQuiL-VSCode-INSTALL.md
 *.vsix
 **/.DS_Store

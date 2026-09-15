@@ -377,3 +377,6 @@ FodyWeavers.xsd
 
 # Claude Code isolation worktrees
 .claude/worktrees/
+
+# Packaged extensions (vsce writes SQuiL-VSCode.vsix to the project root)
+*.vsix

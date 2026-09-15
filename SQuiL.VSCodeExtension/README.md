@@ -125,7 +125,7 @@ Then press **F5** in VS Code to open an Extension Development Host with the exte
 
 To package for distribution:
 ```bash
-npm run package   # produces squil-editor-x.x.x.vsix
+npm run package   # produces SQuiL-VSCode.vsix
 ```
 
 Install the `.vsix` via **Extensions → Install from VSIX…**.

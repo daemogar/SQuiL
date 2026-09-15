@@ -63,6 +63,17 @@ from 1.0.0 onward.
   `SQuiLError`/`SQuiLException`/`SQuiLAggregateException` types are unchanged.
 
 ### Changed
+- **Release assets renamed.** Each editor now publishes one adjacent pair —
+  `SQuiL-SSMS.vsix` / `SQuiL-SSMS-INSTALL.md`, `SQuiL-VisualStudio.vsix` /
+  `SQuiL-VisualStudio-INSTALL.md`, `SQuiL-VSCode.vsix` /
+  `SQuiL-VSCode-INSTALL.md` — and the one-click installer is `SQuiL-Install.cmd`.
+  The VS Code package no longer carries `package.json`'s version in its name
+  (it was stuck at `squil-editor-0.1.0.vsix` regardless of the release), and
+  the VS Code extension now reports the real release version instead of a
+  permanent `0.1.0`.
+  The previous `.vsix` names are still published as duplicates for a transition
+  window so extensions installed before this change keep detecting updates;
+  builds from this release forward accept either name.
 - **Breaking:** a SQuiL file must be valid T-SQL. Referencing an `@` variable
   without a textually-preceding `DECLARE` now fails the build (`SP0013`).
   This applies to every variable — `@Debug` and `@EnvironmentName` included —

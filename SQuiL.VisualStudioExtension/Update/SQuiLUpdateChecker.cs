@@ -25,7 +25,12 @@ namespace SQuiL.VisualStudioExtension.Update;
 internal static class SQuiLUpdateChecker
 {
     private const string ReleasesUrl = "https://api.github.com/repos/daemogar/SQuiL/releases";
-    private const string AssetName = "SQuiL.VisualStudioExtension.vsix";
+    // Accepted release-asset names, newest first. The release assets were
+    // renamed to SQuiL-<Product>.vsix; the legacy name is still published for a
+    // transition window so builds shipped before the rename keep detecting
+    // updates. Drop the legacy entry (and the workflow duplicate) once those
+    // builds are gone.
+    private static readonly string[] AssetNames = { "SQuiL-VisualStudio.vsix", "SQuiL.VisualStudioExtension.vsix" };
     private const string SettingsKey = @"Software\SQuiL\VisualStudioExtension";
     private const string LastCheckValue = "LastUpdateCheckUtcTicks";
     private static readonly TimeSpan Throttle = TimeSpan.FromHours(24);
@@ -97,7 +102,8 @@ internal static class SQuiLUpdateChecker
         {
             var assets = r["assets"] as JArray;
             var hasAsset = assets != null
-                && assets.Any(a => string.Equals((string?)a["name"], AssetName, StringComparison.OrdinalIgnoreCase));
+                && assets.Any(a => AssetNames.Any(n =>
+                    string.Equals((string?)a["name"], n, StringComparison.OrdinalIgnoreCase)));
             list.Add(new SQuiLVersion.ReleaseInfo
             {
                 Tag = (string?)r["tag_name"] ?? "",
