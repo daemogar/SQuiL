@@ -183,4 +183,71 @@ public class NestedInputTests
             Insert Into dbo.Lines Select LineID, OrderID, Sku From @Params_Line;
             """]);
     }
+
+    // Embed (input): Structure embeds Contact. The elided ContactID is copied UP from the
+    // embedded Contact, Contact rows are deduped by key, and nothing is synthesized — so the
+    // varchar key does not raise SP0036 (the embed direction's SP0036 proof).
+    [Fact]
+    public Task EmbeddedLookupInput()
+    {
+        var name = nameof(EmbeddedLookupInput);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Params_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);
+            Declare @Params_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);
+            Use [Db];
+            Insert Into dbo.Structures Select Title, ContactID From @Params_Structure;
+            Insert Into dbo.Contacts Select ContactID, Name From @Params_Contact;
+            """]);
+    }
+
+    // Embed (input) with a NULLABLE int container key: the copy-up may send null (no throw).
+    [Fact]
+    public Task EmbeddedLookupInputNullableIntKey()
+    {
+        var name = nameof(EmbeddedLookupInputNullableIntKey);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Params_Structure table(Title varchar(50) not null, ContactID int null);
+            Declare @Params_Contact table(ContactID int not null Primary Key, Name varchar(50) not null);
+            Use [Db];
+            Insert Into dbo.Structures Select Title, ContactID From @Params_Structure;
+            Insert Into dbo.Contacts Select ContactID, Name From @Params_Contact;
+            """]);
+    }
+
+    // Shared lookup (input): Structure and Widget both embed Contact; one dedup map spans both.
+    [Fact]
+    public Task SharedLookupInput()
+    {
+        var name = nameof(SharedLookupInput);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Params_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);
+            Declare @Params_Widget table(Label varchar(50) not null, ContactID varchar(10) not null);
+            Declare @Params_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);
+            Use [Db];
+            Insert Into dbo.Structures Select Title, ContactID From @Params_Structure;
+            Insert Into dbo.Widgets Select Label, ContactID From @Params_Widget;
+            Insert Into dbo.Contacts Select ContactID, Name From @Params_Contact;
+            """]);
+    }
+
+    // Many-to-many junction (input): StudentID is synthesized down the Student -> Enrollment
+    // child edge, CourseID is copied up from the embedded Course, and Course rows are deduped.
+    [Fact]
+    public Task ManyToManyJunctionInput()
+    {
+        var name = nameof(ManyToManyJunctionInput);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Params_Student table(StudentID int not null Primary Key, Name varchar(50) not null);
+            Declare @Params_Course table(CourseID int not null Primary Key, Title varchar(50) not null);
+            Declare @Params_Enrollment table(StudentID int not null, CourseID int not null, Grade varchar(2) not null);
+            Use [Db];
+            Insert Into dbo.Students Select StudentID, Name From @Params_Student;
+            Insert Into dbo.Courses Select CourseID, Title From @Params_Course;
+            Insert Into dbo.Enrollments Select StudentID, CourseID, Grade From @Params_Enrollment;
+            """]);
+    }
 }

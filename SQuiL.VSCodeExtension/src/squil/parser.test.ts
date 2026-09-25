@@ -685,6 +685,18 @@ test('SP0036 stays silent for int/bigint/smallint/uniqueidentifier link columns'
   assert.strictEqual(guidResult.diagnostics.filter(d => d.code === 'SP0036').length, 0);
 });
 
+test('SP0036 stays silent for a varchar key in the embed direction (caller-supplied key)', () => {
+  const result = parseSQuiL([
+    '--Name: EmbeddedLookupInput',
+    'Declare @Params_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);',
+    'Declare @Params_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);',
+    'Use [Db];',
+    'Insert Into dbo.Structures Select Title, ContactID From @Params_Structure;',
+    'Insert Into dbo.Contacts Select ContactID, Name From @Params_Contact;',
+  ].join('\n'));
+  assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0036').length, 0);
+});
+
 // Regression (found while building Task 16's link-insertion code action): a
 // multi-line TABLE(...) declaration where a MIDDLE column's own type carries
 // parens (varchar(50), decimal(18,2), …) used to fool the continuation-join

@@ -1526,6 +1526,9 @@ internal static class SQuiLLinter
     {
         foreach (var edge in inputGraph.Edges)
         {
+            // An embed's key is caller-supplied (copied up, never synthesized).
+            if (edge.IsEmbed) continue;
+
             var keyColumn = edge.Parent.Columns?.FirstOrDefault(c =>
                 c.IsPrimaryKey && string.Equals(c.Name, edge.KeyName, System.StringComparison.OrdinalIgnoreCase))
                 ?? edge.Parent.Columns?.FirstOrDefault(c =>

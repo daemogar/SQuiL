@@ -411,6 +411,8 @@ export function lintUnsupportedInputKeyType(inputGraph: KeyGraphResult): SQuiLDi
   const diagnostics: SQuiLDiagnostic[] = [];
 
   for (const edge of inputGraph.edges) {
+    // An embed's key is caller-supplied (copied up, never synthesized).
+    if (edge.isEmbed) continue;
     const parentColumns = (edge.parent.columns ?? []) as TableColumn[];
     const keyColumn =
       parentColumns.find(c => c.isPrimaryKey && c.name.toLowerCase() === edge.keyName.toLowerCase()) ??

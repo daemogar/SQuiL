@@ -186,6 +186,9 @@ public class FileGenerator(
 			// carried by the child as its foreign key (edge.KeyName).
 			foreach (var edge in inputGraph.Edges)
 			{
+				// An embed's key is caller-supplied (copied up, never synthesized).
+				if (edge.IsEmbed) continue;
+
 				var keyColumn = edge.Parent.Properties?.FirstOrDefault(p => p.IsPrimaryKey && p.Identifier.Value == edge.KeyName)
 					?? edge.Parent.Properties?.FirstOrDefault(p => p.Identifier.Value == edge.KeyName);
 				if (keyColumn is null || IsSynthesizableKeyType(keyColumn.Type.Type))

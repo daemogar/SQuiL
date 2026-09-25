@@ -274,4 +274,36 @@ public class SQuiLLinterKeyGraphTests
 
 		Assert.DoesNotContain(diagnostics, d => d.Code == "SP0035");
 	}
+
+	/// <summary>SP0036 is scoped to the child direction: an embedded varchar key is caller-supplied.</summary>
+	[Fact]
+	public void LintKeyGraphDoesNotReportSP0036ForAnEmbeddedVarcharKey()
+	{
+		const string sql = """
+			Declare @Params_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);
+			Declare @Params_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);
+			Use [Db]; Select 1;
+			""";
+
+		var diagnostics = new List<SQuiLDiagnostic>();
+		SQuiLLinter.LintKeyGraph(sql, diagnostics);
+
+		Assert.DoesNotContain(diagnostics, d => d.Code == "SP0036");
+	}
+
+	/// <summary>SP0036 still fires in the child direction (PK owner declared first, varchar key).</summary>
+	[Fact]
+	public void LintKeyGraphReportsSP0036ForAChildDirectionVarcharKey()
+	{
+		const string sql = """
+			Declare @Param_Transcript table(TranscriptCode varchar(10) Primary Key, IssueDate date);
+			Declare @Params_Institution table(InstitutionID int Primary Key, TranscriptCode varchar(10), SchoolName varchar(50));
+			Use [Db]; Select 1;
+			""";
+
+		var diagnostics = new List<SQuiLDiagnostic>();
+		SQuiLLinter.LintKeyGraph(sql, diagnostics);
+
+		Assert.Single(diagnostics, d => d.Code == "SP0036");
+	}
 }

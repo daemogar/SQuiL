@@ -692,9 +692,13 @@ public class SQuiLDataContext(
 			}
 		}
 
-		// Output-side key columns this block's embeds supply (elided from its record, R4).
-		List<string> ElidedKeys(CodeBlock block)
-			=> EffectiveGraph.ChildrenOf(block).Where(e => e.IsEmbed).Select(e => e.KeyName).ToList();
+		// Key columns this block's embeds supply (elided from its record, R4); output graph by default.
+		List<string> ElidedKeys(CodeBlock block, SQuiLKeyGraph? graph = null)
+			=> (graph ?? EffectiveGraph).ChildrenOf(block).Where(e => e.IsEmbed).Select(e => e.KeyName).ToList();
+
+		// The declared column behind an elided key name.
+		static CodeItem ElidedColumn(CodeBlock block, string key)
+			=> block.Properties!.First(p => string.Equals(p.Identifier.Value, key, StringComparison.OrdinalIgnoreCase));
 
 		// Post-order traversal of the key graph: for a chain like Transcript -> Institution ->
 		// Course, this yields (Institution, Course) BEFORE (Transcript, Institution), so a
@@ -809,26 +813,40 @@ public class SQuiLDataContext(
 				participants.Add(block);
 			}
 
+			// Blocks some container embeds: their rows are deduped by their own (caller-supplied) key.
+			var embedded = new HashSet<CodeBlock>(graph.Edges.Where(e => e.IsEmbed).Select(e => e.Child));
+
 			writer.WriteLine();
 			foreach (var block in participants)
+			{
 				writer.WriteLine($"List<{recordNamespace}.{block.Name}> __{block.Name} = [];");
+				// One index-aligned list per elided key: the value copied up from the embed.
+				foreach (var key in ElidedKeys(block, graph))
+					writer.WriteLine($"List<{ElidedColumn(block, key).CSharpType()}> __{block.Name}__{key} = [];");
+				if (embedded.Contains(block))
+				{
+					var pk = block.Properties.First(p => p.IsPrimaryKey);
+					writer.WriteLine($"var __{block.Name}Seen = new Dictionary<{pk.CSharpType()}, {recordNamespace}.{block.Name}>();");
+				}
+			}
 			writer.WriteLine();
 
 			foreach (var root in graph.Roots)
 			{
 				if (root.IsObject)
 					writer.Block($"if (request.{root.Name} is not null)",
-						() => EmitNode(root, $"request.{root.Name}", null, null));
+						() => EmitNode(root, $"request.{root.Name}", null, null, false));
 				else
 					writer.Block($"foreach (var {Camel(root.Name)} in request.{root.Name} ?? [])",
-						() => EmitNode(root, Camel(root.Name), null, null));
+						() => EmitNode(root, Camel(root.Name), null, null, false));
 			}
 
 			// Emits one node's key-synthesis + flat-row construction, then recurses into its
 			// children. `itemExpr` is the caller expression for this node's source object;
 			// `parentKeyLocal`/`fkColName` carry the parent's synthesized key value and the column
 			// on THIS node that receives it (null for a root).
-			void EmitNode(CodeBlock node, string itemExpr, string? parentKeyLocal, string? fkColName)
+			// `reachedViaEmbed`: this node is an embedded lookup, so its key is caller-supplied.
+			void EmitNode(CodeBlock node, string itemExpr, string? parentKeyLocal, string? fkColName, bool reachedViaEmbed)
 			{
 				var children = graph.ChildrenOf(node);
 
@@ -843,7 +861,12 @@ public class SQuiLDataContext(
 				string? keyLocal = null;
 				string? pkColName = null;
 				var pk = node.Properties?.FirstOrDefault(p => p.IsPrimaryKey);
-				if (pk is not null && (children.Count > 0 || fkColName is not null))
+				if (pk is not null && reachedViaEmbed)
+				{
+					// An embed's key is a real business value: pass it down as-is, never synthesize.
+					keyLocal = $"{itemExpr}.{pk.Identifier.Value}";
+				}
+				else if (pk is not null && (children.Any(e => !e.IsEmbed) || fkColName is not null))
 				{
 					pkColName = pk.Identifier.Value;
 					keyLocal = $"{Camel(node.Name)}Key";
@@ -858,21 +881,97 @@ public class SQuiLDataContext(
 					writer.WriteLine($"var {keyLocal} = {keyExpr};");
 				}
 
-				EmitRowConstruction(node, itemExpr, keyLocal, pkColName, parentKeyLocal, fkColName);
+				void EmitAddAndChildren(string rowExpr)
+				{
+					writer.WriteLine($"__{node.Name}.Add({rowExpr});");
+					EmitCopyUp(node, itemExpr);
+					EmitChildren(node, itemExpr, keyLocal);
+				}
 
-				foreach (var edge in children)
+				if (!embedded.Contains(node))
+				{
+					EmitRowConstruction(node, itemExpr, keyLocal, pkColName, parentKeyLocal, fkColName, null);
+					EmitCopyUp(node, itemExpr);
+					EmitChildren(node, itemExpr, keyLocal);
+					return;
+				}
+
+				// Embedded lookup: dedup by key; a repeat must match column-wise (declared columns only —
+				// record equality would also compare nested members).
+				var row = $"__{node.Name}Row";
+				var prev = $"__{node.Name}Prev";
+				var pkName = pk!.Identifier.Value;
+				EmitRowConstruction(node, itemExpr, keyLocal, pkColName, parentKeyLocal, fkColName, row);
+				writer.Block($"if (__{node.Name}Seen.TryGetValue({row}.{pkName}, out var {prev}))", () =>
+				{
+					var mismatch = string.Join(" || ", RecordColumns(node).Select(c => ColumnDiffers(c, prev, row)));
+					writer.Block($"if ({mismatch})", () => writer.WriteLine(
+						$$"""throw new Exception($"Conflicting values supplied for {{node.Name}} with {{pkName}} '{{{row}}.{{pkName}}}'.");"""));
+				});
+				writer.Block("else", () =>
+				{
+					writer.WriteLine($"__{node.Name}Seen[{row}.{pkName}] = {row};");
+					EmitAddAndChildren(row);
+				});
+			}
+
+			// The C# record's columns: declared columns minus the keys its own embeds supply (R4).
+			List<CodeItem> RecordColumns(CodeBlock node)
+			{
+				var elided = ElidedKeys(node, graph);
+				return node.Properties
+					.Where(p => !elided.Contains(p.Identifier.Value, StringComparer.OrdinalIgnoreCase))
+					.ToList();
+			}
+
+			static string ColumnDiffers(CodeItem c, string a, string b)
+			{
+				var name = c.Identifier.Value;
+				return c.Type.CSharpType() == "byte[]"
+					? $"!System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals({a}.{name}, {b}.{name})"
+					: $"{a}.{name} != {b}.{name}";
+			}
+
+			// Recurses into a node's children: a classic child receives this node's key as its FK;
+			// an embed is always a single object whose own key is caller-supplied.
+			void EmitChildren(CodeBlock node, string itemExpr, string? keyLocal)
+			{
+				foreach (var edge in graph.ChildrenOf(node))
 				{
 					var child = edge.Child;
 					var childItem = Camel(child.Name);
-					if (child.IsTable)
+					if (edge.IsEmbed)
+						writer.Block($"if ({itemExpr}.{child.Name} is not null)", () =>
+						{
+							writer.WriteLine($"var {childItem} = {itemExpr}.{child.Name};");
+							EmitNode(child, childItem, null, null, true);
+						});
+					else if (child.IsTable)
 						writer.Block($"foreach (var {childItem} in {itemExpr}.{child.Name} ?? [])",
-							() => EmitNode(child, childItem, keyLocal, edge.KeyName));
+							() => EmitNode(child, childItem, keyLocal, edge.KeyName, false));
 					else
 						writer.Block($"if ({itemExpr}.{child.Name} is not null)", () =>
 						{
 							writer.WriteLine($"var {childItem} = {itemExpr}.{child.Name};");
-							EmitNode(child, childItem, keyLocal, edge.KeyName);
+							EmitNode(child, childItem, keyLocal, edge.KeyName, false);
 						});
+				}
+			}
+
+			// R4 elided the FK from the C# record, but the SQL column remains: copy the key UP from
+			// the embedded object into the index-aligned `__<Block>__<Key>` list. A not-null column
+			// with no embed supplied throws rather than silently sending NULL.
+			void EmitCopyUp(CodeBlock node, string itemExpr)
+			{
+				foreach (var edge in graph.ChildrenOf(node).Where(e => e.IsEmbed))
+				{
+					var column = ElidedColumn(node, edge.KeyName);
+					var embedKey = edge.Child.Properties.First(p => p.IsPrimaryKey).Identifier.Value;
+					var member = $"{itemExpr}.{edge.Child.Name}";
+					var value = column.IsNullable
+						? $"{member}?.{embedKey}"
+						: $"""({member} ?? throw new NullReferenceException("{generation.Request.ModelName} {node.Name}.{edge.Child.Name} is required: it supplies the not-null {column.Identifier.Value} column.")).{embedKey}""";
+					writer.WriteLine($"__{node.Name}__{edge.KeyName}.Add({value});");
 				}
 			}
 
@@ -881,8 +980,9 @@ public class SQuiLDataContext(
 			// key; every other column is copied from the caller's object. Non-defaulted columns are
 			// positional ctor args; defaulted columns are object-initializer members (target-typed
 			// `new(...)` — `__<Name>` already fixes the element type).
+			// `rowVar` set: bind the row to that typed local instead of adding it (dedup path).
 			void EmitRowConstruction(CodeBlock node, string itemExpr,
-				string? keyLocal, string? pkColName, string? parentKeyLocal, string? fkColName)
+				string? keyLocal, string? pkColName, string? parentKeyLocal, string? fkColName, string? rowVar)
 			{
 				string ColValue(CodeItem col)
 				{
@@ -892,10 +992,14 @@ public class SQuiLDataContext(
 					return $"{itemExpr}.{name}";
 				}
 
-				var positional = node.Properties.Where(p => p.DefaultValue is null).ToList();
-				var defaulted = node.Properties.Where(p => p.DefaultValue is not null).ToList();
+				var columns = RecordColumns(node);
+				var positional = columns.Where(p => p.DefaultValue is null).ToList();
+				var defaulted = columns.Where(p => p.DefaultValue is not null).ToList();
+				var close = rowVar is null ? ")" : "";
 
-				writer.Write($"__{node.Name}.Add(new(");
+				writer.Write(rowVar is null
+					? $"__{node.Name}.Add(new("
+					: $"var {rowVar} = new {recordNamespace}.{node.Name}(");
 				writer.Indent++;
 				var comma = "";
 				foreach (var item in positional)
@@ -907,7 +1011,7 @@ public class SQuiLDataContext(
 				writer.Indent--;
 				if (defaulted.Count == 0)
 				{
-					writer.WriteLine("));");
+					writer.WriteLine($"){close};");
 				}
 				else
 				{
@@ -917,7 +1021,7 @@ public class SQuiLDataContext(
 					foreach (var item in defaulted)
 						writer.WriteLine($"{item.Identifier.Value} = {ColValue(item)},");
 					writer.Indent--;
-					writer.WriteLine("});");
+					writer.WriteLine($"}}{close};");
 				}
 			}
 
@@ -937,18 +1041,32 @@ public class SQuiLDataContext(
 					// The JSON param name + shred SQL are keyed on IsTable and stay unchanged.
 					if (EffectiveInputGraph.HasLinks)
 					{
+						var elided = ElidedKeys(CodeBlock, EffectiveInputGraph);
+						string? ValueOf(CodeItem p, string item, string index)
+							=> elided.Contains(p.Identifier.Value, StringComparer.OrdinalIgnoreCase)
+								? $"__{CodeBlock.Name}__{p.Identifier.Value}[{index}]"
+								: null;
+
 						if (CodeBlock.Properties.Any(IsSizedString))
 						{
 							writer.WriteLine("var index = 0;");
 							writer.Block($"foreach (var item in __{CodeBlock.Name})", () =>
 							{
-								EmitStringLengthGuards(CodeBlock, "item", "index");
+								EmitStringLengthGuards(CodeBlock, "item", "index", ValueOf);
 								writer.WriteLine("index++;");
 							});
 							writer.WriteLine();
 						}
 
-						writer.WriteLine($"""AddJsonParameter(parameters, "{Sql.ShredParamName(CodeBlock)}", __{CodeBlock.Name});""");
+						if (elided.Count == 0)
+							writer.WriteLine($"""AddJsonParameter(parameters, "{Sql.ShredParamName(CodeBlock)}", __{CodeBlock.Name});""");
+						else
+						{
+							// Elided keys are absent from the record: rejoin them by index for the JSON rows.
+							var fields = string.Join(", ", CodeBlock.Properties.Select(p =>
+								$"{p.Identifier.Value} = {ValueOf(p, "__r", "__i") ?? $"__r.{p.Identifier.Value}"}"));
+							writer.WriteLine($$"""AddJsonParameter(parameters, "{{Sql.ShredParamName(CodeBlock)}}", System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(__{{CodeBlock.Name}}, (__r, __i) => new { {{fields}} })));""");
+						}
 					}
 					else if (CodeBlock.IsTable)
 					{
@@ -1011,7 +1129,9 @@ public class SQuiLDataContext(
 			// over `request.<Name>` with item "item"; for an object, "request.<Name>".
 			// `indexExpr` is the runtime loop-counter variable for a list (so the message names
 			// the failing row, e.g. `Rows[3]`); null for a single object (no index).
-			void EmitStringLengthGuards(CodeBlock block, string itemExpr, string? indexExpr = null)
+			// `valueOf` may redirect a column's value expression (elided keys live in a side list).
+			void EmitStringLengthGuards(CodeBlock block, string itemExpr, string? indexExpr = null,
+				Func<CodeItem, string, string, string?>? valueOf = null)
 			{
 				// Row locator embedded into the runtime message: "[{index}]" for a list
 				// element, empty for a single object. The inner single braces survive as a
@@ -1026,7 +1146,8 @@ public class SQuiLDataContext(
 					// Value is the type name) have no length to enforce.
 					if (!int.TryParse(size, out _)) continue;
 
-					var value = $"{itemExpr}.{p.Identifier.Value}";
+					var value = (indexExpr is null ? null : valueOf?.Invoke(p, itemExpr, indexExpr))
+						?? $"{itemExpr}.{p.Identifier.Value}";
 					writer.Block($"if ({value} is not null && {value}.Length > {size})", () =>
 					{
 						writer.WriteLine($$"""

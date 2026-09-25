@@ -169,6 +169,21 @@ public class KeyGraphTests
         Assert.False(edge.IsEmbed);
     }
 
+    // Plan Task 7: an embedded lookup's PK is linked (from the container), so it is not orphaned.
+    [Fact]
+    public void OrphanHintDoesNotFireOnAnEmbeddedPrimaryKey()
+    {
+        var g = Graph("""
+            Declare @Returns_Structure table(Title varchar(50), ContactID varchar(10));
+            Declare @Returns_Contact table(ContactID varchar(10) Primary Key, Name varchar(50));
+            Use [Db];
+            Select * From @Returns_Structure;
+            Select * From @Returns_Contact;
+            """);
+        Assert.True(g.HasLinks);
+        Assert.Empty(g.Hints);
+    }
+
     [Fact]
     public void OrphanPrimaryKeyIsAHintOnlyWhenNestingIsInPlay()
     {
