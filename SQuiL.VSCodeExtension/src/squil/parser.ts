@@ -448,9 +448,22 @@ export function lintShapeMismatch(result: SQuiLParseResult): SQuiLDiagnostic[] {
 
   const seen = new Map<string, SQuiLVariable>(); // name (lower) → first variable
 
+  // R4: key columns each container's embeds elide — part of the record shape.
+  const elided = new Map<SQuiLVariable, Set<string>>();
+  for (const graph of [buildKeyGraph(result.variables, OUTPUT_TABLE_ROLES), buildKeyGraph(result.variables, INPUT_TABLE_ROLES)]) {
+    for (const e of graph.edges) {
+      if (!e.isEmbed) continue;
+      const keys = elided.get(e.parent) ?? new Set<string>();
+      keys.add(e.keyName.toLowerCase());
+      elided.set(e.parent, keys);
+    }
+  }
+  const colSig = (x: SQuiLVariable) =>
+    (x.columns ?? []).map(c => `${c.name}:${c.sqlType.replace(/\s*\([^)]*\)/, '').toLowerCase()}:${c.nullable}`).join('|');
+  const elidedSig = (x: SQuiLVariable) => [...(elided.get(x) ?? [])].sort().join(',');
+
   for (const v of tableVars) {
     const key = v.name.toLowerCase();
-    const sig = (v.columns ?? []).map(c => `${c.name}:${c.sqlType.replace(/\s*\([^)]*\)/, '').toLowerCase()}:${c.nullable}`).join('|');
 
     const first = seen.get(key);
     if (!first) {
@@ -458,13 +471,14 @@ export function lintShapeMismatch(result: SQuiLParseResult): SQuiLDiagnostic[] {
       continue;
     }
 
-    const firstSig = (first.columns ?? []).map(c => `${c.name}:${c.sqlType.replace(/\s*\([^)]*\)/, '').toLowerCase()}:${c.nullable}`).join('|');
-    if (sig === firstSig) continue;
+    const embedDiffers = elidedSig(v) !== elidedSig(first);
+    if (colSig(v) === colSig(first) && !embedDiffers) continue;
 
     diagnostics.push({
       message:
         `All declarations that generate the record \`${v.name}\` must declare identical columns ` +
         `(same names, types, nullability, and order). ` +
+        (embedDiffers ? 'An embedded lookup removes its key column from the record, so every declaration must embed the same lookups. ' : '') +
         `Rename one of the variables or align the column lists.`,
       line: v.line,
       startChar: v.character,

@@ -181,9 +181,16 @@ public static class DiagnosticsMessages
 				: hasName ? $" ↳ first declared in: {firstSourceName}."
 				: hasLine ? $" ↳ first declared at line {firstSourceLine}."
 				: "";
+			// An embedded-lookup key is dropped from the record (R4), so embeds must agree too.
+			var marker = SQuiLTableMap.EmbeddedKeyMarker;
+			var embedHint = expected.Contains(marker) != actual.Contains(marker)
+				|| ((expected.Contains(marker) || actual.Contains(marker))
+					&& expected.Replace(marker, "") == actual.Replace(marker, ""))
+				? " An embedded lookup removes its key column from the record, so every declaration must embed the same lookups."
+				: "";
 			context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0017", "Table Shape Mismatch",
 				$"All declarations that generate the record `{table}` must declare identical columns " +
-				$"(same names, types, nullability, and order). Found {expected} and {actual}.{firstDeclaredIn} " +
+				$"(same names, types, nullability, and order). Found {expected} and {actual}.{firstDeclaredIn}{embedHint} " +
 				"Rename one of the variables or align the column lists."));
 		}
 	}

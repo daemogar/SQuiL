@@ -133,6 +133,39 @@ test('SP0017 silent when same-name tables differ only in column size', () => {
   assert.strictEqual(sp0017.length, 0, 'SP0017 must not fire when shapes differ only in column size');
 });
 
+// SP0017: a flat input and an embedding output share one record but disagree on the
+// elided (embedded-lookup) key — mirrors NestedElisionShapeTests (generator).
+test('SP0017 fires when same-name tables disagree on an embedded-lookup key', () => {
+  const sql = [
+    '--Name: CrossSide',
+    'Declare @Params_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);',
+    'Declare @Returns_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);',
+    'Declare @Returns_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);',
+    'Use [Db];',
+    'Select * From @Returns_Structure;',
+    'Select * From @Returns_Contact;',
+  ].join('\n');
+
+  const sp0017 = parseSQuiL(sql).diagnostics.filter(d => d.code === 'SP0017');
+  assert.strictEqual(sp0017.length, 1, 'elision disagreement is a shape mismatch');
+  assert.strictEqual(sp0017[0].line, 2, 'fires on the second (embedding) declaration');
+  assert.ok(sp0017[0].message.includes('embedded lookup'), 'message names the embedded-key difference');
+});
+
+test('SP0017 silent when same-name tables embed identically', () => {
+  const sql = [
+    '--Name: SameEmbed',
+    'Declare @Returns_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);',
+    'Declare @Returns_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);',
+    'Use [Db];',
+    'Select * From @Returns_Structure;',
+    'Select * From @Returns_Contact;',
+  ].join('\n');
+
+  const sp0017 = parseSQuiL(sql).diagnostics.filter(d => d.code === 'SP0017');
+  assert.strictEqual(sp0017.length, 0);
+});
+
 // SP0022: cardinality collision (same name, list + single object, same side).
 test('SP0022 fires on same-file output list + object with the same name', () => {
   const diags = lintCardinalityCollision(parseSQuiL([

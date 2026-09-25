@@ -1778,22 +1778,34 @@ internal static class SQuiLLinter
         // comparing — mirrors the generator's SameShape (sizes may differ).
         static string StripSize(string t) => Regex.Replace(t, @"\s*\([^)]*\)", "").ToLowerInvariant();
 
+        // R4: key columns each container's embeds elide — part of the record shape.
+        var elided = new Dictionary<SQuiLVariable, SortedSet<string>>();
+        foreach (var graph in new[] { BuildKeyGraph(OutputTableVariables(parsed)), BuildKeyGraph(InputTableVariables(parsed)) })
+            foreach (var e in graph.Edges.Where(e => e.IsEmbed))
+            {
+                if (!elided.TryGetValue(e.Parent, out var keys))
+                    elided[e.Parent] = keys = new SortedSet<string>(System.StringComparer.Ordinal);
+                keys.Add(e.KeyName.ToLowerInvariant());
+            }
+        string ColSig(SQuiLVariable x) => string.Join("|", x.Columns!.Select(c => $"{c.Name}:{StripSize(c.SqlType)}:{c.Nullable}"));
+        string ElidedSig(SQuiLVariable x) => elided.TryGetValue(x, out var k) ? string.Join(",", k) : "";
+
         var seen = new Dictionary<string, SQuiLVariable>(System.StringComparer.OrdinalIgnoreCase);
         foreach (var v in tableVars)
         {
-            string sig = string.Join("|", v.Columns!.Select(c => $"{c.Name}:{StripSize(c.SqlType)}:{c.Nullable}"));
             if (!seen.TryGetValue(v.Name, out var first))
             {
                 seen[v.Name] = v;
                 continue;
             }
-            string firstSig = string.Join("|", first.Columns!.Select(c => $"{c.Name}:{StripSize(c.SqlType)}:{c.Nullable}"));
-            if (sig == firstSig) continue;
+            bool embedDiffers = ElidedSig(v) != ElidedSig(first);
+            if (ColSig(v) == ColSig(first) && !embedDiffers) continue;
 
             diagnostics.Add(new SQuiLDiagnostic
             {
                 Message       = $"All declarations that generate the record `{v.Name}` must declare identical columns " +
                                 $"(same names, types, nullability, and order). " +
+                                (embedDiffers ? "An embedded lookup removes its key column from the record, so every declaration must embed the same lookups. " : "") +
                                 $"Rename one of the variables or align the column lists.",
                 Line          = v.Line,
                 StartChar     = v.Character,
