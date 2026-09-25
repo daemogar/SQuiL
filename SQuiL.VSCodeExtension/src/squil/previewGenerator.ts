@@ -140,12 +140,10 @@ interface NestedGraph {
   childrenOf: Map<SQuiLVariable, SQuiLVariable[]>;
   /** true when `v` collapses into a parent record instead of staying top-level. */
   isChild: (v: SQuiLVariable) => boolean;
-  /**
-   * true when `v` is nested because IT owns the shared key (embedded lookup), not a classic
-   * FK-carrier child. Unconsumed here — Task 4 (embed shape + stitch) uses it to drop the
-   * elided column and render a single object.
-   */
+  /** true when `v` is nested because IT owns the shared key (embedded lookup) — rendered as a single object. */
   isEmbed: (v: SQuiLVariable) => boolean;
+  /** container → key columns its embeds supply (elided from its record, R4). */
+  elidedKeysOf: Map<SQuiLVariable, string[]>;
 }
 
 function buildNestedGraph(tableVars: SQuiLVariable[], roles: ReadonlySet<VariableRole>): NestedGraph {
@@ -154,9 +152,15 @@ function buildNestedGraph(tableVars: SQuiLVariable[], roles: ReadonlySet<Variabl
   const childrenOf = new Map<SQuiLVariable, SQuiLVariable[]>();
   const children = new Set<SQuiLVariable>();
   const embeds = new Set<SQuiLVariable>();
+  const elidedKeysOf = new Map<SQuiLVariable, string[]>();
   for (const e of edges) {
     children.add(e.child);
-    if (e.isEmbed) embeds.add(e.child);
+    if (e.isEmbed) {
+      embeds.add(e.child);
+      const keys = elidedKeysOf.get(e.parent);
+      if (keys) keys.push(e.keyName);
+      else elidedKeysOf.set(e.parent, [e.keyName]);
+    }
     const list = childrenOf.get(e.parent);
     if (list) list.push(e.child);
     else childrenOf.set(e.parent, [e.child]);
@@ -168,6 +172,7 @@ function buildNestedGraph(tableVars: SQuiLVariable[], roles: ReadonlySet<Variabl
     childrenOf,
     isChild: v => children.has(v),
     isEmbed: v => embeds.has(v),
+    elidedKeysOf,
   };
 }
 
@@ -224,6 +229,10 @@ export function generateCSharpPreview(
 
   function childrenOf(v: SQuiLVariable): SQuiLVariable[] | undefined {
     return outputGraph.childrenOf.get(v) ?? inputGraph.childrenOf.get(v);
+  }
+  const isEmbed = (v: SQuiLVariable): boolean => outputGraph.isEmbed(v) || inputGraph.isEmbed(v);
+  function elidedKeysOf(v: SQuiLVariable): string[] | undefined {
+    return outputGraph.elidedKeysOf.get(v) ?? inputGraph.elidedKeysOf.get(v);
   }
 
   banner(lines, queryName, db);
@@ -313,7 +322,7 @@ export function generateCSharpPreview(
     lines.push(`namespace ${modelsNs};`);
     lines.push('');
     for (const v of tableVars) {
-      emitTableRecord(lines, recordTypeName(v), v, modelsNs, childrenOf(v), dialect);
+      emitTableRecord(lines, recordTypeName(v), v, modelsNs, childrenOf(v), dialect, isEmbed, elidedKeysOf(v));
     }
   }
 
@@ -359,6 +368,8 @@ function emitTableRecord(
   modelsNs?: string,
   children?: SQuiLVariable[],
   dialect: EditorDialect = 'sqlserver',
+  isEmbed?: (v: SQuiLVariable) => boolean,
+  elidedKeys?: string[],
 ): void {
   if (!v.columns || v.columns.length === 0) return;
 
@@ -367,8 +378,11 @@ function emitTableRecord(
     return col.nullable ? `${cs}?` : cs;
   };
 
-  const positional = v.columns.filter(c => !c.defaultValue);
-  const defaulted = v.columns.filter(c => c.defaultValue);
+  // R4: a column an embed supplies is dropped from the record.
+  const elided = new Set((elidedKeys ?? []).map(k => k.toLowerCase()));
+  const kept = v.columns.filter(c => !elided.has(c.name.toLowerCase()));
+  const positional = kept.filter(c => !c.defaultValue);
+  const defaulted = kept.filter(c => c.defaultValue);
   const params = positional.map(c => `${csType(c)} ${c.name}`).join(', ');
   const hasChildren = children !== undefined && children.length > 0;
 
@@ -393,6 +407,12 @@ function emitTableRecord(
   // generator output). Object children (either side) never get one.
   if (hasChildren) {
     children!.forEach(child => {
+      // An embed is always a single object (R2), whatever its prefix.
+      if (isEmbed?.(child)) {
+        const embedType = modelsNs ? `${modelsNs}.${recordTypeName(child)}` : recordTypeName(child);
+        lines.push(`    public ${embedType}? ${child.name} { get; set; }`);
+        return;
+      }
       // Only the INPUT list case gets an initializer (and thus needs the
       // trailing `;`); a bare auto-property has no initializer and no `;`
       // (matches `*.g.verified.cs` ground truth for both sides).

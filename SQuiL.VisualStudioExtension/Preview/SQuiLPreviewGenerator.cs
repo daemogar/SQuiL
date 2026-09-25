@@ -62,6 +62,8 @@ internal static class SQuiLPreviewGenerator
         public void MarkChild(SQuiLVariable v) => _children.Add(v);
         public bool IsEmbed(SQuiLVariable v) => _embeds.Contains(v);
         public void MarkEmbed(SQuiLVariable v) => _embeds.Add(v);
+        /// <summary>Container → key columns its embeds supply (elided from its record, R4).</summary>
+        public Dictionary<SQuiLVariable, List<string>> ElidedKeysOf { get; } = new();
     }
 
     /// <summary>One container→nested link, local to the preview builder — mirrors the generator's
@@ -192,7 +194,13 @@ internal static class SQuiLPreviewGenerator
         {
             hasParent.Add(e.Child);
             graph.MarkChild(e.Child);
-            if (e.IsEmbed) graph.MarkEmbed(e.Child);
+            if (e.IsEmbed)
+            {
+                graph.MarkEmbed(e.Child);
+                if (!graph.ElidedKeysOf.TryGetValue(e.Parent, out var keys))
+                    graph.ElidedKeysOf[e.Parent] = keys = new List<string>();
+                keys.Add(e.KeyName);
+            }
             if (!graph.ChildrenOf.TryGetValue(e.Parent, out var list))
                 graph.ChildrenOf[e.Parent] = list = new List<SQuiLVariable>();
             list.Add(e.Child);
@@ -230,6 +238,10 @@ internal static class SQuiLPreviewGenerator
         List<SQuiLVariable>? ChildrenOf(SQuiLVariable v) =>
             outputGraph.ChildrenOf.TryGetValue(v, out var oc) ? oc :
             inputGraph.ChildrenOf.TryGetValue(v, out var ic) ? ic : null;
+        bool IsEmbed(SQuiLVariable v) => outputGraph.IsEmbed(v) || inputGraph.IsEmbed(v);
+        List<string>? ElidedKeysOf(SQuiLVariable v) =>
+            outputGraph.ElidedKeysOf.TryGetValue(v, out var ok) ? ok :
+            inputGraph.ElidedKeysOf.TryGetValue(v, out var ik) ? ik : null;
 
         EmitBanner(lines, queryName, db);
         lines.Add("");
@@ -324,7 +336,7 @@ internal static class SQuiLPreviewGenerator
             lines.Add($"namespace {modelsNs};");
             lines.Add("");
             foreach (var v in tableVars)
-                EmitTableRecord(lines, RecordTypeName(v), v, modelsNs, ChildrenOf(v), dialect);
+                EmitTableRecord(lines, RecordTypeName(v), v, modelsNs, ChildrenOf(v), dialect, IsEmbed, ElidedKeysOf(v));
         }
 
         return string.Join("\r\n", lines);
@@ -351,9 +363,14 @@ internal static class SQuiLPreviewGenerator
 
     private static void EmitTableRecord(
         List<string> lines, string typeName, SQuiLVariable v,
-        string? modelsNs = null, List<SQuiLVariable>? children = null, EditorDialect dialect = EditorDialect.SqlServer)
+        string? modelsNs = null, List<SQuiLVariable>? children = null, EditorDialect dialect = EditorDialect.SqlServer,
+        System.Func<SQuiLVariable, bool>? isEmbed = null, List<string>? elidedKeys = null)
     {
         if (v.Columns is null || v.Columns.Count == 0) return;
+
+        // R4: a column an embed supplies is dropped from the record.
+        bool IsElided(TableColumn c) =>
+            elidedKeys is not null && elidedKeys.Any(k => string.Equals(k, c.Name, System.StringComparison.OrdinalIgnoreCase));
 
         string CsType(TableColumn col)
         {
@@ -362,8 +379,8 @@ internal static class SQuiLPreviewGenerator
             return nullable ? cs + "?" : cs;
         }
 
-        var positional = v.Columns.Where(c => c.DefaultValue is null).ToList();
-        var defaulted = v.Columns.Where(c => c.DefaultValue is not null).ToList();
+        var positional = v.Columns.Where(c => c.DefaultValue is null && !IsElided(c)).ToList();
+        var defaulted = v.Columns.Where(c => c.DefaultValue is not null && !IsElided(c)).ToList();
         string @params = string.Join(", ", positional.Select(c => $"{CsType(c)} {c.Name}"));
         bool hasChildren = children is { Count: > 0 };
 
@@ -389,6 +406,13 @@ internal static class SQuiLPreviewGenerator
         if (hasChildren)
             foreach (var child in children!)
             {
+                // An embed is always a single object (R2), whatever its prefix.
+                if (isEmbed?.Invoke(child) == true)
+                {
+                    string embedType = modelsNs is not null ? $"{modelsNs}.{RecordTypeName(child)}" : RecordTypeName(child);
+                    lines.Add($"    public {embedType}? {child.Name} {{ get; set; }}");
+                    continue;
+                }
                 string initializer = child.Role == VariableRole.Params ? " = [];" : "";
                 lines.Add($"    public {GetPropertyType(child, modelsNs, dialect)} {child.Name} {{ get; set; }}{initializer}");
             }

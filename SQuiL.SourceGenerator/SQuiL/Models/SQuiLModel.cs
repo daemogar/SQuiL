@@ -230,16 +230,21 @@ public class SQuiLModel(
 		// member declaration. On the INPUT/request side a list child keeps the `= []` initializer
 		// (the existing "input lists keep = []" rule); OUTPUT/response children and object
 		// children have no initializer (Initializer = "").
+		// An embed (the nested block owns the key) is always a single object (R2).
 		var isRequest = ModelType == "Request";
-		var childMembers = (graph?.ChildrenOf(block) ?? [])
+		var childEdges = (graph?.ChildrenOf(block) ?? []).ToList();
+		var childMembers = childEdges
 			.Select(e => (
 				Name: e.Child.Name,
-				TypeName: e.Child.IsTable
+				TypeName: !e.IsEmbed && e.Child.IsTable
 					? $"System.Collections.Generic.List<{RecordNamespace}.{e.Child.Name}>"
 					: $"{RecordNamespace}.{e.Child.Name}",
-				IsList: e.Child.IsTable,
-				Initializer: isRequest && e.Child.IsTable ? " = [];" : ""))
+				IsList: !e.IsEmbed && e.Child.IsTable,
+				Initializer: isRequest && !e.IsEmbed && e.Child.IsTable ? " = [];" : ""))
 			.ToList();
+
+		// R4: the key an embed supplies is dropped from this record (C# only; SQL keeps the column).
+		var elidedColumns = childEdges.Where(e => e.IsEmbed).Select(e => e.KeyName).ToList();
 
 		SQuiLTable table = block.IsTable
 			? new SQuiLTable(NameSpace, Modifier(name), type, block, TableMap, Records)
@@ -248,7 +253,8 @@ public class SQuiLModel(
 				RecordNamespace = RecordNamespace,
 				SourceName = QueryName,
 				SourceLine = sourceLine,
-				ChildMembers = childMembers
+				ChildMembers = childMembers,
+				ElidedColumns = elidedColumns
 			}
 			: new SQuiLObject(NameSpace, Modifier(name), type, block, TableMap, Records)
 			{
@@ -256,7 +262,8 @@ public class SQuiLModel(
 				RecordNamespace = RecordNamespace,
 				SourceName = QueryName,
 				SourceLine = sourceLine,
-				ChildMembers = childMembers
+				ChildMembers = childMembers,
+				ElidedColumns = elidedColumns
 			};
 
 		if (addProperty) Properties.Add(table);

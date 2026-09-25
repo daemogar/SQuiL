@@ -505,8 +505,13 @@ public class SQuiLDataContext(
 		// Shared by the flat path (SwitchStatements, model = "response.<Name>") and the
 		// nested path (NestedSwitchStatements, model = "__<Name>") — Task 4 hoisted this out
 		// of SwitchStatements so both switch-case emitters can call it unchanged.
-		void LoopProperties(string model, List<CodeItem> properties)
+		// `elided` (nested path only): key columns an embed supplies. They are read, left out of the
+		// record, and appended to the index-aligned `{model}__<Key>` list instead.
+		void LoopProperties(string model, List<CodeItem> properties, IReadOnlyList<string>? elided = null)
 		{
+			elided ??= [];
+			bool IsElided(CodeItem p) => elided.Contains(p.Identifier.Value, StringComparer.OrdinalIgnoreCase);
+
 			writer.WriteLine();
 
 			foreach (var item in properties)
@@ -527,8 +532,8 @@ public class SQuiLDataContext(
 				}
 
 				writer.WriteLine();
-				var positional = properties.Where(p => p.DefaultValue is null).ToList();
-				var defaulted = properties.Where(p => p.DefaultValue is not null).ToList();
+				var positional = properties.Where(p => p.DefaultValue is null && !IsElided(p)).ToList();
+				var defaulted = properties.Where(p => p.DefaultValue is not null && !IsElided(p)).ToList();
 				writer.Write($"{model}.Add(new(");
 				writer.Indent++;
 				var comma = "";
@@ -552,6 +557,12 @@ public class SQuiLDataContext(
 						writer.WriteLine($"{item.Identifier.Value} = value{item.Identifier.Value},");
 					writer.Indent--;
 					writer.WriteLine("});");
+				}
+
+				foreach (var key in elided)
+				{
+					var col = properties.First(p => string.Equals(p.Identifier.Value, key, StringComparison.OrdinalIgnoreCase));
+					writer.WriteLine($"{model}__{key}.Add(value{col.Identifier.Value});");
 				}
 			}, $"""while (await reader.ReadAsync(cancellationToken));""");
 		}
@@ -595,7 +606,16 @@ public class SQuiLDataContext(
 			}
 
 			foreach (var block in participants)
+			{
 				writer.WriteLine($"List<{recordNamespace}.{block.Name}> __{block.Name} = [];");
+				// One index-aligned key list per embed: the container's elided FK values.
+				foreach (var key in ElidedKeys(block))
+				{
+					var col = block.Properties!.First(p =>
+						string.Equals(p.Identifier.Value, key, StringComparison.OrdinalIgnoreCase));
+					writer.WriteLine($"List<{col.CSharpType()}> __{block.Name}__{key} = [];");
+				}
+			}
 			writer.WriteLine();
 
 			writer.Block("""
@@ -616,6 +636,18 @@ public class SQuiLDataContext(
 
 			foreach (var edge in DeepestFirstEdges())
 			{
+				if (edge.IsEmbed)
+				{
+					// The container's key was elided; read it from the parallel list by index.
+					writer.Block($"for (var __i = 0; __i < __{edge.Parent.Name}.Count; __i++)", () =>
+					{
+						writer.WriteLine($"var __fk = __{edge.Parent.Name}__{edge.KeyName}[__i];");
+						EmitSingleOrFriendly($"__{edge.Parent.Name}[__i].{edge.Child.Name}",
+							$"__{edge.Child.Name}.Where(c => c.{edge.KeyName} == __fk)", "__match");
+					});
+					continue;
+				}
+
 				writer.Block($"foreach (var parent in __{edge.Parent.Name})", () =>
 				{
 					if (edge.Child.IsTable)
@@ -659,6 +691,10 @@ public class SQuiLDataContext(
 				writer.WriteLine($"{assignTo} = {tempVar}.Count == 1 ? {tempVar}[0] : null;");
 			}
 		}
+
+		// Output-side key columns this block's embeds supply (elided from its record, R4).
+		List<string> ElidedKeys(CodeBlock block)
+			=> EffectiveGraph.ChildrenOf(block).Where(e => e.IsEmbed).Select(e => e.KeyName).ToList();
 
 		// Post-order traversal of the key graph: for a chain like Transcript -> Institution ->
 		// Course, this yields (Institution, Course) BEFORE (Transcript, Institution), so a
@@ -720,7 +756,7 @@ public class SQuiLDataContext(
 						writer.WriteLine($"is{block.Name} = true;");
 						writer.WriteLine();
 						writer.WriteLine("if (!await reader.ReadAsync(cancellationToken)) break;");
-						LoopProperties($"__{block.Name}", block.Properties);
+						LoopProperties($"__{block.Name}", block.Properties, ElidedKeys(block));
 						writer.WriteLine("break;");
 					});
 				}

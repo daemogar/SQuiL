@@ -299,7 +299,12 @@ test('preview nests an embed child under its FK-carrier container (R1 orientatio
   assert.ok(responseSection.includes('List<YourNamespace.Models.Structure>? Structure { get; set; }'), 'Structure is the only Response root');
   assert.ok(!responseSection.includes('Contact'), 'Contact must not be a Response top-level member (today\'s pre-fix code gets this backwards)');
 
-  assert.ok(out.includes('List<YourNamespace.Models.Contact>? Contact { get; set; }'), 'Contact nests as a member of the Structure record');
+  // R2/R4: the embed is a single object and the container's ContactID member is elided.
+  const structureRecord = out.slice(out.indexOf('public partial record Structure'), out.indexOf('public partial record Contact'));
+  assert.ok(structureRecord.includes('public partial record Structure(string Title)'), 'Structure drops its ContactID member');
+  assert.ok(structureRecord.includes('YourNamespace.Models.Contact? Contact { get; set; }'), 'Contact embeds as a single object');
+  assert.ok(!structureRecord.includes('List<YourNamespace.Models.Contact>'), 'an embed is never a list');
+  assert.ok(out.includes('public partial record Contact(string ContactID, string Name);'), 'the lookup keeps its own key');
 });
 
 test('preview keeps a shared lookup nested in every container (R3 all-embed)', () => {
@@ -321,8 +326,10 @@ test('preview keeps a shared lookup nested in every container (R3 all-embed)', (
 
   const structureRecord = out.slice(out.indexOf('public partial record Structure'), out.indexOf('public partial record Widget'));
   const widgetRecord = out.slice(out.indexOf('public partial record Widget'), out.indexOf('public partial record Contact'));
-  assert.ok(structureRecord.includes('List<YourNamespace.Models.Contact>? Contact { get; set; }'), 'Structure record carries a nested Contact member');
-  assert.ok(widgetRecord.includes('List<YourNamespace.Models.Contact>? Contact { get; set; }'), 'Widget record carries a nested Contact member');
+  assert.ok(structureRecord.includes('public partial record Structure(string Title)'), 'Structure drops its ContactID member');
+  assert.ok(widgetRecord.includes('public partial record Widget(string Label)'), 'Widget drops its ContactID member');
+  assert.ok(structureRecord.includes('    public YourNamespace.Models.Contact? Contact { get; set; }'), 'Structure embeds Contact as a single object');
+  assert.ok(widgetRecord.includes('    public YourNamespace.Models.Contact? Contact { get; set; }'), 'Widget embeds Contact as a single object');
 });
 
 test('preview resolves a junction: earliest container kept, the rest inverted to embeds (R3)', () => {
@@ -345,7 +352,9 @@ test('preview resolves a junction: earliest container kept, the rest inverted to
   const studentRecord = out.slice(out.indexOf('public partial record Student'), out.indexOf('public partial record Course'));
   const enrollmentRecord = out.slice(out.indexOf('public partial record Enrollment'));
   assert.ok(studentRecord.includes('List<YourNamespace.Models.Enrollment>? Enrollment { get; set; }'), 'Enrollment nests under Student');
-  assert.ok(enrollmentRecord.includes('List<YourNamespace.Models.Course>? Course { get; set; }'), 'Course nests under Enrollment');
+  assert.ok(enrollmentRecord.includes('public partial record Enrollment(int StudentID, string Grade)'), 'Enrollment drops CourseID (supplied by the Course embed)');
+  assert.ok(enrollmentRecord.includes('    public YourNamespace.Models.Course? Course { get; set; }'), 'Course embeds into Enrollment as a single object');
+  assert.ok(out.includes('public partial record Course(int CourseID, string Title);'), 'Course keeps its own key');
 });
 
 // ─── Dialect-aware type mapping (Task 4: SQLite) ───────────────────────────

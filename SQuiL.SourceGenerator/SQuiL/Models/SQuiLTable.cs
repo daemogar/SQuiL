@@ -81,6 +81,10 @@ public class SQuiLTable(
 	/// </summary>
 	public IReadOnlyList<(string Name, string TypeName, bool IsList, string Initializer)> ChildMembers { get; set; } = [];
 
+	/// <summary>Column names dropped from this record because an embedded lookup supplies them (R4).
+	/// The SQL column still exists; only the C# member is elided.</summary>
+	public IReadOnlyList<string> ElidedColumns { get; set; } = [];
+
 	/// <summary>
 	/// Generates the C# source text for this table's record type, merging <paramref name="properties"/>
 	/// with any hand-written properties found on the user's partial record.
@@ -90,6 +94,11 @@ public class SQuiLTable(
 	public virtual (string TableName, ExceptionOrValue<string> Exception) GenerateCode(List<CodeItem> properties)
 	{
 		List<Exception> exceptions = [];
+
+		if (ElidedColumns.Count > 0)
+			properties = properties
+				.Where(p => !ElidedColumns.Contains(p.Identifier.Value, StringComparer.OrdinalIgnoreCase))
+				.ToList();
 
 		StringWriter text = new();
 		IndentedTextWriter record = new(text, "\t");
@@ -157,7 +166,8 @@ public class SQuiLTable(
 				WriteParameterizedConstructor(CamelCase);
 				record.Block(" : this()", () =>
 				{
-					foreach (var item in Block.Properties.Where(p => p.DefaultValue is null))
+					foreach (var item in Block.Properties.Where(p => p.DefaultValue is null
+						&& !ElidedColumns.Contains(p.Identifier.Value, StringComparer.OrdinalIgnoreCase)))
 					{
 						var variable = item.Identifier.Value;
 						record.WriteLine($"{variable} = {CamelCase(variable)};");

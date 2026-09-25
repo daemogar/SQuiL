@@ -92,4 +92,54 @@ public class NestedOutputTests
             Select * From @Returns_Log;
             """]);
     }
+
+    // Embedded lookup: Structure carries ContactID, Contact owns it as its Primary Key.
+    // Contact embeds into Structure as a single object; Structure drops its ContactID member.
+    [Fact]
+    public Task EmbeddedLookup()
+    {
+        var name = nameof(EmbeddedLookup);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Returns_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);
+            Declare @Returns_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);
+            Use [Db];
+            Select * From @Returns_Structure;
+            Select * From @Returns_Contact;
+            """]);
+    }
+
+    // Shared lookup: Structure and Widget both embed Contact; each container gets its own stitch.
+    [Fact]
+    public Task SharedLookup()
+    {
+        var name = nameof(SharedLookup);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Returns_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);
+            Declare @Returns_Widget table(Label varchar(50) not null, ContactID varchar(10) not null);
+            Declare @Returns_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);
+            Use [Db];
+            Select * From @Returns_Structure;
+            Select * From @Returns_Widget;
+            Select * From @Returns_Contact;
+            """]);
+    }
+
+    // Many-to-many junction: Enrollment nests under Student (earliest container) and embeds Course.
+    [Fact]
+    public Task ManyToManyJunction()
+    {
+        var name = nameof(ManyToManyJunction);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Returns_Student table(StudentID int not null Primary Key, Name varchar(50) not null);
+            Declare @Returns_Course table(CourseID int not null Primary Key, Title varchar(50) not null);
+            Declare @Returns_Enrollment table(StudentID int not null, CourseID int not null, Grade varchar(2) not null);
+            Use [Db];
+            Select * From @Returns_Student;
+            Select * From @Returns_Course;
+            Select * From @Returns_Enrollment;
+            """]);
+    }
 }
