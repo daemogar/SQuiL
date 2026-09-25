@@ -281,6 +281,73 @@ test('preview stays flat on INPUT side when Primary Keys exist but no column lin
   assert.ok(requestSection.includes('Beta>? Beta { get; set; } = [];'), 'Beta stays a flat Request member (with the usual input-list = [])');
 });
 
+// ─── Nested-objects orientation (R1/R3 parity — Task 3b) ───────────────────
+// Fixtures mirror SQuiL.Tests/NestedObjects/KeyGraphTests.cs's
+// SharedLookupAllowsOnePkOwnerInManyContainers / JunctionKeepsEarliestContainerAndInvertsTheRest.
+
+test('preview nests an embed child under its FK-carrier container (R1 orientation)', () => {
+  const out = preview([
+    '--Name: EmbedOrientation',
+    'Declare @Returns_Structure table(Title varchar(50), ContactID varchar(10));',
+    'Declare @Returns_Contact table(ContactID varchar(10) Primary Key, Name varchar(50));',
+    'Use Db;',
+    'Select * From @Returns_Structure;',
+    'Select * From @Returns_Contact;',
+  ].join('\n'));
+
+  const responseSection = out.slice(out.indexOf('EmbedOrientationResponse'), out.indexOf('DataContext'));
+  assert.ok(responseSection.includes('List<YourNamespace.Models.Structure>? Structure { get; set; }'), 'Structure is the only Response root');
+  assert.ok(!responseSection.includes('Contact'), 'Contact must not be a Response top-level member (today\'s pre-fix code gets this backwards)');
+
+  assert.ok(out.includes('List<YourNamespace.Models.Contact>? Contact { get; set; }'), 'Contact nests as a member of the Structure record');
+});
+
+test('preview keeps a shared lookup nested in every container (R3 all-embed)', () => {
+  const out = preview([
+    '--Name: SharedLookup',
+    'Declare @Returns_Structure table(Title varchar(50), ContactID varchar(10));',
+    'Declare @Returns_Widget table(Label varchar(50), ContactID varchar(10));',
+    'Declare @Returns_Contact table(ContactID varchar(10) Primary Key, Name varchar(50));',
+    'Use Db;',
+    'Select * From @Returns_Structure;',
+    'Select * From @Returns_Widget;',
+    'Select * From @Returns_Contact;',
+  ].join('\n'));
+
+  const responseSection = out.slice(out.indexOf('SharedLookupResponse'), out.indexOf('DataContext'));
+  assert.ok(responseSection.includes('List<YourNamespace.Models.Structure>? Structure { get; set; }'), 'Structure stays a Response root');
+  assert.ok(responseSection.includes('List<YourNamespace.Models.Widget>? Widget { get; set; }'), 'Widget stays a Response root');
+  assert.ok(!responseSection.includes('Contact'), 'Contact must not be a Response top-level member');
+
+  const structureRecord = out.slice(out.indexOf('public partial record Structure'), out.indexOf('public partial record Widget'));
+  const widgetRecord = out.slice(out.indexOf('public partial record Widget'), out.indexOf('public partial record Contact'));
+  assert.ok(structureRecord.includes('List<YourNamespace.Models.Contact>? Contact { get; set; }'), 'Structure record carries a nested Contact member');
+  assert.ok(widgetRecord.includes('List<YourNamespace.Models.Contact>? Contact { get; set; }'), 'Widget record carries a nested Contact member');
+});
+
+test('preview resolves a junction: earliest container kept, the rest inverted to embeds (R3)', () => {
+  const out = preview([
+    '--Name: Junction',
+    'Declare @Returns_Student table(StudentID int Primary Key, Name varchar(50));',
+    'Declare @Returns_Course table(CourseID int Primary Key, Title varchar(50));',
+    'Declare @Returns_Enrollment table(StudentID int, CourseID int, Grade varchar(2));',
+    'Use Db;',
+    'Select * From @Returns_Student;',
+    'Select * From @Returns_Course;',
+    'Select * From @Returns_Enrollment;',
+  ].join('\n'));
+
+  const responseSection = out.slice(out.indexOf('JunctionResponse'), out.indexOf('DataContext'));
+  assert.ok(responseSection.includes('List<YourNamespace.Models.Student>? Student { get; set; }'), 'Student is the only Response root');
+  assert.ok(!responseSection.includes('Course'), 'Course must not be a Response top-level member');
+  assert.ok(!responseSection.includes('Enrollment'), 'Enrollment must not be a Response top-level member');
+
+  const studentRecord = out.slice(out.indexOf('public partial record Student'), out.indexOf('public partial record Course'));
+  const enrollmentRecord = out.slice(out.indexOf('public partial record Enrollment'));
+  assert.ok(studentRecord.includes('List<YourNamespace.Models.Enrollment>? Enrollment { get; set; }'), 'Enrollment nests under Student');
+  assert.ok(enrollmentRecord.includes('List<YourNamespace.Models.Course>? Course { get; set; }'), 'Course nests under Enrollment');
+});
+
 // ─── Dialect-aware type mapping (Task 4: SQLite) ───────────────────────────
 
 test('sqlserver dialect (default) maps a bare INTEGER-spelled type through the fallback (object), unaffected by SQLite overlay', () => {
