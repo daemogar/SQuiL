@@ -84,16 +84,6 @@ export interface SQuiLParseResult {
   databaseLine?: number;
   variables: SQuiLVariable[];
   diagnostics: SQuiLDiagnostic[];
-  /**
-   * SP0041 candidates found by scanning the FULL file text (populated by `parseSQuiL`,
-   * which already has the text in scope) for a `Select` whose top-level column list is
-   * 2+ declared output-scalar references. Not part of the public port-of-the-scanner
-   * surface — internal plumbing so `lintMultiScalarSelect` can work from the parse result
-   * alone with document-absolute positions (the scan covers the whole file, not just the
-   * body after `Use`, mirroring ScalarSelectAliaser.cs scanning the whole emitted command
-   * text). See `lintMultiScalarSelect`, below.
-   */
-  multiScalarSelects: { line: number; character: number; length: number; declaredNames: string[] }[];
 }
 
 import { validateVariables, findingMessage, findingSeverity } from './variableValidator';
@@ -117,7 +107,6 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
   const result: SQuiLParseResult = {
     variables: [],
     diagnostics: [],
-    multiScalarSelects: [],
   };
 
   let useCount = 0;
@@ -283,18 +272,6 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
   for (const d of lintParamsBeforeReturns(result, dialect)) {
     result.diagnostics.push(d);
   }
-
-  // SP0041 support data: scan the FULL file text (not just the body) for a Select whose
-  // top-level column list is 2+ declared output-scalar references. Stored on the result
-  // rather than pushed straight into result.diagnostics — lintMultiScalarSelect (an
-  // on-demand pass, like lintShapeCollision/lintUnmatchedSelect) is what turns this into
-  // SP0041 diagnostics, so it isn't double-emitted by both the automatic pass above and
-  // an explicit call site.
-  result.multiScalarSelects = findMultiScalarSelects(text, buildScalarsByVariableName(result.variables))
-    .map(m => {
-      const pos = offsetToPosition(text, m.selectOffset);
-      return { line: pos.line, character: pos.character, length: 'select'.length, declaredNames: m.declaredNames };
-    });
 
   return result;
 }
@@ -1548,23 +1525,32 @@ export function findMultiScalarSelects(
  * SP0041 (Error) — a Select whose top-level column list is 2+ declared output-scalar
  * references cannot be routed to a response; only one scalar per Select is routable
  * (splitting the select into one-per-scalar is the fix — a REPLACE edit, so this
- * diagnostic deliberately carries no quick-fix). The scan runs over the FULL file text at
- * parse time (`parseSQuiL` populates `result.multiScalarSelects`, above), so these
- * diagnostics are already document-absolute — no body-offset adjustment is needed when
- * wiring this into the diagnostics provider.
+ * diagnostic deliberately carries no quick-fix). The scan runs over the FULL file text, so
+ * these diagnostics are document-absolute — no body-offset adjustment is needed when wiring
+ * this into the diagnostics provider.
+ *
+ * Takes `text` as a second argument rather than reading a stashed scan off the parse result:
+ * that mirrors `lintUnmatchedSelect(parsed, bodyText)` and keeps raw scanner output off the
+ * exported `SQuiLParseResult` surface.
  *
  * Port of ScalarSelectAliaser.cs's `FindMultiScalarSelects` — change one, change all four.
  */
-export function lintMultiScalarSelect(result: SQuiLParseResult): SQuiLDiagnostic[] {
-  return result.multiScalarSelects.map(c => ({
-    message:
-      `This Select returns more than one output scalar (${c.declaredNames.join(', ')}), which cannot be routed to a response. Use one Select per scalar.`,
-    line: c.line,
-    startChar: c.character,
-    endChar: c.character + c.length,
-    severity: 'error' as const,
-    code: 'SP0041',
-  }));
+export function lintMultiScalarSelect(parsed: SQuiLParseResult, text: string): SQuiLDiagnostic[] {
+  const scalars = buildScalarsByVariableName(parsed.variables);
+  if (scalars.size === 0) return [];
+
+  return findMultiScalarSelects(text, scalars).map(m => {
+    const pos = offsetToPosition(text, m.selectOffset);
+    return {
+      message:
+        `This Select returns more than one output scalar (${m.declaredNames.join(', ')}), which cannot be routed to a response. Use one Select per scalar.`,
+      line: pos.line,
+      startChar: pos.character,
+      endChar: pos.character + 'select'.length,
+      severity: 'error' as const,
+      code: 'SP0041',
+    };
+  });
 }
 
 /**

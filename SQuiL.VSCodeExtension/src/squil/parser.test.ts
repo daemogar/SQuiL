@@ -298,7 +298,7 @@ test('SP0041 flags two output scalars in one select', () => {
     'Use Db;',
     'Select @Return_A, @Return_B;',
   ].join('\n');
-  const diags = lintMultiScalarSelect(parseSQuiL(text));
+  const diags = lintMultiScalarSelect(parseSQuiL(text), text);
   assert.strictEqual(diags.length, 1);
   assert.strictEqual(diags[0].code, 'SP0041');
   assert.strictEqual(diags[0].severity, 'error');
@@ -311,7 +311,7 @@ test('SP0041 flags an aliased multi-scalar select too', () => {
     'Use Db;',
     'Select @Return_A As A, @Return_B As B;',
   ].join('\n');
-  assert.strictEqual(lintMultiScalarSelect(parseSQuiL(text)).length, 1);
+  assert.strictEqual(lintMultiScalarSelect(parseSQuiL(text), text).length, 1);
 });
 
 test('SP0041 stays silent with one select per scalar', () => {
@@ -322,7 +322,7 @@ test('SP0041 stays silent with one select per scalar', () => {
     'Select @Return_A;',
     'Select @Return_B;',
   ].join('\n');
-  assert.strictEqual(lintMultiScalarSelect(parseSQuiL(text)).length, 0);
+  assert.strictEqual(lintMultiScalarSelect(parseSQuiL(text), text).length, 0);
 });
 
 // ── SP0031 extended to scalar outputs: a MISMATCHED alias ───────────────────

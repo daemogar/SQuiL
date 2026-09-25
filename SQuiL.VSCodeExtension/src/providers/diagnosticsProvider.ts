@@ -235,7 +235,7 @@ export class SQuiLDiagnosticsProvider {
       }
 
       // SP0041: a Select listing 2+ output scalars cannot be routed (build error mirror).
-      for (const d of lintMultiScalarSelect(parsed)) {
+      for (const d of lintMultiScalarSelect(parsed, text)) {
         vsDiags.push(this.toDiagnostic(document, d));
       }
 
