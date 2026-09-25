@@ -205,14 +205,14 @@ public class FileGenerator(
 
 			// SP0023 / SP0024 / SP0025 — mutation-vs-transaction diagnostics.
 			// Scan ONLY the author-supplied BODY block, not the generator-injected
-			// Insert Into @Params_… population or the appended Select @Return_… clauses.
-			// The raw author body is the portion of `sql` after the USE statement;
-			// the BODY block's Name holds the generator-augmented text, so we
-			// reconstruct the author body by stripping everything from the last
-			// generator-appended "Select '<tag>'" line. Since we only need to
-			// scan for mutations (not execute), scanning the full BODY block Name
-			// is equivalent: the appended lines target @-variables (skipped by
-			// the mutation scanner as @-table-var DML) or are plain SELECTs (read-only).
+			// Insert Into @Params_… population. The `Select '<tag>'` sentinel scheme this
+			// comment used to describe is GONE — result sets are routed by their column
+			// signature (shape key) now, so nothing is appended to the body except the
+			// implicit scalar alias (ScalarSelectAliaser, SQL Server only), which rewrites
+			// an existing Select in place rather than adding one. Scanning the full BODY
+			// block Name is therefore equivalent to scanning the raw author body: the only
+			// generator-touched statements target @-variables (skipped by the mutation
+			// scanner as @-table-var DML) or are plain SELECTs (read-only).
 			// Using blocks[].Name directly avoids re-splitting the raw SQL string.
 			var bodyBlock = blocks.FirstOrDefault(b => b.CodeType == CodeType.BODY);
 			if (bodyBlock is not null)

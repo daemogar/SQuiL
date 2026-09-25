@@ -151,7 +151,12 @@ public class KeyParityTests
         Assert.True(colonIdx >= 0, $"ScalarKeyOf returned unexpected format: '{shapeKey}'");
         var buildToken = shapeKey.Substring(colonIdx + 1);
 
-        var providerTypeName = ReadProviderTypeName(sqlType);
+        // Feed the live reader the decltype the GENERATOR emits, not the literal this test was
+        // called with — the same no-fictional-inputs discipline as AssertParitySqlite, which uses
+        // Properties[0].Type.Original. No row differs today, but a future spelling whose Original
+        // is rewritten would otherwise silently test the author's literal instead of the emitted
+        // type, and the parity guard would stop guarding.
+        var providerTypeName = ReadProviderTypeName(block!.TempScalarColumn!.Type.Original!);
         var runtimeToken = new SqliteProbe().NormalizeTypeForTest(providerTypeName);
 
         Assert.Equal(buildToken, runtimeToken);

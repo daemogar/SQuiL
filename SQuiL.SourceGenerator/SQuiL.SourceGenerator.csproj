@@ -14,6 +14,17 @@
 	</PropertyGroup>
 
 	<!--
+	SQuiL.Tests drives the parser directly and asserts on CodeBlock.TempScalarColumn — the
+	single column preserved when a temp-table-header dialect collapses a one-column
+	`Create Temp Table` into a scalar. It stays `internal`: SQuiL.Core ships this DLL as an
+	analyzer, so making it public would be a permanent public-API commitment for what is
+	purely a test's view of parser internals.
+	-->
+	<ItemGroup>
+		<InternalsVisibleTo Include="SQuiL.Tests" />
+	</ItemGroup>
+
+	<!--
 	This project is intentionally NOT packable (IsPackable=false above) — it has
 	no PackageId and produces no .nupkg of its own. SQuiL.Core.csproj references
 	this project (ReferenceOutputAssembly=false, build-order only) and packs its

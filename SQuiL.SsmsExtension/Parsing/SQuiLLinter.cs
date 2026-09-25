@@ -745,6 +745,11 @@ internal static class SQuiLLinter
     // The alias, if bracketed (`As [Count]`), is unwrapped here just like ExtractSelectColumnNames's
     // `\[?...\]?` groups below — an author-written bracketed alias (or the generator's own implicit
     // one) still matches the declared name.
+    //
+    // The brackets are INDEPENDENTLY optional rather than paired, so `As [Foo` and `As Foo]` also
+    // extract `Foo`. Deliberate, not an oversight: both are invalid T-SQL, SP0031 is a best-effort
+    // warning, and the identical pattern is this file's idiom in ExtractSelectColumnNames — pairing
+    // only this one would create a fresh internal inconsistency for no user-visible gain.
     private static readonly Regex ScalarSelectAliasRegex = new(
         @"^as\s+\[?([A-Za-z_][A-Za-z0-9_]*)\]?\s*$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
