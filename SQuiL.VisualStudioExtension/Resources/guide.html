@@ -484,9 +484,16 @@ because the runtime shape key becomes multi-column and matches no generated case
 are <em>both</em> a statement starter and a legal alias written without <code>As</code>. That makes
 <code>Select @Return_Count Throw;</code> genuinely ambiguous — T-SQL reads <code>Throw</code> as the
 column's alias, while SQuiL reads it as the start of the next statement — so SQuiL refuses to guess
-and fails the build with <code>SP0044</code>. Say which you meant: write
-<code>Select @Return_Count As [Throw];</code> if it is an alias, or end the select first
-(<code>Select @Return_Count; Throw;</code>) if it is the next statement.</p>
+and fails the build with <code>SP0044</code>. End the select to say you meant the statement:
+<code>Select @Return_Count; Throw 50000, 'No rows', 1;</code>. Writing
+<code>As [Throw]</code> is <strong>not</strong> the fix — a scalar result set is routed by its
+<strong>declared</strong> name, so an alias that differs from it builds cleanly and then silently
+returns nothing. If you really want the column called <code>Throw</code>, rename the declare to
+<code class="ret">@Return_Throw</code>.</p>
+<p>Note this is <em>stricter</em> than earlier versions, which quietly appended the alias: a file
+that left a scalar select unterminated before a <code>Throw</code> or <code>go</code> statement
+built fine before and now fails until you add the <code>;</code>. That is deliberate — guessing
+wrong in the other direction corrupts the emitted batch.</p>
 
 <h3>Collision diagnostic — SP0030</h3>
 <p>If two declared outputs share an identical shape (same ordered column names and C# types), SQuiL

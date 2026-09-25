@@ -732,8 +732,11 @@ test('SP0044 flags a Throw terminator after a bare scalar select', () => {
   assert.strictEqual(diags.length, 1);
   assert.strictEqual(diags[0].code, 'SP0044');
   assert.strictEqual(diags[0].severity, 'error');
-  assert.ok(diags[0].message.includes('As [Throw]'), 'message offers the bracketed alias');
   assert.ok(diags[0].message.includes('@Return_Count'), 'message names the offending scalar');
+  // Must NOT advise `As [Throw]`: a scalar is routed by its DECLARED name, so a differing
+  // written alias builds clean and then silently drops the result set (no `default:` arm).
+  assert.ok(!diags[0].message.includes('As [Throw]'), 'must not advise an unroutable alias');
+  assert.ok(diags[0].message.includes('@Return_Throw'), 'offers the rename remedy instead');
 });
 
 test('SP0044 ignores an ordinary bare scalar select', () => {

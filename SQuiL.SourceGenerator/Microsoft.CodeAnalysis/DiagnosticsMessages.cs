@@ -500,8 +500,10 @@ public static class DiagnosticsMessages
 			// name SP0041 renders — the variable spelling is what the author can grep for, and this
 			// message reports exactly one select.
 			$"{filename}: the Select of `@Return_{finding.Name}` on line {finding.Line} is followed by "
-			+ $"`{finding.Terminator}`, which could be a column alias or the next statement. "
-			+ $"Write `As [{finding.Terminator}]` if it is an alias, or end the Select with `;` before the statement.",
+			+ $"`{finding.Terminator}`, which could be this column's alias or the next statement. "
+			+ $"End the Select with `;` before the statement; or, if you meant `{finding.Terminator}` as the "
+			+ $"column name, rename the declare to `@Return_{finding.Terminator}` — an alias that differs "
+			+ "from the declared name is not routable.",
 			Location.None));
 
 	/// <summary>

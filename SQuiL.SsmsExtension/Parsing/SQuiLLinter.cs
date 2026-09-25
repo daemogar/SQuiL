@@ -686,8 +686,10 @@ internal static class SQuiLLinter
             diagnostics.Add(new SQuiLDiagnostic
             {
                 Message   = $"This Select of `@Return_{ambiguous.DeclaredName}` is followed by `{ambiguous.Terminator}`, " +
-                            "which could be a column alias or the next statement. " +
-                            $"Write `As [{ambiguous.Terminator}]` if it is an alias, or end the Select with `;` before the statement.",
+                            "which could be this column's alias or the next statement. " +
+                            $"End the Select with `;` before the statement; or, if you meant `{ambiguous.Terminator}` as the " +
+                            $"column name, rename the declare to `@Return_{ambiguous.Terminator}` — an alias that differs " +
+                            "from the declared name is not routable.",
                 Line      = line,
                 StartChar = startChar,
                 EndChar   = startChar + ambiguous.VariableLength,

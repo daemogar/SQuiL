@@ -1578,8 +1578,10 @@ export function lintAmbiguousScalarAlias(
     return {
       message:
         `This Select of \`@Return_${a.declaredName}\` is followed by \`${a.terminator}\`, ` +
-        `which could be a column alias or the next statement. ` +
-        `Write \`As [${a.terminator}]\` if it is an alias, or end the Select with \`;\` before the statement.`,
+        `which could be this column's alias or the next statement. ` +
+        `End the Select with \`;\` before the statement; or, if you meant \`${a.terminator}\` as the ` +
+        `column name, rename the declare to \`@Return_${a.terminator}\` — an alias that differs ` +
+        `from the declared name is not routable.`,
       line: pos.line,
       startChar: pos.character,
       endChar: pos.character + a.variableLength,

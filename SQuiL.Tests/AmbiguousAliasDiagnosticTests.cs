@@ -29,7 +29,15 @@ public class AmbiguousAliasDiagnosticTests
 		// convention MultiScalarSelectDiagnosticTests documents for SP0041: 1: Declare, 2: Use,
 		// 3: Set, 4: Select.
 		Assert.Contains("line 4", sp[0].GetMessage());
-		Assert.Contains("As [Throw]", sp[0].GetMessage());
+		// The message must NOT advise writing `As [Throw]`. SQuiL routes a scalar result set by the
+		// DECLARED name — SQuiLShapeKey.ScalarKeyOf keys on block.Name — while the RUNTIME shape key
+		// is built from reader.GetName(0), i.e. the written alias. The generated switch has no
+		// `default:` arm, so an alias that differs from the declared name builds clean and then
+		// silently drops the result set: precisely the failure SP0043/SP0044 exist to prevent.
+		Assert.DoesNotContain("As [Throw]", sp[0].GetMessage());
+		// It offers the two remedies that actually work instead: terminate the Select, or rename
+		// the declare so the column name the author wants IS the declared name.
+		Assert.Contains("@Return_Throw", sp[0].GetMessage());
 		// The message names the offending scalar as the author spelled it in the SQL, so a file
 		// with several output scalars does not force a line-count to work out which one is meant.
 		Assert.Contains("@Return_Count", sp[0].GetMessage());
