@@ -1498,7 +1498,55 @@ internal static class SQuiLLinter
                 });
             }
         }
+
+        LintContainmentHint(graph, diagnostics);
     }
+
+    /// <summary>SP0046 (Info, editor-only — NOT a build/generator diagnostic): one hint per
+    /// key-graph edge, anchored on the NESTED (child) variable's declaration, explaining WHY the
+    /// edge nests the way it does. A normal edge (the container is declared BEFORE the nested
+    /// variable — R1) cites declaration order and suggests reordering to swap the containment. An
+    /// R3-inverted junction edge (the container is declared AFTER the nested variable) cites the
+    /// container's own reference to the nested variable's Primary Key instead — declaration order
+    /// isn't why THAT edge nests the way it does, so no reorder suggestion. Mirrors
+    /// nestedObjectHints.ts's containment hint — change one side, change all three.</summary>
+    private static void LintContainmentHint(KeyGraph graph, List<SQuiLDiagnostic> diagnostics)
+    {
+        foreach (var edge in graph.Edges)
+        {
+            var word = ContainmentCardinalityWord(edge);
+            var containerDeclaredFirst = DeclaredBefore(edge.Parent, edge.Child);
+            var message = containerDeclaredFirst
+                ? $"`{edge.Child.Name}` nests inside `{edge.Parent.Name}` as a {word}, because " +
+                  $"`{edge.Parent.Name}` is declared first. Reorder the declarations to swap the containment."
+                : $"`{edge.Child.Name}` nests inside `{edge.Parent.Name}` as a single object, because " +
+                  $"`{edge.Parent.Name}` references its Primary Key `{edge.KeyName}` as a lookup.";
+
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message = message,
+                Line = edge.Child.Line,
+                StartChar = edge.Child.Character,
+                EndChar = edge.Child.Character + edge.Child.RawName.Length,
+                Severity = DiagnosticSeverity.Info,
+                Code = "SP0046",
+            });
+        }
+    }
+
+    /// <summary>"list" for a plural (Returns_/Params_) child, "single object" for a singular
+    /// (Return_/Param_) one — but an embed is ALWAYS a single object (the container's FK column is
+    /// dropped from the C# record), which overrides the child's own declared cardinality.</summary>
+    private static string ContainmentCardinalityWord(KeyGraphEdge edge)
+    {
+        if (edge.IsEmbed) return "single object";
+        return (edge.Child.Role == VariableRole.Returns || edge.Child.Role == VariableRole.Params)
+            ? "list" : "single object";
+    }
+
+    /// <summary>Declaration order between two variables — the earlier source position wins.</summary>
+    private static bool DeclaredBefore(SQuiLVariable a, SQuiLVariable b)
+        => a.Line != b.Line ? a.Line < b.Line : a.Character < b.Character;
 
     /// <summary>SQL types the generator can synthesize a nested-input join key for
     /// (<c>IsSynthesizableKeyType</c> in FileGenerator.cs): integer-family + uniqueidentifier.</summary>

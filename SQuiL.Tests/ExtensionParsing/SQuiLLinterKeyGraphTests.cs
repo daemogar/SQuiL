@@ -306,4 +306,146 @@ public class SQuiLLinterKeyGraphTests
 
 		Assert.Single(diagnostics, d => d.Code == "SP0036");
 	}
+
+	// ── SP0046: containment-direction hint (Task 6) ──────────────────────────
+	//
+	// Editor-only Info diagnostic (SP0035's severity) — NOT a build/generator
+	// diagnostic. One hint per key-graph edge, anchored on the NESTED (child)
+	// variable's declaration, explaining why the edge nests the way it does:
+	// declaration order (R1) for a normal edge, or the container's own
+	// reference to the nested variable's Primary Key for an R3-inverted
+	// junction edge. Mirrors nestedObjectHints.ts's containment hint.
+
+	/// <summary>The brief's embed example: Contact nests inside Structure as a single
+	/// object because Structure is declared first (an embed is always a single object).</summary>
+	[Fact]
+	public void LintKeyGraphReportsSP0046ForAnEmbedEdge()
+	{
+		const string sql = """
+			Declare @Returns_Structure table(Title varchar(50), ContactID varchar(10));
+			Declare @Returns_Contact table(ContactID varchar(10) Primary Key, Name varchar(50));
+			Use [Db]; Select 1;
+			""";
+
+		var diagnostics = new List<SQuiLDiagnostic>();
+		SQuiLLinter.LintKeyGraph(sql, diagnostics);
+
+		var sp0046 = Assert.Single(diagnostics, d => d.Code == "SP0046");
+		Assert.Equal(DiagnosticSeverity.Info, sp0046.Severity);
+		Assert.Contains("`Contact` nests inside `Structure`", sp0046.Message);
+		Assert.Contains("as a single object", sp0046.Message);
+		Assert.Contains("declared first", sp0046.Message);
+		Assert.Contains("Reorder the declarations", sp0046.Message);
+	}
+
+	/// <summary>Classic list child: Institution nests inside Transcript as a list
+	/// (Institution is declared @Returns_, plural).</summary>
+	[Fact]
+	public void LintKeyGraphReportsSP0046ForAClassicListChild()
+	{
+		const string sql = """
+			Declare @Return_Transcript table(TranscriptID int Primary Key, IssueDate date);
+			Declare @Returns_Institution table(InstitutionID int Primary Key, TranscriptID int, SchoolName varchar(50));
+			Use [Db]; Select 1;
+			""";
+
+		var diagnostics = new List<SQuiLDiagnostic>();
+		SQuiLLinter.LintKeyGraph(sql, diagnostics);
+
+		var sp0046 = Assert.Single(diagnostics, d => d.Code == "SP0046");
+		Assert.Contains("`Institution` nests inside `Transcript`", sp0046.Message);
+		Assert.Contains("as a list", sp0046.Message);
+		Assert.Contains("declared first", sp0046.Message);
+	}
+
+	/// <summary>Classic single-object child: same fixture but Institution is
+	/// declared @Return_ (singular).</summary>
+	[Fact]
+	public void LintKeyGraphReportsSP0046ForAClassicSingleObjectChild()
+	{
+		const string sql = """
+			Declare @Return_Transcript table(TranscriptID int Primary Key, IssueDate date);
+			Declare @Return_Institution table(InstitutionID int Primary Key, TranscriptID int, SchoolName varchar(50));
+			Use [Db]; Select 1;
+			""";
+
+		var diagnostics = new List<SQuiLDiagnostic>();
+		SQuiLLinter.LintKeyGraph(sql, diagnostics);
+
+		var sp0046 = Assert.Single(diagnostics, d => d.Code == "SP0046");
+		Assert.Contains("`Institution` nests inside `Transcript`", sp0046.Message);
+		Assert.Contains("as a single object", sp0046.Message);
+		Assert.Contains("declared first", sp0046.Message);
+	}
+
+	/// <summary>Junction (R3-inverted edge): Student/Course/Enrollment. The
+	/// Student-&gt;Enrollment edge is normal (declared-first wording); the
+	/// Enrollment-&gt;Course edge is R3-inverted (Enrollment is declared AFTER
+	/// Course) and must NOT claim declaration order.</summary>
+	[Fact]
+	public void LintKeyGraphReportsSP0046ForAJunctionWithTheInvertedEdgeWordedDifferently()
+	{
+		const string sql = """
+			Declare @Returns_Student table(StudentID int Primary Key, Name varchar(50));
+			Declare @Returns_Course table(CourseID int Primary Key, Title varchar(50));
+			Declare @Returns_Enrollment table(StudentID int, CourseID int, Grade varchar(2));
+			Use [Db];
+			Select * From @Returns_Student;
+			Select * From @Returns_Course;
+			Select * From @Returns_Enrollment;
+			""";
+
+		var diagnostics = new List<SQuiLDiagnostic>();
+		SQuiLLinter.LintKeyGraph(sql, diagnostics);
+
+		var sp0046 = diagnostics.Where(d => d.Code == "SP0046").ToList();
+		Assert.Equal(2, sp0046.Count);
+
+		var toEnrollment = Assert.Single(sp0046, d => d.Message.Contains("`Enrollment` nests inside `Student`"));
+		Assert.Contains("as a list", toEnrollment.Message);
+		Assert.Contains("declared first", toEnrollment.Message);
+
+		var toCourse = Assert.Single(sp0046, d => d.Message.Contains("`Course` nests inside `Enrollment`"));
+		Assert.Contains("as a single object", toCourse.Message);
+		Assert.DoesNotContain("declared first", toCourse.Message);
+		Assert.Contains("references its Primary Key", toCourse.Message);
+		Assert.Contains("`CourseID`", toCourse.Message);
+		Assert.DoesNotContain("Reorder the declarations", toCourse.Message);
+	}
+
+	/// <summary>A flat file with no links produces no SP0046.</summary>
+	[Fact]
+	public void LintKeyGraphDoesNotReportSP0046OnAFlatFile()
+	{
+		const string sql = """
+			Declare @Returns_Person table(PersonID int Primary Key, Name varchar(50));
+			Declare @Returns_Pet table(PetID int Primary Key, Name varchar(50));
+			Use [Db]; Select 1;
+			""";
+
+		var diagnostics = new List<SQuiLDiagnostic>();
+		SQuiLLinter.LintKeyGraph(sql, diagnostics);
+
+		Assert.DoesNotContain(diagnostics, d => d.Code == "SP0046");
+	}
+
+	/// <summary>SP0046 applies independently to the INPUT graph too.</summary>
+	[Fact]
+	public void LintKeyGraphReportsSP0046OnTheInputGraph()
+	{
+		const string sql = """
+			Declare @Params_Structure table(Title varchar(50), ContactID varchar(10));
+			Declare @Params_Contact table(ContactID varchar(10) Primary Key, Name varchar(50));
+			Use [Db];
+			Insert Into dbo.S Select Title, ContactID From @Params_Structure;
+			Insert Into dbo.C Select ContactID, Name From @Params_Contact;
+			""";
+
+		var diagnostics = new List<SQuiLDiagnostic>();
+		SQuiLLinter.LintKeyGraph(sql, diagnostics);
+
+		var sp0046 = Assert.Single(diagnostics, d => d.Code == "SP0046");
+		Assert.Contains("`Contact` nests inside `Structure`", sp0046.Message);
+		Assert.Contains("as a single object", sp0046.Message);
+	}
 }
