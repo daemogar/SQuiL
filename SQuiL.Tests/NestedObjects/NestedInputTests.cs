@@ -233,6 +233,24 @@ public class NestedInputTests
             """]);
     }
 
+    // Embed with its own child (input): a repeated Contact key from a DIFFERENT instance that carries
+    // Phones must throw (its children would otherwise be silently dropped); the same instance dedups.
+    [Fact]
+    public Task EmbeddedLookupWithChildInput()
+    {
+        var name = nameof(EmbeddedLookupWithChildInput);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Params_Structure table(Title varchar(50) not null, ContactID int not null);
+            Declare @Params_Contact table(ContactID int not null Primary Key, Name varchar(50) not null);
+            Declare @Params_Phone table(PhoneID int not null Primary Key, ContactID int not null, Number varchar(20) not null);
+            Use [Db];
+            Insert Into dbo.Structures Select Title, ContactID From @Params_Structure;
+            Insert Into dbo.Contacts Select ContactID, Name From @Params_Contact;
+            Insert Into dbo.Phones Select PhoneID, ContactID, Number From @Params_Phone;
+            """]);
+    }
+
     // Many-to-many junction (input): StudentID is synthesized down the Student -> Enrollment
     // child edge, CourseID is copied up from the embedded Course, and Course rows are deduped.
     [Fact]

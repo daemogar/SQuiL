@@ -116,4 +116,67 @@ public class SqliteNestedObjectTests
 		Assert.Contains(response.CartLine, cl => cl.Product == "Widget");
 		Assert.Contains(response.CartLine, cl => cl.Product == "Gadget");
 	}
+
+	/// <summary>A reused embed instance is deduped: its Phone is sent once and joins both structures.</summary>
+	[Fact]
+	public async Task Embed_reused_instance_sends_its_children_once()
+	{
+		var (keepAlive, provider) = Arrange(nameof(Embed_reused_instance_sends_its_children_once));
+		using var _ = keepAlive;
+
+		var contact = new SQuiL.Tests.Sqlite.Models.Contact(1, "Ada") { Phone = [new(0, 0, "555-0100")] };
+		var context = provider.GetRequiredService<SqliteEmbedWithChildInputDataContext>();
+		var result = await context.ProcessSqliteEmbedWithChildInputAsync(new SqliteEmbedWithChildInputRequest
+		{
+			Structure = [new("A") { Contact = contact }, new("B") { Contact = contact }],
+		});
+
+		Assert.True(result.TryGetValue(out var response, out var errors));
+		Assert.Null(errors);
+		Assert.Equal(2, response!.PhoneLine!.Count);
+		Assert.All(response.PhoneLine, pl => Assert.Equal("555-0100", pl.Number));
+	}
+
+	/// <summary>A second, different embed instance with children is rejected rather than silently dropped.</summary>
+	[Fact]
+	public async Task Embed_second_instance_with_children_throws()
+	{
+		var (keepAlive, provider) = Arrange(nameof(Embed_second_instance_with_children_throws));
+		using var _ = keepAlive;
+
+		var context = provider.GetRequiredService<SqliteEmbedWithChildInputDataContext>();
+		var request = new SqliteEmbedWithChildInputRequest
+		{
+			Structure =
+			[
+				new("A") { Contact = new(1, "Ada") { Phone = [new(0, 0, "555-0100")] } },
+				new("B") { Contact = new(1, "Ada") { Phone = [new(0, 0, "555-0199")] } },
+			],
+		};
+
+		var e = await Assert.ThrowsAsync<InvalidOperationException>(() => context.ProcessSqliteEmbedWithChildInputAsync(request));
+		Assert.Contains("Contact with ContactID '1' was supplied twice with nested children", e.Message);
+	}
+
+	/// <summary>A second, different embed instance WITHOUT children is silently deduped.</summary>
+	[Fact]
+	public async Task Embed_second_instance_without_children_is_deduped()
+	{
+		var (keepAlive, provider) = Arrange(nameof(Embed_second_instance_without_children_is_deduped));
+		using var _ = keepAlive;
+
+		var context = provider.GetRequiredService<SqliteEmbedWithChildInputDataContext>();
+		var result = await context.ProcessSqliteEmbedWithChildInputAsync(new SqliteEmbedWithChildInputRequest
+		{
+			Structure =
+			[
+				new("A") { Contact = new(1, "Ada") { Phone = [new(0, 0, "555-0100")] } },
+				new("B") { Contact = new(1, "Ada") },
+			],
+		});
+
+		Assert.True(result.TryGetValue(out var response, out var errors));
+		Assert.Null(errors);
+		Assert.Equal(2, response!.PhoneLine!.Count);
+	}
 }

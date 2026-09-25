@@ -20,6 +20,11 @@ public partial class SqliteNestedOutputDataContext(IConfiguration Configuration)
 [SQuiLQuery(QueryFiles.SqliteNestedInput)]
 public partial class SqliteNestedInputDataContext(IConfiguration Configuration) : SqliteDataContext(Configuration);
 
+// Embed with a child: Params_Structure embeds Params_Contact, which owns Params_Phone rows.
+[SQuiLDialect(SQuiLDialect.Sqlite)]
+[SQuiLQuery(QueryFiles.SqliteEmbedWithChildInput)]
+public partial class SqliteEmbedWithChildInputDataContext(IConfiguration Configuration) : SqliteDataContext(Configuration);
+
 // Transaction commit-on-success (mutates a real, non-temp table).
 [SQuiLDialect(SQuiLDialect.Sqlite)]
 [SQuiLQueryTransaction(QueryFiles.SqliteTxnCommit)]

@@ -826,7 +826,10 @@ public class SQuiLDataContext(
 				if (embedded.Contains(block))
 				{
 					var pk = block.Properties.First(p => p.IsPrimaryKey);
-					writer.WriteLine($"var __{block.Name}Seen = new Dictionary<{pk.CSharpType()}, {recordNamespace}.{block.Name}>();");
+					var record = $"{recordNamespace}.{block.Name}";
+					// With children, also keep the first caller instance: a second one carrying children is rejected.
+					var value = graph.ChildrenOf(block).Count > 0 ? $"({record} Row, {record} Source)" : record;
+					writer.WriteLine($"var __{block.Name}Seen = new Dictionary<{pk.CSharpType()}, {value}>();");
 				}
 			}
 			writer.WriteLine();
@@ -901,16 +904,28 @@ public class SQuiLDataContext(
 				var row = $"__{node.Name}Row";
 				var prev = $"__{node.Name}Prev";
 				var pkName = pk!.Identifier.Value;
+				var nested = graph.ChildrenOf(node);
+				var prevRow = nested.Count > 0 ? $"{prev}.Row" : prev;
 				EmitRowConstruction(node, itemExpr, keyLocal, pkColName, parentKeyLocal, fkColName, row);
 				writer.Block($"if (__{node.Name}Seen.TryGetValue({row}.{pkName}, out var {prev}))", () =>
 				{
-					var mismatch = string.Join(" || ", RecordColumns(node).Select(c => ColumnDiffers(c, prev, row)));
+					var mismatch = string.Join(" || ", RecordColumns(node).Select(c => ColumnDiffers(c, prevRow, row)));
 					writer.Block($"if ({mismatch})", () => writer.WriteLine(
 						$$"""throw new Exception($"Conflicting values supplied for {{node.Name}} with {{pkName}} '{{{row}}.{{pkName}}}'.");"""));
+
+					// Children are walked on the first sighting only, so a second instance's would be lost.
+					if (nested.Count == 0) return;
+					var carries = string.Join(" || ", nested.Select(e => !e.IsEmbed && e.Child.IsTable
+						? $"({itemExpr}.{e.Child.Name}?.Count ?? 0) > 0"
+						: $"{itemExpr}.{e.Child.Name} is not null"));
+					writer.Block($"if (!ReferenceEquals({prev}.Source, {itemExpr}) && ({carries}))", () => writer.WriteLine(
+						$$"""throw new InvalidOperationException($"{{generation.Request.ModelName}} {{node.Name}} with {{pkName}} '{{{row}}.{{pkName}}}' was supplied twice with nested children; reuse one {{node.Name}} instance.");"""));
 				});
 				writer.Block("else", () =>
 				{
-					writer.WriteLine($"__{node.Name}Seen[{row}.{pkName}] = {row};");
+					writer.WriteLine(nested.Count > 0
+						? $"__{node.Name}Seen[{row}.{pkName}] = ({row}, {itemExpr});"
+						: $"__{node.Name}Seen[{row}.{pkName}] = {row};");
 					EmitAddAndChildren(row);
 				});
 			}
