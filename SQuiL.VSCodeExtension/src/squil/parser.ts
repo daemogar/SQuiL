@@ -260,7 +260,7 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
     result.diagnostics.push(d);
   }
 
-  // SP0033 / SP0034: nested-object key-graph errors (ambiguous parent / cycle),
+  // SP0033 / SP0034: nested-object key-graph errors (duplicate primary key / cycle),
   // over BOTH the OUTPUT and INPUT graphs. SP0036: unsupported nested-input key type.
   for (const d of lintKeyGraph(result)) {
     result.diagnostics.push(d);
@@ -321,16 +321,17 @@ export function lintParamsBeforeReturns(result: SQuiLParseResult, dialect: Edito
 }
 
 /**
- * SP0033 (Error) — a nested-object child's column matches the declared Primary
- * Key of more than one other table/object (ambiguous parent — a nested-object
- * child must resolve to exactly one parent).
+ * SP0033 (Error) — two table/object blocks both declare a Primary Key on the
+ * SAME key name (duplicate-pk — Ruling R0). A key name identifies one
+ * relationship and must have exactly one "one" side; the second declaration
+ * is the error.
  *
  * SP0034 (Error) — following Primary-Key/Foreign-Key links from a table
  * eventually returns to that same table (cycle — nested objects require a tree).
  *
  * Both are build errors in the generator (`SQuiLKeyGraph.Errors`,
- * `DiagnosticsMessages.ReportAmbiguousKeyLink` / `ReportKeyCycle`) — this is the
- * editor-squiggle mirror. Port of `LintKeyGraph` in `SQuiLLinter.cs`
+ * `DiagnosticsMessages.ReportDuplicatePrimaryKey` / `ReportKeyCycle`) — this is
+ * the editor-squiggle mirror. Port of `LintKeyGraph` in `SQuiLLinter.cs`
  * (SSMS + Visual Studio) — change one side, change all three.
  *
  * Applied to BOTH the OUTPUT (`@Return_`/`@Returns_`) and INPUT (`@Param_`/
@@ -348,12 +349,12 @@ export function lintKeyGraph(result: SQuiLParseResult): SQuiLDiagnostic[] {
       const v = finding.variable;
       const other = finding.otherVariable;
 
-      if (finding.kind === 'ambiguous') {
+      if (finding.kind === 'duplicate-pk') {
         diagnostics.push({
           message:
-            `\`${v.name}\` (line ${v.line + 1}) links to more than one table — it also matches ` +
-            `\`${other.name}\`'s (line ${other.line + 1}) primary key. A nested-object child must have ` +
-            `exactly one parent — rename one of the key columns so only one match remains.`,
+            `\`${v.name}\` (line ${v.line + 1}) declares \`Primary Key\` on the same key name as ` +
+            `\`${other.name}\` (line ${other.line + 1}). A key name identifies one relationship and may ` +
+            `have only one primary-key owner — rename one of the key columns.`,
           line: v.line,
           startChar: v.character,
           endChar: v.character + v.rawName.length,
@@ -362,14 +363,15 @@ export function lintKeyGraph(result: SQuiLParseResult): SQuiLDiagnostic[] {
           relatedLine: other.line,
           relatedStartChar: other.character,
           relatedEndChar: other.character + other.rawName.length,
-          relatedMessage: "matches this table's primary key",
+          relatedMessage: 'also declares Primary Key on this key name',
         });
       } else {
         // cycle
         diagnostics.push({
           message:
             `\`${v.name}\` (line ${v.line + 1}) and \`${other.name}\` (line ${other.line + 1}) ` +
-            `form a primary-key/foreign-key cycle. Nested objects cannot be recursive — remove one of the links.`,
+            `form a primary-key/foreign-key cycle, which can arise when a block with several containers is ` +
+            `re-nested. Nested objects cannot be recursive — reorder the declarations or remove one of the links.`,
           line: v.line,
           startChar: v.character,
           endChar: v.character + v.rawName.length,
@@ -409,7 +411,11 @@ function baseSqlType(sqlType: string): string {
 export function lintUnsupportedInputKeyType(inputGraph: KeyGraphResult): SQuiLDiagnostic[] {
   const diagnostics: SQuiLDiagnostic[] = [];
 
+  // An embedded lookup's key is caller-supplied, so its classic children receive it as-is.
+  const embedded = new Set(inputGraph.edges.filter(e => e.isEmbed).map(e => e.child));
   for (const edge of inputGraph.edges) {
+    // An embed's key is caller-supplied (copied up, never synthesized).
+    if (edge.isEmbed || embedded.has(edge.parent)) continue;
     const parentColumns = (edge.parent.columns ?? []) as TableColumn[];
     const keyColumn =
       parentColumns.find(c => c.isPrimaryKey && c.name.toLowerCase() === edge.keyName.toLowerCase()) ??
@@ -447,9 +453,22 @@ export function lintShapeMismatch(result: SQuiLParseResult): SQuiLDiagnostic[] {
 
   const seen = new Map<string, SQuiLVariable>(); // name (lower) → first variable
 
+  // R4: key columns each container's embeds elide — part of the record shape.
+  const elided = new Map<SQuiLVariable, Set<string>>();
+  for (const graph of [buildKeyGraph(result.variables, OUTPUT_TABLE_ROLES), buildKeyGraph(result.variables, INPUT_TABLE_ROLES)]) {
+    for (const e of graph.edges) {
+      if (!e.isEmbed) continue;
+      const keys = elided.get(e.parent) ?? new Set<string>();
+      keys.add(e.keyName.toLowerCase());
+      elided.set(e.parent, keys);
+    }
+  }
+  const colSig = (x: SQuiLVariable) =>
+    (x.columns ?? []).map(c => `${c.name}:${c.sqlType.replace(/\s*\([^)]*\)/, '').toLowerCase()}:${c.nullable}`).join('|');
+  const elidedSig = (x: SQuiLVariable) => [...(elided.get(x) ?? [])].sort().join(',');
+
   for (const v of tableVars) {
     const key = v.name.toLowerCase();
-    const sig = (v.columns ?? []).map(c => `${c.name}:${c.sqlType.replace(/\s*\([^)]*\)/, '').toLowerCase()}:${c.nullable}`).join('|');
 
     const first = seen.get(key);
     if (!first) {
@@ -457,13 +476,14 @@ export function lintShapeMismatch(result: SQuiLParseResult): SQuiLDiagnostic[] {
       continue;
     }
 
-    const firstSig = (first.columns ?? []).map(c => `${c.name}:${c.sqlType.replace(/\s*\([^)]*\)/, '').toLowerCase()}:${c.nullable}`).join('|');
-    if (sig === firstSig) continue;
+    const embedDiffers = elidedSig(v) !== elidedSig(first);
+    if (colSig(v) === colSig(first) && !embedDiffers) continue;
 
     diagnostics.push({
       message:
         `All declarations that generate the record \`${v.name}\` must declare identical columns ` +
         `(same names, types, nullability, and order). ` +
+        (embedDiffers ? 'An embedded lookup removes its key column from the record, so every declaration must embed the same lookups. ' : '') +
         `Rename one of the variables or align the column lists.`,
       line: v.line,
       startChar: v.character,

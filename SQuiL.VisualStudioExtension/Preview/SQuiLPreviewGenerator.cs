@@ -47,66 +47,121 @@ internal static class SQuiLPreviewGenerator
 
     // ── Nested-objects key graph (preview-only mirror of SQuiLKeyGraph.cs) ──
 
-    /// <summary>Parent → its direct children (declaration order) plus a lookup for "is this
-    /// variable someone's child" — the child collapses into the parent record and drops off
-    /// the Response top level.</summary>
+    /// <summary>Parent → direct children, which variables are someone's child (they leave the
+    /// Response top level), and which are embedded lookups.</summary>
     private sealed class NestedGraph
     {
         public List<SQuiLVariable> Roots { get; } = new();
         public Dictionary<SQuiLVariable, List<SQuiLVariable>> ChildrenOf { get; } = new();
         private readonly HashSet<SQuiLVariable> _children = new();
+        private readonly HashSet<SQuiLVariable> _embeds = new();
         public bool IsChild(SQuiLVariable v) => _children.Contains(v);
         public void MarkChild(SQuiLVariable v) => _children.Add(v);
+        public bool IsEmbed(SQuiLVariable v) => _embeds.Contains(v);
+        public void MarkEmbed(SQuiLVariable v) => _embeds.Add(v);
+        /// <summary>Container → key columns its embeds supply (elided from its record, R4).</summary>
+        public Dictionary<SQuiLVariable, List<string>> ElidedKeysOf { get; } = new();
+    }
+
+    /// <summary>One container→nested link, local to the preview (mirrors the generator's <c>SQuiLKeyEdge</c>).</summary>
+    private sealed class PreviewEdge
+    {
+        public SQuiLVariable Parent { get; set; } = null!;
+        public SQuiLVariable Child { get; set; } = null!;
+        public string KeyName { get; set; } = "";
+        public bool IsEmbed { get; set; }
     }
 
     /// <summary>
-    /// Minimal preview mirror of the generator's <c>SQuiLKeyGraph</c>
-    /// (<c>SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs</c>): a table/object
-    /// variable's key is its single <c>Primary Key</c> column; any OTHER variable in the
-    /// SAME universe carrying a column of that exact name becomes its child. Variables
-    /// nobody links to are roots. Called once for OUTPUT (<c>@Return*</c>) table/object
-    /// variables and once for INPUT (<c>@Param*</c>) table/object variables (never mixed),
-    /// matching the generator building one graph per side (FileGenerator.cs's
-    /// <c>keyGraph</c> / <c>inputGraph</c>).
-    ///
-    /// Simplified relative to the generator: ambiguous (&gt;1 distinct parent) or cyclic
-    /// links are build-time errors owned by the generator/editor diagnostics, not the
-    /// preview — here the first matching PK owner silently wins so the preview always
-    /// renders something reasonable (graceful degradation to the flat shape when there are
-    /// no links at all).
+    /// Preview mirror of the generator's <c>SQuiLKeyGraph</c> (R0/R1/R3, no diagnostics), built once
+    /// per side (OUTPUT, INPUT). A cyclic file still renders, since record emission is non-recursive.
     /// </summary>
+    /// <remarks>Rules: SQuiL.SourceGenerator/README.md, "Nested objects: key graph".</remarks>
     private static NestedGraph BuildNestedGraph(List<SQuiLVariable> tableVars)
     {
         var pkOwner = new Dictionary<string, SQuiLVariable>(System.StringComparer.OrdinalIgnoreCase);
+        var pkNameOf = new Dictionary<SQuiLVariable, string>();
         foreach (var v in tableVars)
         {
             var pk = v.Columns?.FirstOrDefault(c => c.IsPrimaryKey);
             if (pk is not null && !pkOwner.ContainsKey(pk.Name))
+            {
                 pkOwner[pk.Name] = v;
+                pkNameOf[v] = pk.Name;
+            }
         }
 
-        var parentOf = new Dictionary<SQuiLVariable, SQuiLVariable>();
-        foreach (var child in tableVars)
+        // R1: orientation follows declaration order (`tableVars` order), not which side owns the key.
+        var order = new Dictionary<SQuiLVariable, int>();
+        for (var i = 0; i < tableVars.Count; i++) order[tableVars[i]] = i;
+
+        // One edge per variable pair (first matching key column wins).
+        var pairs = new List<(SQuiLVariable A, SQuiLVariable B, string Key)>();
+        var pairSeen = new HashSet<(int, int)>();
+        foreach (var block in tableVars)
         {
-            foreach (var col in child.Columns ?? new List<TableColumn>())
+            foreach (var col in block.Columns ?? new List<TableColumn>())
             {
-                if (!pkOwner.TryGetValue(col.Name, out var owner) || ReferenceEquals(owner, child))
+                if (!pkOwner.TryGetValue(col.Name, out var owner) || ReferenceEquals(owner, block))
                     continue;
-                parentOf[child] = owner;
-                break;
+                var lo = System.Math.Min(order[block], order[owner]);
+                var hi = System.Math.Max(order[block], order[owner]);
+                if (!pairSeen.Add((lo, hi))) continue;
+                pairs.Add((tableVars[lo], tableVars[hi], col.Name));
+            }
+        }
+
+        // The earlier-declared variable is the container; embed when the nested one owns the key.
+        var edges = new List<PreviewEdge>();
+        foreach (var (a, b, key) in pairs)
+        {
+            var nestedOwnsKey = pkNameOf.TryGetValue(b, out var bKey)
+                && string.Equals(bKey, key, System.StringComparison.OrdinalIgnoreCase);
+            edges.Add(new PreviewEdge { Parent = a, Child = b, KeyName = key, IsEmbed = nestedOwnsKey });
+        }
+
+        // R3: a shared lookup keeps all its containers; a junction keeps the earliest and inverts the
+        // rest into embeds. Runs to a fixed point; the bound is proven (README), so hitting it is a bug.
+        var guardLimit = 2 * edges.Count;
+        for (var guard = 0; ; guard++)
+        {
+            var byNested = edges.GroupBy(e => e.Child)
+                .FirstOrDefault(g => g.Count() > 1 && !g.All(e => e.IsEmbed));
+            if (byNested is null) break;
+            if (guard >= guardLimit)
+                throw new System.InvalidOperationException(
+                    $"BuildNestedGraph R3 resolution did not reach a fixed point within {guardLimit} " +
+                    "iterations. This violates the algorithm's proven termination bound and indicates " +
+                    "a bug in BuildNestedGraph's R3 loop, not a malformed query file.");
+
+            var ordered = byNested.OrderBy(e => order[e.Parent]).ToList();
+            foreach (var drop in ordered.Skip(1))
+            {
+                edges.Remove(drop);
+                if (pkNameOf.TryGetValue(drop.Parent, out var parentKey)
+                    && string.Equals(parentKey, drop.KeyName, System.StringComparison.OrdinalIgnoreCase))
+                    edges.Add(new PreviewEdge { Parent = drop.Child, Child = drop.Parent, KeyName = drop.KeyName, IsEmbed = true });
             }
         }
 
         var graph = new NestedGraph();
-        foreach (var v in tableVars)
+        var hasParent = new HashSet<SQuiLVariable>();
+        foreach (var e in edges)
         {
-            if (!parentOf.TryGetValue(v, out var parent)) continue;
-            graph.MarkChild(v);
-            if (!graph.ChildrenOf.TryGetValue(parent, out var list))
-                graph.ChildrenOf[parent] = list = new List<SQuiLVariable>();
-            list.Add(v);
+            hasParent.Add(e.Child);
+            graph.MarkChild(e.Child);
+            if (e.IsEmbed)
+            {
+                graph.MarkEmbed(e.Child);
+                if (!graph.ElidedKeysOf.TryGetValue(e.Parent, out var keys))
+                    graph.ElidedKeysOf[e.Parent] = keys = new List<string>();
+                keys.Add(e.KeyName);
+            }
+            if (!graph.ChildrenOf.TryGetValue(e.Parent, out var list))
+                graph.ChildrenOf[e.Parent] = list = new List<SQuiLVariable>();
+            list.Add(e.Child);
         }
-        graph.Roots.AddRange(tableVars.Where(v => !parentOf.ContainsKey(v)));
+        graph.Roots.AddRange(tableVars.Where(v => !hasParent.Contains(v)));
         return graph;
     }
 
@@ -139,6 +194,10 @@ internal static class SQuiLPreviewGenerator
         List<SQuiLVariable>? ChildrenOf(SQuiLVariable v) =>
             outputGraph.ChildrenOf.TryGetValue(v, out var oc) ? oc :
             inputGraph.ChildrenOf.TryGetValue(v, out var ic) ? ic : null;
+        bool IsEmbed(SQuiLVariable v) => outputGraph.IsEmbed(v) || inputGraph.IsEmbed(v);
+        List<string>? ElidedKeysOf(SQuiLVariable v) =>
+            outputGraph.ElidedKeysOf.TryGetValue(v, out var ok) ? ok :
+            inputGraph.ElidedKeysOf.TryGetValue(v, out var ik) ? ik : null;
 
         EmitBanner(lines, queryName, db);
         lines.Add("");
@@ -233,7 +292,7 @@ internal static class SQuiLPreviewGenerator
             lines.Add($"namespace {modelsNs};");
             lines.Add("");
             foreach (var v in tableVars)
-                EmitTableRecord(lines, RecordTypeName(v), v, modelsNs, ChildrenOf(v), dialect);
+                EmitTableRecord(lines, RecordTypeName(v), v, modelsNs, ChildrenOf(v), dialect, IsEmbed, ElidedKeysOf(v));
         }
 
         return string.Join("\r\n", lines);
@@ -260,9 +319,14 @@ internal static class SQuiLPreviewGenerator
 
     private static void EmitTableRecord(
         List<string> lines, string typeName, SQuiLVariable v,
-        string? modelsNs = null, List<SQuiLVariable>? children = null, EditorDialect dialect = EditorDialect.SqlServer)
+        string? modelsNs = null, List<SQuiLVariable>? children = null, EditorDialect dialect = EditorDialect.SqlServer,
+        System.Func<SQuiLVariable, bool>? isEmbed = null, List<string>? elidedKeys = null)
     {
         if (v.Columns is null || v.Columns.Count == 0) return;
+
+        // R4: a column an embed supplies is dropped from the record.
+        bool IsElided(TableColumn c) =>
+            elidedKeys is not null && elidedKeys.Any(k => string.Equals(k, c.Name, System.StringComparison.OrdinalIgnoreCase));
 
         string CsType(TableColumn col)
         {
@@ -271,8 +335,8 @@ internal static class SQuiLPreviewGenerator
             return nullable ? cs + "?" : cs;
         }
 
-        var positional = v.Columns.Where(c => c.DefaultValue is null).ToList();
-        var defaulted = v.Columns.Where(c => c.DefaultValue is not null).ToList();
+        var positional = v.Columns.Where(c => c.DefaultValue is null && !IsElided(c)).ToList();
+        var defaulted = v.Columns.Where(c => c.DefaultValue is not null && !IsElided(c)).ToList();
         string @params = string.Join(", ", positional.Select(c => $"{CsType(c)} {c.Name}"));
         bool hasChildren = children is { Count: > 0 };
 
@@ -298,6 +362,13 @@ internal static class SQuiLPreviewGenerator
         if (hasChildren)
             foreach (var child in children!)
             {
+                // An embed is always a single object (R2), whatever its prefix.
+                if (isEmbed?.Invoke(child) == true)
+                {
+                    string embedType = modelsNs is not null ? $"{modelsNs}.{RecordTypeName(child)}" : RecordTypeName(child);
+                    lines.Add($"    public {embedType}? {child.Name} {{ get; set; }}");
+                    continue;
+                }
                 string initializer = child.Role == VariableRole.Params ? " = [];" : "";
                 lines.Add($"    public {GetPropertyType(child, modelsNs, dialect)} {child.Name} {{ get; set; }}{initializer}");
             }

@@ -133,6 +133,39 @@ test('SP0017 silent when same-name tables differ only in column size', () => {
   assert.strictEqual(sp0017.length, 0, 'SP0017 must not fire when shapes differ only in column size');
 });
 
+// SP0017: a flat input and an embedding output share one record but disagree on the
+// elided (embedded-lookup) key — mirrors NestedElisionShapeTests (generator).
+test('SP0017 fires when same-name tables disagree on an embedded-lookup key', () => {
+  const sql = [
+    '--Name: CrossSide',
+    'Declare @Params_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);',
+    'Declare @Returns_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);',
+    'Declare @Returns_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);',
+    'Use [Db];',
+    'Select * From @Returns_Structure;',
+    'Select * From @Returns_Contact;',
+  ].join('\n');
+
+  const sp0017 = parseSQuiL(sql).diagnostics.filter(d => d.code === 'SP0017');
+  assert.strictEqual(sp0017.length, 1, 'elision disagreement is a shape mismatch');
+  assert.strictEqual(sp0017[0].line, 2, 'fires on the second (embedding) declaration');
+  assert.ok(sp0017[0].message.includes('embedded lookup'), 'message names the embedded-key difference');
+});
+
+test('SP0017 silent when same-name tables embed identically', () => {
+  const sql = [
+    '--Name: SameEmbed',
+    'Declare @Returns_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);',
+    'Declare @Returns_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);',
+    'Use [Db];',
+    'Select * From @Returns_Structure;',
+    'Select * From @Returns_Contact;',
+  ].join('\n');
+
+  const sp0017 = parseSQuiL(sql).diagnostics.filter(d => d.code === 'SP0017');
+  assert.strictEqual(sp0017.length, 0);
+});
+
 // SP0022: cardinality collision (same name, list + single object, same side).
 test('SP0022 fires on same-file output list + object with the same name', () => {
   const diags = lintCardinalityCollision(parseSQuiL([
@@ -491,10 +524,23 @@ test('SP0037 does not fire on table-column null/not null markers', () => {
 
 // ── SP0033 / SP0034: nested-object key-graph errors (editor squiggle parity
 // with the generator's build-time SQuiLKeyGraph.Errors) ─────────────────────
+//
+// HISTORY (containment-direction feature, Ruling R2): declaration-order edge orientation landed in
+// Task 1 with the OLD PK-oriented ambiguity check (a child's column matching more than one table's
+// Primary Key) deleted outright, and cycle detection left structurally unreachable directly out of
+// edge construction — every RAW edge points from the earlier-declared block to the later one, so no
+// chain through `childOf` could ever return to its start. Task 2 (Ruling R0) reintroduces SP0033
+// under an entirely NEW condition — NOT "a child matches 2+ parents' PKs", but "two blocks both
+// declare a Primary Key on the same key name" (see the positive test just below). Task 3's R3
+// multi-container resolution CAN invert an edge (new parent = the higher-order block), which makes
+// cycles reachable again — see keyGraph.test.ts's `multi-container resolution can cascade into a
+// cycle` for a real, minimal (4-block) one. The 2-block reciprocal fixture in the test just below
+// still can never cycle on its own (see its comment) — R3 only resolves conflicts across 3+ blocks,
+// and even 3 is not enough (proved exhaustively).
 
-test('SP0033 fires when a child column matches more than one declared Primary Key (ambiguous)', () => {
+test('SP0033 fires when two blocks declare a Primary Key on the same key name', () => {
   const result = parseSQuiL([
-    '--Name: Ambiguous',
+    '--Name: DuplicatePrimaryKey',
     'Declare @Returns_A table(SharedID int Primary Key, N int);',
     'Declare @Returns_B table(SharedID int Primary Key, M int);',
     'Declare @Returns_C table(CID int, SharedID int);',
@@ -503,13 +549,22 @@ test('SP0033 fires when a child column matches more than one declared Primary Ke
   ].join('\n'));
 
   const sp0033 = result.diagnostics.filter(d => d.code === 'SP0033');
-  assert.strictEqual(sp0033.length, 1, 'should emit exactly one SP0033 diagnostic');
+  assert.strictEqual(sp0033.length, 1);
   assert.strictEqual(sp0033[0].severity, 'error');
-  assert.ok(sp0033[0].message.includes('C'), 'message should name the ambiguous child');
-  assert.ok(sp0033[0].message.includes('A'), 'message should name a matched parent');
+  assert.ok(sp0033[0].message.includes('`B`'), 'message should name the second declaration');
+  assert.ok(sp0033[0].message.includes('`A`'), 'message should name the first declaration');
+  assert.ok(
+    sp0033[0].message.includes('declares `Primary Key` on the same key name as'),
+    'message should describe the duplicate-pk condition',
+  );
 });
 
-test('SP0034 fires when Primary-Key/Foreign-Key links form a cycle', () => {
+test('SP0034 does not fire on a 2-block reciprocal pair (dedupe collapses it to one edge, permanently)', () => {
+  // A and B are linked by TWO reciprocal key columns, but dedupe (pairSeen) still collapses them to
+  // exactly ONE edge (see the `two reciprocal key columns...` test in keyGraph.test.ts) — a pair of
+  // blocks can only ever produce one edge between them. R3's resolution loop only acts on a block
+  // that is the Child of 2+ edges, which requires 3+ blocks; this 2-block fixture never reaches
+  // that condition, so it stays acyclic permanently, not just "for now".
   const result = parseSQuiL([
     '--Name: Cycle',
     'Declare @Return_A table(AID int Primary Key, BID int);',
@@ -519,12 +574,27 @@ test('SP0034 fires when Primary-Key/Foreign-Key links form a cycle', () => {
   ].join('\n'));
 
   const sp0034 = result.diagnostics.filter(d => d.code === 'SP0034');
-  assert.strictEqual(sp0034.length, 1, 'should emit exactly one SP0034 diagnostic');
-  assert.strictEqual(sp0034[0].severity, 'error');
-  assert.ok(sp0034[0].message.includes('A') && sp0034[0].message.includes('B'), 'message should name both tables');
+  assert.strictEqual(sp0034.length, 0);
 });
 
-test('SP0033/SP0034 stay silent on a well-formed tree (no ambiguity, no cycle)', () => {
+test('SP0034 from a multi-container cascade explains the cause and the reorder fix', () => {
+  const result = parseSQuiL([
+    '--Name: Cascade',
+    'Declare @Returns_Summary table(ProductID varchar(10));',
+    'Declare @Returns_Category table(CategoryID int Primary Key, Name varchar(50));',
+    'Declare @Returns_Product table(ProductID varchar(10) Primary Key, CategoryID int, Title varchar(50));',
+    'Declare @Returns_Junction table(CategoryID int, ProductID varchar(10), Note varchar(50));',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n'));
+
+  const sp0034 = result.diagnostics.filter(d => d.code === 'SP0034');
+  assert.strictEqual(sp0034.length, 1);
+  assert.ok(sp0034[0].message.includes('several containers'), sp0034[0].message);
+  assert.ok(sp0034[0].message.includes('reorder the declarations'), sp0034[0].message);
+});
+
+test('SP0033/SP0034 stay silent on a well-formed tree (no duplicate-pk, no cycle)', () => {
   const result = parseSQuiL([
     '--Name: Tree',
     'Declare @Returns_Parent table(ParentID int Primary Key, Name varchar(50));',
@@ -540,9 +610,9 @@ test('SP0033/SP0034 stay silent on a well-formed tree (no ambiguity, no cycle)',
 // ── SP0033 / SP0034 on the INPUT (`@Param_`/`@Params_`) key graph — the same
 // checks applied to a second, independent graph (Task 15) ──────────────────
 
-test('SP0033 fires on the INPUT graph when a child column matches more than one declared Primary Key', () => {
+test('SP0033 fires on the INPUT graph when two blocks declare a Primary Key on the same key name', () => {
   const result = parseSQuiL([
-    '--Name: AmbiguousInput',
+    '--Name: DuplicatePrimaryKeyInput',
     'Declare @Params_A table(SharedID int Primary Key, N int);',
     'Declare @Params_B table(SharedID int Primary Key, M int);',
     'Declare @Params_C table(CID int, SharedID int);',
@@ -553,13 +623,12 @@ test('SP0033 fires on the INPUT graph when a child column matches more than one 
   ].join('\n'));
 
   const sp0033 = result.diagnostics.filter(d => d.code === 'SP0033');
-  assert.strictEqual(sp0033.length, 1, 'should emit exactly one SP0033 diagnostic for the input graph');
-  assert.strictEqual(sp0033[0].severity, 'error');
-  assert.ok(sp0033[0].message.includes('C'), 'message should name the ambiguous child');
-  assert.ok(sp0033[0].message.includes('A'), 'message should name a matched parent');
+  assert.strictEqual(sp0033.length, 1);
+  assert.ok(sp0033[0].message.includes('`B`'), 'message should name the second declaration');
+  assert.ok(sp0033[0].message.includes('`A`'), 'message should name the first declaration');
 });
 
-test('SP0034 fires on the INPUT graph when Primary-Key/Foreign-Key links form a cycle', () => {
+test('SP0034 does not fire on a 2-block reciprocal pair on the INPUT graph (dedupe collapses it to one edge, permanently)', () => {
   const result = parseSQuiL([
     '--Name: CycleInput',
     'Declare @Param_A table(AID int Primary Key, BID int);',
@@ -570,12 +639,10 @@ test('SP0034 fires on the INPUT graph when Primary-Key/Foreign-Key links form a 
   ].join('\n'));
 
   const sp0034 = result.diagnostics.filter(d => d.code === 'SP0034');
-  assert.strictEqual(sp0034.length, 1, 'should emit exactly one SP0034 diagnostic for the input graph');
-  assert.strictEqual(sp0034[0].severity, 'error');
-  assert.ok(sp0034[0].message.includes('A') && sp0034[0].message.includes('B'), 'message should name both tables');
+  assert.strictEqual(sp0034.length, 0);
 });
 
-test('SP0033/SP0034 on the INPUT graph do not fire from an unrelated OUTPUT-side ambiguity/cycle (graphs stay independent)', () => {
+test('SP0033/SP0034 on the INPUT graph do not fire from an unrelated OUTPUT-side duplicate-pk/cycle (graphs stay independent)', () => {
   const result = parseSQuiL([
     '--Name: MixedTree',
     'Declare @Returns_Parent table(ParentID int Primary Key, Name varchar(50));',
@@ -633,6 +700,32 @@ test('SP0036 stays silent for int/bigint/smallint/uniqueidentifier link columns'
     'Insert Into dbo.Lines Select LineID, OrderID, Amount From @Params_Line;',
   ].join('\n'));
   assert.strictEqual(guidResult.diagnostics.filter(d => d.code === 'SP0036').length, 0);
+});
+
+test('SP0036 stays silent for a varchar key in the embed direction (caller-supplied key)', () => {
+  const result = parseSQuiL([
+    '--Name: EmbeddedLookupInput',
+    'Declare @Params_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);',
+    'Declare @Params_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);',
+    'Use [Db];',
+    'Insert Into dbo.Structures Select Title, ContactID From @Params_Structure;',
+    'Insert Into dbo.Contacts Select ContactID, Name From @Params_Contact;',
+  ].join('\n'));
+  assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0036').length, 0);
+});
+
+test('SP0036 stays silent for a classic child under an embedded lookup (its key is passed down)', () => {
+  const result = parseSQuiL([
+    '--Name: EmbedWithVarcharChild',
+    'Declare @Params_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);',
+    'Declare @Params_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);',
+    'Declare @Params_Phone table(PhoneID int not null Primary Key, ContactID varchar(10) not null, Number varchar(20) not null);',
+    'Use [Db];',
+    'Insert Into dbo.Structures Select Title, ContactID From @Params_Structure;',
+    'Insert Into dbo.Contacts Select ContactID, Name From @Params_Contact;',
+    'Insert Into dbo.Phones Select PhoneID, ContactID, Number From @Params_Phone;',
+  ].join('\n'));
+  assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0036').length, 0);
 });
 
 // Regression (found while building Task 16's link-insertion code action): a

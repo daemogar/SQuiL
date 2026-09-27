@@ -110,8 +110,12 @@ public class SQuiLTableMap
 	{
 		if (Dictionary.TryGetValue(property.OriginalName, out var existing))
 		{
-			if (!SameShape(existing.Items, property.CodeItems))
-				ShapeConflicts.Add((property.TableName(), Shape(existing.Items), Shape(property.CodeItems), existing.Table.SourceName, existing.Table.SourceLine));
+			if (!SameShape(existing.Items, property.CodeItems)
+				|| !SameElision(existing.Table.ElidedColumns, property.ElidedColumns))
+				ShapeConflicts.Add((property.TableName(),
+					Shape(existing.Items, existing.Table.ElidedColumns),
+					Shape(property.CodeItems, property.ElidedColumns),
+					existing.Table.SourceName, existing.Table.SourceLine));
 			if (existing.Table.RecordNamespace != property.RecordNamespace)
 				NamespaceConflicts.Add((property.TableName(), existing.Table.RecordNamespace, property.RecordNamespace));
 		}
@@ -135,9 +139,17 @@ public class SQuiLTableMap
 			&& p.Type.Type == q.Type.Type
 			&& p.IsNullable == q.IsNullable).All(p => p);
 
+	/// <summary>Two elided-key sets (R4) match when equal ignoring case and order.</summary>
+	private static bool SameElision(IReadOnlyList<string> left, IReadOnlyList<string> right)
+		=> new HashSet<string>(left, StringComparer.OrdinalIgnoreCase).SetEquals(right);
+
+	/// <summary>Marks a column an embedded lookup elides in SP0017 shape strings.</summary>
+	public const string EmbeddedKeyMarker = " [embedded key]";
+
 	/// <summary>Renders a column list as a readable shape string for SP0017 messages.</summary>
-	private static string Shape(IEnumerable<CodeItem> items)
-		=> $"({string.Join(", ", items.Select(p => $"{p.Identifier.Value} {p.Type.Original ?? p.Type.Type.ToString()}{(p.IsNullable ? " Null" : "")}"))})";
+	private static string Shape(IEnumerable<CodeItem> items, IReadOnlyList<string>? elided = null)
+		=> $"({string.Join(", ", items.Select(p => $"{p.Identifier.Value} {p.Type.Original ?? p.Type.Type.ToString()}{(p.IsNullable ? " Null" : "")}"
+			+ (elided?.Contains(p.Identifier.Value, StringComparer.OrdinalIgnoreCase) == true ? EmbeddedKeyMarker : "")))})";
 
 	/// <summary>
 	/// Looks up a table's merged column list and resolves its C# class name.
@@ -189,10 +201,14 @@ public class SQuiLTableMap
 
 		foreach (var merge in Dictionary.Values.GroupBy(p => p.Table.TableName()))
 		{
-			var reference = merge.First().Items;
+			var first = merge.First();
+			var reference = first.Items;
 			foreach (var entry in merge.Skip(1))
-				if (!SameShape(reference, entry.Items))
-					ShapeConflicts.Add((merge.Key, Shape(reference), Shape(entry.Items), "", 0));
+				if (!SameShape(reference, entry.Items)
+					|| !SameElision(first.Table.ElidedColumns, entry.Table.ElidedColumns))
+					ShapeConflicts.Add((merge.Key,
+						Shape(reference, first.Table.ElidedColumns),
+						Shape(entry.Items, entry.Table.ElidedColumns), "", 0));
 
 			// SP0017: a merged record with mismatched shapes cannot be emitted —
 			// its positional constructor would break every reader that shares it.

@@ -1,36 +1,19 @@
 /**
- * Editor mirror of the generator's nested-object key graph
- * (`SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs`).
- *
- * Build-time parent/child graph inferred from Primary-Key columns and
- * matching-named "foreign key by convention" columns, over one query file's
- * table/object blocks. A table's key is its single Primary-Key column name;
- * any OTHER block carrying a column of that exact name is its child. Graceful
- * degradation: no PKs / no matches → no links (flat model).
- *
- * Two independent universes participate, never mixed in the same graph —
- * matches the generator, which calls `SQuiLKeyGraph.Build` once for OUTPUT
- * blocks and once for INPUT blocks (`FileGenerator.cs`'s `keyGraph` /
- * `inputGraph`). Pass `OUTPUT_TABLE_ROLES` (the default) for `@Return_`/
- * `@Returns_` blocks, or `INPUT_TABLE_ROLES` for `@Param_`/`@Params_` blocks.
- *
- * Detects the same two error findings the generator reports as build errors
- * (SP0033 ambiguous / SP0034 cycle), plus an editor-only orphan-PK hint
- * (SP0035) that only fires when at least one real link exists elsewhere in
- * the file (`hasLinks`).
- *
- * Change one side, change the other — `SQuiLKeyGraph.cs` ↔ this file.
+ * Editor mirror of the generator's nested-object key graph (`SQuiLKeyGraph.cs`): one graph per
+ * side (`OUTPUT_TABLE_ROLES` default, or `INPUT_TABLE_ROLES`), with SP0033/SP0034 errors and the
+ * SP0035 orphan hint. Change one side, change the other.
+ * Rules and rationale: `SQuiL.SourceGenerator/README.md`, "Nested objects: key graph".
  */
 
 import { SQuiLVariable, TableColumn, VariableRole } from './parser';
 
 export interface KeyGraphFinding {
-  kind: 'ambiguous' | 'cycle' | 'orphan';
-  /** The subject variable (child for ambiguous, cycle-start for cycle, PK owner for orphan). */
+  kind: 'duplicate-pk' | 'cycle' | 'orphan';
+  /** The subject variable (second declarer for duplicate-pk, cycle-start for cycle, PK owner for orphan). */
   variable: SQuiLVariable;
-  /** The subject PK column (orphan only); undefined for ambiguous/cycle. */
+  /** The subject PK column (orphan only); undefined for duplicate-pk/cycle. */
   column?: TableColumn;
-  /** The counterpart variable named in the message (other parent / cycle partner). */
+  /** The counterpart variable named in the message (first declarer / cycle partner). */
   otherVariable: SQuiLVariable;
 }
 
@@ -38,6 +21,8 @@ export interface KeyGraphEdge {
   parent: SQuiLVariable;
   child: SQuiLVariable;
   keyName: string;
+  /** True when `child` OWNS the key (embedded lookup); false for a classic FK-carrier child. */
+  isEmbed: boolean;
 }
 
 export interface KeyGraphResult {
@@ -61,84 +46,126 @@ export function buildKeyGraph(
       roles.has(v.role) && Array.isArray(v.columns) && v.columns.length > 0,
   );
 
-  // Key column name (lowercased) -> owning variable(s). A variable's key = its
-  // single Primary-Key column.
-  const pkOwners = new Map<string, SQuiLVariable[]>();
+  const errors: KeyGraphFinding[] = [];
+
+  // R0: one PK owner per key name (lowercased); a second claimant is SP0033 and its marker is ignored.
+  const pkOwners = new Map<string, SQuiLVariable>();
   const pkColumnOf = new Map<SQuiLVariable, TableColumn>();
   for (const v of list) {
     const pk = v.columns.find(c => c.isPrimaryKey);
     if (!pk) continue;
-    pkColumnOf.set(v, pk);
     const key = pk.name.toLowerCase();
-    const owners = pkOwners.get(key);
-    if (owners) { owners.push(v); } else { pkOwners.set(key, [v]); }
-  }
-
-  const edges: KeyGraphEdge[] = [];
-  const errors: KeyGraphFinding[] = [];
-  const childOf = new Map<SQuiLVariable, SQuiLVariable>();
-
-  for (const child of list) {
-    // Which declared keys does this variable carry a matching column for
-    // (excluding its own PK)?
-    const matches: { key: string; parent: SQuiLVariable }[] = [];
-    for (const col of child.columns) {
-      const owners = pkOwners.get(col.name.toLowerCase());
-      if (!owners) continue;
-      for (const owner of owners) {
-        if (owner === child) continue; // own PK column
-        matches.push({ key: col.name, parent: owner });
-      }
-    }
-    if (matches.length === 0) continue;
-
-    // A child column matching >1 distinct parent → ambiguous (graph must be a tree).
-    const distinctParents = matches.map(m => m.parent).filter((p, i, arr) => arr.indexOf(p) === i);
-    if (distinctParents.length > 1) {
-      const other = distinctParents.find(p => p !== distinctParents[0])!;
-      errors.push({ kind: 'ambiguous', variable: child, otherVariable: other });
+    const first = pkOwners.get(key);
+    if (first) {
+      errors.push({ kind: 'duplicate-pk', variable: v, otherVariable: first });
       continue;
     }
-
-    const parent = distinctParents[0];
-    edges.push({ parent, child, keyName: matches[0].key });
-    childOf.set(child, parent);
+    pkOwners.set(key, v);
+    pkColumnOf.set(v, pk);
   }
 
-  // Cycle / self-reference detection over the childOf map. Report each cycle
-  // ONCE and name the actual partner (cur) whose FK closes the loop back to start.
-  const reportedCycle = new Set<SQuiLVariable>();
-  for (const start of list) {
-    if (reportedCycle.has(start)) continue;
-    const seen = new Set<SQuiLVariable>();
-    let cur: SQuiLVariable = start;
-    while (childOf.has(cur)) {
-      const next = childOf.get(cur)!;
-      if (next === start) {
-        errors.push({ kind: 'cycle', variable: start, otherVariable: cur });
-        // Mark every member of this cycle so it is not re-reported from another start.
-        reportedCycle.add(start);
-        let w: SQuiLVariable = start;
-        while (childOf.has(w)) {
-          const n = childOf.get(w)!;
-          if (reportedCycle.has(n)) break;
-          reportedCycle.add(n);
-          w = n;
-        }
-        break;
-      }
-      if (seen.has(next)) break;
-      seen.add(next);
-      cur = next;
+  // R1: orientation follows declaration order (`list` order), not which side owns the key.
+  const order = new Map<SQuiLVariable, number>();
+  list.forEach((v, i) => order.set(v, i));
+
+  // One edge per block pair (first matching key column wins). Matching is case-insensitive;
+  // `keyName` keeps the carrier's spelling.
+  const pairSeen = new Set<string>();
+  const edges: KeyGraphEdge[] = [];
+  for (const block of list) {
+    for (const col of block.columns) {
+      const owner = pkOwners.get(col.name.toLowerCase());
+      if (!owner) continue;
+      if (owner === block) continue; // own PK column
+      const lo = Math.min(order.get(block)!, order.get(owner)!);
+      const hi = Math.max(order.get(block)!, order.get(owner)!);
+      const id = `${lo}|${hi}`;
+      if (pairSeen.has(id)) continue;
+      pairSeen.add(id);
+      const nested = list[hi];
+      const nestedPk = pkColumnOf.get(nested);
+      edges.push({
+        parent: list[lo],
+        child: nested,
+        keyName: col.name,
+        isEmbed: !!nestedPk && nestedPk.name.toLowerCase() === col.name.toLowerCase(),
+      });
     }
+  }
+
+  // R3: a shared lookup keeps all its containers; a junction keeps the earliest and inverts the
+  // rest into embeds. Runs to a fixed point; the bound is proven (README), so hitting it is a bug.
+  const guardLimit = 2 * edges.length;
+  for (let guard = 0; ; guard++) {
+    const groups = new Map<SQuiLVariable, KeyGraphEdge[]>();
+    for (const e of edges) {
+      const g = groups.get(e.child);
+      if (g) g.push(e); else groups.set(e.child, [e]);
+    }
+    let byNested: KeyGraphEdge[] | undefined;
+    for (const g of groups.values()) {
+      if (g.length > 1 && !g.every(e => e.isEmbed)) { byNested = g; break; }
+    }
+    if (!byNested) break;
+    if (guard >= guardLimit) {
+      throw new Error(
+        `buildKeyGraph R3 resolution did not reach a fixed point within ${guardLimit} iterations. ` +
+        'This violates the algorithm\'s proven termination bound and indicates a bug in the R3 loop, ' +
+        'not a malformed query file.',
+      );
+    }
+
+    const ordered = [...byNested].sort((a, b) => order.get(a.parent)! - order.get(b.parent)!);
+    for (const drop of ordered.slice(1)) {
+      edges.splice(edges.indexOf(drop), 1);
+      // Invert only when the dropped container owns the key — otherwise there is nothing to
+      // embed and the link is simply discarded.
+      const parentKey = pkColumnOf.get(drop.parent);
+      if (parentKey && parentKey.name.toLowerCase() === drop.keyName.toLowerCase()) {
+        edges.push({ parent: drop.child, child: drop.parent, keyName: drop.keyName, isEmbed: true });
+      }
+    }
+  }
+
+  // SP0034: DFS over EVERY edge (a shared lookup has several parents). R3 inversions make it reachable.
+  const childrenOf = new Map<SQuiLVariable, SQuiLVariable[]>();
+  for (const e of edges) {
+    const kids = childrenOf.get(e.parent);
+    if (kids) kids.push(e.child); else childrenOf.set(e.parent, [e.child]);
+  }
+
+  const color = new Map<SQuiLVariable, 1 | 2>(); // 1 = gray (on stack), 2 = black (done); absent = unvisited
+  const reportedCycle = new Set<SQuiLVariable>();
+
+  function dfs(u: SQuiLVariable): void {
+    color.set(u, 1);
+    for (const v of childrenOf.get(u) ?? []) {
+      const cv = color.get(v);
+      if (cv === 2) continue; // already fully explored — no cycle through here
+      if (cv === 1) {
+        // v is a GRAY ancestor on the current DFS path — u -> v closes a cycle back to v.
+        if (!reportedCycle.has(u) && !reportedCycle.has(v)) {
+          errors.push({ kind: 'cycle', variable: u, otherVariable: v });
+        }
+        reportedCycle.add(u);
+        reportedCycle.add(v);
+        continue;
+      }
+      dfs(v);
+    }
+    color.set(u, 2);
+  }
+
+  for (const start of list) {
+    if (!color.has(start)) dfs(start);
   }
 
   const hasLinks = edges.length > 0;
   const hints: KeyGraphFinding[] = [];
   if (hasLinks) {
-    // Orphan PK = a PK no child links to.
+    // SP0035: a PK is an orphan when its key name is on no edge (embed owners are never a parent).
     for (const [v, col] of pkColumnOf) {
-      if (!edges.some(e => e.parent === v)) {
+      if (!edges.some(e => e.keyName.toLowerCase() === col.name.toLowerCase())) {
         hints.push({ kind: 'orphan', variable: v, column: col, otherVariable: v });
       }
     }

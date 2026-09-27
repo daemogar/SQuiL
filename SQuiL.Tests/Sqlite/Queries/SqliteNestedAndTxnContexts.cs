@@ -20,6 +20,26 @@ public partial class SqliteNestedOutputDataContext(IConfiguration Configuration)
 [SQuiLQuery(QueryFiles.SqliteNestedInput)]
 public partial class SqliteNestedInputDataContext(IConfiguration Configuration) : SqliteDataContext(Configuration);
 
+// Embed with a child: Params_Structure embeds Params_Contact, which owns Params_Phone rows.
+[SQuiLDialect(SQuiLDialect.Sqlite)]
+[SQuiLQuery(QueryFiles.SqliteEmbedWithChildInput)]
+public partial class SqliteEmbedWithChildInputDataContext(IConfiguration Configuration) : SqliteDataContext(Configuration);
+
+// Embed output: Returns_Building embeds Returns_Owner via the elided OwnerID.
+[SQuiLDialect(SQuiLDialect.Sqlite)]
+[SQuiLQuery(QueryFiles.SqliteEmbedOutput)]
+public partial class SqliteEmbedOutputDataContext(IConfiguration Configuration) : SqliteDataContext(Configuration);
+
+// Junction output: Enrollment nests under Student and embeds Course.
+[SQuiLDialect(SQuiLDialect.Sqlite)]
+[SQuiLQuery(QueryFiles.SqliteJunctionOutput)]
+public partial class SqliteJunctionOutputDataContext(IConfiguration Configuration) : SqliteDataContext(Configuration);
+
+// Chained embed input: Params_Office embeds Params_Agent, which embeds Params_Site.
+[SQuiLDialect(SQuiLDialect.Sqlite)]
+[SQuiLQuery(QueryFiles.SqliteChainedEmbedInput)]
+public partial class SqliteChainedEmbedInputDataContext(IConfiguration Configuration) : SqliteDataContext(Configuration);
+
 // Transaction commit-on-success (mutates a real, non-temp table).
 [SQuiLDialect(SQuiLDialect.Sqlite)]
 [SQuiLQueryTransaction(QueryFiles.SqliteTxnCommit)]

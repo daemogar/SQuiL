@@ -179,6 +179,73 @@ test('hovering an INPUT Primary Key column in a file with NO input links at all 
   assert.strictEqual(text, undefined);
 });
 
+// ── Containment direction: the PK owner may be the NESTED side (embed). ──
+
+function roleAt(sql: string, lineIdx: number, columnName: string): string | undefined {
+  const character = sql.split('\n')[lineIdx].indexOf(columnName);
+  assert.ok(character >= 0, `fixture line ${lineIdx} should contain ${columnName}`);
+  return describeColumnLinkRole(parseSQuiL(sql), lineIdx, character);
+}
+
+const EMBED_SQL = [
+  '--Name: EmbedHover',
+  'Declare @Returns_Structure table(Title varchar(50), ContactID varchar(10));',
+  'Declare @Returns_Contact table(ContactID varchar(10) Primary Key, Name varchar(50));',
+  'Use [Db];',
+  'Select 1;',
+].join('\n');
+
+test('embed: hovering the lookup\'s own Primary Key says it embeds into its container', () => {
+  const text = roleAt(EMBED_SQL, 2, 'ContactID');
+  assert.ok(text, 'expected PK role text');
+  assert.ok(text!.includes('Primary Key'));
+  assert.ok(!text!.includes('no child table links'), text);
+  assert.ok(text!.includes('Structure') && text!.includes('single'), text);
+});
+
+test('embed: hovering the container\'s key column explains the embed', () => {
+  const text = roleAt(EMBED_SQL, 1, 'ContactID');
+  assert.ok(text, 'expected FK role text');
+  assert.ok(text!.includes('Foreign key by convention'));
+  assert.ok(text!.includes('Contact') && text!.includes('Structure') && text!.includes('single'), text);
+});
+
+const JUNCTION_SQL = [
+  '--Name: JunctionHover',
+  'Declare @Returns_Student table(StudentID int Primary Key, Name varchar(50));',
+  'Declare @Returns_Course table(CourseID int Primary Key, Title varchar(50));',
+  'Declare @Returns_Enrollment table(StudentID int, CourseID int, Grade varchar(2));',
+  'Use [Db];',
+  'Select 1;',
+].join('\n');
+
+test('junction: the embedded lookup\'s PK (Course.CourseID) is linked, not an orphan', () => {
+  const text = roleAt(JUNCTION_SQL, 2, 'CourseID');
+  assert.ok(text && text.includes('Primary Key') && !text.includes('no child table links'), text);
+  assert.ok(text!.includes('Enrollment'), text);
+});
+
+test('junction: Enrollment.CourseID explains the embed; Enrollment.StudentID keeps the classic child text', () => {
+  const course = roleAt(JUNCTION_SQL, 3, 'CourseID');
+  assert.ok(course && course.includes('Foreign key by convention') && course.includes('Course'), course);
+  const student = roleAt(JUNCTION_SQL, 3, 'StudentID');
+  assert.ok(student && student.includes('nest under `Student`'), student);
+});
+
+test('classic, child declared first: the later PK owner embeds into the earlier block', () => {
+  const sql = [
+    '--Name: ChildFirstHover',
+    'Declare @Returns_Child table(ChildID int, ParentID int);',
+    'Declare @Returns_Parent table(ParentID int Primary Key, Name varchar(50));',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n');
+  const pk = roleAt(sql, 2, 'ParentID');
+  assert.ok(pk && pk.includes('Primary Key') && !pk.includes('no child table links') && pk.includes('Child'), pk);
+  const fk = roleAt(sql, 1, 'ParentID');
+  assert.ok(fk && fk.includes('Foreign key by convention') && fk.includes('Parent'), fk);
+});
+
 test('hovering an OUTPUT column is unaffected by an unrelated INPUT-side link, and vice versa (graphs stay independent)', () => {
   const sql = [
     '--Name: MixedHover',

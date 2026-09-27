@@ -182,56 +182,61 @@ One SQL Server ambiguity to know about: `Throw` and `go` are the only two words 
 
 ### Nested objects (output)
 
-Mark a table column `Primary Key` to name that table's key. Any other declared table with a column of that **exact** name becomes its child — linked by that column name (foreign key by convention). The `.squil` stays valid T-SQL as written: no `@`-typed columns, no nested `table()` syntax, just an ordinary column marked `Primary Key`. Cardinality follows each table's own prefix — `@Return_X` (singular) nests as an object, `@Returns_X` (plural) nests as a list.
+Mark a table column `Primary Key` to name that table's key. Any other declared table with a column of that **exact** name links to it — the `.squil` stays valid T-SQL as written: no `@`-typed columns, no nested `table()` syntax, just an ordinary column marked `Primary Key`.
 
-Only **root** tables (tables no other declared table links to) stay top-level `<QueryName>Response` properties. Every child table collapses into its parent record as a settable nested member instead: `List<<Ctx>.Models.<Child>>? <Child>` for a list child, `<Ctx>.Models.<Child>? <Child>` for an object child. The member name is the child table's base name; the record's positional constructor stays columns-only (the nested member is a plain settable property added after the ctor, not part of it). The `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` calling convention is **unchanged** — only the response's internal shape nests.
+**Which way does it nest?** **Declaration order decides** — the earlier-declared table is always the container:
 
-Transport is an **in-memory key-stitch**: you still write plain, flat `Select * From @Return*`/`@Returns*` statements, one per declared table — no SQL-side `JOIN`, no nested JSON. The generator reads each table into a flat list, then relinks children into parents in C# by matching PK⇄FK column values. This is dialect-agnostic (works the same regardless of target database). **Nuance:** a parent row with zero matching children gets an **empty list `[]`** for that member, not `null` — different from the top-level list-return convention, where `null` means the result set itself was absent. An object child with no match is `null`. A child row whose key matches no parent row is **dropped from the tree entirely** — it has nowhere to attach, so it will not appear anywhere in the response.
+- If the *later*-declared table CARRIES the FK (the usual shape), it nests as a **child**: cardinality follows its own prefix, `@Return_X` (singular) as an object, `@Returns_X` (plural) as a list.
+- If the *later*-declared table OWNS the Primary Key instead (a lookup being embedded into its container), it nests as an **embed**: always a **single object**, regardless of prefix. The container's matching FK column is then **removed from the generated record** (still declared and selected in SQL — reachable in C# as `container.Embed.Key`).
+
+A PK owner can be embedded into **several** containers at once — a *shared lookup*, no extra syntax (see `SharedLookup` fixture: both `Structure` and `Widget` embed the same `Contact`). A table that instead carries **several** foreign keys is a *junction*: it keeps only its **earliest-declared** container and the rest invert into embeds — how many-to-many falls out for free (see `ManyToManyJunction` below).
+
+Only **root** tables (nothing contains them) stay top-level `<QueryName>Response` properties. Everything else collapses into its container record as a settable nested member: `List<<Ctx>.Models.<Child>>? <Child>` for a list child, `<Ctx>.Models.<Child>?` for an object child or an embed. The `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` calling convention is **unchanged** — only the response's internal shape nests.
+
+Transport is still an **in-memory key-stitch**: plain, flat `Select * From @Return*`/`@Returns*` statements, one per declared table, no SQL-side `JOIN`. For a child, the generator matches PK⇄FK values after reading each table into a flat list — a parent row with zero matches gets an empty list `[]` (not `null`). For an embed, the FK column has been elided from the row, so the reader also tracks it in a parallel, index-aligned list and stitches by that index instead (see `EmbeddedLookupDataContext.g.verified.cs`); an embed with no match is `null`.
 
 ```sql
-Declare @Return_Transcript   table(TranscriptID int Primary Key, IssueDate date);
-Declare @Returns_Institution table(InstitutionID int Primary Key, TranscriptID int, SchoolName varchar(50));
-Declare @Returns_Course      table(CourseID int, InstitutionID int, Title varchar(50));
+Declare @Returns_Student    table(StudentID int not null Primary Key, Name varchar(50) not null);
+Declare @Returns_Course     table(CourseID  int not null Primary Key, Title varchar(50) not null);
+Declare @Returns_Enrollment table(StudentID int not null, CourseID int not null, Grade varchar(2) not null);
 
 Use [Db];
 
-Insert Into @Return_Transcript   Select TranscriptID, IssueDate From T;
-Insert Into @Returns_Institution Select InstitutionID, TranscriptID, SchoolName From I;
-Insert Into @Returns_Course      Select CourseID, InstitutionID, Title From C;
-
-Select * From @Return_Transcript;
-Select * From @Returns_Institution;
+Select * From @Returns_Student;
 Select * From @Returns_Course;
+Select * From @Returns_Enrollment;
 ```
 
-`Institution` links to `Transcript` via `TranscriptID`; `Course` links to `Institution` via `InstitutionID`. Only `Transcript` is a root, so it's the only property left on the response — everything else nests:
+`Enrollment` carries `StudentID` (declared first — a classic **child** of `Student`) and `CourseID` (declared second — `Enrollment` **embeds** `Course`):
 
 ```csharp
-public partial record GetTranscriptResponse
+public partial record ManyToManyJunctionResponse
 {
-    public TestCase.Models.Transcript? Transcript { get; set; } = default!;
+    public List<TestCase.Models.Student>? Student { get; set; }
 }
 
-public partial record Transcript(int TranscriptID, System.DateOnly IssueDate)
+public partial record Student(int StudentID, string Name)
 {
-    public List<TestCase.Models.Institution>? Institution { get; set; }
+    public List<TestCase.Models.Enrollment>? Enrollment { get; set; }
 }
 
-public partial record Institution(int InstitutionID, int TranscriptID, string SchoolName)
+public partial record Enrollment(int StudentID, string Grade)   // CourseID elided — it's an embed FK
 {
-    public List<TestCase.Models.Course>? Course { get; set; }
+    public TestCase.Models.Course? Course { get; set; }
 }
 
-public partial record Course(int CourseID, int InstitutionID, string Title);
+public partial record Course(int CourseID, string Title);
 ```
 
-**Diagnostics:** SP0033 (build error) if a child's column matches more than one table's `Primary Key` (ambiguous parent); SP0034 (build error) if following PK/FK links loops back to the same table (cycle — no recursion in v1); SP0035 (editor-only Hint/Info) if a `Primary Key` has no linking child, surfaced only once nesting is already in play elsewhere in the file. A file with no `Primary Key` links generates today's flat response, unchanged — graceful degradation, not an opt-in flag.
+**Diagnostics:** SP0033 (build error, **reused** — two tables both declare `Primary Key` on the same key name); SP0034 (build error — a PK/FK chain that loops back on itself once multi-container resolution settles; the resolution's inversions can cause this in a valid-looking file, and reordering the declarations fixes it); SP0035 (editor-only Hint/Info — a `Primary Key` no table links to **in either direction**, surfaced only once nesting is already in play elsewhere in the file); SP0045 (editor-only Hint/Info, new — explains which way each nested variable nests and why, e.g. *"`Contact` nests inside `Structure` as a single object, because `Structure` is declared first. Reorder the declarations to swap the containment."*). A file with no `Primary Key` links generates today's flat response, unchanged.
 
 ### Nested objects (input)
 
-The same `Primary Key`-by-convention rule nests `@Param_`/`@Params_` tables too — a **separate** graph from the output one above (never mixed). Only **root** input tables stay top-level `<QueryName>Request` properties; every child input table collapses into its parent request record as a settable nested member, exactly like the response side. The one difference: a **list** child **keeps** its `= []` initializer (matching every other input list property, since a request list is never "absent" the way a response list can be); an **object** child gets no initializer, same as the output side.
+The same rules nest `@Param_`/`@Params_` tables — a **separate** graph from the output one (never mixed). Only **root** input tables stay top-level `<QueryName>Request` properties. A **child** nests exactly like the output side, except a **list** child **keeps** its `= []` initializer (matching every other input list property). An **embed** nests as a settable object member with no initializer, and (same elision rule) the container's positional constructor drops the embedded FK column.
 
-You never populate the linking columns yourself — SQuiL synthesizes a join key for every nested input row when it flattens the request: an integer-family key (`int`/`bigint`/`smallint`) gets a 1-based sequential value per table; a `uniqueidentifier` key gets a fresh `Guid`. The synthesized parent key is copied into the child's matching FK column automatically before each row is serialized through the normal JSON/OPENJSON path — unchanged for callers, and files with no input links keep today's flat per-table path untouched.
+**Child direction — key synthesis, unchanged.** You never populate a classic child's linking columns yourself: SQuiL synthesizes a join key when it flattens the request (`int`/`bigint`/`smallint` gets a 1-based sequential value per table; `uniqueidentifier` gets a fresh `Guid`), copied down into the child's FK column before serializing.
+
+**Embed direction — copy up, then dedup.** An embed's key is never synthesized — the caller supplies it on the embedded object, and the flatten copies that value UP into the container's row (the inverse of copy-down). Embedded rows are collected **deduplicated by primary key** (column-wise, not `record.Equals`): the same key with identical column values collapses to one row; the same key with conflicting values throws (`"Conflicting values supplied for <Name> with <Key> '…'."`). The comparison includes the keys the row's own embeds copy up, so separate but identical instances (a deserialized request) dedup cleanly, while the same row pointing at two different nested lookups throws that conflict. A `null` embed on a NOT NULL key throws `InvalidOperationException` (`"…is required: it supplies the not-null <Column> column."`); a second, distinct instance with the same key that carries its own classic nested children throws `InvalidOperationException` (`"…reuse one <Name> instance."`) — see `EmbeddedLookupInput`/`EmbeddedLookupWithChildInput`/`ChainedEmbedInput` fixtures.
 
 ```sql
 Declare @Param_Order     table(OrderID int Primary Key, CustomerName varchar(50));
@@ -259,7 +264,7 @@ public partial record Order(int OrderID, string CustomerName)
 public partial record Shipment(int ShipmentID, int OrderID, string Carrier);
 ```
 
-**Diagnostics:** SP0033/SP0034/SP0035 above apply to this graph too, independently of the output graph. **SP0036** (build error) is input-only: it fires when a link column's declared type is neither integer-family (`int`/`bigint`/`smallint`) nor `uniqueidentifier` — nothing else can have a join key synthesized; all three editors squiggle it too.
+**Diagnostics:** SP0033/SP0034/SP0035/SP0045 above apply to this graph too, independently of the output graph. **SP0036** (build error) is **child-direction only**: it fires when a CHILD link column's declared type is neither integer-family (`int`/`bigint`/`smallint`) nor `uniqueidentifier` — nothing else can have a join key synthesized. An embed's key is always caller-supplied, so it never trips SP0036 even when the key is e.g. `varchar` (see `SharedLookupInput`/`EmbeddedLookupInput`, which use `varchar` keys precisely to prove this). The same holds for a classic child of an embedded lookup: it receives the lookup's key as-is (see `EmbeddedLookupWithVarcharChildInput`).
 
 ### Authoring for SQLite
 
@@ -443,7 +448,7 @@ temp-table dialect exactly like SQLite.
 - **Adding new `Declare` statements after the `Use`.** Belongs in the leading block.
 - **Mismatched result-set shapes.** Every `Select` the SQL emits must match the shape (column name + C# type, in order) of exactly one declared `@Return_/@Returns_` variable. Use the table-variable style (populate a declared `@Returns_…` table and emit with `Select * From`) for guaranteed matches, or direct-select style with explicit `AS` aliases when the base C# types differ. Unmatched selects are silently skipped and reported as missing returns. Use SP0030 collision detection — two declared outputs cannot share identical shapes (name each column distinctly, reorder columns, or use different C# types).
 - **Length casts in direct-select style.** Casting `varchar(50)` to `varchar(100)` (or any varchar-to-varchar cast) is unnecessary — both map to `string` in C#. Only `CAST` when the **base C# type** differs (e.g., `float` to `decimal`).
-- **Reusing a name across input and output with different columns.** Table variables that share a base name (`@Param_Foo table(...)` + `@Return_Foo table(...)`, in one file or across query files) share a single generated record, so their column lists must be identical — same names, types, nullability, and order (sizes may differ). A mismatch is build error SP0017; either align the columns or rename one variable. When in doubt, just use distinct names.
+- **Reusing a name across input and output with different columns.** Table variables that share a base name (`@Param_Foo table(...)` + `@Return_Foo table(...)`, in one file or across query files) share a single generated record, so their column lists must be identical — same names, types, nullability, and order (sizes may differ). A mismatch is build error SP0017; either align the columns or rename one variable. **This also covers elision:** if one registration embeds a lookup (dropping its key column, R4) and another declares the same base name flat (keeping it), that disagreement is SP0017 too — every declaration of a shared record must embed the same lookups. When in doubt, just use distinct names.
 - **Declaring one name as both a list and a single object on the same side, in one file.** `@Returns_X table(...)` (a list) and `@Return_X table(...)` (a single object) in the same query file both resolve to one response property `X`; the generator keeps the first and silently drops the other. This is build error **SP0022** — rename one variable, or use the same cardinality for both. (Sharing a row record across *different* queries, or between an input and an output, is fine — only same-side same-file differing cardinality collides.)
 - **Referencing an `@variable` that was never declared.** A SQuiL file must be valid T-SQL *as written* — every `@variable` reference (including the specials like `@Debug` and `@EnvironmentName`) needs a textually-preceding `Declare` for that exact name. An undeclared reference is build error SP0013; the generator never invents or remaps names.
 - **Forgetting to PascalCase the suffix.** `@Param_personid` works but generates `personid` as a C# field, which fights every other naming convention in the project.
@@ -453,9 +458,10 @@ temp-table dialect exactly like SQLite.
 - **Registering one query file on two data contexts.** Each query file maps to exactly one data context. A duplicate registration is build error **SP0027**.
 - **Applying both `[SQuiLQuery]` and `[SQuiLQueryTransaction]` to one class.** Build error **SP0029** — use one or the other, not both.
 - **Declaring a `timestamp`/`rowversion` column as an input.** The database assigns these values; declaring one on `@Param_`/`@Params_` (rather than only `@Return_`/`@Returns_`) is build error **SP0032**.
-- **Two tables both carrying a column that matches the same `Primary Key` name.** A nested-object child must resolve to exactly one parent — an ambiguous match is build error **SP0033**. Rename one of the colliding columns.
-- **A `Primary Key`/foreign-key chain that loops back on itself.** Nested objects require a tree, not a cycle; a self-referencing or circular link chain is build error **SP0034**.
-- **A nested-input link column typed as something other than an integer or `uniqueidentifier`.** SQuiL synthesizes nested-input join keys itself, but only for integer-family (`int`/`bigint`/`smallint`) or `uniqueidentifier` columns — anything else (e.g. `varchar`) is build error **SP0036**. Change the link column's type.
+- **Two tables both declaring `Primary Key` on the same key name.** A key name identifies one relationship and may have only one PK owner — build error **SP0033**. Rename one of the colliding columns.
+- **A `Primary Key`/foreign-key chain that loops back on itself.** Nested objects require a tree, not a cycle; a chain that still cycles after multi-container resolution settles is build error **SP0034**. The resolution itself can produce such a cycle in a 4+-table file; reorder the declarations to break it.
+- **A nested-INPUT *child* link column typed as something other than an integer or `uniqueidentifier`.** SQuiL synthesizes a classic child's join key itself, but only for integer-family (`int`/`bigint`/`smallint`) or `uniqueidentifier` columns — anything else (e.g. `varchar`) is build error **SP0036**. This only applies to the child direction; an embedded lookup's key is caller-supplied, so any type is fine there. Change the link column's type (or reorder the declares so it embeds instead).
+- **Swapping which table nests inside which without an explanation in the diff.** Containment is decided by declaration order — reordering two `Declare`s changes the generated shape. The editor-only **SP0045** hint on the nested variable names the container and why (declaration order, or an inverted many-to-many edge); reorder the `Declare`s to swap it back.
 - **Putting a `null`/`not null` marker on a scalar `Declare`.** That syntax is only valid on table columns — a scalar is invalid T-SQL with it. Build error **SP0037**. Use `= null` for a nullable scalar (or remove the marker for non-nullable).
 - **Referencing `SQuiL.Core` without the matching provider package.** A data context resolves to a dialect (explicitly via `[SQuiLDialect]`, else inferred from the single referenced provider, else SqlServer) whose runtime base class (`SqlServerDataContext` / `SqliteDataContext` / `PostgresDataContext`) isn't referenced by the compilation — build error **SP0038**. Add the provider package (`SQuiL.SqlServer`, `SQuiL.Sqlite`, or `SQuiL.Postgres`) alongside `SQuiL.Core`.
 - **Referencing two providers with no `[SQuiLDialect]`.** If the project references 2+ of `SQuiL.SqlServer`/`SQuiL.Sqlite`/`SQuiL.Postgres`, the dialect is ambiguous — each context needs an explicit `[SQuiLDialect(...)]`. Missing it is build error **SP0039**.

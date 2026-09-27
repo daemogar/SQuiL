@@ -707,11 +707,12 @@ convention is unchanged — only the response's internal shape nests. A parent r
 gets an empty list (<code>[]</code>), not <code>null</code> — different from a top-level list return, where
 <code>null</code> means the result set itself was absent. A child row whose key matches no parent row is
 dropped from the tree entirely (it has nowhere to attach) — it will not appear anywhere in the response.</p>
-<p>Three diagnostics guard the link graph: <code>SP0033</code> (build error) if a child's column matches
-more than one table's <code>Primary Key</code>; <code>SP0034</code> (build error) if following links
-loops back to the same table (no recursion in v1); <code>SP0035</code> (editor hint) if a
-<code>Primary Key</code> has no linking child, shown only once nesting is already in play elsewhere in the
-file. A file with no <code>Primary Key</code> links generates today's flat response, unchanged.</p>
+<p>Diagnostics guard the link graph: <code>SP0033</code> (build error) if two tables both declare
+<code>Primary Key</code> on the same key name; <code>SP0034</code> (build error) if following links
+loops back to the same table; <code>SP0035</code> (editor hint) if a <code>Primary Key</code> has no
+table linking to it in either direction, shown only once nesting is already in play elsewhere in the
+file. A file with no <code>Primary Key</code> links generates today's flat response, unchanged. See the
+next section for which table contains which.</p>
 
 <h3>5b. Nested objects on the input side — same convention, request envelope</h3>
 <p>The same <code>Primary Key</code>-by-convention rule nests <code class="par">@Param_</code>/<code
@@ -749,9 +750,28 @@ so only <code>Order</code> is a root; the caller supplies no keys at all, SQuiL 
 
 <span class="cs-kw">public partial record</span> <span class="cs-cls">Shipment</span>(<span class="cs-tp">int</span> <span class="cs-pn">ShipmentID</span>, <span class="cs-tp">int</span> <span class="cs-pn">OrderID</span>, <span class="cs-tp">string</span> <span class="cs-pn">Carrier</span>);</code></pre>
 <p>SP0033/SP0034/SP0035 above apply to this graph too, independently of the output graph. One extra
-diagnostic is INPUT-only: <code>SP0036</code> (build error, squiggled in all three editors) fires when a
-link column's declared type is neither integer-family nor <code>uniqueidentifier</code> — nothing else can
-have a join key synthesized.</p>
+diagnostic applies to the CHILD direction only: <code>SP0036</code> (build error, squiggled in all three
+editors) fires when a child link column's declared type is neither integer-family nor
+<code>uniqueidentifier</code> — nothing else can have a join key synthesized. An embedded lookup's key
+(see below) is caller-supplied, never synthesized, so it never trips SP0036.</p>
+
+<h3>5c. Nested objects: which way does it nest?</h3>
+<p>When two linked tables could nest either way, <strong>declaration order decides</strong>: the
+earlier-declared table always contains the later-declared one. If the nested table carries the matching
+foreign key (the classic direction above), its own <code class="ret">@Return_</code>/<code
+class="ret">@Returns_</code> prefix still decides object vs list. If instead the nested table is the one that
+declares <code>Primary Key</code> on the link column — a lookup being <strong>embedded</strong> into its
+container — the nested member is always a <strong>single object</strong>, regardless of prefix, and the
+container's matching FK column is dropped from the generated record (the SQL column is untouched; the value
+is reachable as <code>container.Lookup.Key</code> instead). Reorder the two <code>Declare</code>s to swap
+which one contains the other.</p>
+<p>The same lookup can be embedded into <em>several</em> containers at once — a shared lookup — with no
+extra syntax. A table that instead carries <em>several</em> foreign keys (a junction) keeps only its
+earliest-declared container and embeds the rest, which is how many-to-many falls out for free: a
+<code>Student</code> table holds a list of <code>Enrollment</code>, and each <code>Enrollment</code> embeds
+one <code>Course</code>. An editor hint (<code>SP0045</code>) appears on every nested variable explaining
+which way it nests and why — including, for an inverted junction edge, which Primary Key it references as a
+lookup.</p>
 
 <!-- ──────────────────── SQLite Dialect ────────────────────────────────── -->
 <h2 id="sqlite">SQLite Dialect</h2>

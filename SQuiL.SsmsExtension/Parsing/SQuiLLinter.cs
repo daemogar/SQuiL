@@ -1044,62 +1044,32 @@ internal static class SQuiLLinter
         }
     }
 
-    // ── Nested-objects key-graph diagnostics (SP0033 / SP0034 / SP0035 / SP0036) ──
+    // ── Nested-objects key graph (SP0033 / SP0034 / SP0035 / SP0036 / SP0045) ──
     //
-    // SP0033 (Error): a child table/object's column matches the declared Primary
-    //   Key of more than one other table/object (ambiguous parent — a
-    //   nested-object child must resolve to exactly one parent).
-    // SP0034 (Error): following Primary-Key/Foreign-Key links from a table
-    //   eventually returns to that same table (cycle — nested objects require
-    //   a tree).
-    // SP0035 (Info, editor-only — NOT a build/generator diagnostic): a
-    //   table/object's Primary Key that NO other table/object links to, but
-    //   ONLY surfaced when nesting is already in play elsewhere in the file
-    //   (at least one real parent/child link exists). A deliberately-flat file
-    //   whose tables happen to each declare an unrelated Primary Key must NOT
-    //   be nagged.
-    // SP0036 (Error): a nested-INPUT link column's declared type is neither
-    //   integer-family (int/bigint/smallint) nor uniqueidentifier, so the
-    //   generator cannot synthesize a join key for it.
-    //
-    // TWO independent universes participate, never mixed — OUTPUT
-    // (@Return_/@Returns_) and INPUT (@Param_/@Params_) table/object variables
-    // each get their OWN graph, matching the generator, which calls
-    // SQuiLKeyGraph.Build once for OUTPUT blocks and once for INPUT blocks
-    // (FileGenerator.cs's keyGraph / inputGraph). SP0033/SP0034/SP0035 apply to
-    // BOTH graphs; SP0036 applies to the INPUT graph only (OUTPUT never
-    // synthesizes keys).
-    //
-    // Mirrors SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs (SP0033/SP0034
-    // are also build-time errors there; SP0036 mirrors FileGenerator.cs's
-    // IsSynthesizableKeyType/ReportUnsupportedKeyType) and keyGraph.ts /
-    // nestedObjectHints.ts (VS Code extension) — change one side, change all three.
-
-    // ── Shared key-graph builder ─────────────────────────────────────────────
-    //
-    // Parent/child resolution shared between the SP0033/SP0034/SP0035
-    // diagnostics below and the nested-object hover role text
-    // (SQuiLQuickInfoSource.cs's DescribeColumnLinkRole) — one algorithm, not
-    // a third duplicated copy. Mirrors `buildKeyGraph` in keyGraph.ts (VS Code)
-    // and SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs (generator).
+    // Editor mirror of SQuiLKeyGraph.cs (generator) and keyGraph.ts (VS Code): one graph per side
+    // (OUTPUT, INPUT), never mixed. Change one, change all three. Rules and rationale:
+    // SQuiL.SourceGenerator/README.md, "Nested objects: key graph".
 
     internal sealed class KeyGraphEdge
     {
         public SQuiLVariable Parent { get; set; } = null!;
         public SQuiLVariable Child { get; set; } = null!;
         public string KeyName { get; set; } = "";
+        /// <summary>True when <see cref="Child"/> owns the key (embedded lookup); false for a classic child.</summary>
+        public bool IsEmbed { get; set; }
     }
 
-    internal sealed class KeyGraphAmbiguity
+    /// <summary>SP0033: <see cref="Variable"/> re-declares the key name <see cref="OtherVariable"/> owns.</summary>
+    internal sealed class KeyGraphDuplicatePrimaryKey
     {
-        public SQuiLVariable Child { get; set; } = null!;
-        public SQuiLVariable OtherParent { get; set; } = null!;
+        public SQuiLVariable Variable { get; set; } = null!;
+        public SQuiLVariable OtherVariable { get; set; } = null!;
     }
 
     internal sealed class KeyGraph
     {
         public List<KeyGraphEdge> Edges { get; } = new();
-        public List<KeyGraphAmbiguity> Ambiguities { get; } = new();
+        public List<KeyGraphDuplicatePrimaryKey> DuplicatePrimaryKeys { get; } = new();
         public Dictionary<SQuiLVariable, TableColumn> PkColumnOf { get; } = new();
     }
 
@@ -1121,63 +1091,83 @@ internal static class SQuiLLinter
     {
         var graph = new KeyGraph();
 
-        // Key column name -> owning variable(s). A variable's key = its single
-        // Primary-Key column.
-        var pkOwners = new Dictionary<string, List<SQuiLVariable>>(System.StringComparer.OrdinalIgnoreCase);
+        // R0: one PK owner per key name; a second claimant is SP0033 and its marker is ignored.
+        var pkOwners = new Dictionary<string, SQuiLVariable>(System.StringComparer.OrdinalIgnoreCase);
+        var pkNameOf = new Dictionary<SQuiLVariable, string>();
         foreach (var v in list)
         {
             var pk = v.Columns!.FirstOrDefault(c => c.IsPrimaryKey);
             if (pk is null) continue;
-            graph.PkColumnOf[v] = pk;
-            if (!pkOwners.TryGetValue(pk.Name, out var owners))
-                pkOwners[pk.Name] = owners = new List<SQuiLVariable>();
-            owners.Add(v);
-        }
-
-        foreach (var child in list)
-        {
-            // Which declared keys does this variable carry a matching column for
-            // (excluding its own PK)?
-            var matches = new List<(string Key, SQuiLVariable Parent)>();
-            foreach (var col in child.Columns!)
+            if (pkOwners.TryGetValue(pk.Name, out var first))
             {
-                if (!pkOwners.TryGetValue(col.Name, out var owners)) continue;
-                foreach (var owner in owners)
-                {
-                    if (ReferenceEquals(owner, child)) continue; // own PK column
-                    matches.Add((col.Name, owner));
-                }
-            }
-            if (matches.Count == 0) continue;
-
-            // A child column matching >1 distinct parent → ambiguous (graph must be a tree).
-            var distinctParents = matches.Select(m => m.Parent).Distinct().ToList();
-            if (distinctParents.Count > 1)
-            {
-                var other = distinctParents.First(p => !ReferenceEquals(p, distinctParents[0]));
-                graph.Ambiguities.Add(new KeyGraphAmbiguity { Child = child, OtherParent = other });
+                graph.DuplicatePrimaryKeys.Add(new KeyGraphDuplicatePrimaryKey { Variable = v, OtherVariable = first });
                 continue;
             }
+            graph.PkColumnOf[v] = pk;
+            pkNameOf[v] = pk.Name;
+            pkOwners[pk.Name] = v;
+        }
 
-            graph.Edges.Add(new KeyGraphEdge { Parent = distinctParents[0], Child = child, KeyName = matches[0].Key });
+        // R1: orientation follows declaration order (`list` order), not which side owns the key.
+        var order = new Dictionary<SQuiLVariable, int>();
+        for (var i = 0; i < list.Count; i++) order[list[i]] = i;
+
+        // One edge per variable pair (first matching key column wins).
+        var pairs = new List<(SQuiLVariable A, SQuiLVariable B, string Key)>();
+        var pairSeen = new HashSet<(int, int)>();
+        foreach (var block in list)
+        {
+            foreach (var col in block.Columns!)
+            {
+                if (!pkOwners.TryGetValue(col.Name, out var owner)) continue;
+                if (ReferenceEquals(owner, block)) continue; // own PK column
+                var lo = System.Math.Min(order[block], order[owner]);
+                var hi = System.Math.Max(order[block], order[owner]);
+                if (!pairSeen.Add((lo, hi))) continue;
+                pairs.Add((list[lo], list[hi], col.Name));
+            }
+        }
+
+        // The earlier-declared variable is the container; IsEmbed when the nested one owns the key.
+        foreach (var (a, b, key) in pairs)
+        {
+            var nestedOwnsKey = pkNameOf.TryGetValue(b, out var bKey)
+                && string.Equals(bKey, key, System.StringComparison.OrdinalIgnoreCase);
+            graph.Edges.Add(new KeyGraphEdge { Parent = a, Child = b, KeyName = key, IsEmbed = nestedOwnsKey });
+        }
+
+        // R3: a shared lookup keeps all its containers; a junction keeps the earliest and inverts the
+        // rest into embeds. Runs to a fixed point; the bound is proven (README), so hitting it is a bug.
+        var guardLimit = 2 * graph.Edges.Count;
+        for (var guard = 0; ; guard++)
+        {
+            var byNested = graph.Edges.GroupBy(e => e.Child)
+                .FirstOrDefault(g => g.Count() > 1 && !g.All(e => e.IsEmbed));
+            if (byNested is null) break;
+            if (guard >= guardLimit)
+                throw new System.InvalidOperationException(
+                    $"BuildKeyGraph R3 resolution did not reach a fixed point within {guardLimit} " +
+                    "iterations. This violates the algorithm's proven termination bound and indicates " +
+                    "a bug in BuildKeyGraph's R3 loop, not a malformed query file.");
+
+            var ordered = byNested.OrderBy(e => order[e.Parent]).ToList();
+            foreach (var drop in ordered.Skip(1))
+            {
+                graph.Edges.Remove(drop);
+                // Invert only when the dropped container owns the key — otherwise there is nothing
+                // to embed and the link is simply discarded.
+                if (pkNameOf.TryGetValue(drop.Parent, out var parentKey)
+                    && string.Equals(parentKey, drop.KeyName, System.StringComparison.OrdinalIgnoreCase))
+                    graph.Edges.Add(new KeyGraphEdge { Parent = drop.Child, Child = drop.Parent, KeyName = drop.KeyName, IsEmbed = true });
+            }
         }
 
         return graph;
     }
 
     /// <summary>
-    /// Task 16 — relationship-key classification span list. Every column NAME
-    /// token (line, character, length) that plays a role in the nested-object
-    /// PK/FK-by-convention graph: a parent's designated Primary Key column,
-    /// and every child column that resolves to it. Classification-only (never
-    /// a diagnostic) — consumed by <c>SQuiLLinkedKeyClassifier</c>. Covers
-    /// BOTH the OUTPUT and INPUT universes independently, never mixed, same
-    /// as every other nested-object feature. Graceful degradation: a file
-    /// with no links produces an empty list. Mirrors <c>linkedColumnRanges</c>
-    /// in <c>linkedColumnRanges.ts</c> (VS Code) — change one side, change
-    /// both (the exact span REPRESENTATION differs — LSP-style semantic
-    /// tokens there vs. plain (line, character, length) tuples here, since
-    /// this feeds a classic <c>IClassifier</c>, not a semantic-tokens API).
+    /// Every key column NAME span on either end of a key-graph edge (OUTPUT and INPUT graphs), for
+    /// <c>SQuiLLinkedKeyClassifier</c>. Mirrors <c>linkedColumnRanges.ts</c> (VS Code).
     /// </summary>
     internal static List<(int Line, int Character, int Length)> LinkedColumnSpans(SQuiLParseResult parsed)
     {
@@ -1191,7 +1181,10 @@ internal static class SQuiLLinter
 
             foreach (var edge in graph.Edges)
             {
-                var pkCol = edge.Parent.Columns!.FirstOrDefault(c =>
+                // The PK lives on the owner (the nested side of an embed); the FK on the other end.
+                var owner = edge.IsEmbed ? edge.Child : edge.Parent;
+                var carrier = edge.IsEmbed ? edge.Parent : edge.Child;
+                var pkCol = owner.Columns!.FirstOrDefault(c =>
                     c.IsPrimaryKey && string.Equals(c.Name, edge.KeyName, System.StringComparison.OrdinalIgnoreCase));
                 if (pkCol is not null)
                 {
@@ -1199,7 +1192,7 @@ internal static class SQuiLLinter
                     if (seen.Add(span)) spans.Add(span);
                 }
 
-                var fkCol = edge.Child.Columns!.FirstOrDefault(c =>
+                var fkCol = carrier.Columns!.FirstOrDefault(c =>
                     string.Equals(c.Name, edge.KeyName, System.StringComparison.OrdinalIgnoreCase));
                 if (fkCol is not null)
                 {
@@ -1213,15 +1206,8 @@ internal static class SQuiLLinter
     }
 
     /// <summary>
-    /// Nested-object link role text for the column at the given source
-    /// position, or null when the position isn't on a column that plays a
-    /// PK/FK-by-convention role (graceful degradation — hover is left
-    /// unchanged). Searches OUTPUT variables first, then INPUT — a position
-    /// can only ever land on one variable's column, so the search order isn't
-    /// observable. Resolves the role against whichever universe the hit
-    /// variable belongs to, never mixing OUTPUT and INPUT into one graph.
-    /// Ported to hoverProvider.ts's <c>describeColumnLinkRole</c>
-    /// (via linkRoleHints.ts) — change one side, change all three.
+    /// Hover text for the key-graph role of the column at a position, or null when it plays none.
+    /// Mirrors <c>describeColumnLinkRole</c> in <c>linkRoleHints.ts</c> (VS Code).
     /// </summary>
     internal static string? DescribeColumnLinkRole(SQuiLParseResult parsed, int line, int character)
     {
@@ -1253,9 +1239,17 @@ internal static class SQuiLLinter
             && graph.PkColumnOf.TryGetValue(owner, out var ownPk)
             && ReferenceEquals(ownPk, column))
         {
-            bool hasChild = graph.Edges.Any(e => ReferenceEquals(e.Parent, owner));
-            if (hasChild)
-                return $"Primary Key — child tables that carry a `{column.Name}` column nest under `{owner.Name}`.";
+            // Edges on this key: classic children nest under the owner; embed containers hold it as a lookup.
+            var keyEdges = graph.Edges.Where(e =>
+                string.Equals(e.KeyName, column.Name, System.StringComparison.OrdinalIgnoreCase)).ToList();
+            var parts = new List<string>();
+            if (keyEdges.Any(e => !e.IsEmbed))
+                parts.Add($"child tables that carry a `{column.Name}` column nest under `{owner.Name}`");
+            var containers = keyEdges.Where(e => e.IsEmbed).Select(e => $"`{e.Parent.Name}`").ToList();
+            if (containers.Count > 0)
+                parts.Add($"`{owner.Name}` embeds as a single lookup object into {string.Join(", ", containers)}");
+            if (parts.Count > 0)
+                return $"Primary Key — {string.Join("; ", parts)}.";
 
             // Graceful degradation: in a file with no links at all, an "orphan" PK
             // note would fire on every table's PK, which is noise, not a hint. Only
@@ -1266,8 +1260,13 @@ internal static class SQuiLLinter
                   $"child table to nest rows under `{owner.Name}`.";
         }
 
+        // The key's non-owner side: the container of an embed, the child of a classic edge.
         var edge = graph.Edges.FirstOrDefault(e =>
-            ReferenceEquals(e.Child, owner) && string.Equals(e.KeyName, column.Name, System.StringComparison.OrdinalIgnoreCase));
+            ReferenceEquals(e.IsEmbed ? e.Parent : e.Child, owner)
+            && string.Equals(e.KeyName, column.Name, System.StringComparison.OrdinalIgnoreCase));
+        if (edge is { IsEmbed: true })
+            return $"Foreign key by convention → the matching `{edge.Child.Name}` row embeds into `{owner.Name}` " +
+                   $"as a single object (matched by `{column.Name}`).";
         if (edge is not null)
             return $"Foreign key by convention → rows of `{owner.Name}` nest under `{edge.Parent.Name}` (matched by `{column.Name}`).";
 
@@ -1294,75 +1293,88 @@ internal static class SQuiLLinter
     /// once per universe by <see cref="LintKeyGraph"/> so the two graphs stay independent.</summary>
     private static void LintOneKeyGraph(List<SQuiLVariable> list, KeyGraph graph, List<SQuiLDiagnostic> diagnostics)
     {
-        foreach (var ambiguity in graph.Ambiguities)
+        foreach (var duplicate in graph.DuplicatePrimaryKeys)
         {
-            var child = ambiguity.Child;
-            var other = ambiguity.OtherParent;
+            var v = duplicate.Variable;
+            var other = duplicate.OtherVariable;
             diagnostics.Add(new SQuiLDiagnostic
             {
-                Message = $"`{child.Name}` (line {child.Line + 1}) links to more than one table — it also matches " +
-                          $"`{other.Name}`'s (line {other.Line + 1}) primary key. A nested-object child must have " +
-                          "exactly one parent — rename one of the key columns so only one match remains.",
-                Line = child.Line,
-                StartChar = child.Character,
-                EndChar = child.Character + child.RawName.Length,
+                Message = $"`{v.Name}` (line {v.Line + 1}) declares `Primary Key` on the same key name as " +
+                          $"`{other.Name}` (line {other.Line + 1}). A key name identifies one relationship and may have " +
+                          "only one primary-key owner — rename one of the key columns.",
+                Line = v.Line,
+                StartChar = v.Character,
+                EndChar = v.Character + v.RawName.Length,
                 Severity = DiagnosticSeverity.Error,
                 Code = "SP0033",
                 RelatedLine = other.Line,
                 RelatedStartChar = other.Character,
                 RelatedEndChar = other.Character + other.RawName.Length,
-                RelatedMessage = "matches this table's primary key",
+                RelatedMessage = "also declares Primary Key on this key name",
             });
         }
 
-        var childOf = graph.Edges.ToDictionary(e => e.Child, e => e.Parent);
-
-        // Cycle / self-reference detection over the childOf map. Report each cycle
-        // ONCE and name the actual partner (cur) whose FK closes the loop back to start.
-        var reportedCycle = new HashSet<SQuiLVariable>();
-        foreach (var start in list)
+        // SP0034: DFS over EVERY edge (a shared lookup has several parents). R3 inversions make it reachable.
+        var childrenOf = new Dictionary<SQuiLVariable, List<SQuiLVariable>>();
+        foreach (var e in graph.Edges)
         {
-            if (reportedCycle.Contains(start)) continue;
-            var seen = new HashSet<SQuiLVariable>();
-            var cur = start;
-            while (childOf.TryGetValue(cur, out var next))
-            {
-                if (ReferenceEquals(next, start))
-                {
-                    diagnostics.Add(new SQuiLDiagnostic
-                    {
-                        Message = $"`{start.Name}` (line {start.Line + 1}) and `{cur.Name}` (line {cur.Line + 1}) " +
-                                  "form a primary-key/foreign-key cycle. Nested objects cannot be recursive — remove one of the links.",
-                        Line = start.Line,
-                        StartChar = start.Character,
-                        EndChar = start.Character + start.RawName.Length,
-                        Severity = DiagnosticSeverity.Error,
-                        Code = "SP0034",
-                        RelatedLine = cur.Line,
-                        RelatedStartChar = cur.Character,
-                        RelatedEndChar = cur.Character + cur.RawName.Length,
-                        RelatedMessage = "cycle partner declared here",
-                    });
-                    // Mark every member of this cycle so it is not re-reported from another start.
-                    reportedCycle.Add(start);
-                    var w = start;
-                    while (childOf.TryGetValue(w, out var n) && reportedCycle.Add(n))
-                        w = n;
-                    break;
-                }
-                if (!seen.Add(next)) break;
-                cur = next;
-            }
+            if (!childrenOf.TryGetValue(e.Parent, out var kids))
+                childrenOf[e.Parent] = kids = new List<SQuiLVariable>();
+            kids.Add(e.Child);
         }
 
-        // SP0035: orphan PK hint — only when at least one real link exists (hasLinks).
+        var color = new Dictionary<SQuiLVariable, int>(); // 0 = unvisited (absent), 1 = gray (on stack), 2 = black (done)
+        var reportedCycle = new HashSet<SQuiLVariable>();
+
+        void Dfs(SQuiLVariable u)
+        {
+            color[u] = 1;
+            if (childrenOf.TryGetValue(u, out var kids))
+                foreach (var v in kids)
+                {
+                    if (color.TryGetValue(v, out var cv))
+                    {
+                        if (cv == 2) continue;             // already fully explored — no cycle through here
+                        // Gray: u -> v closes a cycle. Mark both ends so it is reported once.
+                        if (!reportedCycle.Contains(u) && !reportedCycle.Contains(v))
+                        {
+                            diagnostics.Add(new SQuiLDiagnostic
+                            {
+                                Message = $"`{u.Name}` (line {u.Line + 1}) and `{v.Name}` (line {v.Line + 1}) " +
+                                          "form a primary-key/foreign-key cycle, which can arise when a block with several containers is " +
+                                          "re-nested. Nested objects cannot be recursive — reorder the declarations or remove one of the links.",
+                                Line = u.Line,
+                                StartChar = u.Character,
+                                EndChar = u.Character + u.RawName.Length,
+                                Severity = DiagnosticSeverity.Error,
+                                Code = "SP0034",
+                                RelatedLine = v.Line,
+                                RelatedStartChar = v.Character,
+                                RelatedEndChar = v.Character + v.RawName.Length,
+                                RelatedMessage = "cycle partner declared here",
+                            });
+                        }
+                        reportedCycle.Add(u);
+                        reportedCycle.Add(v);
+                        continue;
+                    }
+                    Dfs(v);
+                }
+            color[u] = 2;
+        }
+
+        foreach (var start in list)
+            if (!color.ContainsKey(start))
+                Dfs(start);
+
+        // SP0035: a PK is an orphan when its key name is on no edge; only when the graph has links.
         if (graph.Edges.Count > 0)
         {
             foreach (var kv in graph.PkColumnOf)
             {
                 var v = kv.Key;
                 var col = kv.Value;
-                if (graph.Edges.Any(e => ReferenceEquals(e.Parent, v))) continue;
+                if (graph.Edges.Any(e => string.Equals(e.KeyName, col.Name, System.StringComparison.OrdinalIgnoreCase))) continue;
 
                 diagnostics.Add(new SQuiLDiagnostic
                 {
@@ -1376,7 +1388,49 @@ internal static class SQuiLLinter
                 });
             }
         }
+
+        LintContainmentHint(graph, diagnostics);
     }
+
+    /// <summary>SP0045 (Info, editor-only): one hint per edge, on the nested variable, saying why it
+    /// nests there. Mirrors the containment hint in <c>nestedObjectHints.ts</c>.</summary>
+    private static void LintContainmentHint(KeyGraph graph, List<SQuiLDiagnostic> diagnostics)
+    {
+        foreach (var edge in graph.Edges)
+        {
+            var word = ContainmentCardinalityWord(edge);
+            var containerDeclaredFirst = DeclaredBefore(edge.Parent, edge.Child);
+            var message = containerDeclaredFirst
+                ? $"`{edge.Child.Name}` nests inside `{edge.Parent.Name}` as a {word}, because " +
+                  $"`{edge.Parent.Name}` is declared first. Reorder the declarations to swap the containment."
+                : $"`{edge.Child.Name}` nests inside `{edge.Parent.Name}` as a single object, because " +
+                  $"`{edge.Parent.Name}` references its Primary Key `{edge.KeyName}` as a lookup.";
+
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message = message,
+                Line = edge.Child.Line,
+                StartChar = edge.Child.Character,
+                EndChar = edge.Child.Character + edge.Child.RawName.Length,
+                Severity = DiagnosticSeverity.Info,
+                Code = "SP0045",
+            });
+        }
+    }
+
+    /// <summary>"list" for a plural (Returns_/Params_) child, "single object" for a singular
+    /// (Return_/Param_) one — but an embed is ALWAYS a single object (the container's FK column is
+    /// dropped from the C# record), which overrides the child's own declared cardinality.</summary>
+    private static string ContainmentCardinalityWord(KeyGraphEdge edge)
+    {
+        if (edge.IsEmbed) return "single object";
+        return (edge.Child.Role == VariableRole.Returns || edge.Child.Role == VariableRole.Params)
+            ? "list" : "single object";
+    }
+
+    /// <summary>Declaration order between two variables — the earlier source position wins.</summary>
+    private static bool DeclaredBefore(SQuiLVariable a, SQuiLVariable b)
+        => a.Line != b.Line ? a.Line < b.Line : a.Character < b.Character;
 
     /// <summary>SQL types the generator can synthesize a nested-input join key for
     /// (<c>IsSynthesizableKeyType</c> in FileGenerator.cs): integer-family + uniqueidentifier.</summary>
@@ -1402,8 +1456,13 @@ internal static class SQuiLLinter
     /// </summary>
     private static void LintUnsupportedInputKeyType(KeyGraph inputGraph, List<SQuiLDiagnostic> diagnostics)
     {
+        // An embedded lookup's key is caller-supplied, so its classic children receive it as-is.
+        var embedded = new HashSet<SQuiLVariable>(inputGraph.Edges.Where(e => e.IsEmbed).Select(e => e.Child));
         foreach (var edge in inputGraph.Edges)
         {
+            // An embed's key is caller-supplied (copied up, never synthesized).
+            if (edge.IsEmbed || embedded.Contains(edge.Parent)) continue;
+
             var keyColumn = edge.Parent.Columns?.FirstOrDefault(c =>
                 c.IsPrimaryKey && string.Equals(c.Name, edge.KeyName, System.StringComparison.OrdinalIgnoreCase))
                 ?? edge.Parent.Columns?.FirstOrDefault(c =>
@@ -1656,22 +1715,34 @@ internal static class SQuiLLinter
         // comparing — mirrors the generator's SameShape (sizes may differ).
         static string StripSize(string t) => Regex.Replace(t, @"\s*\([^)]*\)", "").ToLowerInvariant();
 
+        // R4: key columns each container's embeds elide — part of the record shape.
+        var elided = new Dictionary<SQuiLVariable, SortedSet<string>>();
+        foreach (var graph in new[] { BuildKeyGraph(OutputTableVariables(parsed)), BuildKeyGraph(InputTableVariables(parsed)) })
+            foreach (var e in graph.Edges.Where(e => e.IsEmbed))
+            {
+                if (!elided.TryGetValue(e.Parent, out var keys))
+                    elided[e.Parent] = keys = new SortedSet<string>(System.StringComparer.Ordinal);
+                keys.Add(e.KeyName.ToLowerInvariant());
+            }
+        string ColSig(SQuiLVariable x) => string.Join("|", x.Columns!.Select(c => $"{c.Name}:{StripSize(c.SqlType)}:{c.Nullable}"));
+        string ElidedSig(SQuiLVariable x) => elided.TryGetValue(x, out var k) ? string.Join(",", k) : "";
+
         var seen = new Dictionary<string, SQuiLVariable>(System.StringComparer.OrdinalIgnoreCase);
         foreach (var v in tableVars)
         {
-            string sig = string.Join("|", v.Columns!.Select(c => $"{c.Name}:{StripSize(c.SqlType)}:{c.Nullable}"));
             if (!seen.TryGetValue(v.Name, out var first))
             {
                 seen[v.Name] = v;
                 continue;
             }
-            string firstSig = string.Join("|", first.Columns!.Select(c => $"{c.Name}:{StripSize(c.SqlType)}:{c.Nullable}"));
-            if (sig == firstSig) continue;
+            bool embedDiffers = ElidedSig(v) != ElidedSig(first);
+            if (ColSig(v) == ColSig(first) && !embedDiffers) continue;
 
             diagnostics.Add(new SQuiLDiagnostic
             {
                 Message       = $"All declarations that generate the record `{v.Name}` must declare identical columns " +
                                 $"(same names, types, nullability, and order). " +
+                                (embedDiffers ? "An embedded lookup removes its key column from the record, so every declaration must embed the same lookups. " : "") +
                                 $"Rename one of the variables or align the column lists.",
                 Line          = v.Line,
                 StartChar     = v.Character,

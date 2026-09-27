@@ -326,19 +326,25 @@ SQuiL/
     column or scalar is declared on an input (`@Param_`/`@Params_`); timestamp is
     server-generated and read-only, so it may only appear on outputs
     (`@Return_`/`@Returns_`).
-    **SP0033 is now TAKEN** — build error (generator): within one query file's
-    nested-object key graph, a child table/object's column matches the
-    declared Primary Key of more than one other table/object (ambiguous
-    parent — a nested-object child must resolve to exactly one parent).
-    Applies to BOTH the OUTPUT (`@Return_`/`@Returns_`) graph and the INPUT
-    (`@Param_`/`@Params_`) graph — the generator builds one independent graph
-    per side (`FileGenerator.cs`'s `keyGraph` / `inputGraph`, both via
-    `SQuiLKeyGraph.Build`). See `SQuiLKeyGraph.Errors` (`Kind == "ambiguous"`) +
-    `DiagnosticsMessages.ReportAmbiguousKeyLink`.
+    **SP0033 is now TAKEN — REUSED (containment-direction feature).** No longer
+    "ambiguous parent"; R3 (below) makes every multi-container shape legal, so
+    that case can no longer fire. Reused per the repo's lowest-free-id policy
+    for the R0 invariant instead: build error (generator) when two table/object
+    blocks in one file both declare `Primary Key` on the same key name — a key
+    name must have exactly one PK owner. Applies to BOTH the OUTPUT and INPUT
+    graphs. See `SQuiLKeyGraph.Errors` (`Kind == "duplicate-pk"`) +
+    `DiagnosticsMessages.ReportDuplicatePrimaryKey`.
     **SP0034 is now TAKEN** — build error (generator): within one query file's
     nested-object key graph (OUTPUT or INPUT, same two-graph split as SP0033),
     following Primary-Key/Foreign-Key links from a table returns to that same
-    table (cycle — nested objects require a tree). See `SQuiLKeyGraph.Errors`
+    table (cycle). Raw edges always point from an earlier declaration to a
+    later one, but R3's multi-container resolution (below) can invert edges, and
+    a cascade of inversions can close a loop in a valid-looking 4+-block file
+    (see `KeyGraphTests.MultiContainerResolutionCanCascadeIntoACycle`). So
+    SP0034 IS a reachable authoring error; its message says the cycle can come
+    from multi-container resolution and that reordering the declarations fixes
+    it. R3 is deliberately not cycle-aware (see the SQuiL.SourceGenerator
+    `README.md`, "Nested objects: key graph"). See `SQuiLKeyGraph.Errors`
     (`Kind == "cycle"`) + `DiagnosticsMessages.ReportKeyCycle`. Both
     SP0033/SP0034 suppress code emission entirely for the offending query file
     (no flat-path fallback).
@@ -346,18 +352,23 @@ SQuiL/
     NOT a build/generator diagnostic): a table/object's Primary Key that no
     other table/object IN THE SAME GRAPH links to, surfaced ONLY when nesting
     is already in play elsewhere in that graph (at least one real link exists
-    — mirrors `SQuiLKeyGraph.Hints`'s `HasLinks` gate). Applies independently
-    to BOTH the OUTPUT and INPUT graphs — an orphaned PK on one side is never
-    masked (or falsely triggered) by an unrelated link on the other side. A
-    deliberately-flat file with unrelated Primary Keys stays silent. See
-    `keyGraph.ts` + `nestedObjectHints.ts` (VS Code) and
-    `SQuiLLinter.LintKeyGraph` (SSMS + Visual Studio — the two C# copies stay
-    byte-identical modulo namespace).
+    — mirrors `SQuiLKeyGraph.Hints`'s `HasLinks` gate). **Counts an edge in
+    EITHER direction** — a PK owner embedded into a container (see "Nested
+    objects" below) is linked, so it is never falsely flagged as orphaned; a
+    key is orphaned only when it is on no edge at all. Applies independently
+    to BOTH the OUTPUT and INPUT graphs. A deliberately-flat file with
+    unrelated Primary Keys stays silent. See `keyGraph.ts` +
+    `nestedObjectHints.ts` (VS Code) and `SQuiLLinter.LintKeyGraph` (SSMS +
+    Visual Studio — the two C# copies stay byte-identical modulo namespace).
     **SP0036 is now TAKEN** — build error (generator) + editor squiggle (all 3
-    editors, Error): within the nested-INPUT key graph only, a parent/child
-    link column's declared type is neither integer-family (`int`/`bigint`/
-    `smallint`) nor `uniqueidentifier`, so the generator cannot synthesize a
-    join key for it (see "Nested objects (input)" below). See
+    editors, Error): **child-direction only** — within the nested-INPUT key
+    graph, a CHILD (FK-carrier) link column's declared type is neither
+    integer-family (`int`/`bigint`/`smallint`) nor `uniqueidentifier`, so the
+    generator cannot synthesize a join key for it (see "Nested objects (input)"
+    below). Embed edges are skipped entirely: an embed's key is always
+    caller-supplied, never synthesized, so e.g. a `varchar` lookup key is
+    fine. So are classic children of an embedded lookup, which receive that
+    caller-supplied key (see `EmbeddedLookupWithVarcharChildInput`). See
     `FileGenerator.cs`'s `IsSynthesizableKeyType` +
     `DiagnosticsMessages.ReportUnsupportedKeyType`, and the editor mirrors
     `lintUnsupportedInputKeyType`/`lintKeyGraph` (`parser.ts`, VS Code) and
@@ -452,7 +463,19 @@ SQuiL/
     `DiagnosticsMessages.ReportAmbiguousScalarAlias`, and the editor mirrors
     (`lintAmbiguousScalarAlias` in `parser.ts`; `LintAmbiguousScalarAlias` in both
     `SQuiLLinter.cs`).
-    Next free: **SP0045**. (Verify an id is truly unreferenced with a repo-wide grep
+    **SP0045 is now TAKEN** — editor-only Hint (VS Code) / Info (both C#
+    extensions), NOT a build/generator diagnostic: fires once per key-graph
+    edge, anchored on the nested variable's declaration, explaining which way
+    it nests and why — declaration order (R1) for a normal edge ("`Contact`
+    nests inside `Structure` as a single object, because `Structure` is
+    declared first. Reorder the declarations to swap the containment."), or
+    for an R3-inverted junction edge, the container's own reference to the
+    nested variable's Primary Key ("… because `Enrollment` references its
+    Primary Key `CourseID` as a lookup."). Applies to BOTH the OUTPUT and
+    INPUT graphs. See `nestedObjectHints.ts` (VS Code, `containmentHints`) and
+    `SQuiLLinter.LintContainmentHint` (SSMS + Visual Studio); the generator never
+    produces it.
+    Next free: **SP0046**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
   - Signature: `[SQuiLQueryTransaction(QueryFiles type, string setting = "SQuiLDatabase", bool enabled = true, bool debugRollback = true)]`
@@ -934,7 +957,8 @@ differ per dialect via `ISqlDialect`.
 - **No new diagnostic id.** PostgreSQL reuses SP0038 (missing provider
   package)/SP0039 (ambiguous dialect)/SP0040 (params-before-returns, error
   for PostgreSQL as a temp-table dialect) unchanged. Next free id is now
-  **SP0045** (SP0041–SP0044 have since been taken by later features).
+  **SP0046** (SP0041–SP0045 have since been taken by later features; see
+  "Diagnostic IDs" above).
 
 Inheriting the provider base class explicitly is **not required**. When the context class declares no constructor of its own, the generator emits a `<Ctx>.Constructor.g.cs` file that supplies:
 
@@ -1047,46 +1071,66 @@ accepts `\d+(\.\d+)?`).
 
 ### Nested objects (output)
 
-A `@Return*`/`@Returns*` table column marked `Primary Key` names that table's
-key. Any OTHER declared table in the same file carrying a column with that
-EXACT name is that table's child (foreign key by convention) — the `.squil`
-stays valid T-SQL as written: no `@`-typed columns, no nested `table()`
-syntax. Cardinality follows each table's own prefix: `@Return_X` (singular)
-nests as an object child/root, `@Returns_X` (plural) nests as a list
-child/root.
+Containment between two linked table blocks is governed by four rules
+(**R0–R4**; full rationale in
+`docs/superpowers/specs/2026-08-25-nested-objects-containment-direction-design.md`):
 
-**Root-only response reshaping.** Only ROOT tables — ones no other declared
-table links to — stay top-level `<Query>Response` properties. Every child
-table collapses into its parent record as a settable nested member:
-`List<<Ctx>.Models.<Child>>? <Child>` for a list child, `<Ctx>.Models.<Child>?
-<Child>` for an object child. The member name is the child table's base name;
-positional record constructors stay columns-only (the nested member is a
-plain settable property, not part of the ctor). The `Process…Async` /
-`SQuiLResultType<Response>` / `TryGetValue` calling convention is UNCHANGED —
-only the Response's internal shape nests.
+- **R0 — relationship.** A key *name* identifies a relationship; exactly one
+  block may declare `Primary Key` on that name (the "one" side). A second
+  owner is build error **SP0033** (reused id). Every other block carrying a
+  column of that name is a "many" side.
+- **R1 — containment.** **Declaration order decides**: for any two linked
+  blocks, the earlier-declared one is the container, the later-declared one
+  nests into it. An edge is a **child** edge when the nested block CARRIES
+  the FK (today's classic direction); an **embed** edge when the nested block
+  OWNS the key as its own Primary Key (a lookup being embedded).
+- **R2 — cardinality.** A child's `@Return_`/`@Returns_` prefix decides
+  object vs list, unchanged. An **embed is always a single object**,
+  regardless of prefix — a PK match is to-one by definition.
+- **R3 — multiple containers.** A PK owner may be embedded into several
+  containers at once (a **shared lookup** — see `SharedLookup` fixture). An
+  FK carrier linked to several containers is a **junction**: it keeps only
+  its earliest-declared container and the rest invert into embeds — this is
+  how many-to-many falls out with no dedicated syntax (see `ManyToManyJunction`:
+  `Student` holds `List<Enrollment>`, each `Enrollment` embeds one `Course`).
+  Resolution iterates to a fixed point. The inversions can still close a
+  cycle in a valid-looking file, which is **SP0034** (reorder the
+  declarations to fix it).
+- **R4 — FK elision.** When a block is **embedded**, the container's matching
+  FK column is removed from the generated record entirely (reachable as
+  `container.Embed.Key`). The SQL column is untouched — still declared,
+  selected, and populated. Elision applies ONLY to the embed direction; the
+  classic child direction keeps its FK column unchanged.
 
-**Transport — in-memory key-stitch (dialect-agnostic).** Authors write normal
-flat `Select * From @Return*`/`@Returns*` statements, one per declared table —
-no SQL-side JOIN, no nested JSON. The generator reads each table into a flat
-list, then relinks children into parents in C# by matching PK⇄FK column
-values (`parent.Child = __Child.Where(c => c.FK == parent.PK).ToList()` for
-list children; `SingleOrDefault`/direct assignment for object children). This
-works unchanged regardless of target database — it isn't blocked on
-TODO #6/multi-DB. **Nuance:** a parent row with zero matching children gets
-an EMPTY list `[]` for that member, not null — different from the top-level
-list-return convention where null means "result set absent." An object child
-that finds no match is `null`.
+**Root-only response reshaping** (unchanged from before R0–R4): only ROOT
+blocks — ones nothing else contains — stay top-level `<Query>Response`
+properties. A child nests as `List<<Ctx>.Models.<Child>>? <Child>` (list) or
+`<Ctx>.Models.<Child>? <Child>` (object); an embed nests the same way but
+always as the object form, with the container's positional record
+constructor columns-only (R4 — no elided FK parameter). The
+`Process…Async`/`SQuiLResultType<Response>`/`TryGetValue` calling convention
+is unchanged.
 
-**Diagnostics:** SP0033 (build error — ambiguous: a child's column matches
-more than one table's Primary Key), SP0034 (build error — PK/FK cycle:
-following links returns to the same table; no recursion in v1), SP0035
-(editor-only Hint/Info — a Primary Key that no other table links to,
-surfaced only when nesting is already in play elsewhere in the file). See
+**Transport.** The child-direction stitch is unchanged
+(`parent.Child = __Child.Where(c => c.FK == parent.PK)...`). For an embed,
+R4 removes the FK property from the row, so the reader also appends the raw
+FK value to an index-aligned parallel list (`__Container__FKColumn`), and the
+stitch walks by index instead of by property. See
+`EmbeddedLookupDataContext.g.verified.cs` for the parallel-list shape. A
+parent row with zero matching children keeps today's semantics (empty list
+`[]` for a child, `null` for an unmatched embed).
+
+**Diagnostics:** SP0033 (build error, reused — duplicate Primary Key owner),
+SP0034 (build error — PK/FK cycle, reachable when R3's inversions close a
+loop; reorder the declarations), SP0035 (editor-only Hint/Info — orphaned PK, now counting edges in either
+direction so an embedded lookup is never falsely flagged), SP0045
+(editor-only Hint/Info — explains which way each edge nests and why). See
 "Diagnostic IDs" above for the full narrative. Graceful degradation: a file
 with no PK/FK links generates today's flat response, unchanged.
 
 **Worked example** — a transcript with a list of institutions, each with a
-list of courses:
+list of courses (unaffected by R0–R4: the container is still declared first
+in every existing fixture):
 
 ```sql
 Declare @Return_Transcript table(TranscriptID int Primary Key, IssueDate date);
@@ -1124,44 +1168,60 @@ public partial record Institution(int InstitutionID, int TranscriptID, string Sc
 public partial record Course(int CourseID, int InstitutionID, string Title);
 ```
 
-See `SQuiL.Tests/NestedObjects/**/*.g.verified.cs` (esp. `ThreeLevelListNesting/`
-and `EmbeddedObjectChild/`) for ground truth on every generated shape.
+See `SQuiL.Tests/NestedObjects/**/*.g.verified.cs` for ground truth on every
+generated shape — classic child nesting in `ThreeLevelListNesting/` and
+`EmbeddedObjectChild/`; R0–R4 in `EmbeddedLookup/` (single embed, parallel-key
+stitch), `SharedLookup/` (one PK owner embedded into two containers), and
+`ManyToManyJunction/` (junction keeps its earliest container, inverts the
+rest — `Student`/`Enrollment`/`Course`).
 
 ### Nested objects (input)
 
-The INPUT mirror of the section above: a `@Param*`/`@Params*` table column
-marked `Primary Key` names that table's key; any OTHER declared INPUT table in
-the same file carrying a column with that EXACT name is its child. This is a
-SEPARATE graph from the OUTPUT one above — an OUTPUT link never affects the
-INPUT graph and vice versa (two independent calls to `SQuiLKeyGraph.Build`,
-one per side).
+The INPUT mirror of the section above: R0–R4 apply identically to
+`@Param*`/`@Params*` table blocks, as a SEPARATE graph from the OUTPUT one —
+an OUTPUT link never affects the INPUT graph and vice versa (two independent
+calls to `SQuiLKeyGraph.Build`, one per side).
 
-**Root-only request reshaping.** Only ROOT input tables stay top-level
-`<Query>Request` properties. Every child input table collapses into its
-parent request record as a settable nested member — but UNLIKE the output
-side, a LIST child KEEPS its `= []` initializer (`List<<Ctx>.Models.<Child>>?
-<Child> { get; set; } = [];`, matching every other input list property); an
-OBJECT child gets no initializer (`<Ctx>.Models.<Child>? <Child> { get;
-set; }`), same as the output side.
+**Root-only request reshaping.** Only ROOT input blocks stay top-level
+`<Query>Request` properties. A child nests as before — a LIST child KEEPS its
+`= []` initializer, an OBJECT child gets none. An **embed nests as a settable
+object member with no initializer**, same as an object child, and (R4) its
+container's positional record constructor drops the elided FK parameter.
 
-**Key synthesis (no caller-supplied keys required).** Callers do not need to
-populate a nested input's PK/FK columns themselves — the generator
-synthesizes them at flatten time: an integer-family key (`int`/`bigint`/
-`smallint`) gets a 1-based sequential value per table
-(`__Child.Count + 1`-style); a `uniqueidentifier` key gets `Guid.NewGuid()`.
-The synthesized parent key is copied into the child's matching FK column
-before each flattened row is serialized through the existing
-`AddJsonParameter`/OPENJSON path — unchanged for callers, and unchanged for
-tables that declare no links (today's flat per-table path is untouched, zero
-snapshot churn).
+**Child-direction key synthesis (unchanged).** For a classic child, callers
+never populate the PK/FK columns — the generator synthesizes them at flatten
+time: an integer-family key gets a 1-based sequential value per table, a
+`uniqueidentifier` key gets `Guid.NewGuid()`, copied down into the child's FK
+column before serializing through `AddJsonParameter`/OPENJSON.
 
-**Diagnostics:** SP0033/SP0034/SP0035 all apply to the INPUT graph exactly as
-described above (independent gating — see "Diagnostic IDs"). **SP0036** (build
-error) additionally fires when an input link column's declared type is
-neither integer-family nor `uniqueidentifier` (nothing else can have a key
-synthesized) — the offending file's emission is skipped, same "no
-flat-path fallback" behavior as SP0033/SP0034. All three editors squiggle
-SP0036 the same way (Error).
+**Embed-direction flatten (R4, new) — copy up, then dedup.** An embed's key
+is never synthesized; the caller supplies it on the embedded object. The
+flatten copies the FK value UP from the embedded object into the container's
+flat row (`structure.Contact?.ContactID`, the inverse of the child
+direction's copy-down), and collects embedded rows into their own flat list
+**deduplicated by primary key** (column-wise comparison of declared columns,
+not `record.Equals` — see `EmbeddedLookupInputDataContext.g.verified.cs`).
+Same PK + identical column values collapses to one row; same PK + conflicting
+values throws (`"Conflicting values supplied for <Name> with <Key> '...'."`).
+A repeated row is also compared on the keys its OWN embeds would copy up, so
+two identical but separate instances (the normal shape of a deserialized
+request) dedup cleanly, while the same row pointing at two different nested
+lookups throws that same conflict (see `ChainedEmbedInput`). A null embed on a
+NOT NULL key throws (`InvalidOperationException`, "... is required: it
+supplies the not-null <Column> column."); a second, distinct instance with
+the same key that carries its own classic nested children (a non-empty list
+or a non-null object child) throws `InvalidOperationException`
+("... was supplied twice with nested children; reuse one <Name> instance.")
+— see `EmbeddedLookupWithChildInput` fixture. A classic child of an embedded
+lookup receives the lookup's caller-supplied key as its FK (nothing is
+synthesized for that edge).
+
+**Diagnostics:** SP0033/SP0034/SP0035/SP0045 all apply to the INPUT graph
+exactly as described above (independent gating — see "Diagnostic IDs").
+**SP0036** additionally fires, but **child-direction only** — an embed's key
+is caller-supplied, never synthesized, so an embed with e.g. a `varchar` key
+never trips it (see `SharedLookupInput`/`EmbeddedLookupInput` fixtures,
+which use `varchar` keys precisely to prove this).
 
 **Worked example** — an order with a list of shipments (int keys synthesized
 at flatten time; caller never sets `OrderID`/`ShipmentID`):
@@ -1190,8 +1250,12 @@ public partial record Shipment(int ShipmentID, int OrderID, string Carrier);
 
 See `SQuiL.Tests/NestedObjects/ThreeLevelInputNesting/`,
 `GuidKeyInputNesting/`, `EmbeddedObjectChildInputNesting/`, and
-`UnsupportedLinkTypeInput/` for ground truth (int sequential keys, guid keys,
-object children, and the SP0036 error path respectively).
+`UnsupportedLinkTypeInput/` for classic child-direction ground truth (int
+sequential keys, guid keys, object children, and the SP0036 error path
+respectively). For R0–R4: `EmbeddedLookupInput/` (copy-up + dedup),
+`SharedLookupInput/` (one embed shared by two containers),
+`ManyToManyJunctionInput/` (junction inversion), and
+`EmbeddedLookupWithChildInput/` (the reused-instance-with-children throw).
 
 **SP0010 is TAKEN** (since the nullability-unification feature) — it is the
 editor-only Hint that fires on any unmarked column/scalar declare. For
@@ -1199,13 +1263,15 @@ scalars: no `= null` initializer. For table columns (unchanged): no `null` or
 `not null` marker. It is NOT a build/generator diagnostic. SP0023–SP0029 taken by
 the DML-transactions feature; SP0030/SP0031 taken by the shape-detection
 feature; SP0032 taken by the timestamp-as-input check; SP0033/SP0034 taken by
-the nested-objects key-graph diagnostics (ambiguous/cycle, both OUTPUT and
-INPUT graphs); SP0035 taken by the editor-only orphaned-PK hint (both graphs);
-SP0036 taken by the nested-INPUT unsupported-key-type check (see Diagnostic
-IDs above); SP0037 taken by the scalar-nullability-marker check (a scalar
-`null`/`not null` marker is invalid — use `= null`); SP0038 taken by the
-multi-DB missing-provider-package check; SP0039 taken by the ambiguous-dialect
-check (2+ providers, no `[SQuiLDialect]`); SP0040 taken by the
+the nested-objects key-graph diagnostics (SP0033 reused — duplicate Primary
+Key owner, R0; SP0034 — PK/FK cycle, reachable via R3 inversions;
+both OUTPUT and INPUT graphs); SP0035 taken by the editor-only orphaned-PK
+hint (both graphs, now counting edges in either direction — R1/R3); SP0036
+taken by the nested-INPUT unsupported-key-type check, child-direction only
+(see Diagnostic IDs above); SP0037 taken by the scalar-nullability-marker
+check (a scalar `null`/`not null` marker is invalid — use `= null`); SP0038
+taken by the multi-DB missing-provider-package check; SP0039 taken by the
+ambiguous-dialect check (2+ providers, no `[SQuiLDialect]`); SP0040 taken by the
 params-before-returns ordering check (error for temp-table dialects — SQLite
 and PostgreSQL — warning elsewhere). PostgreSQL (Phase 3D, dialect id 2) added
 no new diagnostic id — it reuses SP0038/SP0039/SP0040 unchanged. SP0031 is now
@@ -1217,7 +1283,9 @@ editor squiggle — a plural prefix on a scalar declare) is taken by the
 plural-scalar-declare check. SP0044 (build error + all 3 editors — a bare scalar
 `Select` followed by the ambiguous `throw`/`go`, which is both a statement starter
 and a legal AS-less alias) is taken by the ambiguous-scalar-alias check.
-Next free id: **SP0045**.
+SP0045 is taken by the editor-only containment-direction hint (R1/R3 — explains which way
+each nested-object edge nests and why).
+Next free id: **SP0046**.
 
 ## Special Handling
 

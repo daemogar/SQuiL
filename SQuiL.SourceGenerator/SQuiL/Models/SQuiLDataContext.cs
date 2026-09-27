@@ -505,8 +505,13 @@ public class SQuiLDataContext(
 		// Shared by the flat path (SwitchStatements, model = "response.<Name>") and the
 		// nested path (NestedSwitchStatements, model = "__<Name>") — Task 4 hoisted this out
 		// of SwitchStatements so both switch-case emitters can call it unchanged.
-		void LoopProperties(string model, List<CodeItem> properties)
+		// `elided` (nested path only): key columns an embed supplies. They are read, left out of the
+		// record, and appended to the index-aligned `{model}__<Key>` list instead.
+		void LoopProperties(string model, List<CodeItem> properties, IReadOnlyList<string>? elided = null)
 		{
+			elided ??= [];
+			bool IsElided(CodeItem p) => elided.Contains(p.Identifier.Value, StringComparer.OrdinalIgnoreCase);
+
 			writer.WriteLine();
 
 			foreach (var item in properties)
@@ -527,8 +532,8 @@ public class SQuiLDataContext(
 				}
 
 				writer.WriteLine();
-				var positional = properties.Where(p => p.DefaultValue is null).ToList();
-				var defaulted = properties.Where(p => p.DefaultValue is not null).ToList();
+				var positional = properties.Where(p => p.DefaultValue is null && !IsElided(p)).ToList();
+				var defaulted = properties.Where(p => p.DefaultValue is not null && !IsElided(p)).ToList();
 				writer.Write($"{model}.Add(new(");
 				writer.Indent++;
 				var comma = "";
@@ -552,6 +557,12 @@ public class SQuiLDataContext(
 						writer.WriteLine($"{item.Identifier.Value} = value{item.Identifier.Value},");
 					writer.Indent--;
 					writer.WriteLine("});");
+				}
+
+				foreach (var key in elided)
+				{
+					var col = properties.First(p => string.Equals(p.Identifier.Value, key, StringComparison.OrdinalIgnoreCase));
+					writer.WriteLine($"{model}__{key}.Add(value{col.Identifier.Value});");
 				}
 			}, $"""while (await reader.ReadAsync(cancellationToken));""");
 		}
@@ -595,7 +606,16 @@ public class SQuiLDataContext(
 			}
 
 			foreach (var block in participants)
+			{
 				writer.WriteLine($"List<{recordNamespace}.{block.Name}> __{block.Name} = [];");
+				// One index-aligned key list per embed: the container's elided FK values.
+				foreach (var key in ElidedKeys(block))
+				{
+					var col = block.Properties!.First(p =>
+						string.Equals(p.Identifier.Value, key, StringComparison.OrdinalIgnoreCase));
+					writer.WriteLine($"List<{col.CSharpType()}> __{block.Name}__{key} = [];");
+				}
+			}
 			writer.WriteLine();
 
 			writer.Block("""
@@ -616,13 +636,28 @@ public class SQuiLDataContext(
 
 			foreach (var edge in DeepestFirstEdges())
 			{
+				// KeyName is the carrier's spelling; the owner's record uses its own (matching is case-insensitive).
+				var ownerKey = OwnerKeyColumn(edge);
+				if (edge.IsEmbed)
+				{
+					// The container's key was elided; read it from the parallel list by index.
+					writer.Block($"for (var __i = 0; __i < __{edge.Parent.Name}.Count; __i++)", () =>
+					{
+						writer.WriteLine($"var __fk = __{edge.Parent.Name}__{edge.KeyName}[__i];");
+						EmitSingleOrFriendly($"__{edge.Parent.Name}[__i].{edge.Child.Name}",
+							$"__{edge.Child.Name}.Where(c => c.{ownerKey} == __fk)", "__match",
+							$"Lookup `{edge.Child.Name}` has more than one row for key `{ownerKey}`.");
+					});
+					continue;
+				}
+
 				writer.Block($"foreach (var parent in __{edge.Parent.Name})", () =>
 				{
 					if (edge.Child.IsTable)
-						writer.WriteLine($"parent.{edge.Child.Name} = __{edge.Child.Name}.Where(c => c.{edge.KeyName} == parent.{edge.KeyName}).ToList();");
+						writer.WriteLine($"parent.{edge.Child.Name} = __{edge.Child.Name}.Where(c => c.{edge.KeyName} == parent.{ownerKey}).ToList();");
 					else
 						EmitSingleOrFriendly($"parent.{edge.Child.Name}",
-							$"__{edge.Child.Name}.Where(c => c.{edge.KeyName} == parent.{edge.KeyName})", "__match");
+							$"__{edge.Child.Name}.Where(c => c.{edge.KeyName} == parent.{ownerKey})", "__match");
 				});
 			}
 
@@ -638,27 +673,36 @@ public class SQuiLDataContext(
 
 			static string Camel(string name) => $"{name[0..1].ToLower()}{name[1..]}";
 
-			// Nested-object over-cardinality guard (Important-1 fix): a root/child OBJECT
-			// result set with >1 matching row must fail with the SAME friendly message the
-			// FLAT object path already throws (see the "Return object results in more than
-			// one object..." Exception a few dozen lines up in this file, under EmitSwitchStatements'
-			// object branch) rather than the raw ".NET "Sequence contains more than one element""
-			// LINQ message that plain SingleOrDefault would surface. 0 rows -> null; 1 row -> the
-			// object; 2+ rows -> the friendly Exception. `tempVar` must be caller-unique within its
-			// enclosing C# scope (each per-edge foreach body is its own scope, so a shared literal is
-			// safe there; sibling object ROOTS share the outer method scope, so those get names keyed
-			// off the root's own identifier to avoid a duplicate-local-variable compile error).
-			void EmitSingleOrFriendly(string assignTo, string sourceExpr, string tempVar)
+			// 0 rows -> null, 1 row -> the object, 2+ rows -> a friendly Exception instead of LINQ's.
+			// `tempVar` must be unique within its C# scope.
+			void EmitSingleOrFriendly(string assignTo, string sourceExpr, string tempVar,
+				string message = "Return object results in more than one object. Consider using a return table instead.")
 			{
 				writer.WriteLine($"var {tempVar} = {sourceExpr}.ToList();");
 				writer.Block($"if ({tempVar}.Count > 1)", () =>
 				{
-					writer.WriteLine(
-						"""throw new Exception("Return object results in more than one object. Consider using a return table instead.");""");
+					writer.WriteLine($"""throw new Exception("{message}");""");
 				});
 				writer.WriteLine($"{assignTo} = {tempVar}.Count == 1 ? {tempVar}[0] : null;");
 			}
 		}
+
+		// The key owner's own spelling of the edge's key column (the child of an embed, else the parent).
+		static string OwnerKeyColumn(SQuiLKeyEdge edge)
+		{
+			var owner = edge.IsEmbed ? edge.Child : edge.Parent;
+			return owner.Properties?.FirstOrDefault(p => p.IsPrimaryKey
+				&& string.Equals(p.Identifier.Value, edge.KeyName, StringComparison.OrdinalIgnoreCase))?.Identifier.Value
+				?? edge.KeyName;
+		}
+
+		// Key columns this block's embeds supply (elided from its record, R4); output graph by default.
+		List<string> ElidedKeys(CodeBlock block, SQuiLKeyGraph? graph = null)
+			=> (graph ?? EffectiveGraph).ChildrenOf(block).Where(e => e.IsEmbed).Select(e => e.KeyName).ToList();
+
+		// The declared column behind an elided key name.
+		static CodeItem ElidedColumn(CodeBlock block, string key)
+			=> block.Properties!.First(p => string.Equals(p.Identifier.Value, key, StringComparison.OrdinalIgnoreCase));
 
 		// Post-order traversal of the key graph: for a chain like Transcript -> Institution ->
 		// Course, this yields (Institution, Course) BEFORE (Transcript, Institution), so a
@@ -668,8 +712,13 @@ public class SQuiLDataContext(
 		{
 			var result = new List<SQuiLKeyEdge>();
 
+			// Walk a shared lookup's descendants once, and never recurse forever on a missed cycle.
+			// See the SQuiL.SourceGenerator README, "Nested objects: key graph".
+			var visited = new HashSet<CodeBlock>();
+
 			void Visit(CodeBlock parent)
 			{
+				if (!visited.Add(parent)) return;
 				foreach (var edge in EffectiveGraph.ChildrenOf(parent))
 				{
 					Visit(edge.Child);
@@ -703,7 +752,7 @@ public class SQuiLDataContext(
 						writer.WriteLine($"is{block.Name} = true;");
 						writer.WriteLine();
 						writer.WriteLine("if (!await reader.ReadAsync(cancellationToken)) break;");
-						LoopProperties($"__{block.Name}", block.Properties);
+						LoopProperties($"__{block.Name}", block.Properties, ElidedKeys(block));
 						writer.WriteLine("break;");
 					});
 				}
@@ -734,14 +783,8 @@ public class SQuiLDataContext(
 			}
 		}
 
-		// Nested input flatten (Task 13, gated on EffectiveInputGraph.HasLinks): walk the caller's
-		// root request object(s) following the input key graph and, for every participating input
-		// table/object, build a flat `__<Name>` list whose rows carry SYNTHESIZED join keys — a
-		// parent's key (int → 1-based sequential per table via `__<Name>.Count + 1`; guid →
-		// Guid.NewGuid()) is written into each child row's foreign-key column. Row records' key
-		// columns are positional/immutable, so each flat row is rebuilt with the synthesized values
-		// rather than mutating the caller's objects. The flat lists are then serialized by the
-		// existing `input<Name>` / AddJsonParameter / OPENJSON path (unchanged).
+		// Flattens the nested request into per-table `__<Name>` lists (rebuilt rows, keys synthesized
+		// or copied up) for the `input<Name>` serializers. See the README, "Input flatten".
 		void EmitInputFlatten()
 		{
 			var recordNamespace = generation.Request.RecordNamespace;
@@ -756,26 +799,43 @@ public class SQuiLDataContext(
 				participants.Add(block);
 			}
 
+			// Blocks some container embeds: their rows are deduped by their own (caller-supplied) key.
+			var embedded = new HashSet<CodeBlock>(graph.Edges.Where(e => e.IsEmbed).Select(e => e.Child));
+
 			writer.WriteLine();
 			foreach (var block in participants)
+			{
 				writer.WriteLine($"List<{recordNamespace}.{block.Name}> __{block.Name} = [];");
+				// One index-aligned list per elided key: the value copied up from the embed.
+				foreach (var key in ElidedKeys(block, graph))
+					writer.WriteLine($"List<{ElidedColumn(block, key).CSharpType()}> __{block.Name}__{key} = [];");
+				if (embedded.Contains(block))
+				{
+					var pk = block.Properties.First(p => p.IsPrimaryKey);
+					var record = $"{recordNamespace}.{block.Name}";
+					// With children, also keep the first caller instance: a second one carrying children is rejected.
+					var value = graph.ChildrenOf(block).Count > 0 ? $"({record} Row, {record} Source)" : record;
+					writer.WriteLine($"var __{block.Name}Seen = new Dictionary<{pk.CSharpType()}, {value}>();");
+				}
+			}
 			writer.WriteLine();
 
 			foreach (var root in graph.Roots)
 			{
 				if (root.IsObject)
 					writer.Block($"if (request.{root.Name} is not null)",
-						() => EmitNode(root, $"request.{root.Name}", null, null));
+						() => EmitNode(root, $"request.{root.Name}", null, null, false));
 				else
 					writer.Block($"foreach (var {Camel(root.Name)} in request.{root.Name} ?? [])",
-						() => EmitNode(root, Camel(root.Name), null, null));
+						() => EmitNode(root, Camel(root.Name), null, null, false));
 			}
 
 			// Emits one node's key-synthesis + flat-row construction, then recurses into its
 			// children. `itemExpr` is the caller expression for this node's source object;
 			// `parentKeyLocal`/`fkColName` carry the parent's synthesized key value and the column
 			// on THIS node that receives it (null for a root).
-			void EmitNode(CodeBlock node, string itemExpr, string? parentKeyLocal, string? fkColName)
+			// `reachedViaEmbed`: this node is an embedded lookup, so its key is caller-supplied.
+			void EmitNode(CodeBlock node, string itemExpr, string? parentKeyLocal, string? fkColName, bool reachedViaEmbed)
 			{
 				var children = graph.ChildrenOf(node);
 
@@ -790,7 +850,12 @@ public class SQuiLDataContext(
 				string? keyLocal = null;
 				string? pkColName = null;
 				var pk = node.Properties?.FirstOrDefault(p => p.IsPrimaryKey);
-				if (pk is not null && (children.Count > 0 || fkColName is not null))
+				if (pk is not null && reachedViaEmbed)
+				{
+					// An embed's key is a real business value: pass it down as-is, never synthesize.
+					keyLocal = $"{itemExpr}.{pk.Identifier.Value}";
+				}
+				else if (pk is not null && (children.Any(e => !e.IsEmbed) || fkColName is not null))
 				{
 					pkColName = pk.Identifier.Value;
 					keyLocal = $"{Camel(node.Name)}Key";
@@ -805,21 +870,120 @@ public class SQuiLDataContext(
 					writer.WriteLine($"var {keyLocal} = {keyExpr};");
 				}
 
-				EmitRowConstruction(node, itemExpr, keyLocal, pkColName, parentKeyLocal, fkColName);
+				void EmitAddAndChildren(string rowExpr)
+				{
+					writer.WriteLine($"__{node.Name}.Add({rowExpr});");
+					EmitCopyUp(node, itemExpr);
+					EmitChildren(node, itemExpr, keyLocal);
+				}
 
-				foreach (var edge in children)
+				if (!embedded.Contains(node))
+				{
+					EmitRowConstruction(node, itemExpr, keyLocal, pkColName, parentKeyLocal, fkColName, null);
+					EmitCopyUp(node, itemExpr);
+					EmitChildren(node, itemExpr, keyLocal);
+					return;
+				}
+
+				// Embedded lookup: dedup by key; a repeat must match column-wise (declared columns only —
+				// record equality would also compare nested members).
+				var row = $"__{node.Name}Row";
+				var prev = $"__{node.Name}Prev";
+				var pkName = pk!.Identifier.Value;
+				var nested = graph.ChildrenOf(node);
+				var prevRow = nested.Count > 0 ? $"{prev}.Row" : prev;
+				EmitRowConstruction(node, itemExpr, keyLocal, pkColName, parentKeyLocal, fkColName, row);
+				writer.Block($"if (__{node.Name}Seen.TryGetValue({row}.{pkName}, out var {prev}))", () =>
+				{
+					// A repeat must match column-wise, including the keys its own embeds copy up.
+					var differs = RecordColumns(node).Select(c => ColumnDiffers(c, prevRow, row))
+						.Concat(nested.Where(e => e.IsEmbed).Select(e => EmbedKeyDiffers(e, $"{prev}.Source", itemExpr)));
+					writer.Block($"if ({string.Join(" || ", differs)})", () => writer.WriteLine(
+						$$"""throw new Exception($"Conflicting values supplied for {{node.Name}} with {{pkName}} '{{{row}}.{{pkName}}}'.");"""));
+
+					// Children are walked on the first sighting only, so a second instance's would be lost.
+					var children = nested.Where(e => !e.IsEmbed).ToList();
+					if (children.Count == 0) return;
+					var carries = string.Join(" || ", children.Select(e => e.Child.IsTable
+						? $"({itemExpr}.{e.Child.Name}?.Count ?? 0) > 0"
+						: $"{itemExpr}.{e.Child.Name} is not null"));
+					writer.Block($"if (!ReferenceEquals({prev}.Source, {itemExpr}) && ({carries}))", () => writer.WriteLine(
+						$$"""throw new InvalidOperationException($"{{generation.Request.ModelName}} {{node.Name}} with {{pkName}} '{{{row}}.{{pkName}}}' was supplied twice with nested children; reuse one {{node.Name}} instance.");"""));
+				});
+				writer.Block("else", () =>
+				{
+					writer.WriteLine(nested.Count > 0
+						? $"__{node.Name}Seen[{row}.{pkName}] = ({row}, {itemExpr});"
+						: $"__{node.Name}Seen[{row}.{pkName}] = {row};");
+					EmitAddAndChildren(row);
+				});
+			}
+
+			// The C# record's columns: declared columns minus the keys its own embeds supply (R4).
+			List<CodeItem> RecordColumns(CodeBlock node)
+			{
+				var elided = ElidedKeys(node, graph);
+				return node.Properties
+					.Where(p => !elided.Contains(p.Identifier.Value, StringComparer.OrdinalIgnoreCase))
+					.ToList();
+			}
+
+			static string ColumnDiffers(CodeItem c, string a, string b)
+				=> ValuesDiffer(c, $"{a}.{c.Identifier.Value}", $"{b}.{c.Identifier.Value}");
+
+			// Compares the key two sightings' embedded objects would copy up (null when absent).
+			static string EmbedKeyDiffers(SQuiLKeyEdge edge, string a, string b)
+			{
+				var key = edge.Child.Properties.First(p => p.IsPrimaryKey);
+				var name = key.Identifier.Value;
+				return ValuesDiffer(key, $"{a}.{edge.Child.Name}?.{name}", $"{b}.{edge.Child.Name}?.{name}");
+			}
+
+			static string ValuesDiffer(CodeItem c, string a, string b)
+				=> c.Type.CSharpType() == "byte[]"
+					? $"!System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals({a}, {b})"
+					: $"{a} != {b}";
+
+			// Recurses into a node's children: a classic child receives this node's key as its FK;
+			// an embed is always a single object whose own key is caller-supplied.
+			void EmitChildren(CodeBlock node, string itemExpr, string? keyLocal)
+			{
+				foreach (var edge in graph.ChildrenOf(node))
 				{
 					var child = edge.Child;
 					var childItem = Camel(child.Name);
-					if (child.IsTable)
+					if (edge.IsEmbed)
+						writer.Block($"if ({itemExpr}.{child.Name} is not null)", () =>
+						{
+							writer.WriteLine($"var {childItem} = {itemExpr}.{child.Name};");
+							EmitNode(child, childItem, null, null, true);
+						});
+					else if (child.IsTable)
 						writer.Block($"foreach (var {childItem} in {itemExpr}.{child.Name} ?? [])",
-							() => EmitNode(child, childItem, keyLocal, edge.KeyName));
+							() => EmitNode(child, childItem, keyLocal, edge.KeyName, false));
 					else
 						writer.Block($"if ({itemExpr}.{child.Name} is not null)", () =>
 						{
 							writer.WriteLine($"var {childItem} = {itemExpr}.{child.Name};");
-							EmitNode(child, childItem, keyLocal, edge.KeyName);
+							EmitNode(child, childItem, keyLocal, edge.KeyName, false);
 						});
+				}
+			}
+
+			// R4 elided the FK from the C# record, but the SQL column remains: copy the key UP from
+			// the embedded object into the index-aligned `__<Block>__<Key>` list. A not-null column
+			// with no embed supplied throws rather than silently sending NULL.
+			void EmitCopyUp(CodeBlock node, string itemExpr)
+			{
+				foreach (var edge in graph.ChildrenOf(node).Where(e => e.IsEmbed))
+				{
+					var column = ElidedColumn(node, edge.KeyName);
+					var embedKey = edge.Child.Properties.First(p => p.IsPrimaryKey).Identifier.Value;
+					var member = $"{itemExpr}.{edge.Child.Name}";
+					var value = column.IsNullable
+						? $"{member}?.{embedKey}"
+						: $"""({member} ?? throw new InvalidOperationException("{generation.Request.ModelName} {node.Name}.{edge.Child.Name} is required: it supplies the not-null {column.Identifier.Value} column.")).{embedKey}""";
+					writer.WriteLine($"__{node.Name}__{edge.KeyName}.Add({value});");
 				}
 			}
 
@@ -828,8 +992,9 @@ public class SQuiLDataContext(
 			// key; every other column is copied from the caller's object. Non-defaulted columns are
 			// positional ctor args; defaulted columns are object-initializer members (target-typed
 			// `new(...)` — `__<Name>` already fixes the element type).
+			// `rowVar` set: bind the row to that typed local instead of adding it (dedup path).
 			void EmitRowConstruction(CodeBlock node, string itemExpr,
-				string? keyLocal, string? pkColName, string? parentKeyLocal, string? fkColName)
+				string? keyLocal, string? pkColName, string? parentKeyLocal, string? fkColName, string? rowVar)
 			{
 				string ColValue(CodeItem col)
 				{
@@ -839,10 +1004,14 @@ public class SQuiLDataContext(
 					return $"{itemExpr}.{name}";
 				}
 
-				var positional = node.Properties.Where(p => p.DefaultValue is null).ToList();
-				var defaulted = node.Properties.Where(p => p.DefaultValue is not null).ToList();
+				var columns = RecordColumns(node);
+				var positional = columns.Where(p => p.DefaultValue is null).ToList();
+				var defaulted = columns.Where(p => p.DefaultValue is not null).ToList();
+				var close = rowVar is null ? ")" : "";
 
-				writer.Write($"__{node.Name}.Add(new(");
+				writer.Write(rowVar is null
+					? $"__{node.Name}.Add(new("
+					: $"var {rowVar} = new {recordNamespace}.{node.Name}(");
 				writer.Indent++;
 				var comma = "";
 				foreach (var item in positional)
@@ -854,7 +1023,7 @@ public class SQuiLDataContext(
 				writer.Indent--;
 				if (defaulted.Count == 0)
 				{
-					writer.WriteLine("));");
+					writer.WriteLine($"){close};");
 				}
 				else
 				{
@@ -864,7 +1033,7 @@ public class SQuiLDataContext(
 					foreach (var item in defaulted)
 						writer.WriteLine($"{item.Identifier.Value} = {ColValue(item)},");
 					writer.Indent--;
-					writer.WriteLine("});");
+					writer.WriteLine($"}}{close};");
 				}
 			}
 
@@ -884,18 +1053,32 @@ public class SQuiLDataContext(
 					// The JSON param name + shred SQL are keyed on IsTable and stay unchanged.
 					if (EffectiveInputGraph.HasLinks)
 					{
+						var elided = ElidedKeys(CodeBlock, EffectiveInputGraph);
+						string? ValueOf(CodeItem p, string item, string index)
+							=> elided.Contains(p.Identifier.Value, StringComparer.OrdinalIgnoreCase)
+								? $"__{CodeBlock.Name}__{p.Identifier.Value}[{index}]"
+								: null;
+
 						if (CodeBlock.Properties.Any(IsSizedString))
 						{
 							writer.WriteLine("var index = 0;");
 							writer.Block($"foreach (var item in __{CodeBlock.Name})", () =>
 							{
-								EmitStringLengthGuards(CodeBlock, "item", "index");
+								EmitStringLengthGuards(CodeBlock, "item", "index", ValueOf);
 								writer.WriteLine("index++;");
 							});
 							writer.WriteLine();
 						}
 
-						writer.WriteLine($"""AddJsonParameter(parameters, "{Sql.ShredParamName(CodeBlock)}", __{CodeBlock.Name});""");
+						if (elided.Count == 0)
+							writer.WriteLine($"""AddJsonParameter(parameters, "{Sql.ShredParamName(CodeBlock)}", __{CodeBlock.Name});""");
+						else
+						{
+							// Elided keys are absent from the record: rejoin them by index for the JSON rows.
+							var fields = string.Join(", ", CodeBlock.Properties.Select(p =>
+								$"{p.Identifier.Value} = {ValueOf(p, "__r", "__i") ?? $"__r.{p.Identifier.Value}"}"));
+							writer.WriteLine($$"""AddJsonParameter(parameters, "{{Sql.ShredParamName(CodeBlock)}}", System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(__{{CodeBlock.Name}}, (__r, __i) => new { {{fields}} })));""");
+						}
 					}
 					else if (CodeBlock.IsTable)
 					{
@@ -958,7 +1141,9 @@ public class SQuiLDataContext(
 			// over `request.<Name>` with item "item"; for an object, "request.<Name>".
 			// `indexExpr` is the runtime loop-counter variable for a list (so the message names
 			// the failing row, e.g. `Rows[3]`); null for a single object (no index).
-			void EmitStringLengthGuards(CodeBlock block, string itemExpr, string? indexExpr = null)
+			// `valueOf` may redirect a column's value expression (elided keys live in a side list).
+			void EmitStringLengthGuards(CodeBlock block, string itemExpr, string? indexExpr = null,
+				Func<CodeItem, string, string, string?>? valueOf = null)
 			{
 				// Row locator embedded into the runtime message: "[{index}]" for a list
 				// element, empty for a single object. The inner single braces survive as a
@@ -973,7 +1158,8 @@ public class SQuiLDataContext(
 					// Value is the type name) have no length to enforce.
 					if (!int.TryParse(size, out _)) continue;
 
-					var value = $"{itemExpr}.{p.Identifier.Value}";
+					var value = (indexExpr is null ? null : valueOf?.Invoke(p, itemExpr, indexExpr))
+						?? $"{itemExpr}.{p.Identifier.Value}";
 					writer.Block($"if ({value} is not null && {value}.Length > {size})", () =>
 					{
 						writer.WriteLine($$"""

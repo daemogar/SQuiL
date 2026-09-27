@@ -1,26 +1,8 @@
 /**
- * Nested-object link role text for hover/QuickInfo (Task 11).
- *
- * Given a source position, finds the table-column token (if any) at that
- * exact position and — reusing the same parent/child resolution as the
- * SP0033/SP0034/SP0035 diagnostics (`buildKeyGraph` in `./keyGraph.ts`) —
- * explains its role in the nested-object graph:
- *   - a Primary Key column with 1+ children linking to it → "Primary Key…"
- *   - a Primary Key column with no children (orphan) → a short note,
- *     matching SP0035's spirit
- *   - a non-PK column that matches another table's PK by convention (a
- *     resolved FK edge) → "Foreign key by convention…"
- *   - anything else (not on a column, or a column that plays no link role)
- *     → undefined, so hover is left completely unchanged (graceful
- *     degradation — a no-links file surfaces no link text at all).
- *
- * Covers BOTH the OUTPUT (`@Return_`/`@Returns_`) and INPUT (`@Param_`/
- * `@Params_`) table/object universes — a hovered column resolves its role
- * against whichever graph its own variable belongs to, never mixing the two
- * (matches the generator's two independent graphs).
- *
- * Ported to `SQuiLQuickInfoSource.cs` (SSMS + Visual Studio, via the shared
- * `SQuiLLinter.DescribeColumnLinkRole`) — change one side, change all three.
+ * Hover text for a column's role in the nested-object key graph (`buildKeyGraph`): the key
+ * owner's Primary Key, the other end's foreign key (classic child or embed container), an orphan
+ * PK note, or undefined. Each column resolves against its own side's graph (OUTPUT or INPUT).
+ * Mirrors `SQuiLLinter.DescribeColumnLinkRole` (SSMS + Visual Studio).
  */
 
 import { SQuiLParseResult, SQuiLVariable, TableColumn, VariableRole } from './parser';
@@ -82,10 +64,17 @@ export function describeColumnLinkRole(
     const ownPk = list.find(v => v === variable)?.columns.find(c => c.isPrimaryKey);
     if (ownPk !== column) return undefined;
 
-    const hasChild = graph.edges.some(e => e.parent === variable);
-    if (hasChild) {
-      return `Primary Key — child tables that carry a \`${column.name}\` column nest under \`${variable.name}\`.`;
+    // Edges on this key: classic children nest under the owner; embed containers hold it as a lookup.
+    const keyEdges = graph.edges.filter(e => e.keyName.toLowerCase() === column.name.toLowerCase());
+    const parts: string[] = [];
+    if (keyEdges.some(e => !e.isEmbed)) {
+      parts.push(`child tables that carry a \`${column.name}\` column nest under \`${variable.name}\``);
     }
+    const containers = keyEdges.filter(e => e.isEmbed).map(e => `\`${e.parent.name}\``);
+    if (containers.length > 0) {
+      parts.push(`\`${variable.name}\` embeds as a single lookup object into ${containers.join(', ')}`);
+    }
+    if (parts.length > 0) return `Primary Key — ${parts.join('; ')}.`;
     // Graceful degradation: in a file with no links at all, an "orphan" PK
     // note would fire on every table's PK, which is noise, not a hint. Only
     // surface the orphan note when at least one real link exists elsewhere
@@ -95,9 +84,14 @@ export function describeColumnLinkRole(
         `table to nest rows under \`${variable.name}\`.`;
   }
 
+  // The key's non-owner side: the container of an embed, the child of a classic edge.
   const edge = graph.edges.find(
-    e => e.child === variable && e.keyName.toLowerCase() === column.name.toLowerCase(),
+    e => (e.isEmbed ? e.parent : e.child) === variable && e.keyName.toLowerCase() === column.name.toLowerCase(),
   );
+  if (edge?.isEmbed) {
+    return `Foreign key by convention → the matching \`${edge.child.name}\` row embeds into \`${variable.name}\` ` +
+      `as a single object (matched by \`${column.name}\`).`;
+  }
   if (edge) {
     return `Foreign key by convention → rows of \`${variable.name}\` nest under \`${edge.parent.name}\` ` +
       `(matched by \`${column.name}\`).`;

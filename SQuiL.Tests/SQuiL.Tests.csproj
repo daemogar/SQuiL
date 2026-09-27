@@ -62,4 +62,24 @@
 		         Link="ExtensionVersion\SQuiLVersion.cs" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<!-- The SSMS extension's Parsing\ layer has no VS SDK dependency, so it is compiled in
+		     (like SQuiLVersion.cs) to test its `internal` members. The Visual Studio copy is covered
+		     by the byte-identical rule in CLAUDE.md. -->
+		<Compile Include="..\SQuiL.SsmsExtension\Parsing\SQuiLParser.cs"
+		         Link="ExtensionParsing\SQuiLParser.cs" />
+		<Compile Include="..\SQuiL.SsmsExtension\Parsing\SQuiLLinter.cs"
+		         Link="ExtensionParsing\SQuiLLinter.cs" />
+		<Compile Include="..\SQuiL.SsmsExtension\Parsing\SQuiLDialect.cs"
+		         Link="ExtensionParsing\SQuiLDialect.cs" />
+		<Compile Include="..\SQuiL.SsmsExtension\Parsing\SqlTypeMap.cs"
+		         Link="ExtensionParsing\SqlTypeMap.cs" />
+		<Compile Include="..\SQuiL.SsmsExtension\Parsing\SQuiLContextResolver.cs"
+		         Link="ExtensionParsing\SQuiLContextResolver.cs" />
+		<Compile Include="..\SQuiL.SsmsExtension\Parsing\SQuiLMutationScanner.cs"
+		         Link="ExtensionParsing\SQuiLMutationScanner.cs" />
+		<Compile Include="..\SQuiL.SsmsExtension\Parsing\SQuiLCodeActions.cs"
+		         Link="ExtensionParsing\SQuiLCodeActions.cs" />
+	</ItemGroup>
+
 </Project>

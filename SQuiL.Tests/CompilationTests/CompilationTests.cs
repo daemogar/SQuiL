@@ -38,6 +38,33 @@ public class CompilationTests : BaseTest
 			"""]);
 	}
 
+	// C1 regression (containment-direction feature, Task 1 review): two nested-object tables
+	// linked by TWO reciprocal key columns (A carries B's Primary Key "BID"; B carries A's Primary
+	// Key "AID") must still dedupe to exactly one SQuiLKeyEdge for the pair. Before the fix,
+	// SQuiLKeyGraph.Build's pairSeen was keyed on (lo, hi, key) instead of (lo, hi), so this
+	// fixture produced TWO edges with the same Parent ("A") and Child ("B") — and
+	// SQuiLTable.cs/SQuiLModel.cs emit one nested-member property per ChildrenOf(...) entry with
+	// no dedupe, so the generated `A` record declared `B? B { get; set; }` twice (CS0102). A
+	// KeyGraphTests.cs unit test can assert the edge count directly, but only an actual compile
+	// catches the duplicate-member shape this test guards against.
+	[Fact]
+	public void ReciprocalKeyColumnsProduceOneEdgeNotDuplicateMembers()
+	{
+		var name = nameof(ReciprocalKeyColumnsProduceOneEdgeNotDuplicateMembers);
+		CompilationAssert.GeneratedCodeCompiles(
+			[TestHeader([name])],
+			[$"""
+			--Name: {name}
+			Declare @Return_A table(AID int Primary Key, BID int);
+			Declare @Return_B table(BID int Primary Key, AID int);
+			Use [Database];
+			Insert Into @Return_A Select AID, BID From X;
+			Insert Into @Return_B Select BID, AID From Y;
+			Select * From @Return_A;
+			Select * From @Return_B;
+			"""]);
+	}
+
 	[Fact]
 	public void GeneratedCodeCompilesWithoutImplicitUsings()
 	{

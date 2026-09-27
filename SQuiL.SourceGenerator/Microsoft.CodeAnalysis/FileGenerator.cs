@@ -145,7 +145,7 @@ public class FileGenerator(
 			}
 
 			// Nested-objects (Task 4/7): build the key graph from OUTPUT blocks only (INPUT
-			// nesting is out of scope). An errored graph (ambiguous/cycle) is a build error —
+			// nesting is out of scope). An errored graph (duplicate-pk/cycle) is a build error —
 			// report SP0033/SP0034 for each finding and skip emitting this file's models and
 			// data-context entirely (same "bail out of Create" shape as the DiagnosticException
 			// catch below), rather than silently falling back to the flat path.
@@ -158,13 +158,13 @@ public class FileGenerator(
 					if (finding.Kind == "cycle")
 						Context.ReportKeyCycle(method, finding);
 					else
-						Context.ReportAmbiguousKeyLink(method, finding);
+						Context.ReportDuplicatePrimaryKey(method, finding);
 				}
 				return default;
 			}
 
 			// Nested-objects (Task 13): build the key graph from INPUT blocks (@Param*/@Params*
-			// table/object). An ambiguous/cyclic input graph is a build error (reuse SP0033/SP0034);
+			// table/object). A duplicate-pk/cyclic input graph is a build error (reuse SP0033/SP0034);
 			// SP0036 fires when an input link column's declared type cannot have a key synthesized
 			// (neither integer-family nor uniqueidentifier). Any of these skips this file's emission.
 			var inputBlocksForGraph = blocks.Where(b => (b.CodeType & CodeType.INPUT) == CodeType.INPUT);
@@ -176,7 +176,7 @@ public class FileGenerator(
 					if (finding.Kind == "cycle")
 						Context.ReportKeyCycle(method, finding);
 					else
-						Context.ReportAmbiguousKeyLink(method, finding);
+						Context.ReportDuplicatePrimaryKey(method, finding);
 				}
 				return default;
 			}
@@ -184,8 +184,13 @@ public class FileGenerator(
 			// SP0036: every input link column must be synthesizable (int/bigint/smallint sequential
 			// or uniqueidentifier → Guid.NewGuid()). The link column is the parent's Primary Key,
 			// carried by the child as its foreign key (edge.KeyName).
+			// An embedded lookup's key is caller-supplied, so its classic children receive it as-is.
+			var embeddedInputs = new HashSet<CodeBlock>(inputGraph.Edges.Where(e => e.IsEmbed).Select(e => e.Child));
 			foreach (var edge in inputGraph.Edges)
 			{
+				// An embed's key is caller-supplied (copied up, never synthesized).
+				if (edge.IsEmbed || embeddedInputs.Contains(edge.Parent)) continue;
+
 				var keyColumn = edge.Parent.Properties?.FirstOrDefault(p => p.IsPrimaryKey && p.Identifier.Value == edge.KeyName)
 					?? edge.Parent.Properties?.FirstOrDefault(p => p.Identifier.Value == edge.KeyName);
 				if (keyColumn is null || IsSynthesizableKeyType(keyColumn.Type.Type))

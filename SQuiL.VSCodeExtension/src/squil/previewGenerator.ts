@@ -6,8 +6,9 @@
  * does not attempt to replicate every nuance of the real generator.
  */
 
-import { SQuiLParseResult, SQuiLVariable } from './parser';
+import { SQuiLParseResult, SQuiLVariable, VariableRole } from './parser';
 import { EditorDialect } from './dialect';
+import { buildKeyGraph, OUTPUT_TABLE_ROLES, INPUT_TABLE_ROLES } from './keyGraph';
 
 // ─── SQL → C# type mapping ────────────────────────────────────────────────
 
@@ -124,65 +125,55 @@ function isCollectionRole(v: SQuiLVariable): boolean {
   return v.role === 'params' || v.role === 'returns';
 }
 
-// ─── Nested-objects key graph (preview-only mirror of SQuiLKeyGraph.cs) ───
+// ─── Nested-objects key graph (adapts shared keyGraph.ts) ─────────────────
 
 /**
- * Minimal preview mirror of the generator's `SQuiLKeyGraph`
- * (`SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs`): a table/object
- * variable's key is its single `Primary Key` column; any OTHER variable in
- * the SAME universe carrying a column of that exact name becomes its child.
- * Variables nobody links to are roots. Called once for OUTPUT (`@Return*`)
- * table/object variables and once for INPUT (`@Param*`) table/object
- * variables (never mixed), matching the generator building one graph per
- * side (`FileGenerator.cs`'s `keyGraph` / `inputGraph`).
- *
- * Simplified relative to the generator: ambiguous (>1 distinct parent) or
- * cyclic links are build-time errors owned by the generator/editor
- * diagnostics, not the preview — here the first matching PK owner silently
- * wins so the preview always renders *something* reasonable (graceful
- * degradation to the flat shape when there are no links at all).
+ * Adapts the shared `buildKeyGraph` (`./keyGraph.ts`, already R0/R1/R3-resolved) into the
+ * shape `generateCSharpPreview` renders. The preview is not a diagnostics source, so
+ * `errors`/`hints` are ignored — `emitTableRecord` stays a flat, non-recursive pass, so a
+ * duplicate-pk/cycle file still renders rather than looping.
  */
 interface NestedGraph {
-  /** Variables that are not any other variable's child — the top-level Response members. */
+  /** Variables that are not any other variable's child — the top-level Response/Request members. */
   roots: SQuiLVariable[];
-  /** parent → its direct children, in declaration order. */
+  /** parent → its direct children, in edge order. */
   childrenOf: Map<SQuiLVariable, SQuiLVariable[]>;
   /** true when `v` collapses into a parent record instead of staying top-level. */
   isChild: (v: SQuiLVariable) => boolean;
+  /** true when `v` is nested because IT owns the shared key (embedded lookup) — rendered as a single object. */
+  isEmbed: (v: SQuiLVariable) => boolean;
+  /** container → key columns its embeds supply (elided from its record, R4). */
+  elidedKeysOf: Map<SQuiLVariable, string[]>;
 }
 
-function buildNestedGraph(tableVars: SQuiLVariable[]): NestedGraph {
-  // key column name (lower-cased) -> the variable whose Primary Key it is.
-  const pkOwner = new Map<string, SQuiLVariable>();
-  for (const v of tableVars) {
-    const pk = (v.columns ?? []).find(c => c.isPrimaryKey);
-    if (pk && !pkOwner.has(pk.name.toLowerCase())) {
-      pkOwner.set(pk.name.toLowerCase(), v);
-    }
-  }
-
-  const parentOf = new Map<SQuiLVariable, SQuiLVariable>();
-  for (const child of tableVars) {
-    for (const col of child.columns ?? []) {
-      const owner = pkOwner.get(col.name.toLowerCase());
-      if (owner && owner !== child) {
-        parentOf.set(child, owner);
-        break;
-      }
-    }
-  }
+function buildNestedGraph(tableVars: SQuiLVariable[], roles: ReadonlySet<VariableRole>): NestedGraph {
+  const { edges } = buildKeyGraph(tableVars, roles);
 
   const childrenOf = new Map<SQuiLVariable, SQuiLVariable[]>();
-  for (const v of tableVars) {
-    const parent = parentOf.get(v);
-    if (!parent) continue;
-    const list = childrenOf.get(parent);
-    if (list) list.push(v);
-    else childrenOf.set(parent, [v]);
+  const children = new Set<SQuiLVariable>();
+  const embeds = new Set<SQuiLVariable>();
+  const elidedKeysOf = new Map<SQuiLVariable, string[]>();
+  for (const e of edges) {
+    children.add(e.child);
+    if (e.isEmbed) {
+      embeds.add(e.child);
+      const keys = elidedKeysOf.get(e.parent);
+      if (keys) keys.push(e.keyName);
+      else elidedKeysOf.set(e.parent, [e.keyName]);
+    }
+    const list = childrenOf.get(e.parent);
+    if (list) list.push(e.child);
+    else childrenOf.set(e.parent, [e.child]);
   }
 
-  const roots = tableVars.filter(v => !parentOf.has(v));
-  return { roots, childrenOf, isChild: v => parentOf.has(v) };
+  const roots = tableVars.filter(v => !children.has(v));
+  return {
+    roots,
+    childrenOf,
+    isChild: v => children.has(v),
+    isEmbed: v => embeds.has(v),
+    elidedKeysOf,
+  };
 }
 
 function getPropertyType(v: SQuiLVariable, modelsNs?: string, dialect: EditorDialect = 'sqlserver'): string {
@@ -231,13 +222,17 @@ export function generateCSharpPreview(
   // OWN parent/child graph (never mixed, matching the generator's two independent
   // graphs). Children collapse into their parent record and drop off the
   // Request/Response top level.
-  const outputGraph = buildNestedGraph(returnTableVars);
-  const inputGraph = buildNestedGraph(paramTableVars);
+  const outputGraph = buildNestedGraph(returnTableVars, OUTPUT_TABLE_ROLES);
+  const inputGraph = buildNestedGraph(paramTableVars, INPUT_TABLE_ROLES);
   const responseVars = returns.filter(v => !outputGraph.isChild(v));
   const requestVars = params.filter(v => !inputGraph.isChild(v));
 
   function childrenOf(v: SQuiLVariable): SQuiLVariable[] | undefined {
     return outputGraph.childrenOf.get(v) ?? inputGraph.childrenOf.get(v);
+  }
+  const isEmbed = (v: SQuiLVariable): boolean => outputGraph.isEmbed(v) || inputGraph.isEmbed(v);
+  function elidedKeysOf(v: SQuiLVariable): string[] | undefined {
+    return outputGraph.elidedKeysOf.get(v) ?? inputGraph.elidedKeysOf.get(v);
   }
 
   banner(lines, queryName, db);
@@ -327,7 +322,7 @@ export function generateCSharpPreview(
     lines.push(`namespace ${modelsNs};`);
     lines.push('');
     for (const v of tableVars) {
-      emitTableRecord(lines, recordTypeName(v), v, modelsNs, childrenOf(v), dialect);
+      emitTableRecord(lines, recordTypeName(v), v, modelsNs, childrenOf(v), dialect, isEmbed, elidedKeysOf(v));
     }
   }
 
@@ -373,6 +368,8 @@ function emitTableRecord(
   modelsNs?: string,
   children?: SQuiLVariable[],
   dialect: EditorDialect = 'sqlserver',
+  isEmbed?: (v: SQuiLVariable) => boolean,
+  elidedKeys?: string[],
 ): void {
   if (!v.columns || v.columns.length === 0) return;
 
@@ -381,8 +378,11 @@ function emitTableRecord(
     return col.nullable ? `${cs}?` : cs;
   };
 
-  const positional = v.columns.filter(c => !c.defaultValue);
-  const defaulted = v.columns.filter(c => c.defaultValue);
+  // R4: a column an embed supplies is dropped from the record.
+  const elided = new Set((elidedKeys ?? []).map(k => k.toLowerCase()));
+  const kept = v.columns.filter(c => !elided.has(c.name.toLowerCase()));
+  const positional = kept.filter(c => !c.defaultValue);
+  const defaulted = kept.filter(c => c.defaultValue);
   const params = positional.map(c => `${csType(c)} ${c.name}`).join(', ');
   const hasChildren = children !== undefined && children.length > 0;
 
@@ -407,6 +407,12 @@ function emitTableRecord(
   // generator output). Object children (either side) never get one.
   if (hasChildren) {
     children!.forEach(child => {
+      // An embed is always a single object (R2), whatever its prefix.
+      if (isEmbed?.(child)) {
+        const embedType = modelsNs ? `${modelsNs}.${recordTypeName(child)}` : recordTypeName(child);
+        lines.push(`    public ${embedType}? ${child.name} { get; set; }`);
+        return;
+      }
       // Only the INPUT list case gets an initializer (and thus needs the
       // trailing `;`); a bare auto-property has no initializer and no `;`
       // (matches `*.g.verified.cs` ground truth for both sides).

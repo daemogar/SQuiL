@@ -1,48 +1,63 @@
 /**
- * Orphaned Primary-Key hint pass (SP0035).
- *
- * Editor-only Hint (VS Code Hint severity, C# Info severity) — NOT a
- * build/generator diagnostic. Fires when a table/object variable declares a
- * `Primary Key` column that NO other table/object in the file links to (no
- * matching-named column anywhere else) — but ONLY when nesting is already
- * "in play" in that same universe, i.e. at least one real parent/child link
- * exists elsewhere (`hasLinks`). A deliberately-flat file whose tables happen
- * to each declare an unrelated Primary Key must NOT be nagged.
- *
- * Applied to BOTH the OUTPUT (`@Return_`/`@Returns_`) and INPUT (`@Param_`/
- * `@Params_`) key graphs independently — `hasLinks` is evaluated per-graph, so
- * an orphaned output PK is never masked by an unrelated input link (or vice
- * versa), matching the generator's two independent graphs.
- *
- * Mirrors `SQuiLKeyGraph.Hints` (`SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs`)
- * and `LintKeyGraph`'s orphan branch in `SQuiLLinter.cs` (SSMS + Visual Studio) —
- * change one side, change all three.
- *
- * The caller (diagnosticsProvider) converts these into vscode.Diagnostic
- * objects; unit tests consume the raw descriptors directly — no vscode
- * dependency here.
+ * Editor-only nested-object hints: orphaned Primary Key (SP0035) and containment direction (SP0045),
+ * per graph side. SP0045 is editor-only, mirrored by `LintContainmentHint` in both `SQuiLLinter.cs`.
+ * Rules: `SQuiL.SourceGenerator/README.md`, "Nested objects: key graph".
  */
 
-import { SQuiLParseResult } from './parser';
-import { buildKeyGraph, OUTPUT_TABLE_ROLES, INPUT_TABLE_ROLES } from './keyGraph';
+import { SQuiLParseResult, SQuiLVariable } from './parser';
+import { buildKeyGraph, KeyGraphEdge, KeyGraphResult, OUTPUT_TABLE_ROLES, INPUT_TABLE_ROLES } from './keyGraph';
 
 export interface NestedObjectHint {
-  code: 'SP0035';
+  code: 'SP0035' | 'SP0045';
   message: string;
   line: number;
   character: number;
-  /** Length of the token to underline (the Primary Key column name). */
+  /** Length of the token to underline (the Primary Key column name, or the
+   *  nested variable's raw name for SP0045). */
   length: number;
 }
 
+/** "list" for a plural (`Returns_`/`Params_`) child, "single object" for a
+ *  singular (`Return_`/`Param_`) one — but an embed is ALWAYS a single
+ *  object (the container's FK column is dropped from the C# record), which
+ *  overrides the child's own declared cardinality. */
+function cardinalityWord(edge: KeyGraphEdge): string {
+  if (edge.isEmbed) return 'single object';
+  return edge.child.role === 'returns' || edge.child.role === 'params' ? 'list' : 'single object';
+}
+
+/** Declaration order between two variables — the earlier source position wins. */
+function declaredBefore(a: SQuiLVariable, b: SQuiLVariable): boolean {
+  return a.line !== b.line ? a.line < b.line : a.character < b.character;
+}
+
+function containmentHints(graph: KeyGraphResult): NestedObjectHint[] {
+  return graph.edges.map(edge => {
+    const word = cardinalityWord(edge);
+    const containerDeclaredFirst = declaredBefore(edge.parent, edge.child);
+    const message = containerDeclaredFirst
+      ? `\`${edge.child.name}\` nests inside \`${edge.parent.name}\` as a ${word}, because ` +
+        `\`${edge.parent.name}\` is declared first. Reorder the declarations to swap the containment.`
+      : `\`${edge.child.name}\` nests inside \`${edge.parent.name}\` as a single object, because ` +
+        `\`${edge.parent.name}\` references its Primary Key \`${edge.keyName}\` as a lookup.`;
+    return {
+      code: 'SP0045',
+      message,
+      line: edge.child.line,
+      character: edge.child.character,
+      length: edge.child.rawName.length,
+    };
+  });
+}
+
 /**
- * Return all SP0035 hint descriptors for the given parse result.
+ * Return all SP0035 + SP0045 hint descriptors for the given parse result.
  */
 export function nestedObjectHints(parsed: SQuiLParseResult): NestedObjectHint[] {
   const outputGraph = buildKeyGraph(parsed.variables, OUTPUT_TABLE_ROLES);
   const inputGraph = buildKeyGraph(parsed.variables, INPUT_TABLE_ROLES);
 
-  return [...outputGraph.hints, ...inputGraph.hints].map(finding => {
+  const orphanHints: NestedObjectHint[] = [...outputGraph.hints, ...inputGraph.hints].map(finding => {
     const col = finding.column!;
     const v = finding.variable;
     return {
@@ -55,4 +70,6 @@ export function nestedObjectHints(parsed: SQuiLParseResult): NestedObjectHint[] 
       length: col.name.length,
     };
   });
+
+  return [...orphanHints, ...containmentHints(outputGraph), ...containmentHints(inputGraph)];
 }
