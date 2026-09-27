@@ -463,9 +463,7 @@ SQuiL/
     `DiagnosticsMessages.ReportAmbiguousScalarAlias`, and the editor mirrors
     (`lintAmbiguousScalarAlias` in `parser.ts`; `LintAmbiguousScalarAlias` in both
     `SQuiLLinter.cs`).
-    **SP0045 is RESERVED** by the sibling `worktree-scalar-alias-cleanup`
-    branch — do not assign it here.
-    **SP0046 is now TAKEN** — editor-only Hint (VS Code) / Info (both C#
+    **SP0045 is now TAKEN** — editor-only Hint (VS Code) / Info (both C#
     extensions), NOT a build/generator diagnostic: fires once per key-graph
     edge, anchored on the nested variable's declaration, explaining which way
     it nests and why — declaration order (R1) for a normal edge ("`Contact`
@@ -477,7 +475,7 @@ SQuiL/
     INPUT graphs. See `nestedObjectHints.ts` (VS Code, `containmentHints`) and
     `SQuiLLinter.LintContainmentHint` (SSMS + Visual Studio); the generator never
     produces it.
-    Next free: **SP0047**. (Verify an id is truly unreferenced with a repo-wide grep
+    Next free: **SP0046**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
   - Signature: `[SQuiLQueryTransaction(QueryFiles type, string setting = "SQuiLDatabase", bool enabled = true, bool debugRollback = true)]`
@@ -959,8 +957,8 @@ differ per dialect via `ISqlDialect`.
 - **No new diagnostic id.** PostgreSQL reuses SP0038 (missing provider
   package)/SP0039 (ambiguous dialect)/SP0040 (params-before-returns, error
   for PostgreSQL as a temp-table dialect) unchanged. Next free id is now
-  **SP0047** (SP0041–SP0046 have since been taken or reserved by later features;
-  see "Diagnostic IDs" above).
+  **SP0046** (SP0041–SP0045 have since been taken by later features; see
+  "Diagnostic IDs" above).
 
 Inheriting the provider base class explicitly is **not required**. When the context class declares no constructor of its own, the generator emits a `<Ctx>.Constructor.g.cs` file that supplies:
 
@@ -1125,7 +1123,7 @@ parent row with zero matching children keeps today's semantics (empty list
 **Diagnostics:** SP0033 (build error, reused — duplicate Primary Key owner),
 SP0034 (build error — PK/FK cycle, reachable when R3's inversions close a
 loop; reorder the declarations), SP0035 (editor-only Hint/Info — orphaned PK, now counting edges in either
-direction so an embedded lookup is never falsely flagged), SP0046
+direction so an embedded lookup is never falsely flagged), SP0045
 (editor-only Hint/Info — explains which way each edge nests and why). See
 "Diagnostic IDs" above for the full narrative. Graceful degradation: a file
 with no PK/FK links generates today's flat response, unchanged.
@@ -1218,7 +1216,7 @@ or a non-null object child) throws `InvalidOperationException`
 lookup receives the lookup's caller-supplied key as its FK (nothing is
 synthesized for that edge).
 
-**Diagnostics:** SP0033/SP0034/SP0035/SP0046 all apply to the INPUT graph
+**Diagnostics:** SP0033/SP0034/SP0035/SP0045 all apply to the INPUT graph
 exactly as described above (independent gating — see "Diagnostic IDs").
 **SP0036** additionally fires, but **child-direction only** — an embed's key
 is caller-supplied, never synthesized, so an embed with e.g. a `varchar` key
@@ -1285,10 +1283,9 @@ editor squiggle — a plural prefix on a scalar declare) is taken by the
 plural-scalar-declare check. SP0044 (build error + all 3 editors — a bare scalar
 `Select` followed by the ambiguous `throw`/`go`, which is both a statement starter
 and a legal AS-less alias) is taken by the ambiguous-scalar-alias check.
-SP0045 is RESERVED by the sibling `worktree-scalar-alias-cleanup` branch. SP0046
-taken by the editor-only containment-direction hint (R1/R3 — explains which way
+SP0045 is taken by the editor-only containment-direction hint (R1/R3 — explains which way
 each nested-object edge nests and why).
-Next free id: **SP0047**.
+Next free id: **SP0046**.
 
 ## Special Handling
 

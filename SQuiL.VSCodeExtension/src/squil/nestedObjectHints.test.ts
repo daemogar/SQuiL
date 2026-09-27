@@ -19,7 +19,7 @@ test('SP0035 fires on a Primary Key no child links to, when a link exists elsewh
     'Select 1;',
   ].join('\n')));
 
-  // The Parent/Child link also produces one SP0046 containment hint (Task 6) —
+  // The Parent/Child link also produces one SP0045 containment hint (Task 6) —
   // filter to SP0035 to keep this assertion about the orphan hint alone.
   const sp0035 = hints.filter(h => h.code === 'SP0035');
   assert.strictEqual(sp0035.length, 1, 'only the truly orphaned PK should be flagged');
@@ -42,7 +42,7 @@ test('SP0035 stays silent on a fully-flat file with unrelated Primary Keys (no l
 test('SP0035 stays silent when every declared Primary Key has a linking child', () => {
   // Child is a leaf with no PK of its own, so Parent's PK is the only PK in
   // play and it IS linked — no orphan. (The link itself still produces one
-  // SP0046 containment hint — Task 6 — so filter to SP0035 here.)
+  // SP0045 containment hint — Task 6 — so filter to SP0035 here.)
   const hints = nestedObjectHints(parseSQuiL([
     '--Name: FullyLinked',
     'Declare @Returns_Parent table(ParentID int Primary Key, Name varchar(50));',
@@ -69,7 +69,7 @@ test('SP0035 fires on an orphaned INPUT Primary Key, when an input link exists e
     'Insert Into dbo.U Select UnrelatedID, X From @Params_Unrelated;',
   ].join('\n')));
 
-  // The Parent/Child link also produces one SP0046 containment hint (Task 6) —
+  // The Parent/Child link also produces one SP0045 containment hint (Task 6) —
   // filter to SP0035 to keep this assertion about the orphan hint alone.
   const sp0035 = hints.filter(h => h.code === 'SP0035');
   assert.strictEqual(sp0035.length, 1, 'only the truly orphaned input PK should be flagged');
@@ -94,7 +94,7 @@ test('SP0035 on the INPUT graph is unaffected by an unrelated OUTPUT-side link (
   // Output side has a real link (Parent/Child); input side has ONE isolated
   // table with its own PK that nothing else links to. The output link must
   // not "activate" hasLinks for the input graph. (The output link still
-  // produces one SP0046 containment hint of its own — Task 6 — so filter to
+  // produces one SP0045 containment hint of its own — Task 6 — so filter to
   // SP0035 to keep this assertion about the orphan hint alone.)
   const hints = nestedObjectHints(parseSQuiL([
     '--Name: MixedIsolation',
@@ -111,7 +111,7 @@ test('SP0035 on the INPUT graph is unaffected by an unrelated OUTPUT-side link (
   );
 });
 
-// ── SP0046: containment-direction hint (Task 6) ─────────────────────────
+// ── SP0045: containment-direction hint (Task 6) ─────────────────────────
 //
 // Editor-only Hint (VS Code) / Info (C#) — NOT a build/generator diagnostic.
 // One hint per key-graph edge, anchored on the NESTED (child) variable's
@@ -119,7 +119,7 @@ test('SP0035 on the INPUT graph is unaffected by an unrelated OUTPUT-side link (
 // order (R1) for a normal edge, or the container's own reference to the
 // nested variable's Primary Key for an R3-inverted junction edge.
 
-test('SP0046 explains an embed edge — nests as a single object because the container is declared first', () => {
+test('SP0045 explains an embed edge — nests as a single object because the container is declared first', () => {
   const hints = nestedObjectHints(parseSQuiL([
     '--Name: EmbedDirection',
     'Declare @Returns_Structure table(Title varchar(50), ContactID varchar(10));',
@@ -128,15 +128,15 @@ test('SP0046 explains an embed edge — nests as a single object because the con
     'Select 1;',
   ].join('\n')));
 
-  const sp0046 = hints.filter(h => h.code === 'SP0046');
-  assert.strictEqual(sp0046.length, 1);
-  assert.ok(sp0046[0].message.includes('`Contact` nests inside `Structure`'));
-  assert.ok(sp0046[0].message.includes('as a single object'));
-  assert.ok(sp0046[0].message.includes('declared first'));
-  assert.ok(sp0046[0].message.includes('Reorder the declarations'));
+  const sp0045 = hints.filter(h => h.code === 'SP0045');
+  assert.strictEqual(sp0045.length, 1);
+  assert.ok(sp0045[0].message.includes('`Contact` nests inside `Structure`'));
+  assert.ok(sp0045[0].message.includes('as a single object'));
+  assert.ok(sp0045[0].message.includes('declared first'));
+  assert.ok(sp0045[0].message.includes('Reorder the declarations'));
 });
 
-test('SP0046 explains a classic list child', () => {
+test('SP0045 explains a classic list child', () => {
   const hints = nestedObjectHints(parseSQuiL([
     '--Name: ChildDirectionList',
     'Declare @Return_Transcript table(TranscriptID int Primary Key, IssueDate date);',
@@ -145,14 +145,14 @@ test('SP0046 explains a classic list child', () => {
     'Select 1;',
   ].join('\n')));
 
-  const sp0046 = hints.filter(h => h.code === 'SP0046');
-  assert.strictEqual(sp0046.length, 1);
-  assert.ok(sp0046[0].message.includes('`Institution` nests inside `Transcript`'));
-  assert.ok(sp0046[0].message.includes('as a list'));
-  assert.ok(sp0046[0].message.includes('declared first'));
+  const sp0045 = hints.filter(h => h.code === 'SP0045');
+  assert.strictEqual(sp0045.length, 1);
+  assert.ok(sp0045[0].message.includes('`Institution` nests inside `Transcript`'));
+  assert.ok(sp0045[0].message.includes('as a list'));
+  assert.ok(sp0045[0].message.includes('declared first'));
 });
 
-test('SP0046 explains a classic single-object child', () => {
+test('SP0045 explains a classic single-object child', () => {
   const hints = nestedObjectHints(parseSQuiL([
     '--Name: ChildDirectionObject',
     'Declare @Return_Transcript table(TranscriptID int Primary Key, IssueDate date);',
@@ -161,14 +161,14 @@ test('SP0046 explains a classic single-object child', () => {
     'Select 1;',
   ].join('\n')));
 
-  const sp0046 = hints.filter(h => h.code === 'SP0046');
-  assert.strictEqual(sp0046.length, 1);
-  assert.ok(sp0046[0].message.includes('`Institution` nests inside `Transcript`'));
-  assert.ok(sp0046[0].message.includes('as a single object'));
-  assert.ok(sp0046[0].message.includes('declared first'));
+  const sp0045 = hints.filter(h => h.code === 'SP0045');
+  assert.strictEqual(sp0045.length, 1);
+  assert.ok(sp0045[0].message.includes('`Institution` nests inside `Transcript`'));
+  assert.ok(sp0045[0].message.includes('as a single object'));
+  assert.ok(sp0045[0].message.includes('declared first'));
 });
 
-test('SP0046 on an R3-inverted junction edge explains the lookup, not declaration order', () => {
+test('SP0045 on an R3-inverted junction edge explains the lookup, not declaration order', () => {
   const hints = nestedObjectHints(parseSQuiL([
     '--Name: Junction',
     'Declare @Returns_Student table(StudentID int Primary Key, Name varchar(50));',
@@ -180,18 +180,18 @@ test('SP0046 on an R3-inverted junction edge explains the lookup, not declaratio
     'Select * From @Returns_Enrollment;',
   ].join('\n')));
 
-  const sp0046 = hints.filter(h => h.code === 'SP0046');
-  assert.strictEqual(sp0046.length, 2);
+  const sp0045 = hints.filter(h => h.code === 'SP0045');
+  assert.strictEqual(sp0045.length, 2);
 
   // Student -> Enrollment: a normal, non-inverted list-child edge.
-  const toEnrollment = sp0046.find(h => h.message.includes('`Enrollment` nests inside `Student`'))!;
+  const toEnrollment = sp0045.find(h => h.message.includes('`Enrollment` nests inside `Student`'))!;
   assert.ok(toEnrollment, 'Student -> Enrollment hint should exist');
   assert.ok(toEnrollment.message.includes('as a list'));
   assert.ok(toEnrollment.message.includes('declared first'));
 
   // Enrollment -> Course: the R3-inverted edge. Enrollment is declared AFTER
   // Course, so the message must NOT claim declaration order.
-  const toCourse = sp0046.find(h => h.message.includes('`Course` nests inside `Enrollment`'))!;
+  const toCourse = sp0045.find(h => h.message.includes('`Course` nests inside `Enrollment`'))!;
   assert.ok(toCourse, 'Enrollment -> Course hint should exist');
   assert.ok(toCourse.message.includes('as a single object'));
   assert.ok(!toCourse.message.includes('declared first'), 'inverted edge must not claim declaration order');
@@ -200,7 +200,7 @@ test('SP0046 on an R3-inverted junction edge explains the lookup, not declaratio
   assert.ok(!toCourse.message.includes('Reorder the declarations'));
 });
 
-test('SP0046 stays silent on a flat file with no links', () => {
+test('SP0045 stays silent on a flat file with no links', () => {
   const hints = nestedObjectHints(parseSQuiL([
     '--Name: FlatFile2',
     'Declare @Returns_Person table(PersonID int Primary Key, Name varchar(50));',
@@ -209,10 +209,10 @@ test('SP0046 stays silent on a flat file with no links', () => {
     'Select 1;',
   ].join('\n')));
 
-  assert.strictEqual(hints.filter(h => h.code === 'SP0046').length, 0);
+  assert.strictEqual(hints.filter(h => h.code === 'SP0045').length, 0);
 });
 
-test('SP0046 applies independently to the INPUT graph too', () => {
+test('SP0045 applies independently to the INPUT graph too', () => {
   const hints = nestedObjectHints(parseSQuiL([
     '--Name: InputEmbed',
     'Declare @Params_Structure table(Title varchar(50), ContactID varchar(10));',
@@ -222,8 +222,8 @@ test('SP0046 applies independently to the INPUT graph too', () => {
     'Insert Into dbo.C Select ContactID, Name From @Params_Contact;',
   ].join('\n')));
 
-  const sp0046 = hints.filter(h => h.code === 'SP0046');
-  assert.strictEqual(sp0046.length, 1);
-  assert.ok(sp0046[0].message.includes('`Contact` nests inside `Structure`'));
-  assert.ok(sp0046[0].message.includes('as a single object'));
+  const sp0045 = hints.filter(h => h.code === 'SP0045');
+  assert.strictEqual(sp0045.length, 1);
+  assert.ok(sp0045[0].message.includes('`Contact` nests inside `Structure`'));
+  assert.ok(sp0045[0].message.includes('as a single object'));
 });

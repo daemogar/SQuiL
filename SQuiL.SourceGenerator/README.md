@@ -93,7 +93,7 @@ from being stitched once per container.
 - **SP0036 (unsynthesizable key):** checked on the classic (child) direction of the INPUT graph
   only. It is skipped for embed edges and for classic children of an embedded lookup, because in
   both cases the key comes from the caller.
-- **SP0046 (containment hint):** an editor-only hint. It is emitted by `nestedObjectHints.ts` and
+- **SP0045 (containment hint):** an editor-only hint. It is emitted by `nestedObjectHints.ts` and
   `SQuiLLinter.LintContainmentHint`, not by the generator.
 
 ### Input flatten

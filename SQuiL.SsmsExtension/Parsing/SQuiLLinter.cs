@@ -1044,7 +1044,7 @@ internal static class SQuiLLinter
         }
     }
 
-    // ── Nested-objects key graph (SP0033 / SP0034 / SP0035 / SP0036 / SP0046) ──
+    // ── Nested-objects key graph (SP0033 / SP0034 / SP0035 / SP0036 / SP0045) ──
     //
     // Editor mirror of SQuiLKeyGraph.cs (generator) and keyGraph.ts (VS Code): one graph per side
     // (OUTPUT, INPUT), never mixed. Change one, change all three. Rules and rationale:
@@ -1392,7 +1392,7 @@ internal static class SQuiLLinter
         LintContainmentHint(graph, diagnostics);
     }
 
-    /// <summary>SP0046 (Info, editor-only): one hint per edge, on the nested variable, saying why it
+    /// <summary>SP0045 (Info, editor-only): one hint per edge, on the nested variable, saying why it
     /// nests there. Mirrors the containment hint in <c>nestedObjectHints.ts</c>.</summary>
     private static void LintContainmentHint(KeyGraph graph, List<SQuiLDiagnostic> diagnostics)
     {
@@ -1413,7 +1413,7 @@ internal static class SQuiLLinter
                 StartChar = edge.Child.Character,
                 EndChar = edge.Child.Character + edge.Child.RawName.Length,
                 Severity = DiagnosticSeverity.Info,
-                Code = "SP0046",
+                Code = "SP0045",
             });
         }
     }
