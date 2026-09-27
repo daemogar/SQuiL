@@ -47,7 +47,7 @@ partial class ManyToManyJunctionInputDataContext : SqlServerDataContext
 				__Enrollment.Add(new(
 					studentKey,
 					enrollment.Grade));
-				__Enrollment__CourseID.Add((enrollment.Course ?? throw new NullReferenceException("ManyToManyJunctionInputRequest Enrollment.Course is required: it supplies the not-null CourseID column.")).CourseID);
+				__Enrollment__CourseID.Add((enrollment.Course ?? throw new InvalidOperationException("ManyToManyJunctionInputRequest Enrollment.Course is required: it supplies the not-null CourseID column.")).CourseID);
 				if (enrollment.Course is not null)
 				{
 					var course = enrollment.Course;

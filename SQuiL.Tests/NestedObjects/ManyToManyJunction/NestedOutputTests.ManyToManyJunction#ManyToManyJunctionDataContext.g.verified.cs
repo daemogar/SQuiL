@@ -133,7 +133,7 @@ partial class ManyToManyJunctionDataContext : SqlServerDataContext
 				var __match = __Course.Where(c => c.CourseID == __fk).ToList();
 				if (__match.Count > 1)
 				{
-					throw new Exception("Return object results in more than one object. Consider using a return table instead.");
+					throw new Exception("Lookup `Course` has more than one row for key `CourseID`.");
 				}
 				__Enrollment[__i].Course = __match.Count == 1 ? __match[0] : null;
 			}

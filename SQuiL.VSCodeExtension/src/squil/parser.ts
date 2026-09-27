@@ -370,7 +370,8 @@ export function lintKeyGraph(result: SQuiLParseResult): SQuiLDiagnostic[] {
         diagnostics.push({
           message:
             `\`${v.name}\` (line ${v.line + 1}) and \`${other.name}\` (line ${other.line + 1}) ` +
-            `form a primary-key/foreign-key cycle. Nested objects cannot be recursive — remove one of the links.`,
+            `form a primary-key/foreign-key cycle, which can arise when a block with several containers is ` +
+            `re-nested. Nested objects cannot be recursive — reorder the declarations or remove one of the links.`,
           line: v.line,
           startChar: v.character,
           endChar: v.character + v.rawName.length,
@@ -410,9 +411,11 @@ function baseSqlType(sqlType: string): string {
 export function lintUnsupportedInputKeyType(inputGraph: KeyGraphResult): SQuiLDiagnostic[] {
   const diagnostics: SQuiLDiagnostic[] = [];
 
+  // An embedded lookup's key is caller-supplied, so its classic children receive it as-is.
+  const embedded = new Set(inputGraph.edges.filter(e => e.isEmbed).map(e => e.child));
   for (const edge of inputGraph.edges) {
     // An embed's key is caller-supplied (copied up, never synthesized).
-    if (edge.isEmbed) continue;
+    if (edge.isEmbed || embedded.has(edge.parent)) continue;
     const parentColumns = (edge.parent.columns ?? []) as TableColumn[];
     const keyColumn =
       parentColumns.find(c => c.isPrimaryKey && c.name.toLowerCase() === edge.keyName.toLowerCase()) ??

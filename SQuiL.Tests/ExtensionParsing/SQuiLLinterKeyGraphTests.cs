@@ -204,6 +204,8 @@ public class SQuiLLinterKeyGraphTests
 		var diagnostic = Assert.Single(sp0034);
 		Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
 		Assert.Contains("cycle", diagnostic.Message, System.StringComparison.OrdinalIgnoreCase);
+		Assert.Contains("several containers", diagnostic.Message);
+		Assert.Contains("reorder the declarations", diagnostic.Message);
 	}
 
 	/// <summary>
@@ -305,6 +307,122 @@ public class SQuiLLinterKeyGraphTests
 		SQuiLLinter.LintKeyGraph(sql, diagnostics);
 
 		Assert.Single(diagnostics, d => d.Code == "SP0036");
+	}
+
+	/// <summary>A classic child under an embedded lookup receives the lookup's caller-supplied key: no SP0036.</summary>
+	[Fact]
+	public void LintKeyGraphDoesNotReportSP0036ForAClassicChildUnderAnEmbeddedLookup()
+	{
+		const string sql = """
+			Declare @Params_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);
+			Declare @Params_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);
+			Declare @Params_Phone table(PhoneID int not null Primary Key, ContactID varchar(10) not null, Number varchar(20) not null);
+			Use [Db]; Select 1;
+			""";
+
+		var diagnostics = new List<SQuiLDiagnostic>();
+		SQuiLLinter.LintKeyGraph(sql, diagnostics);
+
+		Assert.DoesNotContain(diagnostics, d => d.Code == "SP0036");
+	}
+
+	// ── Hover role + linked-column spans follow the owner, not the container ──
+
+	private const string EmbedSql = """
+		Declare @Returns_Structure table(Title varchar(50), ContactID varchar(10));
+		Declare @Returns_Contact table(ContactID varchar(10) Primary Key, Name varchar(50));
+		Use [Db]; Select 1;
+		""";
+
+	private const string JunctionSql = """
+		Declare @Returns_Student table(StudentID int Primary Key, Name varchar(50));
+		Declare @Returns_Course table(CourseID int Primary Key, Title varchar(50));
+		Declare @Returns_Enrollment table(StudentID int, CourseID int, Grade varchar(2));
+		Use [Db]; Select 1;
+		""";
+
+	private const string ClassicSql = """
+		Declare @Returns_Parent table(ParentID int Primary Key, Name varchar(50));
+		Declare @Returns_Child table(ChildID int, ParentID int);
+		Use [Db]; Select 1;
+		""";
+
+	private const string ChildFirstSql = """
+		Declare @Returns_Child table(ChildID int, ParentID int);
+		Declare @Returns_Parent table(ParentID int Primary Key, Name varchar(50));
+		Use [Db]; Select 1;
+		""";
+
+	private static string? RoleAt(string sql, int line, string column)
+	{
+		var character = sql.Split('\n')[line].IndexOf(column, System.StringComparison.Ordinal);
+		Assert.True(character >= 0, $"line {line} should contain {column}");
+		return SQuiLLinter.DescribeColumnLinkRole(SQuiLParser.Parse(sql, EditorDialect.SqlServer), line, character);
+	}
+
+	private static bool Tagged(string sql, int line, string column)
+	{
+		var character = sql.Split('\n')[line].IndexOf(column, System.StringComparison.Ordinal);
+		return SQuiLLinter.LinkedColumnSpans(SQuiLParser.Parse(sql, EditorDialect.SqlServer))
+			.Contains((line, character, column.Length));
+	}
+
+	[Fact]
+	public void DescribeColumnLinkRoleExplainsAnEmbed()
+	{
+		var pk = RoleAt(EmbedSql, 1, "ContactID");
+		Assert.NotNull(pk);
+		Assert.Contains("Primary Key", pk);
+		Assert.DoesNotContain("no child table links", pk);
+		Assert.Contains("Structure", pk);
+
+		var fk = RoleAt(EmbedSql, 0, "ContactID");
+		Assert.NotNull(fk);
+		Assert.Contains("Foreign key by convention", fk);
+		Assert.Contains("single object", fk);
+	}
+
+	[Fact]
+	public void DescribeColumnLinkRoleExplainsAJunction()
+	{
+		var coursePk = RoleAt(JunctionSql, 1, "CourseID");
+		Assert.NotNull(coursePk);
+		Assert.DoesNotContain("no child table links", coursePk);
+		Assert.Contains("Enrollment", coursePk);
+
+		var courseFk = RoleAt(JunctionSql, 2, "CourseID");
+		Assert.NotNull(courseFk);
+		Assert.Contains("Foreign key by convention", courseFk);
+
+		var studentFk = RoleAt(JunctionSql, 2, "StudentID");
+		Assert.NotNull(studentFk);
+		Assert.Contains("nest under `Student`", studentFk);
+	}
+
+	[Fact]
+	public void DescribeColumnLinkRoleExplainsClassicLinksInEitherDeclarationOrder()
+	{
+		Assert.Contains("child tables", RoleAt(ClassicSql, 0, "ParentID"));
+		Assert.Contains("nest under `Parent`", RoleAt(ClassicSql, 1, "ParentID"));
+
+		var pk = RoleAt(ChildFirstSql, 1, "ParentID");
+		Assert.NotNull(pk);
+		Assert.DoesNotContain("no child table links", pk);
+		Assert.Contains("Foreign key by convention", RoleAt(ChildFirstSql, 0, "ParentID"));
+	}
+
+	[Fact]
+	public void LinkedColumnSpansTagBothEndsOfEveryEdgeShape()
+	{
+		Assert.True(Tagged(EmbedSql, 0, "ContactID"), "Structure.ContactID");
+		Assert.True(Tagged(EmbedSql, 1, "ContactID"), "Contact.ContactID");
+		Assert.True(Tagged(JunctionSql, 1, "CourseID"), "Course.CourseID");
+		Assert.True(Tagged(JunctionSql, 2, "CourseID"), "Enrollment.CourseID");
+		Assert.True(Tagged(JunctionSql, 2, "StudentID"), "Enrollment.StudentID");
+		Assert.True(Tagged(ClassicSql, 0, "ParentID"), "Parent.ParentID");
+		Assert.True(Tagged(ClassicSql, 1, "ParentID"), "Child.ParentID");
+		Assert.True(Tagged(ChildFirstSql, 0, "ParentID"), "Child.ParentID (child first)");
+		Assert.True(Tagged(ChildFirstSql, 1, "ParentID"), "Parent.ParentID (child first)");
 	}
 
 	// ── SP0046: containment-direction hint (Task 6) ──────────────────────────

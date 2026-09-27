@@ -636,6 +636,8 @@ public class SQuiLDataContext(
 
 			foreach (var edge in DeepestFirstEdges())
 			{
+				// KeyName is the carrier's spelling; the owner's record uses its own (matching is case-insensitive).
+				var ownerKey = OwnerKeyColumn(edge);
 				if (edge.IsEmbed)
 				{
 					// The container's key was elided; read it from the parallel list by index.
@@ -643,7 +645,8 @@ public class SQuiLDataContext(
 					{
 						writer.WriteLine($"var __fk = __{edge.Parent.Name}__{edge.KeyName}[__i];");
 						EmitSingleOrFriendly($"__{edge.Parent.Name}[__i].{edge.Child.Name}",
-							$"__{edge.Child.Name}.Where(c => c.{edge.KeyName} == __fk)", "__match");
+							$"__{edge.Child.Name}.Where(c => c.{ownerKey} == __fk)", "__match",
+							$"Lookup `{edge.Child.Name}` has more than one row for key `{ownerKey}`.");
 					});
 					continue;
 				}
@@ -651,10 +654,10 @@ public class SQuiLDataContext(
 				writer.Block($"foreach (var parent in __{edge.Parent.Name})", () =>
 				{
 					if (edge.Child.IsTable)
-						writer.WriteLine($"parent.{edge.Child.Name} = __{edge.Child.Name}.Where(c => c.{edge.KeyName} == parent.{edge.KeyName}).ToList();");
+						writer.WriteLine($"parent.{edge.Child.Name} = __{edge.Child.Name}.Where(c => c.{edge.KeyName} == parent.{ownerKey}).ToList();");
 					else
 						EmitSingleOrFriendly($"parent.{edge.Child.Name}",
-							$"__{edge.Child.Name}.Where(c => c.{edge.KeyName} == parent.{edge.KeyName})", "__match");
+							$"__{edge.Child.Name}.Where(c => c.{edge.KeyName} == parent.{ownerKey})", "__match");
 				});
 			}
 
@@ -670,26 +673,27 @@ public class SQuiLDataContext(
 
 			static string Camel(string name) => $"{name[0..1].ToLower()}{name[1..]}";
 
-			// Nested-object over-cardinality guard (Important-1 fix): a root/child OBJECT
-			// result set with >1 matching row must fail with the SAME friendly message the
-			// FLAT object path already throws (see the "Return object results in more than
-			// one object..." Exception a few dozen lines up in this file, under EmitSwitchStatements'
-			// object branch) rather than the raw ".NET "Sequence contains more than one element""
-			// LINQ message that plain SingleOrDefault would surface. 0 rows -> null; 1 row -> the
-			// object; 2+ rows -> the friendly Exception. `tempVar` must be caller-unique within its
-			// enclosing C# scope (each per-edge foreach body is its own scope, so a shared literal is
-			// safe there; sibling object ROOTS share the outer method scope, so those get names keyed
-			// off the root's own identifier to avoid a duplicate-local-variable compile error).
-			void EmitSingleOrFriendly(string assignTo, string sourceExpr, string tempVar)
+			// 0 rows -> null, 1 row -> the object, 2+ rows -> a friendly Exception instead of LINQ's.
+			// `tempVar` must be unique within its C# scope.
+			void EmitSingleOrFriendly(string assignTo, string sourceExpr, string tempVar,
+				string message = "Return object results in more than one object. Consider using a return table instead.")
 			{
 				writer.WriteLine($"var {tempVar} = {sourceExpr}.ToList();");
 				writer.Block($"if ({tempVar}.Count > 1)", () =>
 				{
-					writer.WriteLine(
-						"""throw new Exception("Return object results in more than one object. Consider using a return table instead.");""");
+					writer.WriteLine($"""throw new Exception("{message}");""");
 				});
 				writer.WriteLine($"{assignTo} = {tempVar}.Count == 1 ? {tempVar}[0] : null;");
 			}
+		}
+
+		// The key owner's own spelling of the edge's key column (the child of an embed, else the parent).
+		static string OwnerKeyColumn(SQuiLKeyEdge edge)
+		{
+			var owner = edge.IsEmbed ? edge.Child : edge.Parent;
+			return owner.Properties?.FirstOrDefault(p => p.IsPrimaryKey
+				&& string.Equals(p.Identifier.Value, edge.KeyName, StringComparison.OrdinalIgnoreCase))?.Identifier.Value
+				?? edge.KeyName;
 		}
 
 		// Key columns this block's embeds supply (elided from its record, R4); output graph by default.
@@ -909,13 +913,16 @@ public class SQuiLDataContext(
 				EmitRowConstruction(node, itemExpr, keyLocal, pkColName, parentKeyLocal, fkColName, row);
 				writer.Block($"if (__{node.Name}Seen.TryGetValue({row}.{pkName}, out var {prev}))", () =>
 				{
-					var mismatch = string.Join(" || ", RecordColumns(node).Select(c => ColumnDiffers(c, prevRow, row)));
-					writer.Block($"if ({mismatch})", () => writer.WriteLine(
+					// A repeat must match column-wise, including the keys its own embeds copy up.
+					var differs = RecordColumns(node).Select(c => ColumnDiffers(c, prevRow, row))
+						.Concat(nested.Where(e => e.IsEmbed).Select(e => EmbedKeyDiffers(e, $"{prev}.Source", itemExpr)));
+					writer.Block($"if ({string.Join(" || ", differs)})", () => writer.WriteLine(
 						$$"""throw new Exception($"Conflicting values supplied for {{node.Name}} with {{pkName}} '{{{row}}.{{pkName}}}'.");"""));
 
 					// Children are walked on the first sighting only, so a second instance's would be lost.
-					if (nested.Count == 0) return;
-					var carries = string.Join(" || ", nested.Select(e => !e.IsEmbed && e.Child.IsTable
+					var children = nested.Where(e => !e.IsEmbed).ToList();
+					if (children.Count == 0) return;
+					var carries = string.Join(" || ", children.Select(e => e.Child.IsTable
 						? $"({itemExpr}.{e.Child.Name}?.Count ?? 0) > 0"
 						: $"{itemExpr}.{e.Child.Name} is not null"));
 					writer.Block($"if (!ReferenceEquals({prev}.Source, {itemExpr}) && ({carries}))", () => writer.WriteLine(
@@ -940,12 +947,20 @@ public class SQuiLDataContext(
 			}
 
 			static string ColumnDiffers(CodeItem c, string a, string b)
+				=> ValuesDiffer(c, $"{a}.{c.Identifier.Value}", $"{b}.{c.Identifier.Value}");
+
+			// Compares the key two sightings' embedded objects would copy up (null when absent).
+			static string EmbedKeyDiffers(SQuiLKeyEdge edge, string a, string b)
 			{
-				var name = c.Identifier.Value;
-				return c.Type.CSharpType() == "byte[]"
-					? $"!System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals({a}.{name}, {b}.{name})"
-					: $"{a}.{name} != {b}.{name}";
+				var key = edge.Child.Properties.First(p => p.IsPrimaryKey);
+				var name = key.Identifier.Value;
+				return ValuesDiffer(key, $"{a}.{edge.Child.Name}?.{name}", $"{b}.{edge.Child.Name}?.{name}");
 			}
+
+			static string ValuesDiffer(CodeItem c, string a, string b)
+				=> c.Type.CSharpType() == "byte[]"
+					? $"!System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals({a}, {b})"
+					: $"{a} != {b}";
 
 			// Recurses into a node's children: a classic child receives this node's key as its FK;
 			// an embed is always a single object whose own key is caller-supplied.
@@ -985,7 +1000,7 @@ public class SQuiLDataContext(
 					var member = $"{itemExpr}.{edge.Child.Name}";
 					var value = column.IsNullable
 						? $"{member}?.{embedKey}"
-						: $"""({member} ?? throw new NullReferenceException("{generation.Request.ModelName} {node.Name}.{edge.Child.Name} is required: it supplies the not-null {column.Identifier.Value} column.")).{embedKey}""";
+						: $"""({member} ?? throw new InvalidOperationException("{generation.Request.ModelName} {node.Name}.{edge.Child.Name} is required: it supplies the not-null {column.Identifier.Value} column.")).{embedKey}""";
 					writer.WriteLine($"__{node.Name}__{edge.KeyName}.Add({value});");
 				}
 			}

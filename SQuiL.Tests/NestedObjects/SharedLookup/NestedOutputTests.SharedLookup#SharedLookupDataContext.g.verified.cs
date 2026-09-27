@@ -131,7 +131,7 @@ partial class SharedLookupDataContext : SqlServerDataContext
 				var __match = __Contact.Where(c => c.ContactID == __fk).ToList();
 				if (__match.Count > 1)
 				{
-					throw new Exception("Return object results in more than one object. Consider using a return table instead.");
+					throw new Exception("Lookup `Contact` has more than one row for key `ContactID`.");
 				}
 				__Structure[__i].Contact = __match.Count == 1 ? __match[0] : null;
 			}
@@ -141,7 +141,7 @@ partial class SharedLookupDataContext : SqlServerDataContext
 				var __match = __Contact.Where(c => c.ContactID == __fk).ToList();
 				if (__match.Count > 1)
 				{
-					throw new Exception("Return object results in more than one object. Consider using a return table instead.");
+					throw new Exception("Lookup `Contact` has more than one row for key `ContactID`.");
 				}
 				__Widget[__i].Contact = __match.Count == 1 ? __match[0] : null;
 			}

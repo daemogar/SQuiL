@@ -82,10 +82,17 @@ export function describeColumnLinkRole(
     const ownPk = list.find(v => v === variable)?.columns.find(c => c.isPrimaryKey);
     if (ownPk !== column) return undefined;
 
-    const hasChild = graph.edges.some(e => e.parent === variable);
-    if (hasChild) {
-      return `Primary Key — child tables that carry a \`${column.name}\` column nest under \`${variable.name}\`.`;
+    // Edges on this key: classic children nest under the owner; embed containers hold it as a lookup.
+    const keyEdges = graph.edges.filter(e => e.keyName.toLowerCase() === column.name.toLowerCase());
+    const parts: string[] = [];
+    if (keyEdges.some(e => !e.isEmbed)) {
+      parts.push(`child tables that carry a \`${column.name}\` column nest under \`${variable.name}\``);
     }
+    const containers = keyEdges.filter(e => e.isEmbed).map(e => `\`${e.parent.name}\``);
+    if (containers.length > 0) {
+      parts.push(`\`${variable.name}\` embeds as a single lookup object into ${containers.join(', ')}`);
+    }
+    if (parts.length > 0) return `Primary Key — ${parts.join('; ')}.`;
     // Graceful degradation: in a file with no links at all, an "orphan" PK
     // note would fire on every table's PK, which is noise, not a hint. Only
     // surface the orphan note when at least one real link exists elsewhere
@@ -95,9 +102,14 @@ export function describeColumnLinkRole(
         `table to nest rows under \`${variable.name}\`.`;
   }
 
+  // The key's non-owner side: the container of an embed, the child of a classic edge.
   const edge = graph.edges.find(
-    e => e.child === variable && e.keyName.toLowerCase() === column.name.toLowerCase(),
+    e => (e.isEmbed ? e.parent : e.child) === variable && e.keyName.toLowerCase() === column.name.toLowerCase(),
   );
+  if (edge?.isEmbed) {
+    return `Foreign key by convention → the matching \`${edge.child.name}\` row embeds into \`${variable.name}\` ` +
+      `as a single object (matched by \`${column.name}\`).`;
+  }
   if (edge) {
     return `Foreign key by convention → rows of \`${variable.name}\` nest under \`${edge.parent.name}\` ` +
       `(matched by \`${column.name}\`).`;

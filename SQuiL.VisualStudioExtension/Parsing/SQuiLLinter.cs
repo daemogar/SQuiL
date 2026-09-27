@@ -1282,7 +1282,10 @@ internal static class SQuiLLinter
 
             foreach (var edge in graph.Edges)
             {
-                var pkCol = edge.Parent.Columns!.FirstOrDefault(c =>
+                // The PK lives on the owner (the nested side of an embed); the FK on the other end.
+                var owner = edge.IsEmbed ? edge.Child : edge.Parent;
+                var carrier = edge.IsEmbed ? edge.Parent : edge.Child;
+                var pkCol = owner.Columns!.FirstOrDefault(c =>
                     c.IsPrimaryKey && string.Equals(c.Name, edge.KeyName, System.StringComparison.OrdinalIgnoreCase));
                 if (pkCol is not null)
                 {
@@ -1290,7 +1293,7 @@ internal static class SQuiLLinter
                     if (seen.Add(span)) spans.Add(span);
                 }
 
-                var fkCol = edge.Child.Columns!.FirstOrDefault(c =>
+                var fkCol = carrier.Columns!.FirstOrDefault(c =>
                     string.Equals(c.Name, edge.KeyName, System.StringComparison.OrdinalIgnoreCase));
                 if (fkCol is not null)
                 {
@@ -1344,9 +1347,17 @@ internal static class SQuiLLinter
             && graph.PkColumnOf.TryGetValue(owner, out var ownPk)
             && ReferenceEquals(ownPk, column))
         {
-            bool hasChild = graph.Edges.Any(e => ReferenceEquals(e.Parent, owner));
-            if (hasChild)
-                return $"Primary Key — child tables that carry a `{column.Name}` column nest under `{owner.Name}`.";
+            // Edges on this key: classic children nest under the owner; embed containers hold it as a lookup.
+            var keyEdges = graph.Edges.Where(e =>
+                string.Equals(e.KeyName, column.Name, System.StringComparison.OrdinalIgnoreCase)).ToList();
+            var parts = new List<string>();
+            if (keyEdges.Any(e => !e.IsEmbed))
+                parts.Add($"child tables that carry a `{column.Name}` column nest under `{owner.Name}`");
+            var containers = keyEdges.Where(e => e.IsEmbed).Select(e => $"`{e.Parent.Name}`").ToList();
+            if (containers.Count > 0)
+                parts.Add($"`{owner.Name}` embeds as a single lookup object into {string.Join(", ", containers)}");
+            if (parts.Count > 0)
+                return $"Primary Key — {string.Join("; ", parts)}.";
 
             // Graceful degradation: in a file with no links at all, an "orphan" PK
             // note would fire on every table's PK, which is noise, not a hint. Only
@@ -1357,8 +1368,13 @@ internal static class SQuiLLinter
                   $"child table to nest rows under `{owner.Name}`.";
         }
 
+        // The key's non-owner side: the container of an embed, the child of a classic edge.
         var edge = graph.Edges.FirstOrDefault(e =>
-            ReferenceEquals(e.Child, owner) && string.Equals(e.KeyName, column.Name, System.StringComparison.OrdinalIgnoreCase));
+            ReferenceEquals(e.IsEmbed ? e.Parent : e.Child, owner)
+            && string.Equals(e.KeyName, column.Name, System.StringComparison.OrdinalIgnoreCase));
+        if (edge is { IsEmbed: true })
+            return $"Foreign key by convention → the matching `{edge.Child.Name}` row embeds into `{owner.Name}` " +
+                   $"as a single object (matched by `{column.Name}`).";
         if (edge is not null)
             return $"Foreign key by convention → rows of `{owner.Name}` nest under `{edge.Parent.Name}` (matched by `{column.Name}`).";
 
@@ -1443,7 +1459,8 @@ internal static class SQuiLLinter
                             diagnostics.Add(new SQuiLDiagnostic
                             {
                                 Message = $"`{u.Name}` (line {u.Line + 1}) and `{v.Name}` (line {v.Line + 1}) " +
-                                          "form a primary-key/foreign-key cycle. Nested objects cannot be recursive — remove one of the links.",
+                                          "form a primary-key/foreign-key cycle, which can arise when a block with several containers is " +
+                                          "re-nested. Nested objects cannot be recursive — reorder the declarations or remove one of the links.",
                                 Line = u.Line,
                                 StartChar = u.Character,
                                 EndChar = u.Character + u.RawName.Length,
@@ -1572,10 +1589,12 @@ internal static class SQuiLLinter
     /// </summary>
     private static void LintUnsupportedInputKeyType(KeyGraph inputGraph, List<SQuiLDiagnostic> diagnostics)
     {
+        // An embedded lookup's key is caller-supplied, so its classic children receive it as-is.
+        var embedded = new HashSet<SQuiLVariable>(inputGraph.Edges.Where(e => e.IsEmbed).Select(e => e.Child));
         foreach (var edge in inputGraph.Edges)
         {
             // An embed's key is caller-supplied (copied up, never synthesized).
-            if (edge.IsEmbed) continue;
+            if (edge.IsEmbed || embedded.Contains(edge.Parent)) continue;
 
             var keyColumn = edge.Parent.Columns?.FirstOrDefault(c =>
                 c.IsPrimaryKey && string.Equals(c.Name, edge.KeyName, System.StringComparison.OrdinalIgnoreCase))

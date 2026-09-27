@@ -70,6 +70,49 @@ test('linkedColumnRanges covers the INPUT graph independently of the OUTPUT grap
   assert.ok(!ranges.some(r => r.line === 3), 'an isolated input table\'s PK must not be tagged');
 });
 
+test('linkedColumnRanges tags the container key column of an embed (PK on the nested side)', () => {
+  const parsed = parseSQuiL([
+    '--Name: Embed',
+    'Declare @Returns_Structure table(Title varchar(50), ContactID varchar(10));',
+    'Declare @Returns_Contact table(ContactID varchar(10) Primary Key, Name varchar(50));',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n'));
+
+  const ranges = linkedColumnRanges(parsed);
+  assert.strictEqual(ranges.length, 2);
+  assert.ok(ranges.some(r => r.line === 1), 'Structure.ContactID (the container key) should be tagged');
+  assert.ok(ranges.some(r => r.line === 2), 'Contact.ContactID (the PK) should be tagged');
+});
+
+test('linkedColumnRanges tags every key column of a junction', () => {
+  const lines = [
+    '--Name: Junction',
+    'Declare @Returns_Student table(StudentID int Primary Key, Name varchar(50));',
+    'Declare @Returns_Course table(CourseID int Primary Key, Title varchar(50));',
+    'Declare @Returns_Enrollment table(StudentID int, CourseID int, Grade varchar(2));',
+    'Use [Db];',
+    'Select 1;',
+  ];
+  const ranges = linkedColumnRanges(parseSQuiL(lines.join('\n')));
+  assert.strictEqual(ranges.length, 4);
+  assert.ok(ranges.some(r => r.line === 3 && r.character === lines[3].indexOf('CourseID')), 'Enrollment.CourseID');
+  assert.ok(ranges.some(r => r.line === 3 && r.character === lines[3].indexOf('StudentID')), 'Enrollment.StudentID');
+});
+
+test('linkedColumnRanges tags a classic link declared child-first', () => {
+  const parsed = parseSQuiL([
+    '--Name: ChildFirst',
+    'Declare @Returns_Child table(ChildID int, ParentID int);',
+    'Declare @Returns_Parent table(ParentID int Primary Key, Name varchar(50));',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n'));
+  const ranges = linkedColumnRanges(parsed);
+  assert.strictEqual(ranges.length, 2);
+  assert.ok(ranges.some(r => r.line === 1) && ranges.some(r => r.line === 2));
+});
+
 test('linkedColumnRanges tags an INPUT link the same way as an OUTPUT link', () => {
   const parsed = parseSQuiL([
     '--Name: InputLink',

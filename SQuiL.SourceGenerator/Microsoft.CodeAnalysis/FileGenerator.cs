@@ -184,10 +184,12 @@ public class FileGenerator(
 			// SP0036: every input link column must be synthesizable (int/bigint/smallint sequential
 			// or uniqueidentifier → Guid.NewGuid()). The link column is the parent's Primary Key,
 			// carried by the child as its foreign key (edge.KeyName).
+			// An embedded lookup's key is caller-supplied, so its classic children receive it as-is.
+			var embeddedInputs = new HashSet<CodeBlock>(inputGraph.Edges.Where(e => e.IsEmbed).Select(e => e.Child));
 			foreach (var edge in inputGraph.Edges)
 			{
 				// An embed's key is caller-supplied (copied up, never synthesized).
-				if (edge.IsEmbed) continue;
+				if (edge.IsEmbed || embeddedInputs.Contains(edge.Parent)) continue;
 
 				var keyColumn = edge.Parent.Properties?.FirstOrDefault(p => p.IsPrimaryKey && p.Identifier.Value == edge.KeyName)
 					?? edge.Parent.Properties?.FirstOrDefault(p => p.Identifier.Value == edge.KeyName);

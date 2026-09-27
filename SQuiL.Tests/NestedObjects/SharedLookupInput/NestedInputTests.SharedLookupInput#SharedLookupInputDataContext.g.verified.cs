@@ -41,7 +41,7 @@ partial class SharedLookupInputDataContext : SqlServerDataContext
 		{
 			__Structure.Add(new(
 				structure.Title));
-			__Structure__ContactID.Add((structure.Contact ?? throw new NullReferenceException("SharedLookupInputRequest Structure.Contact is required: it supplies the not-null ContactID column.")).ContactID);
+			__Structure__ContactID.Add((structure.Contact ?? throw new InvalidOperationException("SharedLookupInputRequest Structure.Contact is required: it supplies the not-null ContactID column.")).ContactID);
 			if (structure.Contact is not null)
 			{
 				var contact = structure.Contact;
@@ -66,7 +66,7 @@ partial class SharedLookupInputDataContext : SqlServerDataContext
 		{
 			__Widget.Add(new(
 				widget.Label));
-			__Widget__ContactID.Add((widget.Contact ?? throw new NullReferenceException("SharedLookupInputRequest Widget.Contact is required: it supplies the not-null ContactID column.")).ContactID);
+			__Widget__ContactID.Add((widget.Contact ?? throw new InvalidOperationException("SharedLookupInputRequest Widget.Contact is required: it supplies the not-null ContactID column.")).ContactID);
 			if (widget.Contact is not null)
 			{
 				var contact = widget.Contact;

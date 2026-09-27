@@ -390,7 +390,8 @@ public static class DiagnosticsMessages
 	/// <summary>
 	/// SP0034 — Within one query file's nested-object key graph, following Primary-Key/Foreign-Key
 	/// links from a table eventually returns to that same table, forming a cycle. Nested objects
-	/// require a tree (no cycles); the file's code emission is skipped.
+	/// require a tree (no cycles); the file's code emission is skipped. Multi-container resolution can
+	/// produce one; see the SQuiL.SourceGenerator README, "Nested objects: key graph".
 	/// </summary>
 	public static void ReportKeyCycle(
 		this SourceProductionContext context, string filename,
@@ -398,7 +399,8 @@ public static class DiagnosticsMessages
 	{
 		context.ReportDiagnostic(CreateDiagnostic(DiagnosticSeverity.Error, "SP0034", "Key Cycle",
 			$"{filename}: `{finding.Name}` (line {finding.Line}) and `{finding.OtherName}` (line {finding.OtherLine}) " +
-			"form a primary-key/foreign-key cycle. Nested objects cannot be recursive — remove one of the links."));
+			"form a primary-key/foreign-key cycle, which can arise when a block with several containers is re-nested. " +
+			"Nested objects cannot be recursive — reorder the declarations or remove one of the links."));
 	}
 
 	/// <summary>

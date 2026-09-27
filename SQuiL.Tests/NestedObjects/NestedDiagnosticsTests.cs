@@ -169,6 +169,8 @@ public class NestedDiagnosticsTests
 		var diagnostic = Assert.Single(sp0034);
 		var message = diagnostic.GetMessage();
 		Assert.Contains("cycle", message, System.StringComparison.OrdinalIgnoreCase);
+		Assert.Contains("several containers", message);
+		Assert.Contains("reorder the declarations", message);
 	}
 
 	/// <summary>

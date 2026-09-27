@@ -158,6 +158,112 @@ public class SqliteNestedObjectTests
 		Assert.Contains("Contact with ContactID '1' was supplied twice with nested children", e.Message);
 	}
 
+	/// <summary>A first childless sighting followed by a different instance WITH children is rejected.</summary>
+	[Fact]
+	public async Task Embed_later_instance_with_children_after_childless_first_throws()
+	{
+		var (keepAlive, provider) = Arrange(nameof(Embed_later_instance_with_children_after_childless_first_throws));
+		using var _ = keepAlive;
+
+		var context = provider.GetRequiredService<SqliteEmbedWithChildInputDataContext>();
+		var request = new SqliteEmbedWithChildInputRequest
+		{
+			Structure =
+			[
+				new("A") { Contact = new(1, "Ada") },
+				new("B") { Contact = new(1, "Ada") { Phone = [new(0, 0, "555-0199")] } },
+			],
+		};
+
+		var e = await Assert.ThrowsAsync<InvalidOperationException>(() => context.ProcessSqliteEmbedWithChildInputAsync(request));
+		Assert.Contains("Contact with ContactID '1' was supplied twice with nested children", e.Message);
+	}
+
+	/// <summary>Output embed: each Building gets the Owner row its elided OwnerID points at.</summary>
+	[Fact]
+	public async Task Output_embed_stitches_the_lookup_into_each_container()
+	{
+		var (keepAlive, provider) = Arrange(nameof(Output_embed_stitches_the_lookup_into_each_container));
+		using var _ = keepAlive;
+
+		var context = provider.GetRequiredService<SqliteEmbedOutputDataContext>();
+		var result = await context.ProcessSqliteEmbedOutputAsync(new SqliteEmbedOutputRequest());
+
+		Assert.True(result.TryGetValue(out var response, out var errors));
+		Assert.Null(errors);
+		Assert.Equal(3, response!.Building!.Count);
+		Assert.Equal("Ada", Assert.Single(response.Building, b => b.Title == "A").Owner!.Name);
+		Assert.Equal("Alan", Assert.Single(response.Building, b => b.Title == "B").Owner!.Name);
+		Assert.Equal(1, Assert.Single(response.Building, b => b.Title == "C").Owner!.OwnerID);
+	}
+
+	/// <summary>Output junction: Enrollment nests under Student and embeds its Course.</summary>
+	[Fact]
+	public async Task Output_junction_nests_enrollments_and_embeds_courses()
+	{
+		var (keepAlive, provider) = Arrange(nameof(Output_junction_nests_enrollments_and_embeds_courses));
+		using var _ = keepAlive;
+
+		var context = provider.GetRequiredService<SqliteJunctionOutputDataContext>();
+		var result = await context.ProcessSqliteJunctionOutputAsync(new SqliteJunctionOutputRequest());
+
+		Assert.True(result.TryGetValue(out var response, out var errors));
+		Assert.Null(errors);
+		Assert.Equal(2, response!.Student!.Count);
+
+		var ada = Assert.Single(response.Student, s => s.Name == "Ada");
+		Assert.Equal(2, ada.Enrollment!.Count);
+		Assert.Equal("Math", Assert.Single(ada.Enrollment, x => x.Grade == "A").Course!.Title);
+		Assert.Equal("Art", Assert.Single(ada.Enrollment, x => x.Grade == "B").Course!.Title);
+
+		var alan = Assert.Single(response.Student, s => s.Name == "Alan");
+		Assert.Equal("Math", Assert.Single(alan.Enrollment!).Course!.Title);
+	}
+
+	/// <summary>Separate but identical instances (as a deserialized request has) dedup cleanly.</summary>
+	[Fact]
+	public async Task Chained_embed_identical_duplicate_instances_are_deduped()
+	{
+		var (keepAlive, provider) = Arrange(nameof(Chained_embed_identical_duplicate_instances_are_deduped));
+		using var _ = keepAlive;
+
+		var context = provider.GetRequiredService<SqliteChainedEmbedInputDataContext>();
+		var result = await context.ProcessSqliteChainedEmbedInputAsync(new SqliteChainedEmbedInputRequest
+		{
+			Office =
+			[
+				new("A") { Agent = new(1, "Ada") { Site = new(5, "Main") } },
+				new("B") { Agent = new(1, "Ada") { Site = new(5, "Main") } },
+			],
+		});
+
+		Assert.True(result.TryGetValue(out var response, out var errors));
+		Assert.Null(errors);
+		Assert.Equal(2, response!.OfficeStreet!.Count);
+		Assert.All(response.OfficeStreet, os => Assert.Equal("Main", os.Street));
+	}
+
+	/// <summary>The same Agent row pointing at two different Addresses is a conflict, not a silent drop.</summary>
+	[Fact]
+	public async Task Chained_embed_duplicate_with_a_different_nested_key_throws()
+	{
+		var (keepAlive, provider) = Arrange(nameof(Chained_embed_duplicate_with_a_different_nested_key_throws));
+		using var _ = keepAlive;
+
+		var context = provider.GetRequiredService<SqliteChainedEmbedInputDataContext>();
+		var request = new SqliteChainedEmbedInputRequest
+		{
+			Office =
+			[
+				new("A") { Agent = new(1, "Ada") { Site = new(5, "Main") } },
+				new("B") { Agent = new(1, "Ada") { Site = new(6, "Elm") } },
+			],
+		};
+
+		var e = await Assert.ThrowsAsync<Exception>(() => context.ProcessSqliteChainedEmbedInputAsync(request));
+		Assert.Contains("Conflicting values supplied for Agent with AgentID '1'", e.Message);
+	}
+
 	/// <summary>A second, different embed instance WITHOUT children is silently deduped.</summary>
 	[Fact]
 	public async Task Embed_second_instance_without_children_is_deduped()

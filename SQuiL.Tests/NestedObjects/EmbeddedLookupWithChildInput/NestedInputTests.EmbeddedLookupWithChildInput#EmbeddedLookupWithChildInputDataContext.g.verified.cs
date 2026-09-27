@@ -40,7 +40,7 @@ partial class EmbeddedLookupWithChildInputDataContext : SqlServerDataContext
 		{
 			__Structure.Add(new(
 				structure.Title));
-			__Structure__ContactID.Add((structure.Contact ?? throw new NullReferenceException("EmbeddedLookupWithChildInputRequest Structure.Contact is required: it supplies the not-null ContactID column.")).ContactID);
+			__Structure__ContactID.Add((structure.Contact ?? throw new InvalidOperationException("EmbeddedLookupWithChildInputRequest Structure.Contact is required: it supplies the not-null ContactID column.")).ContactID);
 			if (structure.Contact is not null)
 			{
 				var contact = structure.Contact;

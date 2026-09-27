@@ -44,12 +44,15 @@ export function linkedColumnRanges(parsed: SQuiLParseResult): LinkedColumnRange[
     if (!graph.hasLinks) continue;
 
     for (const edge of graph.edges) {
-      const pkCol = edge.parent.columns?.find(
+      // The PK lives on the owner (the nested side of an embed); the FK on the other end.
+      const owner = edge.isEmbed ? edge.child : edge.parent;
+      const carrier = edge.isEmbed ? edge.parent : edge.child;
+      const pkCol = owner.columns?.find(
         c => c.isPrimaryKey && c.name.toLowerCase() === edge.keyName.toLowerCase(),
       );
       if (pkCol) ranges.push({ line: pkCol.line, character: pkCol.character, length: pkCol.name.length });
 
-      const fkCol = edge.child.columns?.find(c => c.name.toLowerCase() === edge.keyName.toLowerCase());
+      const fkCol = carrier.columns?.find(c => c.name.toLowerCase() === edge.keyName.toLowerCase());
       if (fkCol) ranges.push({ line: fkCol.line, character: fkCol.character, length: fkCol.name.length });
     }
   }

@@ -251,6 +251,60 @@ public class NestedInputTests
             """]);
     }
 
+    // Classic child under an embedded lookup (input): Contact's varchar key is caller-supplied and
+    // passed down to Phone, so nothing is synthesized and SP0036 must not fire.
+    [Fact]
+    public Task EmbeddedLookupWithVarcharChildInput()
+    {
+        var name = nameof(EmbeddedLookupWithVarcharChildInput);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Params_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);
+            Declare @Params_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);
+            Declare @Params_Phone table(PhoneID int not null Primary Key, ContactID varchar(10) not null, Number varchar(20) not null);
+            Use [Db];
+            Insert Into dbo.Structures Select Title, ContactID From @Params_Structure;
+            Insert Into dbo.Contacts Select ContactID, Name From @Params_Contact;
+            Insert Into dbo.Phones Select PhoneID, ContactID, Number From @Params_Phone;
+            """]);
+    }
+
+    // Chained embed (input): Structure embeds Contact, which embeds Address. Contact's elided
+    // AddressID is copied up, and a repeated Contact compares its copied-up AddressID.
+    [Fact]
+    public Task ChainedEmbedInput()
+    {
+        var name = nameof(ChainedEmbedInput);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Params_Structure table(Title varchar(50) not null, ContactID int not null);
+            Declare @Params_Contact table(ContactID int not null Primary Key, Name varchar(50) not null, AddressID int not null);
+            Declare @Params_Address table(AddressID int not null Primary Key, Street varchar(50) not null);
+            Use [Db];
+            Insert Into dbo.Structures Select Title, ContactID From @Params_Structure;
+            Insert Into dbo.Contacts Select ContactID, Name, AddressID From @Params_Contact;
+            Insert Into dbo.Addresses Select AddressID, Street From @Params_Address;
+            """]);
+    }
+
+    // Key columns spelled with different casing: the copy-up and synthesis must use each side's
+    // own spelling (deliberate `Id` spelling — this fixture tests exactly that mismatch).
+    [Fact]
+    public Task CaseMismatchedKeyInput()
+    {
+        var name = nameof(CaseMismatchedKeyInput);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Params_Order table(OrderID int not null Primary Key, CustomerId int not null);
+            Declare @Params_Customer table(CustomerID int not null Primary Key, Name varchar(50) not null);
+            Declare @Params_Line table(LineID int not null, OrderId int not null, Sku varchar(20) not null);
+            Use [Db];
+            Insert Into dbo.Orders Select OrderID, CustomerId From @Params_Order;
+            Insert Into dbo.Customers Select CustomerID, Name From @Params_Customer;
+            Insert Into dbo.Lines Select LineID, OrderId, Sku From @Params_Line;
+            """]);
+    }
+
     // Many-to-many junction (input): StudentID is synthesized down the Student -> Enrollment
     // child edge, CourseID is copied up from the embedded Course, and Course rows are deduped.
     [Fact]

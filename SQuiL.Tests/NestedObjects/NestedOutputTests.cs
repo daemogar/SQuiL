@@ -126,6 +126,75 @@ public class NestedOutputTests
             """]);
     }
 
+    // Chained embed: Structure embeds Contact, which embeds Address. Contact itself carries a
+    // parallel key list (__Contact__AddressID) for its own elided key.
+    [Fact]
+    public Task ChainedEmbed()
+    {
+        var name = nameof(ChainedEmbed);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Returns_Structure table(Title varchar(50) not null, ContactID int not null);
+            Declare @Returns_Contact table(ContactID int not null Primary Key, Name varchar(50) not null, AddressID int not null);
+            Declare @Returns_Address table(AddressID int not null Primary Key, Street varchar(50) not null);
+            Use [Db];
+            Select * From @Returns_Structure;
+            Select * From @Returns_Contact;
+            Select * From @Returns_Address;
+            """]);
+    }
+
+    // Junction declared before its PK owners: Enrollment is the single root and embeds both
+    // Student and Course, eliding both keys.
+    [Fact]
+    public Task JunctionDeclaredFirst()
+    {
+        var name = nameof(JunctionDeclaredFirst);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Returns_Enrollment table(StudentID int not null, CourseID int not null, Grade varchar(2) not null);
+            Declare @Returns_Student table(StudentID int not null Primary Key, Name varchar(50) not null);
+            Declare @Returns_Course table(CourseID int not null Primary Key, Title varchar(50) not null);
+            Use [Db];
+            Select * From @Returns_Enrollment;
+            Select * From @Returns_Student;
+            Select * From @Returns_Course;
+            """]);
+    }
+
+    // Nullable elided key: a Structure with a NULL ContactID stitches a null Contact.
+    [Fact]
+    public Task EmbeddedLookupNullableKey()
+    {
+        var name = nameof(EmbeddedLookupNullableKey);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Returns_Structure table(Title varchar(50) not null, ContactID int null);
+            Declare @Returns_Contact table(ContactID int not null Primary Key, Name varchar(50) not null);
+            Use [Db];
+            Select * From @Returns_Structure;
+            Select * From @Returns_Contact;
+            """]);
+    }
+
+    // Key columns spelled with different casing: each stitch side must use its own record's
+    // spelling (deliberate `Id` spelling — this fixture tests exactly that mismatch).
+    [Fact]
+    public Task CaseMismatchedKey()
+    {
+        var name = nameof(CaseMismatchedKey);
+        return TestHelper.Verify([TestHelper.TestHeaderPublic([name])], [$$"""
+            --Name: {{name}}
+            Declare @Returns_Order table(OrderID int not null Primary Key, CustomerId int not null);
+            Declare @Returns_Customer table(CustomerID int not null Primary Key, Name varchar(50) not null);
+            Declare @Returns_Line table(LineID int not null, OrderId int not null, Sku varchar(20) not null);
+            Use [Db];
+            Select * From @Returns_Order;
+            Select * From @Returns_Customer;
+            Select * From @Returns_Line;
+            """]);
+    }
+
     // Many-to-many junction: Enrollment nests under Student (earliest container) and embeds Course.
     [Fact]
     public Task ManyToManyJunction()

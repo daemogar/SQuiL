@@ -577,6 +577,23 @@ test('SP0034 does not fire on a 2-block reciprocal pair (dedupe collapses it to 
   assert.strictEqual(sp0034.length, 0);
 });
 
+test('SP0034 from a multi-container cascade explains the cause and the reorder fix', () => {
+  const result = parseSQuiL([
+    '--Name: Cascade',
+    'Declare @Returns_Summary table(ProductID varchar(10));',
+    'Declare @Returns_Category table(CategoryID int Primary Key, Name varchar(50));',
+    'Declare @Returns_Product table(ProductID varchar(10) Primary Key, CategoryID int, Title varchar(50));',
+    'Declare @Returns_Junction table(CategoryID int, ProductID varchar(10), Note varchar(50));',
+    'Use [Db];',
+    'Select 1;',
+  ].join('\n'));
+
+  const sp0034 = result.diagnostics.filter(d => d.code === 'SP0034');
+  assert.strictEqual(sp0034.length, 1);
+  assert.ok(sp0034[0].message.includes('several containers'), sp0034[0].message);
+  assert.ok(sp0034[0].message.includes('reorder the declarations'), sp0034[0].message);
+});
+
 test('SP0033/SP0034 stay silent on a well-formed tree (no duplicate-pk, no cycle)', () => {
   const result = parseSQuiL([
     '--Name: Tree',
@@ -693,6 +710,20 @@ test('SP0036 stays silent for a varchar key in the embed direction (caller-suppl
     'Use [Db];',
     'Insert Into dbo.Structures Select Title, ContactID From @Params_Structure;',
     'Insert Into dbo.Contacts Select ContactID, Name From @Params_Contact;',
+  ].join('\n'));
+  assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0036').length, 0);
+});
+
+test('SP0036 stays silent for a classic child under an embedded lookup (its key is passed down)', () => {
+  const result = parseSQuiL([
+    '--Name: EmbedWithVarcharChild',
+    'Declare @Params_Structure table(Title varchar(50) not null, ContactID varchar(10) not null);',
+    'Declare @Params_Contact table(ContactID varchar(10) not null Primary Key, Name varchar(50) not null);',
+    'Declare @Params_Phone table(PhoneID int not null Primary Key, ContactID varchar(10) not null, Number varchar(20) not null);',
+    'Use [Db];',
+    'Insert Into dbo.Structures Select Title, ContactID From @Params_Structure;',
+    'Insert Into dbo.Contacts Select ContactID, Name From @Params_Contact;',
+    'Insert Into dbo.Phones Select PhoneID, ContactID, Number From @Params_Phone;',
   ].join('\n'));
   assert.strictEqual(result.diagnostics.filter(d => d.code === 'SP0036').length, 0);
 });
