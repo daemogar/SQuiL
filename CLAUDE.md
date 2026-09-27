@@ -152,6 +152,13 @@ SQuiL/
       SQL Query Editor factory), drop a `.pkgdef` file at the archive
       root via `<Content Include="…" IncludeInVSIX="true">`. VSIXInstaller
       merges every `.pkgdef` it finds.
+    - **Build the two extensions one at a time (`-m:1`).** Both
+      `SyncSharedEditorAssets` targets shell out to
+      `dotnet run --project tools/GuideRenderer`. In a parallel build they
+      collide on `tools/GuideRenderer/obj/…/GuideRenderer.dll`, failing with
+      CS2012 + MSB3073. After editing `guide.html`, regenerate ALL THREE
+      rendered copies (both extension builds plus `npm run compile`) and commit
+      them. A missed copy stays stale silently.
 
 ### Editing rules
 
