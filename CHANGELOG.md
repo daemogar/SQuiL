@@ -63,6 +63,18 @@ from 1.0.0 onward.
   `SQuiLError`/`SQuiLException`/`SQuiLAggregateException` types are unchanged.
 
 ### Changed
+- **Breaking:** nested objects now follow declaration order. The
+  earlier-declared table contains the later one, no matter which side owns
+  the `Primary Key`.
+  - If a file declares a child table (the one carrying the key column) before
+    its parent (the one whose `Primary Key` it is), the parent now nests
+    inside the child. It becomes a single object, and the child record drops
+    its key column.
+  - Previously the child nested inside the parent as a list.
+  - A table linked from two containers is now resolved as a shared lookup or
+    as a many-to-many junction.
+  - To keep the old shape, move the parent's `Declare` above the child's. The
+    editor hint `SP0045` shows which way each link nests.
 - **Release assets renamed.** Each editor now publishes one adjacent pair —
   `SQuiL-SSMS.vsix` / `SQuiL-SSMS-INSTALL.md`, `SQuiL-VisualStudio.vsix` /
   `SQuiL-VisualStudio-INSTALL.md`, `SQuiL-VSCode.vsix` /
