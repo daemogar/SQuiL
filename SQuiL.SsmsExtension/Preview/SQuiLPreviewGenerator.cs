@@ -47,11 +47,8 @@ internal static class SQuiLPreviewGenerator
 
     // ── Nested-objects key graph (preview-only mirror of SQuiLKeyGraph.cs) ──
 
-    /// <summary>Parent → its direct children (declaration order) plus a lookup for "is this
-    /// variable someone's child" — the child collapses into the parent record and drops off
-    /// the Response top level. <c>Embeds</c> marks which children are R1 "embed" nestings — the
-    /// nested variable OWNS the shared key (a many-to-one lookup embedded into its FK carrier),
-    /// mirroring the generator's <c>SQuiLKeyEdge.IsEmbed</c>.</summary>
+    /// <summary>Parent → direct children, which variables are someone's child (they leave the
+    /// Response top level), and which are embedded lookups.</summary>
     private sealed class NestedGraph
     {
         public List<SQuiLVariable> Roots { get; } = new();
@@ -66,11 +63,7 @@ internal static class SQuiLPreviewGenerator
         public Dictionary<SQuiLVariable, List<string>> ElidedKeysOf { get; } = new();
     }
 
-    /// <summary>One container→nested link, local to the preview builder — mirrors the generator's
-    /// <c>SQuiLKeyEdge</c> (<c>SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs</c>) closely
-    /// enough to run the same R3 resolution below, without pulling in the full diagnostics-carrying
-    /// <c>KeyGraph</c>/<c>KeyGraphEdge</c> types from <c>SQuiLLinter.cs</c> (this stays a preview,
-    /// not a diagnostics source).</summary>
+    /// <summary>One container→nested link, local to the preview (mirrors the generator's <c>SQuiLKeyEdge</c>).</summary>
     private sealed class PreviewEdge
     {
         public SQuiLVariable Parent { get; set; } = null!;
@@ -80,26 +73,10 @@ internal static class SQuiLPreviewGenerator
     }
 
     /// <summary>
-    /// Minimal preview mirror of the generator's <c>SQuiLKeyGraph</c>
-    /// (<c>SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs</c>): two table/object variables
-    /// that share a key column name are linked; ORIENTATION follows declaration order — the
-    /// earlier-declared variable is always the container (parent), regardless of which side owns
-    /// the Primary Key (<c>NestedGraph.IsEmbed</c> records which). Variables nobody links to are
-    /// roots. Called once for OUTPUT (<c>@Return*</c>) table/object variables and once for INPUT
-    /// (<c>@Param*</c>) table/object variables (never mixed), matching the generator building one
-    /// graph per side (FileGenerator.cs's <c>keyGraph</c> / <c>inputGraph</c>).
-    ///
-    /// UPDATE (Task 3): R3 multi-container resolution (shared lookups / many-to-many junctions) IS
-    /// now ported here, unlike SP0033/SP0034/SP0035/SP0036 — those stay diagnostics-only, reported
-    /// by the generator/linter, never by the preview. The distinction: R3 changes the SHAPE the
-    /// preview renders (which variable nests under which), so skipping it made the preview actively
-    /// WRONG for a common, valid pattern (a shared lookup silently vanished from every container but
-    /// the first) — not just approximate. A genuinely ambiguous/cyclic file (SP0033/SP0034) is still
-    /// a build error the generator/linter will squiggle; this preview does not re-detect cycles —
-    /// R3 here can, in that pathological case, leave two variables each nested inside the other,
-    /// which renders as slightly odd (mutually-referencing) preview text rather than crashing, since
-    /// <c>EmitTableRecord</c> below is a flat, non-recursive pass over <c>tableVars</c>.
+    /// Preview mirror of the generator's <c>SQuiLKeyGraph</c> (R0/R1/R3, no diagnostics), built once
+    /// per side (OUTPUT, INPUT). A cyclic file still renders, since record emission is non-recursive.
     /// </summary>
+    /// <remarks>Rules: SQuiL.SourceGenerator/README.md, "Nested objects: key graph".</remarks>
     private static NestedGraph BuildNestedGraph(List<SQuiLVariable> tableVars)
     {
         var pkOwner = new Dictionary<string, SQuiLVariable>(System.StringComparer.OrdinalIgnoreCase);
@@ -114,15 +91,11 @@ internal static class SQuiLPreviewGenerator
             }
         }
 
-        // R1: orientation follows declaration order, not which side owns the Primary Key.
-        // `tableVars` is already in declaration order, so its index is the declaration ordinal.
+        // R1: orientation follows declaration order (`tableVars` order), not which side owns the key.
         var order = new Dictionary<SQuiLVariable, int>();
         for (var i = 0; i < tableVars.Count; i++) order[tableVars[i]] = i;
 
-        // Distinct unordered pairs {block, pkOwner} that share a key column name. Dedupe is keyed
-        // on the PAIR alone (lo, hi) — matching the generator/linter/VS Code copies — so two
-        // reciprocal key columns between the same two blocks still yield exactly one edge, and R3
-        // below only ever sees a genuine THIRD block as a competing container.
+        // One edge per variable pair (first matching key column wins).
         var pairs = new List<(SQuiLVariable A, SQuiLVariable B, string Key)>();
         var pairSeen = new HashSet<(int, int)>();
         foreach (var block in tableVars)
@@ -138,8 +111,7 @@ internal static class SQuiLPreviewGenerator
             }
         }
 
-        // R1: the earlier-declared variable is the container (parent). Embed when the
-        // later-declared (nested) variable owns the shared key as its own Primary Key.
+        // The earlier-declared variable is the container; embed when the nested one owns the key.
         var edges = new List<PreviewEdge>();
         foreach (var (a, b, key) in pairs)
         {
@@ -148,24 +120,8 @@ internal static class SQuiLPreviewGenerator
             edges.Add(new PreviewEdge { Parent = a, Child = b, KeyName = key, IsEmbed = nestedOwnsKey });
         }
 
-        // R3 (Task 3): a variable with more than one container is either a shared lookup (it owns
-        // the key in EVERY such edge — allowed, each container references the same row) or a
-        // junction / mixed case (keep the earliest-declared container; invert the rest so the
-        // dropped container becomes an embed INTO this variable). Dropping or inverting can create
-        // a NEW multi-container variable, so iterate until stable. Kept in the preview (not just
-        // build/lint) because silently dropping a legitimate shared-lookup child (the pre-R3
-        // "first link wins" behavior) rendered a WRONG shape, not just an approximate one — see
-        // the class doc comment above.
-        //
-        // TERMINATION PROOF (review round 1, C2 — `guard < tableVars.Count + 1` was NOT a valid
-        // bound; see SQuiLKeyGraph.cs's identical comment for the full proof): the pair
-        // `(#nonEmbed, #edges)`, ordered lexicographically, strictly decreases every iteration —
-        // every qualifying group has at least one non-embed edge (the `!g.All(...)` guard
-        // excludes all-embed groups), and dropping a non-embed edge always inverts it (`#nonEmbed`
-        // falls), while dropping an already-embed edge never re-inverts (`#edges` falls, since key
-        // ownership is unique per name). Both counters are bounded below by 0 and start at most
-        // `edges.Count`, so the loop terminates within `2 * edges.Count` iterations. Hitting that
-        // bound is proof of a bug in this algorithm, not a possible user file.
+        // R3: a shared lookup keeps all its containers; a junction keeps the earliest and inverts the
+        // rest into embeds. Runs to a fixed point; the bound is proven (README), so hitting it is a bug.
         var guardLimit = 2 * edges.Count;
         for (var guard = 0; ; guard++)
         {

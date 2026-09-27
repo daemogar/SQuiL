@@ -337,10 +337,14 @@ SQuiL/
     **SP0034 is now TAKEN** — build error (generator): within one query file's
     nested-object key graph (OUTPUT or INPUT, same two-graph split as SP0033),
     following Primary-Key/Foreign-Key links from a table returns to that same
-    table (cycle). R3's multi-container resolution (below) iterates edge
-    inversions to a fixed point, so a surviving cycle now indicates a generator
-    bug rather than an authoring mistake — it is kept as a final assert rather
-    than a reachable authoring error. See `SQuiLKeyGraph.Errors`
+    table (cycle). Raw edges always point from an earlier declaration to a
+    later one, but R3's multi-container resolution (below) can invert edges, and
+    a cascade of inversions can close a loop in a valid-looking 4+-block file
+    (see `KeyGraphTests.MultiContainerResolutionCanCascadeIntoACycle`). So
+    SP0034 IS a reachable authoring error; its message says the cycle can come
+    from multi-container resolution and that reordering the declarations fixes
+    it. R3 is deliberately not cycle-aware (see the SQuiL.SourceGenerator
+    `README.md`, "Nested objects: key graph"). See `SQuiLKeyGraph.Errors`
     (`Kind == "cycle"`) + `DiagnosticsMessages.ReportKeyCycle`. Both
     SP0033/SP0034 suppress code emission entirely for the offending query file
     (no flat-path fallback).
@@ -363,7 +367,9 @@ SQuiL/
     generator cannot synthesize a join key for it (see "Nested objects (input)"
     below). Embed edges are skipped entirely: an embed's key is always
     caller-supplied, never synthesized, so e.g. a `varchar` lookup key is
-    fine. See `FileGenerator.cs`'s `IsSynthesizableKeyType` +
+    fine. So are classic children of an embedded lookup, which receive that
+    caller-supplied key (see `EmbeddedLookupWithVarcharChildInput`). See
+    `FileGenerator.cs`'s `IsSynthesizableKeyType` +
     `DiagnosticsMessages.ReportUnsupportedKeyType`, and the editor mirrors
     `lintUnsupportedInputKeyType`/`lintKeyGraph` (`parser.ts`, VS Code) and
     `LintUnsupportedInputKeyType` (`SQuiLLinter.cs`, SSMS + Visual Studio).
@@ -468,8 +474,9 @@ SQuiL/
     for an R3-inverted junction edge, the container's own reference to the
     nested variable's Primary Key ("… because `Enrollment` references its
     Primary Key `CourseID` as a lookup."). Applies to BOTH the OUTPUT and
-    INPUT graphs. See `SQuiLKeyGraph.Hints` + `nestedObjectHints.ts` (VS Code,
-    `containmentHints`) and `SQuiLLinter.LintKeyGraph` (SSMS + Visual Studio).
+    INPUT graphs. See `nestedObjectHints.ts` (VS Code, `containmentHints`) and
+    `SQuiLLinter.LintContainmentHint` (SSMS + Visual Studio); the generator never
+    produces it.
     Next free: **SP0047**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
@@ -1088,8 +1095,9 @@ Containment between two linked table blocks is governed by four rules
   its earliest-declared container and the rest invert into embeds — this is
   how many-to-many falls out with no dedicated syntax (see `ManyToManyJunction`:
   `Student` holds `List<Enrollment>`, each `Enrollment` embeds one `Course`).
-  Resolution iterates to a fixed point; **SP0034** (cycle) remains as a final
-  assert on the result.
+  Resolution iterates to a fixed point. The inversions can still close a
+  cycle in a valid-looking file, which is **SP0034** (reorder the
+  declarations to fix it).
 - **R4 — FK elision.** When a block is **embedded**, the container's matching
   FK column is removed from the generated record entirely (reachable as
   `container.Embed.Key`). The SQL column is untouched — still declared,
@@ -1115,8 +1123,8 @@ parent row with zero matching children keeps today's semantics (empty list
 `[]` for a child, `null` for an unmatched embed).
 
 **Diagnostics:** SP0033 (build error, reused — duplicate Primary Key owner),
-SP0034 (build error — PK/FK cycle surviving R3's fixed-point resolution),
-SP0035 (editor-only Hint/Info — orphaned PK, now counting edges in either
+SP0034 (build error — PK/FK cycle, reachable when R3's inversions close a
+loop; reorder the declarations), SP0035 (editor-only Hint/Info — orphaned PK, now counting edges in either
 direction so an embedded lookup is never falsely flagged), SP0046
 (editor-only Hint/Info — explains which way each edge nests and why). See
 "Diagnostic IDs" above for the full narrative. Graceful degradation: a file
@@ -1196,13 +1204,19 @@ direction's copy-down), and collects embedded rows into their own flat list
 **deduplicated by primary key** (column-wise comparison of declared columns,
 not `record.Equals` — see `EmbeddedLookupInputDataContext.g.verified.cs`).
 Same PK + identical column values collapses to one row; same PK + conflicting
-values throws (`"Conflicting values supplied for <Name> with <Key> '...'."`);
-a null embed on a NOT NULL key throws
-(`NullReferenceException`, "... is required: it supplies the not-null
-<Column> column."); a second, distinct instance with the same key that
-carries its own nested children throws `InvalidOperationException`
+values throws (`"Conflicting values supplied for <Name> with <Key> '...'."`).
+A repeated row is also compared on the keys its OWN embeds would copy up, so
+two identical but separate instances (the normal shape of a deserialized
+request) dedup cleanly, while the same row pointing at two different nested
+lookups throws that same conflict (see `ChainedEmbedInput`). A null embed on a
+NOT NULL key throws (`InvalidOperationException`, "... is required: it
+supplies the not-null <Column> column."); a second, distinct instance with
+the same key that carries its own classic nested children (a non-empty list
+or a non-null object child) throws `InvalidOperationException`
 ("... was supplied twice with nested children; reuse one <Name> instance.")
-— see `EmbeddedLookupWithChildInput` fixture.
+— see `EmbeddedLookupWithChildInput` fixture. A classic child of an embedded
+lookup receives the lookup's caller-supplied key as its FK (nothing is
+synthesized for that edge).
 
 **Diagnostics:** SP0033/SP0034/SP0035/SP0046 all apply to the INPUT graph
 exactly as described above (independent gating — see "Diagnostic IDs").
@@ -1252,7 +1266,7 @@ scalars: no `= null` initializer. For table columns (unchanged): no `null` or
 the DML-transactions feature; SP0030/SP0031 taken by the shape-detection
 feature; SP0032 taken by the timestamp-as-input check; SP0033/SP0034 taken by
 the nested-objects key-graph diagnostics (SP0033 reused — duplicate Primary
-Key owner, R0; SP0034 — PK/FK cycle surviving R3's fixed-point resolution;
+Key owner, R0; SP0034 — PK/FK cycle, reachable via R3 inversions;
 both OUTPUT and INPUT graphs); SP0035 taken by the editor-only orphaned-PK
 hint (both graphs, now counting edges in either direction — R1/R3); SP0036
 taken by the nested-INPUT unsupported-key-type check, child-direction only

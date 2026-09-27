@@ -1,26 +1,6 @@
 /**
- * Relationship-key column ranges for semantic-token coloring (Task 16).
- *
- * Given a parsed SQuiL file, returns the source (line, character, length)
- * span of every column NAME token that plays a role in the nested-object
- * PK/FK-by-convention graph: a parent's designated Primary Key column, and
- * every child column that resolves to it (`buildKeyGraph` in `./keyGraph.ts`
- * — the same graph the SP0033/SP0034/SP0035 diagnostics and the hover-role
- * text in `linkRoleHints.ts` already use).
- *
- * Classification only — never emits a diagnostic. Graceful degradation: a
- * file with no links produces zero ranges (matches `graph.hasLinks`).
- *
- * Covers BOTH the OUTPUT (`@Return_`/`@Returns_`) and INPUT (`@Param_`/
- * `@Params_`) universes independently, never mixed — matches every other
- * nested-object editor feature.
- *
- * Consumed by `providers/semanticTokensProvider.ts`. No C# port exists for
- * this exact range list — the SSMS/Visual Studio classifiers derive their
- * own linked-span list directly from `SQuiLLinter.BuildKeyGraph` (see
- * `SQuiLLinkedKeyClassifier.cs`) rather than porting this file line-for-line,
- * since the two hosts use different span representations (LSP-style semantic
- * tokens vs. VS `ClassificationSpan`s).
+ * Semantic-token ranges for every key column on either end of a key-graph edge (OUTPUT and INPUT
+ * graphs), for `providers/semanticTokensProvider.ts`. Mirrors `SQuiLLinter.LinkedColumnSpans`.
  */
 
 import { SQuiLParseResult } from './parser';

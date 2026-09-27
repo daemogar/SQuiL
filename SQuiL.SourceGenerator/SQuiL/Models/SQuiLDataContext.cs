@@ -712,20 +712,8 @@ public class SQuiLDataContext(
 		{
 			var result = new List<SQuiLKeyEdge>();
 
-			// `visited` (review round 1, defense in depth): a shared-lookup child (Task 3's R3 —
-			// e.g. a lookup table two different containers both embed) is reached by `Visit` once
-			// per container, but its OWN descendants must only be walked (and their stitch edges
-			// added to `result`) ONCE — without this guard, a shared lookup that itself has
-			// children would get those descendant stitch loops emitted once per container (valid
-			// but redundant C#). The guard only skips the RECURSION into a node's own children —
-			// each container's OWN edge to the shared child (e.g. both Structure->Contact and
-			// Widget->Contact) is still added exactly once, from that container's own loop.
-			// This is also the last line of defense against unbounded recursion if
-			// SQuiLKeyGraph.Build's cycle detection is ever wrong again (as it was, pre-fix — see
-			// SQuiLKeyGraph.cs's cycle-detection comment and
-			// NestedDiagnosticsTests.FiveBlockCycleThroughACollapsedChildOfEntryReportsSP0034AtBuildTime):
-			// a cyclic `EffectiveGraph` that reaches this method now terminates instead of
-			// overflowing the stack.
+			// Walk a shared lookup's descendants once, and never recurse forever on a missed cycle.
+			// See the SQuiL.SourceGenerator README, "Nested objects: key graph".
 			var visited = new HashSet<CodeBlock>();
 
 			void Visit(CodeBlock parent)
@@ -795,14 +783,8 @@ public class SQuiLDataContext(
 			}
 		}
 
-		// Nested input flatten (Task 13, gated on EffectiveInputGraph.HasLinks): walk the caller's
-		// root request object(s) following the input key graph and, for every participating input
-		// table/object, build a flat `__<Name>` list whose rows carry SYNTHESIZED join keys — a
-		// parent's key (int → 1-based sequential per table via `__<Name>.Count + 1`; guid →
-		// Guid.NewGuid()) is written into each child row's foreign-key column. Row records' key
-		// columns are positional/immutable, so each flat row is rebuilt with the synthesized values
-		// rather than mutating the caller's objects. The flat lists are then serialized by the
-		// existing `input<Name>` / AddJsonParameter / OPENJSON path (unchanged).
+		// Flattens the nested request into per-table `__<Name>` lists (rebuilt rows, keys synthesized
+		// or copied up) for the `input<Name>` serializers. See the README, "Input flatten".
 		void EmitInputFlatten()
 		{
 			var recordNamespace = generation.Request.RecordNamespace;

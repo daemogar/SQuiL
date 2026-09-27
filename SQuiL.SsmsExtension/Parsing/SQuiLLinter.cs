@@ -1044,74 +1044,22 @@ internal static class SQuiLLinter
         }
     }
 
-    // ── Nested-objects key-graph diagnostics (SP0033 / SP0034 / SP0035 / SP0036) ──
+    // ── Nested-objects key graph (SP0033 / SP0034 / SP0035 / SP0036 / SP0046) ──
     //
-    // SP0033 (Error): two table/object blocks both declare `Primary Key` on the
-    //   SAME key name (duplicate-pk — Ruling R0). A key name identifies one
-    //   relationship and must have exactly one "one" side; the second
-    //   declaration is the error.
-    // SP0034 (Error): following Primary-Key/Foreign-Key links from a table
-    //   eventually returns to that same table (cycle — nested objects require
-    //   a tree).
-    // SP0035 (Info, editor-only — NOT a build/generator diagnostic): a
-    //   table/object's Primary Key that NO other table/object links to, but
-    //   ONLY surfaced when nesting is already in play elsewhere in the file
-    //   (at least one real parent/child link exists). A deliberately-flat file
-    //   whose tables happen to each declare an unrelated Primary Key must NOT
-    //   be nagged.
-    // SP0036 (Error): a nested-INPUT link column's declared type is neither
-    //   integer-family (int/bigint/smallint) nor uniqueidentifier, so the
-    //   generator cannot synthesize a join key for it.
-    //
-    // TWO independent universes participate, never mixed — OUTPUT
-    // (@Return_/@Returns_) and INPUT (@Param_/@Params_) table/object variables
-    // each get their OWN graph, matching the generator, which calls
-    // SQuiLKeyGraph.Build once for OUTPUT blocks and once for INPUT blocks
-    // (FileGenerator.cs's keyGraph / inputGraph). SP0033/SP0034/SP0035 apply to
-    // BOTH graphs; SP0036 applies to the INPUT graph only (OUTPUT never
-    // synthesizes keys).
-    //
-    // Mirrors SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs (SP0033/SP0034
-    // are also build-time errors there; SP0036 mirrors FileGenerator.cs's
-    // IsSynthesizableKeyType/ReportUnsupportedKeyType) and keyGraph.ts /
-    // nestedObjectHints.ts (VS Code extension) — change one side, change all three.
-    //
-    // HISTORY (containment-direction feature, Ruling R2): declaration-order edge orientation (R1 —
-    // the earlier-declared table/object is always the container, regardless of which side owns the
-    // Primary Key; KeyGraphEdge.IsEmbed records which) landed in Task 1 with the OLD PK-oriented
-    // ambiguity check (a child's column matching more than one table's Primary Key) deleted outright,
-    // and SP0034 left structurally unreachable directly out of edge construction — every RAW edge
-    // points from the earlier-declared block to the later one, so no chain through `childOf` could
-    // ever return to its start. Task 2 reintroduces SP0033 under an entirely NEW condition (see
-    // above) — NOT a reintroduction of the old check. Task 3's R3 multi-container resolution (see
-    // `BuildKeyGraph`'s R3 loop) CAN invert an edge (new Parent = the higher-order block), which
-    // makes SP0034 reachable again — a real cycle needs 4+ blocks (proved exhaustively for 3 during
-    // Task 3); see `SQuiLLinterKeyGraphTests.cs` for a minimal reachable fixture.
-
-    // ── Shared key-graph builder ─────────────────────────────────────────────
-    //
-    // Parent/child resolution shared between the SP0033/SP0034/SP0035
-    // diagnostics below and the nested-object hover role text
-    // (SQuiLQuickInfoSource.cs's DescribeColumnLinkRole) — one algorithm, not
-    // a third duplicated copy. Mirrors `buildKeyGraph` in keyGraph.ts (VS Code)
-    // and SQuiL.SourceGenerator/SQuiL/Models/SQuiLKeyGraph.cs (generator).
+    // Editor mirror of SQuiLKeyGraph.cs (generator) and keyGraph.ts (VS Code): one graph per side
+    // (OUTPUT, INPUT), never mixed. Change one, change all three. Rules and rationale:
+    // SQuiL.SourceGenerator/README.md, "Nested objects: key graph".
 
     internal sealed class KeyGraphEdge
     {
         public SQuiLVariable Parent { get; set; } = null!;
         public SQuiLVariable Child { get; set; } = null!;
         public string KeyName { get; set; } = "";
-        /// <summary>True when <see cref="Child"/> OWNS the key (embedded lookup — R1, declaration-
-        /// order orientation); false for a classic FK-carrier child. Mirrors
-        /// <c>SQuiLKeyEdge.IsEmbed</c> in the generator and <c>KeyGraphEdge.isEmbed</c> in
-        /// keyGraph.ts.</summary>
+        /// <summary>True when <see cref="Child"/> owns the key (embedded lookup); false for a classic child.</summary>
         public bool IsEmbed { get; set; }
     }
 
-    /// <summary>SP0033 (Ruling R0): two variables both declare `Primary Key` on the same key name.
-    /// <see cref="Variable"/> is the SECOND declaration (the error); <see cref="OtherVariable"/> is
-    /// the FIRST (the surviving owner). Mirrors <c>SQuiLKeyFinding("duplicate-pk", ...)</c> in the
-    /// generator and the <c>'duplicate-pk'</c> finding in keyGraph.ts.</summary>
+    /// <summary>SP0033: <see cref="Variable"/> re-declares the key name <see cref="OtherVariable"/> owns.</summary>
     internal sealed class KeyGraphDuplicatePrimaryKey
     {
         public SQuiLVariable Variable { get; set; } = null!;
@@ -1143,12 +1091,7 @@ internal static class SQuiLLinter
     {
         var graph = new KeyGraph();
 
-        // R0 (Ruling R0): exactly one variable may declare `Primary Key` on a given key name — a
-        // key name identifies one relationship, so it can have only one "one" side. Key column
-        // name -> its single owning variable. A SECOND variable claiming a key name already owned
-        // is a duplicate-primary-key error (SP0033) and does NOT enter pkOwners/pkNameOf/
-        // graph.PkColumnOf — its (invalid) Primary Key marker is ignored for every purpose below
-        // (edge orientation, IsEmbed, orphan hints).
+        // R0: one PK owner per key name; a second claimant is SP0033 and its marker is ignored.
         var pkOwners = new Dictionary<string, SQuiLVariable>(System.StringComparer.OrdinalIgnoreCase);
         var pkNameOf = new Dictionary<SQuiLVariable, string>();
         foreach (var v in list)
@@ -1165,20 +1108,11 @@ internal static class SQuiLLinter
             pkOwners[pk.Name] = v;
         }
 
-        // R1: orientation follows declaration order, not which side owns the Primary Key.
-        // `list` is already in declaration order, so its index is the declaration ordinal.
+        // R1: orientation follows declaration order (`list` order), not which side owns the key.
         var order = new Dictionary<SQuiLVariable, int>();
         for (var i = 0; i < list.Count; i++) order[list[i]] = i;
 
-        // Distinct unordered pairs {block, pkOwner} that share a key column name. Dedupe is keyed
-        // on the PAIR alone (lo, hi) — NOT (lo, hi, key) — so two blocks connected by two different
-        // reciprocal key columns (each side's column matching the other's Primary Key) still yield
-        // exactly one edge. The first matching key column found (declaration order over blocks,
-        // then columns) wins, mirroring `SQuiLKeyGraph.Build`'s `pairSeen`/`pairs`. Without this, a
-        // pair like `@Return_A table(AID int Primary Key, BID int)` / `@Return_B table(BID int
-        // Primary Key, AID int)` would produce two edges with the same Parent/Child. Since R0
-        // (above) guarantees at most one owner per key name, each matching column now yields at
-        // most one candidate pair.
+        // One edge per variable pair (first matching key column wins).
         var pairs = new List<(SQuiLVariable A, SQuiLVariable B, string Key)>();
         var pairSeen = new HashSet<(int, int)>();
         foreach (var block in list)
@@ -1194,12 +1128,7 @@ internal static class SQuiLLinter
             }
         }
 
-        // R1: the earlier-declared variable is the container (Parent). IsEmbed when the
-        // later-declared (nested) variable owns the shared key as its own Primary Key.
-        //
-        // A variable linked to more than one DIFFERENT container (via two different key names) is
-        // not itself an error under R0 — R0 only forbids two variables from declaring `Primary Key`
-        // on the SAME key name (handled above, before `pairs` is built).
+        // The earlier-declared variable is the container; IsEmbed when the nested one owns the key.
         foreach (var (a, b, key) in pairs)
         {
             var nestedOwnsKey = pkNameOf.TryGetValue(b, out var bKey)
@@ -1207,28 +1136,8 @@ internal static class SQuiLLinter
             graph.Edges.Add(new KeyGraphEdge { Parent = a, Child = b, KeyName = key, IsEmbed = nestedOwnsKey });
         }
 
-        // R3 (Task 3): a variable with more than one container is either a shared lookup (it owns
-        // the key in EVERY such edge — allowed, each container references the same row) or a
-        // junction / mixed case (keep the earliest-declared container; invert the rest so the
-        // dropped container becomes an embed INTO this variable). Dropping or inverting can create
-        // a NEW multi-container variable, so iterate until stable. This is what makes cycle
-        // detection below reachable again — an inverted edge's new Parent is the higher-order
-        // block, breaking the order(Parent) < order(Child) invariant every RAW (pre-R3) edge
-        // satisfies.
-        //
-        // TERMINATION PROOF (review round 1, C2 — `guard < list.Count + 1` was NOT a valid bound;
-        // see SQuiLKeyGraph.cs's identical comment for the generator-side original): the invariant
-        // `IsEmbed == true` iff `Child` owns `KeyName` holds for every edge, original or inverted.
-        // Key ownership is unique per name (R0/SP0033), so an embed edge, once dropped, can never
-        // be re-inverted (`#edges` falls). A qualifying group always has at least one non-embed
-        // edge (an all-embed group never qualifies — see the `!g.All(...)` guard), and a non-embed
-        // edge, when dropped, is ALWAYS inverted (its Parent owns the key by construction — R1's
-        // `nestedOwnsKey`), so every iteration drops at least one non-embed edge (`#nonEmbed`
-        // falls, `#edges` never rises). The pair `(#nonEmbed, #edges)`, ordered lexicographically,
-        // strictly decreases every iteration, both bounded below by 0 and starting at most
-        // `graph.Edges.Count`, so the loop terminates within `2 * graph.Edges.Count` iterations.
-        // Hitting that bound is proof of a bug in this algorithm, not a possible user file — it
-        // throws rather than silently returning a half-resolved graph.
+        // R3: a shared lookup keeps all its containers; a junction keeps the earliest and inverts the
+        // rest into embeds. Runs to a fixed point; the bound is proven (README), so hitting it is a bug.
         var guardLimit = 2 * graph.Edges.Count;
         for (var guard = 0; ; guard++)
         {
@@ -1257,18 +1166,8 @@ internal static class SQuiLLinter
     }
 
     /// <summary>
-    /// Task 16 — relationship-key classification span list. Every column NAME
-    /// token (line, character, length) that plays a role in the nested-object
-    /// PK/FK-by-convention graph: a parent's designated Primary Key column,
-    /// and every child column that resolves to it. Classification-only (never
-    /// a diagnostic) — consumed by <c>SQuiLLinkedKeyClassifier</c>. Covers
-    /// BOTH the OUTPUT and INPUT universes independently, never mixed, same
-    /// as every other nested-object feature. Graceful degradation: a file
-    /// with no links produces an empty list. Mirrors <c>linkedColumnRanges</c>
-    /// in <c>linkedColumnRanges.ts</c> (VS Code) — change one side, change
-    /// both (the exact span REPRESENTATION differs — LSP-style semantic
-    /// tokens there vs. plain (line, character, length) tuples here, since
-    /// this feeds a classic <c>IClassifier</c>, not a semantic-tokens API).
+    /// Every key column NAME span on either end of a key-graph edge (OUTPUT and INPUT graphs), for
+    /// <c>SQuiLLinkedKeyClassifier</c>. Mirrors <c>linkedColumnRanges.ts</c> (VS Code).
     /// </summary>
     internal static List<(int Line, int Character, int Length)> LinkedColumnSpans(SQuiLParseResult parsed)
     {
@@ -1307,15 +1206,8 @@ internal static class SQuiLLinter
     }
 
     /// <summary>
-    /// Nested-object link role text for the column at the given source
-    /// position, or null when the position isn't on a column that plays a
-    /// PK/FK-by-convention role (graceful degradation — hover is left
-    /// unchanged). Searches OUTPUT variables first, then INPUT — a position
-    /// can only ever land on one variable's column, so the search order isn't
-    /// observable. Resolves the role against whichever universe the hit
-    /// variable belongs to, never mixing OUTPUT and INPUT into one graph.
-    /// Ported to hoverProvider.ts's <c>describeColumnLinkRole</c>
-    /// (via linkRoleHints.ts) — change one side, change all three.
+    /// Hover text for the key-graph role of the column at a position, or null when it plays none.
+    /// Mirrors <c>describeColumnLinkRole</c> in <c>linkRoleHints.ts</c> (VS Code).
     /// </summary>
     internal static string? DescribeColumnLinkRole(SQuiLParseResult parsed, int line, int character)
     {
@@ -1422,16 +1314,7 @@ internal static class SQuiLLinter
             });
         }
 
-        // Cycle detection (review round 1, C1 — MUST walk the full `graph.Edges` set, never a
-        // last-write-wins `childOf` map; mirrors SQuiLKeyGraph.cs's identical fix). After R3, a
-        // variable can legitimately keep 2+ SURVIVING parents (the "all embed" shared-lookup
-        // case), and R3's inversion can point an edge backward in declaration order. A
-        // `childOf[Child] = Parent` map — one entry per Child, overwritten by whichever edge is
-        // enumerated last — can lose the exact edge that closes a cycle while keeping an
-        // unrelated, non-cyclic parent for that same Child, letting a genuine cycle slip past
-        // SP0034 undetected (see `SQuiLLinterKeyGraphTests.cs` for the reproduction). Standard
-        // white/gray/black DFS over the true Parent -> Children adjacency (every edge, not one per
-        // child) closes that gap.
+        // SP0034: DFS over EVERY edge (a shared lookup has several parents). R3 inversions make it reachable.
         var childrenOf = new Dictionary<SQuiLVariable, List<SQuiLVariable>>();
         foreach (var e in graph.Edges)
         {
@@ -1452,8 +1335,7 @@ internal static class SQuiLLinter
                     if (color.TryGetValue(v, out var cv))
                     {
                         if (cv == 2) continue;             // already fully explored — no cycle through here
-                        // cv == 1: v is a GRAY ancestor on the current DFS path — u -> v closes a
-                        // cycle back to v. Report once per cycle.
+                        // Gray: u -> v closes a cycle. Mark both ends so it is reported once.
                         if (!reportedCycle.Contains(u) && !reportedCycle.Contains(v))
                         {
                             diagnostics.Add(new SQuiLDiagnostic
@@ -1485,16 +1367,7 @@ internal static class SQuiLLinter
             if (!color.ContainsKey(start))
                 Dfs(start);
 
-        // SP0035: orphan PK hint — only when at least one real link exists (hasLinks).
-        //
-        // Review round 1, I3 — orphan means "this Primary Key's name is not the KeyName of any
-        // surviving edge", NOT "this variable is never a Parent". The old `!edges.Any(e =>
-        // ReferenceEquals(e.Parent, v))` check false-positived on every embed edge (the owner is
-        // the edge's CHILD there, by definition) and on every R3-inverted edge — including a
-        // regression Task 3's own inversion introduced (pre-R3 a junction owner like Course was
-        // always a Parent; post-R3, an inverted junction owner is embedded as a Child instead).
-        // Since R0/SP0033 guarantees one owner per key name, matching by KeyName is exact and
-        // doesn't care which side of the edge the owner ended up on.
+        // SP0035: a PK is an orphan when its key name is on no edge; only when the graph has links.
         if (graph.Edges.Count > 0)
         {
             foreach (var kv in graph.PkColumnOf)
@@ -1519,14 +1392,8 @@ internal static class SQuiLLinter
         LintContainmentHint(graph, diagnostics);
     }
 
-    /// <summary>SP0046 (Info, editor-only — NOT a build/generator diagnostic): one hint per
-    /// key-graph edge, anchored on the NESTED (child) variable's declaration, explaining WHY the
-    /// edge nests the way it does. A normal edge (the container is declared BEFORE the nested
-    /// variable — R1) cites declaration order and suggests reordering to swap the containment. An
-    /// R3-inverted junction edge (the container is declared AFTER the nested variable) cites the
-    /// container's own reference to the nested variable's Primary Key instead — declaration order
-    /// isn't why THAT edge nests the way it does, so no reorder suggestion. Mirrors
-    /// nestedObjectHints.ts's containment hint — change one side, change all three.</summary>
+    /// <summary>SP0046 (Info, editor-only): one hint per edge, on the nested variable, saying why it
+    /// nests there. Mirrors the containment hint in <c>nestedObjectHints.ts</c>.</summary>
     private static void LintContainmentHint(KeyGraph graph, List<SQuiLDiagnostic> diagnostics)
     {
         foreach (var edge in graph.Edges)

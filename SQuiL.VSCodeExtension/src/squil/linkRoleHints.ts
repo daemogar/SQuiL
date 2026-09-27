@@ -1,26 +1,8 @@
 /**
- * Nested-object link role text for hover/QuickInfo (Task 11).
- *
- * Given a source position, finds the table-column token (if any) at that
- * exact position and — reusing the same parent/child resolution as the
- * SP0033/SP0034/SP0035 diagnostics (`buildKeyGraph` in `./keyGraph.ts`) —
- * explains its role in the nested-object graph:
- *   - a Primary Key column with 1+ children linking to it → "Primary Key…"
- *   - a Primary Key column with no children (orphan) → a short note,
- *     matching SP0035's spirit
- *   - a non-PK column that matches another table's PK by convention (a
- *     resolved FK edge) → "Foreign key by convention…"
- *   - anything else (not on a column, or a column that plays no link role)
- *     → undefined, so hover is left completely unchanged (graceful
- *     degradation — a no-links file surfaces no link text at all).
- *
- * Covers BOTH the OUTPUT (`@Return_`/`@Returns_`) and INPUT (`@Param_`/
- * `@Params_`) table/object universes — a hovered column resolves its role
- * against whichever graph its own variable belongs to, never mixing the two
- * (matches the generator's two independent graphs).
- *
- * Ported to `SQuiLQuickInfoSource.cs` (SSMS + Visual Studio, via the shared
- * `SQuiLLinter.DescribeColumnLinkRole`) — change one side, change all three.
+ * Hover text for a column's role in the nested-object key graph (`buildKeyGraph`): the key
+ * owner's Primary Key, the other end's foreign key (classic child or embed container), an orphan
+ * PK note, or undefined. Each column resolves against its own side's graph (OUTPUT or INPUT).
+ * Mirrors `SQuiLLinter.DescribeColumnLinkRole` (SSMS + Visual Studio).
  */
 
 import { SQuiLParseResult, SQuiLVariable, TableColumn, VariableRole } from './parser';

@@ -63,19 +63,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- The SSMS extension's editor-parsing/linting layer (SQuiLLinter, SQuiLParser, and
-		     everything else under Parsing\) has zero VS SDK dependency (only System.*), so — same
-		     pattern as SQuiLVersion.cs above — it's compiled directly into the test assembly rather
-		     than referenced via ProjectReference (which would pull in the whole net472 VSSDK
-		     project). This closes the "SQuiLLinter.cs has zero C# test coverage" gap flagged in the
-		     Task 1 review's C2/round-2 fix (an uncaught ArgumentException from BuildKeyGraph's
-		     downstream .ToDictionary went undetected specifically because nothing here could reach
-		     these `internal` types before). Compiling the files in gives normal same-assembly
-		     access to `internal` members without needing InternalsVisibleTo. The Visual Studio
-		     extension keeps a byte-identical (modulo namespace) hand-ported copy of every file here
-		     — this test coverage stands in for both mirrors; a future edit that only touches the VS
-		     copy and skips the SSMS copy is still caught by the "byte-identical" diff check in
-		     CLAUDE.md, not by this project. -->
+		<!-- The SSMS extension's Parsing\ layer has no VS SDK dependency, so it is compiled in
+		     (like SQuiLVersion.cs) to test its `internal` members. The Visual Studio copy is covered
+		     by the byte-identical rule in CLAUDE.md. -->
 		<Compile Include="..\SQuiL.SsmsExtension\Parsing\SQuiLParser.cs"
 		         Link="ExtensionParsing\SQuiLParser.cs" />
 		<Compile Include="..\SQuiL.SsmsExtension\Parsing\SQuiLLinter.cs"
