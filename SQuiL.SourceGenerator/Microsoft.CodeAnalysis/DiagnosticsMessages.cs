@@ -469,6 +469,44 @@ public static class DiagnosticsMessages
 			Location.None));
 
 	/// <summary>
+	/// SP0043 — a plural direction prefix (<c>@Params_</c>/<c>@Returns_</c>) means a LIST, so the
+	/// declare must carry a <c>table(...)</c> type. A plural prefix on a scalar type is accepted
+	/// silently by the parser and then never routed at runtime (the implicit alias lookup is keyed
+	/// on the SINGULAR spelling, so a bare <c>Select @Returns_X</c> gets no alias and its result set
+	/// is dropped). Always an Error; SQL Server only, structurally.
+	/// </summary>
+	public static void ReportPluralScalarDeclare(
+		this SourceProductionContext context, string filename,
+		SQuiL.SourceGenerator.Parser.SQuiLPluralScalarValidator.Finding finding)
+		=> context.ReportDiagnostic(CreateDiagnostic(
+			DiagnosticSeverity.Error, "SP0043", "Plural Prefix Requires A Table Type",
+			$"{filename}: `{finding.Variable}` (line {finding.Line}) has a plural prefix but declares a scalar type. "
+			+ $"A plural prefix means a list — declare it as `table(...)`, or rename it to `{finding.Suggestion}`.",
+			Location.None));
+
+	/// <summary>
+	/// SP0044 — a bare output-scalar <c>Select</c> followed by <c>throw</c>/<c>go</c>, which are
+	/// both statement starters and legal AS-less column aliases. The scanner cannot resolve the
+	/// ambiguity, and guessing "statement" used to emit an alias that broke the batch. The rewrite
+	/// declines for these; this error asks the author to write the alias explicitly or terminate
+	/// the select. Always an Error; SQL Server only.
+	/// </summary>
+	public static void ReportAmbiguousScalarAlias(
+		this SourceProductionContext context, string filename,
+		SQuiL.SourceGenerator.Parser.SQuiLAmbiguousAliasValidator.Finding finding)
+		=> context.ReportDiagnostic(CreateDiagnostic(
+			DiagnosticSeverity.Error, "SP0044", "Ambiguous Scalar Select Alias",
+			// The scalar is named as the author wrote it (`@Return_X`) rather than as the bare base
+			// name SP0041 renders — the variable spelling is what the author can grep for, and this
+			// message reports exactly one select.
+			$"{filename}: the Select of `@Return_{finding.Name}` on line {finding.Line} is followed by "
+			+ $"`{finding.Terminator}`, which could be this column's alias or the next statement. "
+			+ $"End the Select with `;` before the statement; or, if you meant `{finding.Terminator}` as the "
+			+ $"column name, rename the declare to `@Return_{finding.Terminator}` — an alias that differs "
+			+ "from the declared name is not routable.",
+			Location.None));
+
+	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>
 	private static Diagnostic CreateDiagnostic(DiagnosticSeverity severity, string id, string title, string message, Location? location = default, string category = "Design", string? description = default)

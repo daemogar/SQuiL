@@ -423,7 +423,36 @@ SQuiL/
     `scalarAliasHints.ts` (VS Code) and `LintScalarAliasHint` (both
     `SQuiLLinter.cs`); the generator-side rewrite lives in
     `ScalarSelectAliaser.cs`, not in a diagnostic.
-    Next free: **SP0043**. (Verify an id is truly unreferenced with a repo-wide grep
+    **SP0042 is BODY-SCOPED on all three surfaces**: the generator applies
+    `RewriteOutputSelects` to the post-`Use` body only, so the hint is suppressed for
+    anything before the `Use` line (and entirely when the file has no `Use`) — a header
+    `Declare` is never rewritten and must never be hinted. Contrast SP0041/SP0044, which
+    scan the WHOLE file and are document-absolute.
+    **SP0043 is now TAKEN** — build error (generator) + editor squiggle (all 3 editors,
+    Error): a plural direction prefix (`@Params_`/`@Returns_`) on a declare with no
+    `table(...)` type. A plural prefix means a list; declaring it as a scalar was accepted
+    silently and then never routed at runtime (the implicit-alias lookup is keyed on the
+    SINGULAR spelling, so a bare `Select @Returns_X` got no alias and its result set was
+    dropped). Applies to both the input and the output side. SQL Server only,
+    structurally — a temp-table dialect's plural declaration always carries columns, since
+    only the SINGULAR single-column form collapses to a scalar. See
+    `SQuiLPluralScalarValidator.cs` + `DiagnosticsMessages.ReportPluralScalarDeclare`, and
+    the editor mirrors (`lintPluralScalarDeclare` in `parser.ts`;
+    `LintPluralScalarDeclare` in both `SQuiLLinter.cs`).
+    **SP0044 is now TAKEN** — build error (generator) + editor squiggle (all 3 editors,
+    Error): a bare output-scalar `Select` followed by `throw` or `go`. Both are statement
+    starters AND legal AS-less column aliases (they are the only non-reserved members of
+    the scanner's statement-starter set), so `Select @Return_Count Throw;` is genuinely
+    ambiguous — T-SQL reads `Throw` as the alias, the scanner read it as a statement break
+    and appended `As [Count]`, emitting SQL that does not parse.
+    `ScalarSelectAliaser.FindBareSelects` now DECLINES these (so the body is never
+    corrupted) and `SQuiLAmbiguousAliasValidator` reports them. Whole-file and
+    document-absolute, like SP0041 — unlike the body-scoped SP0042. No quick-fix: the
+    remedy is a choice between two intents. See `SQuiLAmbiguousAliasValidator.cs` +
+    `DiagnosticsMessages.ReportAmbiguousScalarAlias`, and the editor mirrors
+    (`lintAmbiguousScalarAlias` in `parser.ts`; `LintAmbiguousScalarAlias` in both
+    `SQuiLLinter.cs`).
+    Next free: **SP0045**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
   - Signature: `[SQuiLQueryTransaction(QueryFiles type, string setting = "SQuiLDatabase", bool enabled = true, bool debugRollback = true)]`
@@ -904,8 +933,8 @@ differ per dialect via `ISqlDialect`.
   build/test clean.
 - **No new diagnostic id.** PostgreSQL reuses SP0038 (missing provider
   package)/SP0039 (ambiguous dialect)/SP0040 (params-before-returns, error
-  for PostgreSQL as a temp-table dialect) unchanged. Next free id stays
-  **SP0043**.
+  for PostgreSQL as a temp-table dialect) unchanged. Next free id is now
+  **SP0045** (SP0041–SP0044 have since been taken by later features).
 
 Inheriting the provider base class explicitly is **not required**. When the context class declares no constructor of its own, the generator emits a `<Ctx>.Constructor.g.cs` file that supplies:
 
@@ -1183,8 +1212,12 @@ no new diagnostic id — it reuses SP0038/SP0039/SP0040 unchanged. SP0031 is now
 also extended to scalar outputs (a mismatched written alias warns). SP0041
 (build error, every dialect — a multi-scalar `Select` can't be routed) and
 SP0042 (editor-only Hint/Info — the generator's implicit scalar alias) are
-taken by the implicit-scalar-select-alias feature.
-Next free id: **SP0043**.
+taken by the implicit-scalar-select-alias feature. SP0043 (build error, every
+editor squiggle — a plural prefix on a scalar declare) is taken by the
+plural-scalar-declare check. SP0044 (build error + all 3 editors — a bare scalar
+`Select` followed by the ambiguous `throw`/`go`, which is both a statement starter
+and a legal AS-less alias) is taken by the ambiguous-scalar-alias check.
+Next free id: **SP0045**.
 
 ## Special Handling
 

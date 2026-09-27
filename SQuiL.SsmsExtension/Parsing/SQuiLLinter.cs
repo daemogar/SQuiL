@@ -80,8 +80,10 @@ internal static class SQuiLLinter
         LintUnmatchedSelect(text, diagnostics, dialect);
         LintMultiScalarSelect(text, diagnostics, dialect);
         LintScalarAliasHint(text, diagnostics, dialect);
+        LintAmbiguousScalarAlias(text, diagnostics, dialect);
         LintTimestampInput(text, diagnostics, dialect);
         LintScalarNullMarker(text, diagnostics, dialect);
+        LintPluralScalarDeclare(text, diagnostics, dialect);
         LintKeyGraph(text, diagnostics, dialect);
         LintParamsBeforeReturns(text, diagnostics, dialect);
         if (squilFilePath is not null)
@@ -170,6 +172,10 @@ internal static class SQuiLLinter
         /// reference (optionally followed by an <c>As</c> alias) and nothing else.</summary>
         public bool IsBareVariable;
         public bool HasAlias;
+        /// <summary>The word that terminated the column list, when that word was a statement
+        /// starter (otherwise empty). Only <c>throw</c>/<c>go</c> are ambiguous — see
+        /// <see cref="AmbiguousScalarAliasStarters"/>.</summary>
+        public string Terminator = "";
     }
 
     /// <summary>A bare single-scalar select that qualifies for an implicit alias (SP0042).</summary>
@@ -181,6 +187,9 @@ internal static class SQuiLLinter
         public int VariableLength;
         /// <summary>The declared base name, in its declared casing.</summary>
         public string DeclaredName = "";
+        /// <summary>The ambiguous word that terminated the select, for SP0044 (otherwise
+        /// empty — an SP0042 bare select never carries one).</summary>
+        public string Terminator = "";
     }
 
     /// <summary>A select whose top-level column list is 2+ output-scalar references (SP0041).</summary>
@@ -198,6 +207,21 @@ internal static class SQuiLLinter
         "select", "insert", "update", "delete", "set", "declare", "if", "while", "begin", "end",
         "exec", "execute", "return", "print", "use", "with", "merge", "truncate", "drop", "create",
         "alter", "go", "else", "commit", "rollback", "throw", "raiserror", "waitfor",
+    };
+
+    /// <summary>
+    /// Port of ScalarSelectAliaser.cs's AmbiguousAliasStarters — change one, change all four.
+    /// The members of <see cref="ScalarSelectStatementStarters"/> that are NOT T-SQL reserved
+    /// words, and are therefore equally valid as an AS-less column alias.
+    /// <c>Select @Return_X Throw;</c> is genuinely ambiguous: T-SQL reads it as an alias, this
+    /// scanner reads it as a statement break. Appending an alias would emit
+    /// <c>Select @Return_X As [X] Throw;</c>, which does not parse — so the rewrite declines and
+    /// SP0044 asks the author to disambiguate. Every other member of the set is reserved and
+    /// cannot be an alias, so it stays unambiguous.
+    /// </summary>
+    private static readonly HashSet<string> AmbiguousScalarAliasStarters = new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        "throw", "go",
     };
 
     /// <summary>Maps a lower-cased <c>"@return_&lt;name&gt;"</c> key to its declared base
@@ -228,12 +252,43 @@ internal static class SQuiLLinter
             if (columns.Count != 1) continue;
             var only = columns[0];
             if (only.HasAlias || !only.IsBareVariable) continue;
+            // An ambiguous terminator (`throw`/`go`) could be an AS-less alias the author
+            // wrote. Rewriting would corrupt valid T-SQL, so decline — SP0044 reports it.
+            if (AmbiguousScalarAliasStarters.Contains(only.Terminator)) continue;
 
             results.Add(new BareScalarSelect
             {
                 VariableOffset = only.VariableOffset,
                 VariableLength = only.VariableLength,
                 DeclaredName = only.DeclaredName,
+            });
+        }
+        return results;
+    }
+
+    /// <summary>
+    /// Port of ScalarSelectAliaser.cs's FindAmbiguousScalarSelects — change one, change all
+    /// four. Every bare single-scalar select whose terminating word is a statement starter
+    /// that is ALSO a legal AS-less column alias (<c>throw</c>/<c>go</c>). These are excluded
+    /// from <see cref="FindBareScalarSelects"/> so the generator never rewrites them, and
+    /// reported as SP0044 instead.
+    /// </summary>
+    internal static List<BareScalarSelect> FindAmbiguousScalarSelects(string text, Dictionary<string, string> scalarsByVariableName)
+    {
+        var results = new List<BareScalarSelect>();
+        foreach (var columns in EnumerateScalarSelects(text, scalarsByVariableName))
+        {
+            if (columns.Count != 1) continue;
+            var only = columns[0];
+            if (only.HasAlias || !only.IsBareVariable) continue;
+            if (!AmbiguousScalarAliasStarters.Contains(only.Terminator)) continue;
+
+            results.Add(new BareScalarSelect
+            {
+                VariableOffset = only.VariableOffset,
+                VariableLength = only.VariableLength,
+                DeclaredName = only.DeclaredName,
+                Terminator = only.Terminator,
             });
         }
         return results;
@@ -388,7 +443,11 @@ internal static class SQuiLLinter
             if (i >= text.Length) return columns;                  // end of text
             if (text[i] == ';') return columns;                    // explicit terminator
             var word = PeekScalarWord(text, i);
-            if (word.Length > 0 && ScalarSelectStatementStarters.Contains(word)) return columns;
+            if (word.Length > 0 && ScalarSelectStatementStarters.Contains(word))
+            {
+                foreach (var c in columns) c.Terminator = word;
+                return columns;
+            }
             return null;                                            // `From`, an operator, `(`, `.` …
         }
     }
@@ -565,11 +624,26 @@ internal static class SQuiLLinter
         if (SQuiLDialect.IsTempTableDialect(dialect)) return;
 
         var parsed = SQuiLParser.Parse(sql, dialect);
+
+        // Body-only, matching the generator: SqlServerDialect.RewriteOutputSelects is applied to
+        // the post-Use body, never the header. No Use statement means no body, so there is
+        // nothing the generator would rewrite and nothing to hint about. Same guard as
+        // LintUnmatchedSelect (SP0031), below — the two must agree, since they are mutually
+        // exclusive by construction.
+        if (parsed.DatabaseLine is not { } databaseLine) return;
+
         var scalarsByVariableName = BuildScalarsByVariableName(parsed.Variables);
         if (scalarsByVariableName.Count == 0) return;
 
+        // Offset of the first character AFTER the Use line. Filtering the scanner's results on
+        // this keeps every reported offset DOCUMENT-ABSOLUTE — slicing `sql` to the body would
+        // shift them and silently break both OffsetToLineChar and the SP0042 quick-fix range.
+        var bodyStartOffset = OffsetOfLineStart(sql, databaseLine + 1);
+
         foreach (var bare in FindBareScalarSelects(sql, scalarsByVariableName))
         {
+            if (bare.VariableOffset < bodyStartOffset) continue;
+
             var (line, startChar) = OffsetToLineChar(sql, bare.VariableOffset);
             var declaredName = bare.DeclaredName;
 
@@ -583,6 +657,61 @@ internal static class SQuiLLinter
                 Code      = "SP0042",
             });
         }
+    }
+
+    // ── Ambiguous scalar-select alias (SP0044) ───────────────────────────────
+    //
+    // `Select @Return_Count Throw;` is valid T-SQL — an AS-less column alias. `throw` and
+    // `go` are the only NON-RESERVED members of the statement-starter set, so the scanner
+    // cannot tell an alias from the next statement. The generator declines to rewrite
+    // these (rewriting emitted SQL that does not parse); this error makes the author
+    // disambiguate rather than silently lose the result set.
+    //
+    // Whole-file, document-absolute — like SP0041, unlike the body-scoped SP0042.
+    //
+    // Port of SQuiLAmbiguousAliasValidator.cs (source generator) — change one, change all four.
+
+    internal static void LintAmbiguousScalarAlias(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
+    {
+        if (SQuiLDialect.IsTempTableDialect(dialect)) return;
+
+        var parsed = SQuiLParser.Parse(sql, dialect);
+        var scalarsByVariableName = BuildScalarsByVariableName(parsed.Variables);
+        if (scalarsByVariableName.Count == 0) return;
+
+        foreach (var ambiguous in FindAmbiguousScalarSelects(sql, scalarsByVariableName))
+        {
+            var (line, startChar) = OffsetToLineChar(sql, ambiguous.VariableOffset);
+
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message   = $"This Select of `@Return_{ambiguous.DeclaredName}` is followed by `{ambiguous.Terminator}`, " +
+                            "which could be this column's alias or the next statement. " +
+                            $"End the Select with `;` before the statement; or, if you meant `{ambiguous.Terminator}` as the " +
+                            $"column name, rename the declare to `@Return_{ambiguous.Terminator}` — an alias that differs " +
+                            "from the declared name is not routable.",
+                Line      = line,
+                StartChar = startChar,
+                EndChar   = startChar + ambiguous.VariableLength,
+                Severity  = DiagnosticSeverity.Error,
+                Code      = "SP0044",
+            });
+        }
+    }
+
+    /// <summary>The absolute offset at which 0-based <paramref name="line"/> begins, or
+    /// <c>text.Length</c> when the text has fewer lines. The inverse of the line half of
+    /// <see cref="OffsetToLineChar"/>.</summary>
+    private static int OffsetOfLineStart(string text, int line)
+    {
+        if (line <= 0) return 0;
+        var seen = 0;
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] != '\n') continue;
+            if (++seen == line) return i + 1;
+        }
+        return text.Length;
     }
 
     // ── SP0031: unmatched standalone SELECT (editor-only warning) ────────────
@@ -618,6 +747,11 @@ internal static class SQuiLLinter
     // The alias, if bracketed (`As [Count]`), is unwrapped here just like ExtractSelectColumnNames's
     // `\[?...\]?` groups below — an author-written bracketed alias (or the generator's own implicit
     // one) still matches the declared name.
+    //
+    // The brackets are INDEPENDENTLY optional rather than paired, so `As [Foo` and `As Foo]` also
+    // extract `Foo`. Deliberate, not an oversight: both are invalid T-SQL, SP0031 is a best-effort
+    // warning, and the identical pattern is this file's idiom in ExtractSelectColumnNames — pairing
+    // only this one would create a fresh internal inconsistency for no user-visible gain.
     private static readonly Regex ScalarSelectAliasRegex = new(
         @"^as\s+\[?([A-Za-z_][A-Za-z0-9_]*)\]?\s*$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -865,6 +999,47 @@ internal static class SQuiLLinter
                 EndChar   = startChar + length,
                 Severity  = DiagnosticSeverity.Error,
                 Code      = "SP0037",
+            });
+        }
+    }
+
+    // ── Plural prefix on a scalar declare (SP0043) ───────────────────────────
+    //
+    // A plural direction prefix (@Params_/@Returns_) means a LIST, so the declare must
+    // carry a table(...) type. A plural prefix on a scalar type is a build error: the
+    // parser accepts it silently, but the generator's implicit-alias lookup is keyed on
+    // the SINGULAR spelling, so the column comes back unnamed and its result set is
+    // dropped.
+    //
+    // SQL Server only — a temp-table-header dialect's plural declaration always carries
+    // columns (only the SINGULAR single-column form collapses to a scalar).
+    //
+    // Port of SQuiLPluralScalarValidator.cs (source generator) — change one, change all.
+
+    internal static void LintPluralScalarDeclare(string sql, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
+    {
+        if (SQuiLDialect.IsTempTableDialect(dialect)) return;
+
+        var parsed = SQuiLParser.Parse(sql, dialect);
+
+        foreach (var v in parsed.Variables)
+        {
+            if (v.Role != VariableRole.Params && v.Role != VariableRole.Returns) continue;
+            if (v.Columns is not null && v.Columns.Count > 0) continue;
+
+            var singular = v.Role == VariableRole.Params
+                ? $"@Param_{v.Name}"
+                : $"@Return_{v.Name}";
+
+            diagnostics.Add(new SQuiLDiagnostic
+            {
+                Message   = $"`{v.RawName}` has a plural prefix but declares a scalar type. " +
+                            $"A plural prefix means a list — declare it as `table(...)`, or rename it to `{singular}`.",
+                Line      = v.Line,
+                StartChar = v.Character,
+                EndChar   = v.Character + v.RawName.Length,
+                Severity  = DiagnosticSeverity.Error,
+                Code      = "SP0043",
             });
         }
     }

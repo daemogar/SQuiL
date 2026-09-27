@@ -106,6 +106,12 @@ public class FileGenerator(
 			foreach (var finding in SQuiLScalarMarkerValidator.Detect(blocks, sql))
 				Context.ReportScalarNullabilityMarker(method, finding);
 
+			// Plural-prefix-on-a-scalar validation (SP0043): @Params_/@Returns_ mean a LIST, so the
+			// declare must be a table(...). Emission continues (like SP0041) — the error already
+			// fails the build, and suppressing emission would only add cascade noise.
+			foreach (var finding in SQuiLPluralScalarValidator.Detect(blocks, sql))
+				Context.ReportPluralScalarDeclare(method, finding);
+
 			// Params-before-returns ordering (SP0040): every @Param/@Params (input) must be
 			// declared before any @Return/@Returns (output). Error for every temp-table-header
 			// dialect (SQLite, PostgreSQL — both declare positional temp tables rather than
@@ -122,6 +128,13 @@ public class FileGenerator(
 			// Location.None because AdditionalText SQL files carry no Roslyn Location.
 			foreach (var finding in SQuiLMultiScalarSelectValidator.Detect(blocks, sql))
 				Context.ReportMultiScalarSelect(method, string.Join(", ", finding.Names), finding.Line);
+
+			// Ambiguous scalar-select alias (SP0044): `Select @Return_X Throw;` reads as an AS-less
+			// alias in T-SQL but as a statement break to the scanner. ScalarSelectAliaser declines to
+			// rewrite these, so the emitted body is never corrupted; this error makes the author
+			// disambiguate rather than silently lose the result set. Emission continues.
+			foreach (var finding in SQuiLAmbiguousAliasValidator.Detect(blocks, sql))
+				Context.ReportAmbiguousScalarAlias(method, finding);
 
 			if (ShowDebugMessages)
 			{
@@ -192,14 +205,14 @@ public class FileGenerator(
 
 			// SP0023 / SP0024 / SP0025 — mutation-vs-transaction diagnostics.
 			// Scan ONLY the author-supplied BODY block, not the generator-injected
-			// Insert Into @Params_… population or the appended Select @Return_… clauses.
-			// The raw author body is the portion of `sql` after the USE statement;
-			// the BODY block's Name holds the generator-augmented text, so we
-			// reconstruct the author body by stripping everything from the last
-			// generator-appended "Select '<tag>'" line. Since we only need to
-			// scan for mutations (not execute), scanning the full BODY block Name
-			// is equivalent: the appended lines target @-variables (skipped by
-			// the mutation scanner as @-table-var DML) or are plain SELECTs (read-only).
+			// Insert Into @Params_… population. The `Select '<tag>'` sentinel scheme this
+			// comment used to describe is GONE — result sets are routed by their column
+			// signature (shape key) now, so nothing is appended to the body except the
+			// implicit scalar alias (ScalarSelectAliaser, SQL Server only), which rewrites
+			// an existing Select in place rather than adding one. Scanning the full BODY
+			// block Name is therefore equivalent to scanning the raw author body: the only
+			// generator-touched statements target @-variables (skipped by the mutation
+			// scanner as @-table-var DML) or are plain SELECTs (read-only).
 			// Using blocks[].Name directly avoids re-splitting the raw SQL string.
 			var bodyBlock = blocks.FirstOrDefault(b => b.CodeType == CodeType.BODY);
 			if (bodyBlock is not null)

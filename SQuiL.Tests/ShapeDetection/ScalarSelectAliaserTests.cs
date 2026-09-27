@@ -194,4 +194,42 @@ public class ScalarSelectAliaserTests
     public void FindMultiScalarSelects_ignores_a_mixed_column_list()
         => Assert.Empty(ScalarSelectAliaser.FindMultiScalarSelects(
             "Select @Return_Count, SomeColumn From T;", Count()));
+
+    [Fact]
+    public void Rewrite_declines_an_ambiguous_throw_terminator()
+    {
+        // `Throw` is a legal AS-less column alias AND a statement starter. Rewriting would emit
+        // `Select @Return_Count As [Count] Throw;`, which does not parse — so the scanner must
+        // leave the text alone and let SP0044 ask the author to disambiguate.
+        var scalars = new Dictionary<string, string> { ["@return_count"] = "Count" };
+        var text = "Select @Return_Count Throw;";
+        Assert.Equal(text, ScalarSelectAliaser.Rewrite(text, scalars));
+    }
+
+    [Fact]
+    public void Rewrite_declines_an_ambiguous_go_terminator()
+    {
+        var scalars = new Dictionary<string, string> { ["@return_count"] = "Count" };
+        var text = "Select @Return_Count go;";
+        Assert.Equal(text, ScalarSelectAliaser.Rewrite(text, scalars));
+    }
+
+    [Fact]
+    public void FindAmbiguousScalarSelects_reports_the_terminator()
+    {
+        var scalars = new Dictionary<string, string> { ["@return_count"] = "Count" };
+        var found = ScalarSelectAliaser.FindAmbiguousScalarSelects("Select @Return_Count Throw;", scalars);
+        Assert.Single(found);
+        Assert.Equal("Count", found[0].DeclaredName);
+        Assert.Equal("Throw", found[0].Terminator);
+    }
+
+    [Fact]
+    public void An_unambiguous_statement_terminator_still_rewrites()
+    {
+        // `Insert` is RESERVED, so it cannot be a column alias — no ambiguity, rewrite as before.
+        var scalars = new Dictionary<string, string> { ["@return_count"] = "Count" };
+        var rewritten = ScalarSelectAliaser.Rewrite("Select @Return_Count Insert Into T Values(1);", scalars);
+        Assert.Equal("Select @Return_Count As [Count] Insert Into T Values(1);", rewritten);
+    }
 }

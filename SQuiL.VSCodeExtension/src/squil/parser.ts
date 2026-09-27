@@ -84,16 +84,6 @@ export interface SQuiLParseResult {
   databaseLine?: number;
   variables: SQuiLVariable[];
   diagnostics: SQuiLDiagnostic[];
-  /**
-   * SP0041 candidates found by scanning the FULL file text (populated by `parseSQuiL`,
-   * which already has the text in scope) for a `Select` whose top-level column list is
-   * 2+ declared output-scalar references. Not part of the public port-of-the-scanner
-   * surface — internal plumbing so `lintMultiScalarSelect` can work from the parse result
-   * alone with document-absolute positions (the scan covers the whole file, not just the
-   * body after `Use`, mirroring ScalarSelectAliaser.cs scanning the whole emitted command
-   * text). See `lintMultiScalarSelect`, below.
-   */
-  multiScalarSelects: { line: number; character: number; length: number; declaredNames: string[] }[];
 }
 
 import { validateVariables, findingMessage, findingSeverity } from './variableValidator';
@@ -117,7 +107,6 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
   const result: SQuiLParseResult = {
     variables: [],
     diagnostics: [],
-    multiScalarSelects: [],
   };
 
   let useCount = 0;
@@ -266,6 +255,11 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
     result.diagnostics.push(d);
   }
 
+  // SP0043: a plural prefix (@Params_/@Returns_) must declare a table(...), not a scalar.
+  for (const d of lintPluralScalarDeclare(result, dialect)) {
+    result.diagnostics.push(d);
+  }
+
   // SP0033 / SP0034: nested-object key-graph errors (ambiguous parent / cycle),
   // over BOTH the OUTPUT and INPUT graphs. SP0036: unsupported nested-input key type.
   for (const d of lintKeyGraph(result)) {
@@ -278,18 +272,6 @@ export function parseSQuiL(text: string, dialect: EditorDialect = 'sqlserver'): 
   for (const d of lintParamsBeforeReturns(result, dialect)) {
     result.diagnostics.push(d);
   }
-
-  // SP0041 support data: scan the FULL file text (not just the body) for a Select whose
-  // top-level column list is 2+ declared output-scalar references. Stored on the result
-  // rather than pushed straight into result.diagnostics — lintMultiScalarSelect (an
-  // on-demand pass, like lintShapeCollision/lintUnmatchedSelect) is what turns this into
-  // SP0041 diagnostics, so it isn't double-emitted by both the automatic pass above and
-  // an explicit call site.
-  result.multiScalarSelects = findMultiScalarSelects(text, buildScalarsByVariableName(result.variables))
-    .map(m => {
-      const pos = offsetToPosition(text, m.selectOffset);
-      return { line: pos.line, character: pos.character, length: 'select'.length, declaredNames: m.declaredNames };
-    });
 
   return result;
 }
@@ -647,6 +629,46 @@ export function lintScalarNullMarker(result: SQuiLParseResult): SQuiLDiagnostic[
       endChar: startChar + length,
       severity: 'error',
       code: 'SP0037',
+    });
+  }
+
+  return diagnostics;
+}
+
+/** SP0043 — a plural direction prefix (`@Params_`/`@Returns_`) means a LIST, so the declare
+ *  must carry a `table(...)` type. A plural prefix on a scalar type is a build error.
+ *
+ *  Without this the parser silently treats `Declare @Returns_Total int;` as an ordinary output
+ *  scalar, while the generator's implicit-alias lookup is keyed on the SINGULAR spelling — so
+ *  the column comes back unnamed, the runtime shape key matches nothing, and the result set is
+ *  dropped with the response property left at its default.
+ *
+ *  SQL Server only: a temp-table-header dialect's plural declaration always carries columns
+ *  (only the SINGULAR single-column form collapses to a scalar), so the rule is vacuous there.
+ *
+ *  Same rule as SQuiLPluralScalarValidator.cs (generator) and LintPluralScalarDeclare in
+ *  SQuiLLinter.cs (SSMS + Visual Studio) — change one, change all.
+ */
+export function lintPluralScalarDeclare(result: SQuiLParseResult, dialect: EditorDialect): SQuiLDiagnostic[] {
+  if (isTempTableDialect(dialect)) return [];
+
+  const diagnostics: SQuiLDiagnostic[] = [];
+
+  for (const v of result.variables) {
+    if (v.role !== 'params' && v.role !== 'returns') continue;
+    if (v.columns && v.columns.length > 0) continue;
+
+    const singular = v.role === 'params' ? `@Param_${v.name}` : `@Return_${v.name}`;
+
+    diagnostics.push({
+      message:
+        `\`${v.rawName}\` has a plural prefix but declares a scalar type. ` +
+        `A plural prefix means a list — declare it as \`table(...)\`, or rename it to \`${singular}\`.`,
+      line: v.line,
+      startChar: v.character,
+      endChar: v.character + v.rawName.length,
+      severity: 'error',
+      code: 'SP0043',
     });
   }
 
@@ -1162,6 +1184,9 @@ interface ScalarSelectColumn {
    *  followed by an `As` alias) and nothing else. */
   isBareVariable: boolean;
   hasAlias: boolean;
+  /** The word that terminated the column list, when that word was a statement starter
+   *  (otherwise empty). Only `throw`/`go` are ambiguous — see AMBIGUOUS_ALIAS_STARTERS. */
+  terminator: string;
 }
 
 /** Port of ScalarSelectAliaser.cs's StatementStarters — change one, change all four. */
@@ -1170,6 +1195,17 @@ const SCALAR_SELECT_STATEMENT_STARTERS = new Set([
   'exec', 'execute', 'return', 'print', 'use', 'with', 'merge', 'truncate', 'drop', 'create',
   'alter', 'go', 'else', 'commit', 'rollback', 'throw', 'raiserror', 'waitfor',
 ]);
+
+/**
+ * Port of ScalarSelectAliaser.cs's AmbiguousAliasStarters — change one, change all four.
+ * The members of SCALAR_SELECT_STATEMENT_STARTERS that are NOT T-SQL reserved words, and are
+ * therefore equally valid as an AS-less column alias. `Select @Return_X Throw;` is genuinely
+ * ambiguous: T-SQL reads it as an alias, this scanner reads it as a statement break. Appending
+ * an alias would emit `Select @Return_X As [X] Throw;`, which does not parse — so the rewrite
+ * declines and SP0044 asks the author to disambiguate. Every other member of the set is
+ * reserved and cannot be an alias, so it stays unambiguous.
+ */
+const AMBIGUOUS_ALIAS_STARTERS = new Set(['throw', 'go']);
 
 /** Maps a lower-cased `"@return_<name>"` key to its declared base name, for every
  *  declared output-scalar (`role === 'return'`) variable — the scanner's
@@ -1357,7 +1393,7 @@ function parseScalarColumnList(
       skipTrivia(text, cursor);
     }
 
-    columns.push({ selectOffset, variableOffset, variableLength, declaredName, isBareVariable, hasAlias });
+    columns.push({ selectOffset, variableOffset, variableLength, declaredName, isBareVariable, hasAlias, terminator: '' });
 
     if (cursor.i < text.length && text[cursor.i] === ',') {
       cursor.i++;
@@ -1370,7 +1406,10 @@ function parseScalarColumnList(
     if (cursor.i >= text.length) return { columns, listEnd };                 // end of text
     if (text[cursor.i] === ';') return { columns, listEnd };                  // explicit terminator
     const word = peekWord(text, cursor.i);
-    if (word.length > 0 && SCALAR_SELECT_STATEMENT_STARTERS.has(word.toLowerCase())) return { columns, listEnd };
+    if (word.length > 0 && SCALAR_SELECT_STATEMENT_STARTERS.has(word.toLowerCase())) {
+      for (const c of columns) c.terminator = word;
+      return { columns, listEnd };
+    }
     return { columns: null, listEnd };                                       // `From`, an operator, `(`, `.` …
   }
 }
@@ -1423,10 +1462,40 @@ export function findBareScalarSelects(
     if (columns.length !== 1) continue;
     const only = columns[0];
     if (only.hasAlias || !only.isBareVariable) continue;
+    // An ambiguous terminator (`throw`/`go`) could be an AS-less alias the author wrote.
+    // Rewriting would corrupt valid T-SQL, so decline — SP0044 reports it instead.
+    if (AMBIGUOUS_ALIAS_STARTERS.has(only.terminator.toLowerCase())) continue;
     results.push({
       variableOffset: only.variableOffset,
       variableLength: only.variableLength,
       declaredName: only.declaredName,
+    });
+  }
+  return results;
+}
+
+/**
+ * Port of ScalarSelectAliaser.cs's FindAmbiguousScalarSelects — change one, change all four.
+ * Every bare single-scalar select whose terminating word is a statement starter that is ALSO a
+ * legal AS-less column alias (`throw`/`go` — the only non-reserved members of the set). These
+ * are excluded from `findBareScalarSelects` so the generator never rewrites them, and reported
+ * as SP0044 instead.
+ */
+export function findAmbiguousScalarSelects(
+  text: string,
+  scalarsByVariableName: ReadonlyMap<string, string>,
+): { variableOffset: number; variableLength: number; declaredName: string; terminator: string }[] {
+  const results: { variableOffset: number; variableLength: number; declaredName: string; terminator: string }[] = [];
+  for (const columns of enumerateScalarSelects(text, scalarsByVariableName)) {
+    if (columns.length !== 1) continue;
+    const only = columns[0];
+    if (only.hasAlias || !only.isBareVariable) continue;
+    if (!AMBIGUOUS_ALIAS_STARTERS.has(only.terminator.toLowerCase())) continue;
+    results.push({
+      variableOffset: only.variableOffset,
+      variableLength: only.variableLength,
+      declaredName: only.declaredName,
+      terminator: only.terminator,
     });
   }
   return results;
@@ -1456,23 +1525,70 @@ export function findMultiScalarSelects(
  * SP0041 (Error) — a Select whose top-level column list is 2+ declared output-scalar
  * references cannot be routed to a response; only one scalar per Select is routable
  * (splitting the select into one-per-scalar is the fix — a REPLACE edit, so this
- * diagnostic deliberately carries no quick-fix). The scan runs over the FULL file text at
- * parse time (`parseSQuiL` populates `result.multiScalarSelects`, above), so these
- * diagnostics are already document-absolute — no body-offset adjustment is needed when
- * wiring this into the diagnostics provider.
+ * diagnostic deliberately carries no quick-fix). The scan runs over the FULL file text, so
+ * these diagnostics are document-absolute — no body-offset adjustment is needed when wiring
+ * this into the diagnostics provider.
+ *
+ * Takes `text` as a second argument rather than reading a stashed scan off the parse result:
+ * that mirrors `lintUnmatchedSelect(parsed, bodyText)` and keeps raw scanner output off the
+ * exported `SQuiLParseResult` surface.
  *
  * Port of ScalarSelectAliaser.cs's `FindMultiScalarSelects` — change one, change all four.
  */
-export function lintMultiScalarSelect(result: SQuiLParseResult): SQuiLDiagnostic[] {
-  return result.multiScalarSelects.map(c => ({
-    message:
-      `This Select returns more than one output scalar (${c.declaredNames.join(', ')}), which cannot be routed to a response. Use one Select per scalar.`,
-    line: c.line,
-    startChar: c.character,
-    endChar: c.character + c.length,
-    severity: 'error' as const,
-    code: 'SP0041',
-  }));
+export function lintMultiScalarSelect(parsed: SQuiLParseResult, text: string): SQuiLDiagnostic[] {
+  const scalars = buildScalarsByVariableName(parsed.variables);
+  if (scalars.size === 0) return [];
+
+  return findMultiScalarSelects(text, scalars).map(m => {
+    const pos = offsetToPosition(text, m.selectOffset);
+    return {
+      message:
+        `This Select returns more than one output scalar (${m.declaredNames.join(', ')}), which cannot be routed to a response. Use one Select per scalar.`,
+      line: pos.line,
+      startChar: pos.character,
+      endChar: pos.character + 'select'.length,
+      severity: 'error' as const,
+      code: 'SP0041',
+    };
+  });
+}
+
+/**
+ * SP0044 (Error) — a bare output-scalar Select followed by `throw`/`go`, which T-SQL reads as an
+ * AS-less column alias and this scanner reads as the next statement. The generator declines to
+ * rewrite these (rewriting emitted SQL that does not parse); this diagnostic makes the author
+ * disambiguate rather than silently lose the result set. Scans the FULL file text and is
+ * document-absolute, like SP0041 — no body-offset adjustment. No quick-fix: the remedy is a
+ * choice between two intents, not a single edit.
+ *
+ * Port of SQuiLAmbiguousAliasValidator.cs — change one, change all four.
+ */
+export function lintAmbiguousScalarAlias(
+  parsed: SQuiLParseResult,
+  text: string,
+  dialect: EditorDialect,
+): SQuiLDiagnostic[] {
+  if (isTempTableDialect(dialect)) return [];
+
+  const scalars = buildScalarsByVariableName(parsed.variables);
+  if (scalars.size === 0) return [];
+
+  return findAmbiguousScalarSelects(text, scalars).map(a => {
+    const pos = offsetToPosition(text, a.variableOffset);
+    return {
+      message:
+        `This Select of \`@Return_${a.declaredName}\` is followed by \`${a.terminator}\`, ` +
+        `which could be this column's alias or the next statement. ` +
+        `End the Select with \`;\` before the statement; or, if you meant \`${a.terminator}\` as the ` +
+        `column name, rename the declare to \`@Return_${a.terminator}\` — an alias that differs ` +
+        `from the declared name is not routable.`,
+      line: pos.line,
+      startChar: pos.character,
+      endChar: pos.character + a.variableLength,
+      severity: 'error' as const,
+      code: 'SP0044',
+    };
+  });
 }
 
 // ── SP0031: unmatched standalone SELECT (editor-only warning) ──────────────

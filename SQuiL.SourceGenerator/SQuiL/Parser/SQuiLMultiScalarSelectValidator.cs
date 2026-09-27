@@ -25,47 +25,47 @@ using System.Collections.Generic;
 /// </summary>
 public static class SQuiLMultiScalarSelectValidator
 {
-    /// <summary>One offending select.</summary>
-    /// <param name="Line">1-based line of the <c>Select</c> keyword.</param>
-    /// <param name="Names">The declared output-scalar base names referenced, in source order.</param>
-    public sealed record Finding(int Line, List<string> Names);
+	/// <summary>One offending select.</summary>
+	/// <param name="Line">1-based line of the <c>Select</c> keyword.</param>
+	/// <param name="Names">The declared output-scalar base names referenced, in source order.</param>
+	public sealed record Finding(int Line, List<string> Names);
 
-    /// <summary>
-    /// Every multi-scalar select in the file. Scans the WHOLE <paramref name="sql"/> (not just the
-    /// body block) so offsets are absolute and line numbers are directly computable; a header
-    /// <c>Declare</c> or sample <c>Insert … Values</c> never contains a bare output-scalar column
-    /// list, so nothing false-fires.
-    /// </summary>
-    public static List<Finding> Detect(IEnumerable<CodeBlock> blocks, string sql)
-    {
-        var scalars = new Dictionary<string, string>();
-        foreach (var block in blocks)
-        {
-            if (block.CodeType != CodeType.OUTPUT_VARIABLE)
-                continue;
-            scalars[$"@Return_{block.Name}".ToLowerInvariant()] = block.Name;
-        }
+	/// <summary>
+	/// Every multi-scalar select in the file. Scans the WHOLE <paramref name="sql"/> (not just the
+	/// body block) so offsets are absolute and line numbers are directly computable; a header
+	/// <c>Declare</c> or sample <c>Insert … Values</c> never contains a bare output-scalar column
+	/// list, so nothing false-fires.
+	/// </summary>
+	public static List<Finding> Detect(IEnumerable<CodeBlock> blocks, string sql)
+	{
+		var scalars = new Dictionary<string, string>();
+		foreach (var block in blocks)
+		{
+			if (block.CodeType != CodeType.OUTPUT_VARIABLE)
+				continue;
+			scalars[$"@Return_{block.Name}".ToLowerInvariant()] = block.Name;
+		}
 
-        // Fast-skip only when the file declares NO output scalars at all — a file with a single
-        // declared scalar can still trip SP0041 by referencing that one scalar twice in one select
-        // (`Select @Return_A, @Return_A`), which builds a genuine two-column runtime key
-        // ("a:int|a:int"). Do not raise this threshold to 2: that would conflate "distinct declared
-        // scalars" with "column-list entries" and let repeated-reference selects escape detection.
-        var findings = new List<Finding>();
-        if (scalars.Count == 0)
-            return findings;
+		// Fast-skip only when the file declares NO output scalars at all — a file with a single
+		// declared scalar can still trip SP0041 by referencing that one scalar twice in one select
+		// (`Select @Return_A, @Return_A`), which builds a genuine two-column runtime key
+		// ("a:int|a:int"). Do not raise this threshold to 2: that would conflate "distinct declared
+		// scalars" with "column-list entries" and let repeated-reference selects escape detection.
+		var findings = new List<Finding>();
+		if (scalars.Count == 0)
+			return findings;
 
-        foreach (var multi in ScalarSelectAliaser.FindMultiScalarSelects(sql, scalars))
-            findings.Add(new Finding(LineOf(sql, multi.SelectOffset), multi.DeclaredNames));
+		foreach (var multi in ScalarSelectAliaser.FindMultiScalarSelects(sql, scalars))
+			findings.Add(new Finding(LineOf(sql, multi.SelectOffset), multi.DeclaredNames));
 
-        return findings;
-    }
+		return findings;
+	}
 
-    private static int LineOf(string sql, int offset)
-    {
-        var line = 1;
-        for (var i = 0; i < offset && i < sql.Length; i++)
-            if (sql[i] == '\n') line++;
-        return line;
-    }
+	private static int LineOf(string sql, int offset)
+	{
+		var line = 1;
+		for (var i = 0; i < offset && i < sql.Length; i++)
+			if (sql[i] == '\n') line++;
+		return line;
+	}
 }

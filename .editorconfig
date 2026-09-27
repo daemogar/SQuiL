@@ -55,8 +55,21 @@ trim_trailing_whitespace = false
 [*.g.cs]
 generated_code = true
 
+# Editor extensions — 4-space C#, deliberately. Both trees' Parsing/ folders are
+# maintained as byte-identical copies of each other (modulo the namespace line), and
+# 4-space is their uniform local style; reindenting them would churn ~90 files and make
+# the byte-identity discipline harder to eyeball. Not drift — a documented exception.
+[{SQuiL.SsmsExtension,SQuiL.VisualStudioExtension}/**.cs]
+indent_style = space
+indent_size = 4
+
 # Verify snapshot assets — must be LF (Verify 31.x rejects CR) even though the
 # repo default is CRLF. Keep editors in sync with .gitattributes so they don't
 # re-introduce CRLF on save. (.verified.cs keeps utf-8-bom from [*.cs] above.)
+#
+# These are generator OUTPUT, not hand-written source — their indentation is whatever
+# the generator emitted, so [*.cs]'s indent_style = tab does not apply to them.
 [*.verified.{cs,txt,xml,json}]
 end_of_line = lf
+indent_style = space
+indent_size = 4

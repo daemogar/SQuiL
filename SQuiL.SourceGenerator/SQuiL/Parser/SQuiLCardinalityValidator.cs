@@ -18,71 +18,71 @@ namespace SQuiL.SourceGenerator.Parser;
 /// </summary>
 public static class SQuiLCardinalityValidator
 {
-    /// <summary>One cardinality-collision finding for a dropped (second-or-later) declaration.</summary>
-    /// <param name="Name">The shared base name.</param>
-    /// <param name="IsOutput"><c>true</c> when both declarations are outputs; <c>false</c> when both inputs.</param>
-    /// <param name="DroppedIsTable"><c>true</c> when the dropped declaration is a table (list); <c>false</c> when a single object.</param>
-    /// <param name="DroppedLine">1-based line of the dropped declaration.</param>
-    /// <param name="FirstIsTable"><c>true</c> when the first (winning) declaration is a table (list); <c>false</c> when a single object.</param>
-    /// <param name="FirstLine">1-based line of the first declaration.</param>
-    public sealed record Finding(string Name, bool IsOutput, bool DroppedIsTable, int DroppedLine, bool FirstIsTable, int FirstLine);
+	/// <summary>One cardinality-collision finding for a dropped (second-or-later) declaration.</summary>
+	/// <param name="Name">The shared base name.</param>
+	/// <param name="IsOutput"><c>true</c> when both declarations are outputs; <c>false</c> when both inputs.</param>
+	/// <param name="DroppedIsTable"><c>true</c> when the dropped declaration is a table (list); <c>false</c> when a single object.</param>
+	/// <param name="DroppedLine">1-based line of the dropped declaration.</param>
+	/// <param name="FirstIsTable"><c>true</c> when the first (winning) declaration is a table (list); <c>false</c> when a single object.</param>
+	/// <param name="FirstLine">1-based line of the first declaration.</param>
+	public sealed record Finding(string Name, bool IsOutput, bool DroppedIsTable, int DroppedLine, bool FirstIsTable, int FirstLine);
 
-    /// <summary>Returns one <see cref="Finding"/> per dropped declaration.</summary>
-    public static List<Finding> Detect(IEnumerable<CodeBlock> blocks, string sql)
-    {
-        // Group table/object declarations by (side, name). Inputs feed the request,
-        // outputs the response — a name shared across the two sides lands on different
-        // models and never collides, so the side is part of the key. Each group's list
-        // preserves declaration (parse) order, so group[0] is the winning declaration.
-        var groups = new Dictionary<(bool IsOutput, string Name), List<CodeBlock>>();
+	/// <summary>Returns one <see cref="Finding"/> per dropped declaration.</summary>
+	public static List<Finding> Detect(IEnumerable<CodeBlock> blocks, string sql)
+	{
+		// Group table/object declarations by (side, name). Inputs feed the request,
+		// outputs the response — a name shared across the two sides lands on different
+		// models and never collides, so the side is part of the key. Each group's list
+		// preserves declaration (parse) order, so group[0] is the winning declaration.
+		var groups = new Dictionary<(bool IsOutput, string Name), List<CodeBlock>>();
 
-        foreach (var block in blocks)
-        {
-            if (!block.IsTable && !block.IsObject) continue;
+		foreach (var block in blocks)
+		{
+			if (!block.IsTable && !block.IsObject) continue;
 
-            var isOutput = (block.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT;
-            var key = (isOutput, block.Name.ToUpperInvariant());
+			var isOutput = (block.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT;
+			var key = (isOutput, block.Name.ToUpperInvariant());
 
-            if (!groups.TryGetValue(key, out var list))
-                groups[key] = list = [];
-            list.Add(block);
-        }
+			if (!groups.TryGetValue(key, out var list))
+				groups[key] = list = [];
+			list.Add(block);
+		}
 
-        var findings = new List<Finding>();
-        foreach (var entry in groups)
-        {
-            var group = entry.Value;
+		var findings = new List<Finding>();
+		foreach (var entry in groups)
+		{
+			var group = entry.Value;
 
-            // Collision only when the group mixes a list (table) and a single object.
-            if (!group.Exists(b => b.IsTable) || !group.Exists(b => b.IsObject)) continue;
+			// Collision only when the group mixes a list (table) and a single object.
+			if (!group.Exists(b => b.IsTable) || !group.Exists(b => b.IsObject)) continue;
 
-            var first = group[0];
-            var firstLine = LineOf(sql, first.DatabaseType.Offset);
+			var first = group[0];
+			var firstLine = LineOf(sql, first.DatabaseType.Offset);
 
-            for (var i = 1; i < group.Count; i++)
-            {
-                var dropped = group[i];
+			for (var i = 1; i < group.Count; i++)
+			{
+				var dropped = group[i];
 
-                // Only a declaration whose cardinality DIFFERS from the winner is a
-                // cardinality conflict. A same-cardinality duplicate (e.g. a second
-                // @Returns_X alongside the winning @Returns_X) is a plain dedup, not a
-                // collision — skip it so 3+ same-name groups flag only the mismatches.
-                if (dropped.IsTable == first.IsTable) continue;
+				// Only a declaration whose cardinality DIFFERS from the winner is a
+				// cardinality conflict. A same-cardinality duplicate (e.g. a second
+				// @Returns_X alongside the winning @Returns_X) is a plain dedup, not a
+				// collision — skip it so 3+ same-name groups flag only the mismatches.
+				if (dropped.IsTable == first.IsTable) continue;
 
-                findings.Add(new Finding(
-                    dropped.Name, entry.Key.IsOutput, dropped.IsTable,
-                    LineOf(sql, dropped.DatabaseType.Offset), first.IsTable, firstLine));
-            }
-        }
+				findings.Add(new Finding(
+					dropped.Name, entry.Key.IsOutput, dropped.IsTable,
+					LineOf(sql, dropped.DatabaseType.Offset), first.IsTable, firstLine));
+			}
+		}
 
-        return findings;
-    }
+		return findings;
+	}
 
-    private static int LineOf(string sql, int offset)
-    {
-        var line = 1;
-        for (var i = 0; i < offset && i < sql.Length; i++)
-            if (sql[i] == '\n') line++;
-        return line;
-    }
+	private static int LineOf(string sql, int offset)
+	{
+		var line = 1;
+		for (var i = 0; i < offset && i < sql.Length; i++)
+			if (sql[i] == '\n') line++;
+		return line;
+	}
 }

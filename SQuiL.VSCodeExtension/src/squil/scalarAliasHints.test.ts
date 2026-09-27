@@ -115,3 +115,37 @@ test('SP0042 fires on a bare select followed by another statement with no semico
   assert.strictEqual(hints.length, 1, 'a statement-starter keyword (no semicolon) must still terminate the bare select');
   assert.strictEqual(hints[0].declaredName, 'Count');
 });
+
+test('SP0042 stays silent on a file with no Use line (body-only scope)', () => {
+  // Mid-typing: declares and a scalar select are present, but no `Use` statement yet, so
+  // there is no body for the generator to rewrite. The hint must not fire. This is the
+  // contract the two C# SQuiLLinter.cs copies were aligned to — they previously scanned
+  // the whole file and produced a hint plus quick-fix here.
+  const text = [
+    'Declare @Return_Count int;',
+    'Select @Return_Count;',
+  ].join('\n');
+  const hints = scalarAliasHints(parseSQuiL(text), text, 'sqlserver');
+  assert.strictEqual(hints.length, 0);
+});
+
+test('SP0042 still fires normally once a Use line is present', () => {
+  const text = [
+    'Declare @Return_Count int;',
+    'Use Db;',
+    'Select @Return_Count;',
+  ].join('\n');
+  const hints = scalarAliasHints(parseSQuiL(text), text, 'sqlserver');
+  assert.strictEqual(hints.length, 1);
+  assert.strictEqual(hints[0].declaredName, 'Count');
+});
+
+test('SP0042 declines the ambiguous Throw terminator (SP0044 territory)', () => {
+  const text = [
+    'Declare @Return_Count int;',
+    'Use Db;',
+    'Select @Return_Count Throw;',
+  ].join('\n');
+  const hints = scalarAliasHints(parseSQuiL(text), text, 'sqlserver');
+  assert.strictEqual(hints.length, 0, 'the scanner must not offer an alias it would refuse to emit');
+});

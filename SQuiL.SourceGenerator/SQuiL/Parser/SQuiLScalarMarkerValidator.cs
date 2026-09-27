@@ -10,26 +10,26 @@ using System.Collections.Generic;
 /// </summary>
 public static class SQuiLScalarMarkerValidator
 {
-    public sealed record Finding(string Name, int Line);
+	public sealed record Finding(string Name, int Line);
 
-    public static List<Finding> Detect(IEnumerable<CodeBlock> blocks, string sql)
-    {
-        var findings = new List<Finding>();
-        foreach (var block in blocks)
-        {
-            if (block.IsTable || block.IsObject) continue;
+	public static List<Finding> Detect(IEnumerable<CodeBlock> blocks, string sql)
+	{
+		var findings = new List<Finding>();
+		foreach (var block in blocks)
+		{
+			if (block.IsTable || block.IsObject) continue;
 
-            if (block.HasScalarNullabilityMarker)
-                findings.Add(new Finding(block.Name, LineOf(sql, block.DatabaseType.Offset)));
-        }
-        return findings;
-    }
+			if (block.HasScalarNullabilityMarker)
+				findings.Add(new Finding(block.Name, LineOf(sql, block.DatabaseType.Offset)));
+		}
+		return findings;
+	}
 
-    private static int LineOf(string sql, int offset)
-    {
-        var line = 1;
-        for (var i = 0; i < offset && i < sql.Length; i++)
-            if (sql[i] == '\n') line++;
-        return line;
-    }
+	private static int LineOf(string sql, int offset)
+	{
+		var line = 1;
+		for (var i = 0; i < offset && i < sql.Length; i++)
+			if (sql[i] == '\n') line++;
+		return line;
+	}
 }
