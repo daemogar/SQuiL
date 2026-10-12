@@ -6,6 +6,12 @@ The release asset is a single file: **`SQuiL-VSCode.vsix`**.
 
 Pick whichever you prefer.
 
+**On Windows, the one-click installer:** download `SQuiL-Install.cmd` from the
+same release and double-click it. It installs into every VS Code and VS Code
+Insiders it finds (no admin rights needed for this part), and into SSMS 22+ and
+Visual Studio 2026 if those are installed too. It downloads `SQuiL-VSCode.vsix`
+itself if the file isn't next to it.
+
 **From the command line** (works with VS Code, VS Code Insiders, Cursor, etc. —
 anything that ships the `code` CLI):
 
