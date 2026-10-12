@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<global::TestCase.UnrelatedPartialRecordInOtherNamespaceDoesNotSuppressRowRecordDataContext>();
+        services.TryAddSingleton<global::TestCase.OtherNamespaceRecordKeepsRowRecordDataContext>();
 
         return services;
     }

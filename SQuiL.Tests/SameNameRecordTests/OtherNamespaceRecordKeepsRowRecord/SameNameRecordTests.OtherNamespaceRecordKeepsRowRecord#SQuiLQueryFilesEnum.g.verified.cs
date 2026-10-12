@@ -8,5 +8,5 @@ namespace SQuiL;
 [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
 internal enum QueryFiles
 {
-	UnrelatedPartialRecordInOtherNamespaceDoesNotSuppressRowRecord
+	OtherNamespaceRecordKeepsRowRecord
 }
