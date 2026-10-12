@@ -4,7 +4,7 @@ The release asset is a single file: **`SQuiL-VisualStudio.vsix`**.
 
 > **Easiest:** download `SQuiL-Install.cmd` from the same release and double-click
 > it. It detects every supported product on your machine — Visual Studio 2026
-> (Community/Professional/Enterprise) *and* SSMS 22+ — downloads whatever
+> (Community/Professional/Enterprise), SSMS 22+ *and* VS Code — downloads whatever
 > `.vsix` files it needs, and installs the matching SQuiL extension into each.
 > The manual steps below are only needed if you prefer doing it yourself.
 

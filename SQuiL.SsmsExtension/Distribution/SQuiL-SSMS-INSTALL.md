@@ -3,7 +3,7 @@
 You may have up to three files:
 
 - `SQuiL-SSMS.vsix`        ← the extension package (optional — `SQuiL-Install.cmd` downloads it if absent)
-- `SQuiL-Install.cmd`      ← runs the install for you. **You can download just this one file and double-click it** — it self-elevates (UAC prompt) and fetches the `.vsix` from GitHub if it isn't sitting next to it. It detects **every supported product on your machine** — SSMS 22+ *and* Visual Studio 2026 (Community/Professional/Enterprise) — and installs the matching SQuiL extension into each.
+- `SQuiL-Install.cmd`      ← runs the install for you. **You can download just this one file and double-click it** — it fetches each `.vsix` from GitHub if it isn't sitting next to it. It detects **every supported product on your machine** — SSMS 22+, Visual Studio 2026 (Community/Professional/Enterprise) *and* Visual Studio Code (stable and Insiders) — and installs the matching SQuiL extension into each.
 - `SQuiL-SSMS-INSTALL.md`  ← this file
 
 ## Things to know before you install
@@ -22,20 +22,33 @@ You may have up to three files:
 - **Install is per-user.** Don't pass `/admin` to VSIXInstaller — that
   changes the install scope and isn't needed; `VSIXInstaller /quiet
   path-to-vsix.vsix` is enough. (Note: the bundled `SQuiL-Install.cmd` still
-  self-elevates so it can reliably force-close SSMS — but it does **not** pass
-  `/admin` to VSIXInstaller.)
+  elevates for its SSMS/VS stage so it can reliably force-close SSMS — but it
+  does **not** pass `/admin` to VSIXInstaller.)
 
 ## Install (easiest)
 
-**Download `SQuiL-Install.cmd` and double-click it.** It prompts for administrator
-rights (UAC), discovers every supported product on the machine via `vswhere`
-(SSMS 22+ and Visual Studio 2026 Community/Professional/Enterprise), then runs
-the gated steps for you — force-close the affected apps, install each VSIX into
-its instance, and `Ssms.exe /setup` for SSMS. **Before it closes anything it
-pauses and asks you to save any open work**, so nothing is lost (press any key
-to continue, or close the window to cancel). You don't need the `.vsix` files
-locally; whatever isn't sitting next to `SQuiL-Install.cmd` is downloaded
-automatically (the release tag is baked into the file at publish time).
+**Download `SQuiL-Install.cmd` and double-click it.** It runs in two stages:
+
+1. **As you, without elevation:** it installs the VS Code extension into every
+   VS Code and VS Code Insiders it finds. VS Code doesn't need to be closed;
+   reload any open window afterwards.
+2. **As administrator (UAC prompt), only if SSMS 22+ or Visual Studio 2026 is
+   installed:** it discovers those products via `vswhere`, then runs the gated
+   steps — force-close the affected apps, install each VSIX into its instance,
+   and `Ssms.exe /setup` for SSMS. **Before it closes anything it pauses and
+   asks you to save any open work**, so nothing is lost (press any key to
+   continue, or close the window to cancel). The first window waits for this
+   one and reports the combined result.
+
+VS Code is installed before elevating because its extensions are per-user: an
+elevated run under someone else's admin credentials would put the extension in
+*their* profile. If you start the installer with **Run as administrator**, it
+installs the VS Code extension only when the admin account is the one signed in
+to the desktop, and otherwise tells you to re-run it with a plain double-click.
+
+You don't need the `.vsix` files locally; whatever isn't sitting next to
+`SQuiL-Install.cmd` is downloaded automatically (the release tag is baked into
+the file at publish time).
 
 `SQuiL-Install.cmd` is a single file that is both a batch script and a PowerShell
 script ("polyglot"). Because it runs as a `.cmd`, Windows does **not** block it

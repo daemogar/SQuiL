@@ -138,7 +138,8 @@
          assets by .github/workflows/publish.yml (which also renames the .vsix
          to SQuiL-SSMS.vsix at publish time). NOT packed into the VSIX itself.
          SQuiL-Install.cmd is a batch/PowerShell polyglot (one downloadable
-         file, self-elevating, immune to the PowerShell execution policy). -->
+         file, immune to the PowerShell execution policy) covering SSMS, VS
+         2026 and VS Code; it elevates only for the SSMS/VS stage. -->
     <Content Include="Distribution\SQuiL-SSMS-INSTALL.md" Link="SQuiL-SSMS-INSTALL.md">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>false</IncludeInVSIX>

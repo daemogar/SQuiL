@@ -12,6 +12,13 @@ from 1.0.0 onward.
 ## [Unreleased]
 
 ### Added
+- **`SQuiL-Install.cmd` installs the VS Code extension too.** It now covers all
+  three editors: it installs `SQuiL-VSCode.vsix` into every VS Code and VS Code
+  Insiders found, as the signed-in user and before elevating (VS Code
+  extensions are per-user, so an elevated run under other admin credentials
+  would land in the wrong profile). It asks for UAC only when SSMS 22+ or
+  Visual Studio 2026 is present, so a VS Code-only machine gets no prompt and no
+  longer fails for lack of `vswhere`.
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for
   INSERT/UPDATE/DELETE/MERGE queries that need automatic transaction management.
   Produces the same `Process…Async` / `*Request` / `*Response` /

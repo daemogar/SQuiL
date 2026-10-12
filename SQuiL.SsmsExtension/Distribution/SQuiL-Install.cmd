@@ -1,7 +1,8 @@
 <# :
 @echo off & setlocal
 :: =====================================================================
-:: SQuiL extension installer  (SQuiL-Install.cmd) — SSMS 22+ and Visual Studio 2026
+:: SQuiL extension installer  (SQuiL-Install.cmd) — SSMS 22+, Visual Studio 2026
+:: and Visual Studio Code
 ::
 :: WHY THIS FILE IS A .cmd AND NOT A .ps1
 ::   Browsers tag every download with the "Mark of the Web", and Windows
@@ -27,38 +28,45 @@
 ::   half. Nothing is duplicated or kept in sync by hand.
 ::
 :: WHAT HAPPENS WHEN YOU RUN IT
-::   1. The batch half checks for admin rights. A machine-wide SSMS
-::      extension install needs them, so if we are NOT elevated it
-::      relaunches THIS same file through a UAC prompt and exits the
-::      unelevated copy.
-::   2. Once elevated, it hands its own full path to PowerShell and runs
-::      the PowerShell body of THIS file in memory:
+::   1. The batch half works out which PHASE to run and hands its own full
+::      path to PowerShell, which runs the PowerShell body of THIS file in
+::      memory:
 ::          powershell ... "iex (${%~f0} | Out-String)"
 ::      Executing in-memory text (rather than a *.ps1 sitting on disk) is
 ::      itself immune to the execution policy and the Mark of the Web.
-::   3. The PowerShell body uses vswhere to discover every supported product
-::      on this machine — SSMS 22+ and Visual Studio 2026 (18+) Community/
-::      Professional/Enterprise — resolves the matching .vsix for each
-::      (explicit path > a copy next to this file > download from the GitHub
-::      release whose tag is baked in at publish time), then runs the gated
-::      steps: force-close the affected apps, install each VSIX into its
-::      instance, and Ssms.exe /setup to merge the SSMS package registration.
+::   2. Phase "user" (double-clicked, not elevated): installs the VS Code
+::      extension AS YOU, into every VS Code / VS Code Insiders found. VS Code
+::      extensions are per-user, so this must happen before elevating: an
+::      elevated run under someone else's admin credentials would install into
+::      THEIR profile. Then, only if SSMS 22+ or Visual Studio 2026 is present,
+::      it relaunches THIS file through a UAC prompt with --elevated.
+::   3. Phase "admin" (that --elevated relaunch): uses vswhere to discover
+::      SSMS 22+ and Visual Studio 2026 (18+) Community/Professional/
+::      Enterprise, resolves the matching .vsix for each (explicit path > a
+::      copy next to this file > download from the GitHub release whose tag is
+::      baked in at publish time), then runs the gated steps: force-close the
+::      affected apps, install each VSIX into its instance, and Ssms.exe
+::      /setup to merge the SSMS package registration.
+::   4. Phase "all" (started already elevated, e.g. "Run as administrator"):
+::      does both, but installs the VS Code extension only when the elevated
+::      account is the one signed in to this desktop.
 :: =====================================================================
 
-:: --- 1. Self-elevate: relaunch this file through UAC if not admin ---
-::   Admin check uses fltmc (filter-manager control), which is admin-only and
-::   returns instantly. 'net session' was used before but can stall for several
-::   seconds enumerating SMB sessions, which made the post-UAC window feel hung.
-fltmc >nul 2>&1
-if %errorlevel% NEQ 0 (
-    echo Requesting administrator privileges...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
-    exit /b
+:: --- 1. Pick the phase ---
+::   fltmc (filter-manager control) is admin-only and returns instantly, so it
+::   doubles as the elevation check. 'net session' was used before but can
+::   stall for several seconds enumerating SMB sessions.
+if /i "%~1"=="--elevated" (
+    set "SQUIL_PHASE=admin"
+    goto :run
 )
+fltmc >nul 2>&1
+if %errorlevel% EQU 0 (set "SQUIL_PHASE=all") else (set "SQUIL_PHASE=user")
 
-:: --- 2. Admin confirmed. Pass our own path to PowerShell and run the
-::        PowerShell body of THIS file. The echo gives the freshly-elevated
-::        window instant text while PowerShell cold-starts (~1s). ---
+:: --- 2. Pass our own path to PowerShell and run the PowerShell body of THIS
+::        file. The echo gives the window instant text while PowerShell
+::        cold-starts (~1s). ---
+:run
 set "SQUIL_CMD_PATH=%~f0"
 set "SQUIL_CMD_DIR=%~dp0"
 echo Starting SQuiL installer, please wait...
@@ -67,9 +75,10 @@ exit /b %errorlevel%
 : end batch portion / begin PowerShell #>
 
 # ─────────────────────────────────────────────────────────────────────────
-# PowerShell body — runs elevated, in memory, via the batch header above.
-# This installs the SQuiL extension into every supported product found on
-# the machine (SSMS 22+, VS 2026 Community/Pro/Enterprise). Treat it like a
+# PowerShell body — runs in memory via the batch header above, in the phase
+# the header chose ($env:SQUIL_PHASE: user / admin / all). It installs the
+# SQuiL extension into every supported product found on the machine (VS Code
+# + Insiders, SSMS 22+, VS 2026 Community/Pro/Enterprise). Treat it like a
 # normal .ps1.
 # ─────────────────────────────────────────────────────────────────────────
 
@@ -103,9 +112,11 @@ catch { }
 # These were `param()` in the old install.ps1. The .cmd never forwards
 # arguments, so they are plain variables now. Set them only when testing
 # specific local builds (one per product's package).
-$Repo         = 'daemogar/SQuiL'
-$SsmsVsixPath = $null
-$VsVsixPath   = $null
+$Repo             = 'daemogar/SQuiL'
+$SsmsVsixPath     = $null
+$VsVsixPath       = $null
+$VsCodeVsixPath   = $null
+$VsCodeAssetName  = 'SQuiL-VSCode.vsix'
 
 # Release tag baked in at publish time by .github/workflows/publish.yml, which
 # replaces the placeholder below with the release version. This lets a
@@ -117,8 +128,8 @@ $releaseTag = if ($BakedReleaseTag -match '^__.*__$') { $null } else { $BakedRel
 
 # ── Discover installed products via vswhere ────────────────────────────────
 # vswhere ships with the VS installer engine, which both VS 2017+ and SSMS 22
-# install — so if neither candidate path exists, no supported product can be
-# present either.
+# install — so if neither candidate path exists, no SSMS/VS product can be
+# present either (a VS Code-only machine has no vswhere, and that is fine).
 function Get-VsWherePath {
     $candidates = @(
         "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe",
@@ -127,13 +138,14 @@ function Get-VsWherePath {
     foreach ($c in $candidates) {
         if ($c -and (Test-Path $c)) { return $c }
     }
-    throw "vswhere.exe not found. Install SSMS 22+ or Visual Studio 2026 first (either one provides the Visual Studio Installer that vswhere ships with)."
+    return $null
 }
 
 # One object per applicable instance: which product it is, where its
 # VSIXInstaller lives, which .vsix asset it needs, and which process to close.
 function Get-SquilTargets {
     $vswhere = Get-VsWherePath
+    if (-not $vswhere) { return ,@() }
     $instances = & $vswhere -products * -prerelease -format json | ConvertFrom-Json
     $vsProductIds = @(
         'Microsoft.VisualStudio.Product.Community',
@@ -172,6 +184,55 @@ function Get-SquilTargets {
         }
     }
     return ,$targets
+}
+
+# ── Discover VS Code (stable + Insiders) ───────────────────────────────────
+# vswhere can't see VS Code, so probe for its CLI: PATH first, then the
+# per-user and system install folders. One CLI per flavour is enough — a
+# per-user and a system install of the same flavour share one extensions
+# folder (%USERPROFILE%\.vscode[-insiders]\extensions). Each candidate must sit
+# beside the flavour's own Code.exe, which keeps forks (Cursor, VSCodium, ...)
+# that ship a look-alike `code` CLI out.
+function Get-VsCodeTargets {
+    $flavours = @(
+        @{ Name = 'Visual Studio Code';            Cli = 'code';          Exe = 'Code.exe';            Folder = 'Microsoft VS Code' },
+        @{ Name = 'Visual Studio Code - Insiders'; Cli = 'code-insiders'; Exe = 'Code - Insiders.exe'; Folder = 'Microsoft VS Code Insiders' }
+    )
+
+    $targets = @()
+    foreach ($f in $flavours) {
+        $candidates = @()
+        $onPath = Get-Command "$($f.Cli).cmd" -CommandType Application -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty Source
+        if ($onPath) { $candidates += $onPath }
+        foreach ($root in @("$env:LOCALAPPDATA\Programs", $env:ProgramFiles)) {
+            if ($root) { $candidates += Join-Path $root "$($f.Folder)\bin\$($f.Cli).cmd" }
+        }
+
+        $cli = $candidates |
+            Where-Object { (Test-Path $_) -and (Test-Path (Join-Path (Split-Path (Split-Path $_)) $f.Exe)) } |
+            Select-Object -First 1
+        if ($cli) {
+            $targets += [pscustomobject]@{ Name = $f.Name; Cli = $cli }
+        }
+    }
+    return ,$targets
+}
+
+# True when this process runs as the account signed in to this desktop (the
+# owner of explorer.exe in our session). Phase "all" uses it to avoid putting
+# the VS Code extension into another account's profile. Unknown = $false.
+function Test-IsDesktopUser {
+    try {
+        $me = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+        $session = (Get-Process -Id $PID).SessionId
+        $shell = Get-CimInstance Win32_Process -Filter "Name='explorer.exe' AND SessionId=$session" |
+            Select-Object -First 1
+        if (-not $shell) { return $false }
+        $owner = Invoke-CimMethod -InputObject $shell -MethodName GetOwnerSid
+        return ($owner.Sid -eq $me)
+    }
+    catch { return $false }
 }
 
 # ── Resolve a .vsix: explicit path > local-next-to-script > download ───────
@@ -291,42 +352,62 @@ function Wait-AnyKey([string]$Message) {
     }
 }
 
-$exitCode = 0
-try {
-    # Defensive admin check. The .cmd header already elevates, so this only
-    # fires if someone runs this PowerShell body directly without elevation.
-    $principal = New-Object Security.Principal.WindowsPrincipal(
-        [Security.Principal.WindowsIdentity]::GetCurrent())
-    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        throw "Not running elevated. Run SQuiL-Install.cmd (it self-elevates via UAC) rather than invoking this script body directly."
-    }
+# ── VS Code: install the extension into each flavour found ─────────────────
+# Runs as the invoking user. `code --install-extension` works while VS Code is
+# open (it picks the extension up on reload), so nothing is closed. --force
+# installs over an existing copy without prompting. Returns failures.
+function Install-VsCodeTargets {
+    param([object[]]$Targets, [string]$ScriptDir)
 
-    # The batch header exported the .cmd's own folder; use it to find a
-    # sibling .vsix (the old install.ps1 used $PSScriptRoot, which is empty
-    # when this body runs in-memory via iex).
-    $scriptDir = if ($env:SQUIL_CMD_DIR) { $env:SQUIL_CMD_DIR } else { $PSScriptRoot }
+    Write-Host '== VS Code: installing extension ==' -ForegroundColor Cyan
+    $vsix = Resolve-SquilVsix -Explicit $VsCodeVsixPath -AssetName $VsCodeAssetName -ScriptDir $ScriptDir
 
-    # ── Discover what's installed ──────────────────────────────────────────
-    Write-Host '== Looking for supported products (SSMS 22+, Visual Studio 2026) ==' -ForegroundColor Cyan
-    $targets = Get-SquilTargets
-    if ($targets.Count -eq 0) {
-        throw "No supported product found. SQuiL's editor extensions need SSMS 22 (or later) and/or Visual Studio 2026 (18+) Community/Professional/Enterprise."
+    $failures = @()
+    foreach ($t in $Targets) {
+        Write-Host "  Installing into $($t.Name)..." -ForegroundColor Cyan
+        # code.cmd is a batch file, and cmd mangles quotes when both it and the
+        # .vsix path contain spaces. `cmd /s /c ""…" … "…""` strips only the outer
+        # pair, so an exact argument string survives; 2>&1 merges stderr in cmd.
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $env:ComSpec
+        $psi.Arguments = "/d /s /c `"`"$($t.Cli)`" --install-extension `"$vsix`" --force 2>&1`""
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        $output = $proc.StandardOutput.ReadToEnd()
+        $proc.WaitForExit()
+        $code = $proc.ExitCode
+        foreach ($line in ($output -split "`r?`n" | Where-Object { $_ })) {
+            Write-Host "    $line" -ForegroundColor DarkGray
+        }
+        if ($code -ne 0) {
+            $failures += "$($t.Name): extension install failed with exit code $code."
+            Write-Host "  FAILED (exit code $code)." -ForegroundColor Red
+        }
+        else {
+            Write-Host '  Installed. Reload any open VS Code window to activate it.' -ForegroundColor Green
+        }
     }
-    foreach ($t in $targets) {
-        Write-Host "  Found: $($t.Name)  [$($t.InstanceId)]" -ForegroundColor Green
-    }
+    return ,$failures
+}
+
+# ── SSMS / VS 2026: the gated close -> VSIXInstaller -> /setup steps ───────
+# Needs elevation. Returns failures; throws if the apps can't be closed or
+# every install failed.
+function Install-VsixTargets {
+    param([object[]]$Targets, [string]$ScriptDir)
 
     # ── Resolve one .vsix per product family that is present ───────────────
     $vsixByAsset = @{}
-    foreach ($assetName in ($targets | Select-Object -ExpandProperty AssetName -Unique)) {
+    foreach ($assetName in ($Targets | Select-Object -ExpandProperty AssetName -Unique)) {
         $explicit = if ($assetName -eq 'SQuiL-SSMS.vsix') { $SsmsVsixPath } else { $VsVsixPath }
-        $vsixByAsset[$assetName] = Resolve-SquilVsix -Explicit $explicit -AssetName $assetName -ScriptDir $scriptDir
+        $vsixByAsset[$assetName] = Resolve-SquilVsix -Explicit $explicit -AssetName $assetName -ScriptDir $ScriptDir
     }
 
     # ── Prompt: let the user save open work before apps are force-closed ───
     # To cancel before anything destructive happens, just close the window —
     # nothing has been changed at this point.
-    $appNames = ($targets | Select-Object -ExpandProperty Name -Unique) -join ', '
+    $appNames = ($Targets | Select-Object -ExpandProperty Name -Unique) -join ', '
     Write-Host ''
     Write-Host "Step 1 will force-close: $appNames" -ForegroundColor Yellow
     Write-Host 'Save any open work in those applications now.' -ForegroundColor Yellow
@@ -334,8 +415,8 @@ try {
 
     # ── Step 1: force-close every affected product ──────────────────────────
     Write-Host '== Step 1: Closing applications ==' -ForegroundColor Cyan
-    foreach ($proc in ($targets | Select-Object -ExpandProperty Process -Unique)) {
-        $name = ($targets | Where-Object Process -eq $proc | Select-Object -First 1).Name
+    foreach ($proc in ($Targets | Select-Object -ExpandProperty Process -Unique)) {
+        $name = ($Targets | Where-Object Process -eq $proc | Select-Object -First 1).Name
         Stop-ProductProcesses -ProcessName $proc -DisplayName $name
     }
     Write-Host 'Step 1 complete (applications closed).' -ForegroundColor Green
@@ -346,7 +427,7 @@ try {
     # compatible instance on the machine.
     $failures = @()
     Write-Host '== Step 2: VSIXInstaller /quiet (installing extension) ==' -ForegroundColor Cyan
-    foreach ($t in $targets) {
+    foreach ($t in $Targets) {
         $vsix = $vsixByAsset[$t.AssetName]
         Write-Host "  Installing into $($t.Name)..." -ForegroundColor Cyan
         $step = Start-Process -FilePath $t.Installer `
@@ -359,14 +440,14 @@ try {
             Write-Host "  Installed (exit code 0)." -ForegroundColor Green
         }
     }
-    if ($failures.Count -eq $targets.Count) {
+    if ($failures.Count -eq $Targets.Count) {
         throw "Step 2 failed for every product:`n  $($failures -join "`n  ")"
     }
 
     # ── Step 3: SSMS only — force pkgdef merge, only where install worked ──
     # Without /setup SSMS won't see the .squil binding even though
     # VSIXInstaller reported success. VS needs no equivalent step.
-    $ssmsTargets = @($targets | Where-Object { $_.Kind -eq 'SSMS' -and ($failures -notmatch [regex]::Escape($_.Name)) })
+    $ssmsTargets = @($Targets | Where-Object { $_.Kind -eq 'SSMS' -and ($failures -notmatch [regex]::Escape($_.Name)) })
     if ($ssmsTargets.Count -gt 0) {
         Write-Host '== Step 3: Ssms.exe /setup (merging pkgdef) ==' -ForegroundColor Cyan
         foreach ($t in $ssmsTargets) {
@@ -380,6 +461,90 @@ try {
             }
         }
     }
+    return ,$failures
+}
+
+$phase = if ($env:SQUIL_PHASE) { $env:SQUIL_PHASE } else { 'all' }
+$exitCode = 0
+try {
+    # The batch header exported the .cmd's own folder; use it to find a
+    # sibling .vsix (the old install.ps1 used $PSScriptRoot, which is empty
+    # when this body runs in-memory via iex).
+    $scriptDir = if ($env:SQUIL_CMD_DIR) { $env:SQUIL_CMD_DIR } else { $PSScriptRoot }
+
+    # Defensive admin check. Only the phases that run VSIXInstaller need it;
+    # this fires if someone runs this PowerShell body directly without elevation.
+    if ($phase -ne 'user') {
+        $principal = New-Object Security.Principal.WindowsPrincipal(
+            [Security.Principal.WindowsIdentity]::GetCurrent())
+        if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+            throw "Not running elevated. Run SQuiL-Install.cmd (it self-elevates via UAC) rather than invoking this script body directly."
+        }
+    }
+
+    # ── Discover what's installed ──────────────────────────────────────────
+    $vsCodeTargets = @()
+    if ($phase -ne 'admin') {
+        Write-Host '== Looking for supported products (VS Code, SSMS 22+, Visual Studio 2026) ==' -ForegroundColor Cyan
+        $vsCodeTargets = Get-VsCodeTargets
+        foreach ($t in $vsCodeTargets) {
+            Write-Host "  Found: $($t.Name)  [$($t.Cli)]" -ForegroundColor Green
+        }
+    }
+    else {
+        Write-Host '== Looking for supported products (SSMS 22+, Visual Studio 2026) ==' -ForegroundColor Cyan
+    }
+    $vsixTargets = Get-SquilTargets
+    foreach ($t in $vsixTargets) {
+        Write-Host "  Found: $($t.Name)  [$($t.InstanceId)]" -ForegroundColor Green
+    }
+    if ($vsCodeTargets.Count -eq 0 -and $vsixTargets.Count -eq 0) {
+        throw "No supported product found. SQuiL's editor extensions need Visual Studio Code (or Insiders), SSMS 22 (or later), and/or Visual Studio 2026 (18+) Community/Professional/Enterprise."
+    }
+
+    $failures = @()
+
+    # ── VS Code (phases user + all) ────────────────────────────────────────
+    if ($vsCodeTargets.Count -gt 0) {
+        if ($phase -eq 'all' -and -not (Test-IsDesktopUser)) {
+            # Elevated as a different (or unconfirmable) account: installing
+            # here would land in that account's profile, not the desktop user's.
+            Write-Host ''
+            Write-Host 'Skipping VS Code: this window runs as a different account than the one signed in,' -ForegroundColor Yellow
+            Write-Host 'so the extension would land in the wrong profile. To install it for you, run' -ForegroundColor Yellow
+            Write-Host 'SQuiL-Install.cmd again by double-clicking it (not "Run as administrator").' -ForegroundColor Yellow
+        }
+        else {
+            $failures += Install-VsCodeTargets -Targets $vsCodeTargets -ScriptDir $scriptDir
+        }
+    }
+
+    # ── SSMS / VS 2026 ─────────────────────────────────────────────────────
+    if ($vsixTargets.Count -gt 0) {
+        if ($phase -eq 'user') {
+            # Relaunch THIS file elevated for the VSIXInstaller steps and wait,
+            # so this window can report the combined result.
+            Write-Host ''
+            Write-Host 'SSMS / Visual Studio need administrator rights - approve the UAC prompt.' -ForegroundColor Yellow
+            try {
+                $elevated = Start-Process -FilePath $env:SQUIL_CMD_PATH -ArgumentList '--elevated' `
+                    -Verb RunAs -Wait -PassThru
+                if ($elevated.ExitCode -ne 0) {
+                    $failures += "SSMS / Visual Studio: the administrator window reported errors (exit code $($elevated.ExitCode))."
+                }
+                else {
+                    Write-Host 'SSMS / Visual Studio: installed (administrator window finished cleanly).' -ForegroundColor Green
+                }
+            }
+            catch {
+                # Most often: the UAC prompt was declined.
+                $failures += "SSMS / Visual Studio: not installed - elevation failed or was declined ($($_.Exception.Message))."
+            }
+        }
+        else {
+            $failures += Install-VsixTargets -Targets $vsixTargets -ScriptDir $scriptDir
+        }
+    }
 
     if ($failures.Count -gt 0) {
         throw "Install finished with errors:`n  $($failures -join "`n  ")"
@@ -391,10 +556,13 @@ catch {
     $exitCode = 1
 }
 finally {
-    # The elevated console is a fresh window; pause so the user can read the
-    # result before it closes. Accept any key (not just Enter).
-    Write-Host ''
-    Wait-AnyKey 'Press any key to close...'
+    # Each console is its own window; pause so the user can read the result
+    # before it closes. The --elevated window returns to the first one, which
+    # reports the outcome, so it pauses only when it has an error to show.
+    if ($phase -ne 'admin' -or $exitCode -ne 0) {
+        Write-Host ''
+        Wait-AnyKey 'Press any key to close...'
+    }
 }
 
 exit $exitCode
