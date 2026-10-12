@@ -326,13 +326,18 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 	/// </summary>
 	private void Execute(Compilation compilation, ImmutableArray<SQuiLDependency> dependencies, ImmutableArray<AdditionalText> files, ImmutableArray<SQuiLDefinition> definitions, SQuiLRecordIndex records, SourceProductionContext context)
 	{
-		// A project that only references a SQuiL library has no queries and no context: emit just
-		// the enums the attributes need, so its AddSQuiL() call binds to the library's (TODO #28).
+		// A project with no queries and no context: no SP0005/7/8/9 (TODO #28). It still gets an
+		// internal AddSQuiL() that calls every referenced SQuiL library's (TODO #30).
 		if (!files.Any(p => IsSqlFile(p.Path))
 			&& !definitions.Any(p => p.Type is SQuiLDefinitionType.Query or SQuiLDefinitionType.Transaction))
 		{
 			GenerateQueryFilesEnum(context, files);
 			GenerateTablesEnum(context, default);
+
+			var references = SQuiLRegistrations.Scan(compilation);
+			if (references.Length > 0 && dependencies.Any(p => p?.DependencyInjection == true))
+				EmitDependencyInjection(compilation, context, [], references);
+
 			return;
 		}
 

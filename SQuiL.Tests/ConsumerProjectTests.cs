@@ -16,24 +16,12 @@ namespace SQuiL.Tests;
 using static Microsoft.CodeAnalysis.SourceGeneratorHelper;
 
 /// <summary>
-/// TODO #28: the generator also runs in projects that only reference a SQuiL library. It must
-/// stay silent there, and its types must not leak across the assembly boundary.
+/// The generator runs in every project downstream of SQuiL. Each project's <c>AddSQuiL()</c> is
+/// internal and registers every context it can see; nothing collides across assemblies (TODO #28, #30).
 /// </summary>
 public class ConsumerProjectTests
 {
-	private static readonly string LibrarySource = $$"""
-		using Microsoft.Extensions.Configuration;
-		using {{NamespaceName}};
-
-		[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Consumer")]
-
-		namespace Library;
-
-		[{{QueryAttributeName}}(QueryFiles.GetCount)]
-		public partial class LibraryDataContext(IConfiguration Configuration) : SqlServerDataContext(Configuration)
-		{
-		}
-		""";
+	private const string Registrations = "global::Microsoft.Extensions.DependencyInjection";
 
 	private const string LibraryQuery = """
 		--Name: GetCount
@@ -51,62 +39,160 @@ public class ConsumerProjectTests
 		public static class Startup
 		{
 			public static IServiceCollection Configure(IServiceCollection services) => services.AddSQuiL();
-
-			public static int QueryCount => typeof(SQuiL.QueryFiles).GetFields().Length;
 		}
 		""";
 
-	[Fact]
-	public void Project_without_queries_or_contexts_gets_no_AddSQuiL_and_no_diagnostics()
+	/// <summary>A data context in <paramref name="ns"/>; grants <c>InternalsVisibleTo("Consumer")</c> unless it is the consumer.</summary>
+	private static string ContextSource(string ns, bool grantConsumer = true) => $$"""
+		using Microsoft.Extensions.Configuration;
+		using {{NamespaceName}};
+
+		{{(grantConsumer ? """[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Consumer")]""" : "")}}
+
+		namespace {{ns}};
+
+		[{{QueryAttributeName}}(QueryFiles.GetCount)]
+		public partial class QueryContext(IConfiguration Configuration) : SqlServerDataContext(Configuration)
+		{
+		}
+		""";
+
+	private sealed record Library(string Name, byte[] Image)
 	{
-		var (_, result) = Compile("Consumer", ConsumerSource, files: [], references: []);
+		public MetadataReference Reference => MetadataReference.CreateFromImage(Image);
+	}
+
+	[Fact]
+	public void Project_without_queries_contexts_or_SQuiL_references_gets_no_AddSQuiL_and_no_diagnostics()
+	{
+		var (_, result) = Compile("Consumer", [ConsumerSource], files: [], references: []);
 
 		Assert.DoesNotContain(result.GeneratedTrees, p => p.FilePath.EndsWith($"{NamespaceName}Extensions.g.cs"));
 		Assert.Empty(result.Diagnostics);
 	}
 
 	[Fact]
-	public void Consumer_of_a_SQuiL_library_builds_cleanly_and_binds_the_library_AddSQuiL()
+	public void Reference_only_consumer_gets_its_own_AddSQuiL_that_calls_the_library()
 	{
-		var (library, _) = Compile("Library", LibrarySource, [LibraryQuery], []);
-		AssertNoErrors(library);
+		var library = Build("Library");
 
+		var (consumer, result) = Compile("Consumer", [ConsumerSource], [], [library.Reference]);
+
+		AssertClean(consumer);
+		Assert.Equal("Consumer", BoundAssembly(consumer));
+		var text = DependencyInjectionText(result);
+		Assert.Contains($"{Registrations}.SQuiLLibraryExtensions.AddSQuiLLibrary(services);", text);
+		Assert.DoesNotContain("[assembly:", text);
+	}
+
+	[Fact]
+	public void Reference_only_consumer_without_DI_stays_silent()
+	{
+		var library = Build("Library");
+
+		var (_, result) = Compile("Consumer", ["namespace Consumer; public static class Startup { }"], [],
+			[library.Reference], withDependencyInjection: false);
+
+		Assert.DoesNotContain(result.GeneratedTrees, p => p.FilePath.EndsWith($"{NamespaceName}Extensions.g.cs"));
+		Assert.Empty(result.Diagnostics);
+	}
+
+	[Fact]
+	public void Chained_SQuiL_projects_build_cleanly_and_the_host_calls_both()
+	{
+		var libA = Build("LibA");
+		var libB = Build("LibB", libA.Reference);
+
+		var (consumer, result) = Compile("Consumer", [ConsumerSource], [], [libA.Reference, libB.Reference]);
+
+		AssertClean(consumer);
+		var text = DependencyInjectionText(result);
+		var a = text.IndexOf($"{Registrations}.SQuiLLibAExtensions.AddSQuiLLibA(services);");
+		var b = text.IndexOf($"{Registrations}.SQuiLLibBExtensions.AddSQuiLLibB(services);");
+		Assert.True(a >= 0 && b > a, text);
+	}
+
+	[Fact]
+	public void Sibling_SQuiL_projects_build_cleanly_and_the_host_calls_both()
+	{
+		var libA = Build("LibA");
+		var libC = Build("LibC");
+
+		var (consumer, result) = Compile("Consumer", [ConsumerSource], [], [libA.Reference, libC.Reference]);
+
+		AssertClean(consumer);
+		var text = DependencyInjectionText(result);
+		Assert.Contains($"{Registrations}.SQuiLLibAExtensions.AddSQuiLLibA(services);", text);
+		Assert.Contains($"{Registrations}.SQuiLLibCExtensions.AddSQuiLLibC(services);", text);
+	}
+
+	[Fact]
+	public void Consumer_with_its_own_context_and_internals_access_builds_cleanly()
+	{
+		var library = Build("Library");
+
+		var (consumer, result) = Compile("Consumer", [ConsumerSource, ContextSource("Consumer", grantConsumer: false)],
+			[LibraryQuery], [library.Reference]);
+
+		AssertClean(consumer);
+		Assert.Equal("Consumer", BoundAssembly(consumer));
+		var text = DependencyInjectionText(result);
+		Assert.Contains($"{Registrations}.SQuiLConsumerExtensions.AddSQuiLConsumer(services);", text);
+		Assert.Contains($"{Registrations}.SQuiLLibraryExtensions.AddSQuiLLibrary(services);", text);
+	}
+
+	[Fact]
+	public void Assemblies_that_reduce_to_one_registration_name_report_SP0046()
+	{
+		var dotted = Build("A.B");
+		var plain = Build("AB");
+
+		var (_, result) = Compile("Consumer", [ConsumerSource], [], [dotted.Reference, plain.Reference]);
+
+		var error = Assert.Single(result.Diagnostics, p => p.Id == "SP0046");
+		Assert.Equal(DiagnosticSeverity.Error, error.Severity);
+		Assert.Contains("'A.B'", error.GetMessage());
+		Assert.Contains("'AB'", error.GetMessage());
+	}
+
+	/// <summary>Compiles a library named <paramref name="name"/> with one context in namespace <paramref name="name"/>, and emits it.</summary>
+	private static Library Build(string name, params MetadataReference[] references)
+	{
+		var (compilation, _) = Compile(name, [ContextSource(name)], [LibraryQuery], references);
+		AssertClean(compilation);
+		return new(name, Emit(compilation));
+	}
+
+	private static byte[] Emit(Compilation compilation)
+	{
 		using MemoryStream image = new();
-		var emit = library.Emit(image);
+		var emit = compilation.Emit(image, cancellationToken: TestContext.Current.CancellationToken);
 		Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
-
-		var (consumer, _) = Compile("Consumer", ConsumerSource, [],
-			[MetadataReference.CreateFromImage(image.ToArray())]);
-
-		var problems = consumer.GetDiagnostics()
-			.Where(p => p.Severity == DiagnosticSeverity.Error || p.Id == "CS0436")
-			.ToList();
-		Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
-
-		var tree = consumer.SyntaxTrees.First(p => p.ToString().Contains("namespace Consumer;"));
-		var call = tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>()
-			.First(p => p.ToString().Contains("AddSQuiL"));
-		var method = consumer.GetSemanticModel(tree).GetSymbolInfo(call).Symbol;
-		Assert.Equal("Library", method?.ContainingAssembly.Name);
+		return image.ToArray();
 	}
 
 	private static (Compilation Output, GeneratorDriverRunResult Result) Compile(
 		string assemblyName,
-		string source,
+		IEnumerable<string> sources,
 		IEnumerable<string> files,
-		IEnumerable<MetadataReference> references)
+		IEnumerable<MetadataReference> references,
+		bool withDependencyInjection = true)
 	{
 		var compilation = CSharpCompilation.Create(
 			assemblyName,
-			[CSharpSyntaxTree.ParseText(source)],
+			sources.Select(p => CSharpSyntaxTree.ParseText(p, cancellationToken: TestContext.Current.CancellationToken)),
 			[
 				.. Net100.References.All,
 				MetadataReference.CreateFromFile(typeof(SQuiLBaseDataContext).Assembly.Location),
 				MetadataReference.CreateFromFile(typeof(SqlServerDataContext).Assembly.Location),
 				MetadataReference.CreateFromFile(typeof(SqlConnection).Assembly.Location),
 				MetadataReference.CreateFromFile(typeof(IConfiguration).Assembly.Location),
-				MetadataReference.CreateFromFile(typeof(IServiceCollection).Assembly.Location),
-				MetadataReference.CreateFromFile(typeof(ServiceCollection).Assembly.Location),
+				.. withDependencyInjection
+					? [
+						MetadataReference.CreateFromFile(typeof(IServiceCollection).Assembly.Location),
+						MetadataReference.CreateFromFile(typeof(ServiceCollection).Assembly.Location),
+					]
+					: Array.Empty<MetadataReference>(),
 				.. references,
 			],
 			new CSharpCompilationOptions(
@@ -116,14 +202,30 @@ public class ConsumerProjectTests
 		var driver = CSharpGeneratorDriver
 			.Create(new SQuiLGenerator(true))
 			.AddAdditionalTexts(files.Select(p => (AdditionalText)new AdditionalQuery(p)).ToImmutableArray())
-			.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+			.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _, TestContext.Current.CancellationToken);
 
 		return (output, driver.GetRunResult());
 	}
 
-	private static void AssertNoErrors(Compilation compilation)
+	/// <summary>No errors, and no CS0436 (a generated type leaking across the assembly boundary).</summary>
+	private static void AssertClean(Compilation compilation)
 	{
-		var errors = compilation.GetDiagnostics().Where(p => p.Severity == DiagnosticSeverity.Error).ToList();
-		Assert.True(errors.Count == 0, string.Join(Environment.NewLine, errors));
+		var problems = compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+			.Where(p => p.Severity == DiagnosticSeverity.Error || p.Id == "CS0436")
+			.ToList();
+		Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+	}
+
+	private static string DependencyInjectionText(GeneratorDriverRunResult result)
+		=> result.GeneratedTrees.Single(p => p.FilePath.EndsWith($"{NamespaceName}Extensions.g.cs")).ToString();
+
+	/// <summary>The assembly that the consumer's <c>services.AddSQuiL()</c> call binds to.</summary>
+	private static string? BoundAssembly(Compilation consumer)
+	{
+		var token = TestContext.Current.CancellationToken;
+		var tree = consumer.SyntaxTrees.First(p => p.ToString().Contains("public static class Startup"));
+		var call = tree.GetRoot(token).DescendantNodes().OfType<InvocationExpressionSyntax>()
+			.First(p => p.ToString().Contains("AddSQuiL"));
+		return consumer.GetSemanticModel(tree).GetSymbolInfo(call, token).Symbol?.ContainingAssembly.Name;
 	}
 }
