@@ -726,6 +726,8 @@ When `debug: true`, the query executes and the row count is read, but the transa
 
 Auto-generated row records (those NOT backed by a `[SQuiLTable]` attribute) are emitted into a `<ContextNamespace>.Models` sub-namespace. Use the `Namespace` property on `[SQuiLQuery]` to control this: the default is `"Models"`; `Namespace: "Dto"` puts records in `<Ctx>.Dto`; `Namespace: ""` puts them in `<Ctx>` (top-level). Two contexts that share a row record must agree on the namespace — mismatch is build error SP0021.
 
+To add members to a generated record, declare a top-level `partial record` with the same name **in the namespace the generated record lands in**: `<Ctx>.Models` (or the `Namespace` override) for a row record, and `<Ctx>` for a `[SQuiLTable]` record or a `*Request`/`*Response`. A record with the same name in any other namespace, or one that isn't `partial`, is unrelated and doesn't affect generation.
+
 Two rules govern `[SQuiLTable]` types:
 
 - **Every SQL declaration that feeds one record must declare identical columns** (same names, types, nullability, and order; sizes may differ). This applies both to table variables that share a name and to different names mapped onto one class via multiple `[SQuiLTable]` attributes. Mismatches are build error SP0017.

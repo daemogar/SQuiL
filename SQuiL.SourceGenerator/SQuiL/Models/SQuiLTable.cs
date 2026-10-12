@@ -26,7 +26,7 @@ public class SQuiLTable(
 	string Type,
 	CodeBlock Block,
 	SQuiLTableMap TableMap,
-	ImmutableDictionary<string, Generator.SQuiLPartialModel> Records)
+	Generator.SQuiLRecordIndex Records)
 	: SQuiLProperty(Type, Block, TableMap)
 {
 	/// <summary>The parsed SQL block that defines this table's columns and metadata.</summary>
@@ -109,15 +109,17 @@ public class SQuiLTable(
 		var isMapped = TableMap.TryGetName(OriginalName, out _);
 		var @namespace = RecordNamespace.Length > 0 && !isMapped ? RecordNamespace : NameSpace;
 
+		if (tableName.StartsWith(SourceGeneratorHelper.NamespaceName))
+			@namespace = SourceGeneratorHelper.NamespaceName;
+
+		// Only a partial in the namespace this record lands in is the user's (TODO #27).
+		var hasPartial = Records.TryGetPartial(tableName, @namespace, out var partial);
+
 		// SP0018 (reported in SQuiLGenerator): the user's partial owns a primary
 		// constructor, so emitting our parameter list would add CS8863 noise on top
 		// of the diagnostic. Emit nothing for this type.
-		if (Records.TryGetValue(tableName, out var userPartial)
-			&& userPartial.Syntax.ParameterList?.Parameters.Count > 0)
+		if (hasPartial && partial.Syntax.ParameterList?.Parameters.Count > 0)
 			return (tableName, new ExceptionOrValue<string>(string.Empty));
-
-		if (tableName.StartsWith(SourceGeneratorHelper.NamespaceName))
-			@namespace = SourceGeneratorHelper.NamespaceName;
 
 		record.Write($$"""
 			{{SourceGeneratorHelper.FileHeader}}
@@ -126,7 +128,7 @@ public class SQuiLTable(
 			{{Modifiers}} 
 			""");
 
-		if (Records.TryGetValue(tableName, out var partial) && partial.Syntax.ParameterList?.Parameters.Count == 0)
+		if (hasPartial && partial.Syntax.ParameterList?.Parameters.Count == 0)
 		{
 			record.Block(tableName, () =>
 			{

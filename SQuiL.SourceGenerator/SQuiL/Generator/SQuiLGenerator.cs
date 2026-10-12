@@ -237,10 +237,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			try
 			{
 				var rootPaths = b.Right.Distinct().OrderByDescending(p => p.Length).ToArray();
-				Dictionary<string, SQuiLPartialModel> records = [];
-				foreach (var record in b.Left.Right)
-					if (!records.ContainsKey(record.Name))
-						records.Add(record.Name, record);
+				SQuiLRecordIndex records = new(b.Left.Right);
 
 				Execute(b.Left.Left.Left.Left.Left, b.Left.Left.Left.Left.Right, b.Left.Left.Left.Right.Select(p =>
 				{
@@ -256,7 +253,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					}
 
 					return p;
-				}).ToImmutableArray(), b.Left.Left.Right!, records.ToImmutableDictionary(), a);
+				}).ToImmutableArray(), b.Left.Left.Right!, records, a);
 			}
 			catch (Exception e)
 			{
@@ -321,7 +318,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 	/// enums, resolves table-type mappings, and drives <see cref="FileGenerator"/> for each
 	/// SQL file / data-context pair.
 	/// </summary>
-	private void Execute(Compilation compilation, ImmutableArray<SQuiLDependency> dependencies, ImmutableArray<AdditionalText> files, ImmutableArray<SQuiLDefinition> definitions, ImmutableDictionary<string, SQuiLPartialModel> records, SourceProductionContext context)
+	private void Execute(Compilation compilation, ImmutableArray<SQuiLDependency> dependencies, ImmutableArray<AdditionalText> files, ImmutableArray<SQuiLDefinition> definitions, SQuiLRecordIndex records, SourceProductionContext context)
 	{
 		var missingDependencyInjectable = !dependencies.Any(p => p?.DependencyInjection == true);
 		if (missingDependencyInjectable)
@@ -396,11 +393,11 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 		HashSet<string> emittedConstructors = [];
 		SQuiLTableMap tableMap = new();
 
-		foreach (var record in records)
+		foreach (var record in records.All)
 		{
 			var isTableRecord = false;
 
-			foreach (var attribute in record.Value.Syntax.AttributeLists
+			foreach (var attribute in record.Syntax.AttributeLists
 				.SelectMany(p => p.Attributes
 				.Select(p => p.ArgumentList?.Arguments.FirstOrDefault()))
 				.Where(p => p is not null))
@@ -411,14 +408,14 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					continue;
 
 				isTableRecord = true;
-				tableMap.Add(table[10..], record.Key, record.Value.Syntax.GetLocation());
+				tableMap.Add(table[10..], record.Name, record.Syntax.GetLocation());
 			}
 
 			// SP0018: the generator owns the table record's parameter list; a user
 			// primary constructor would collide with it (CS8863). An empty `()`
 			// parameter list is the block-bodied customization pattern and stays legal.
-			if (isTableRecord && record.Value.Syntax.ParameterList is { Parameters.Count: > 0 } parameterList)
-				context.ReportTableRecordPrimaryConstructor(record.Key, parameterList.GetLocation());
+			if (isTableRecord && record.Syntax.ParameterList is { Parameters.Count: > 0 } parameterList)
+				context.ReportTableRecordPrimaryConstructor(record.Name, parameterList.GetLocation());
 		}
 
 		foreach (var (classname, (attribute, location)) in definitions

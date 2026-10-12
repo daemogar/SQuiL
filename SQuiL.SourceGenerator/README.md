@@ -5,6 +5,27 @@ packed on its own: `SQuiL.Core` packs this project's DLL into `analyzers/dotnet/
 consumer-facing docs live in the repository `README.md` and `CLAUDE.md`. This file records
 implementation rationale that is too long for code comments.
 
+## User partial records
+
+`SQuiLGenerator` collects every `record` declaration in the consumer compilation into a
+`SQuiLRecordIndex`. The index answers two different questions:
+
+- **Is this the user's partial of a generated type?** (`TryGetPartial`) Only a record that is
+  `partial`, top-level (not nested in another type), and declared in the namespace the generated
+  type lands in counts. Row records land in `RecordNamespace` (`<Ctx>.Models` by default), while
+  `[SQuiLTable]`-mapped records and the `*Request`/`*Response` models land in the context
+  namespace. A merge changes what is emitted. A user primary constructor makes the generator emit
+  nothing for that type, and an `internal` modifier fails generation. So a false match is a real bug, not a
+  cosmetic one.
+- **What does this base record declare?** (`TryGetValue`) A base type named in a partial's base
+  list need not be partial or share its namespace. It still resolves by simple name, first match
+  wins.
+
+Before TODO #27 both questions used one dictionary keyed by simple name. Any unrelated record
+with the same name, such as a non-partial `Colleague.Institution`, then suppressed
+`<Ctx>.Models.Institution`, and the consumer got `CS0234` with no SQuiL diagnostic. See
+`SQuiL.Tests/SameNameRecordTests/`.
+
 ## Nested objects: key graph
 
 `SQuiL/Models/SQuiLKeyGraph.cs` builds one graph per query file side (OUTPUT `@Return*` blocks and
