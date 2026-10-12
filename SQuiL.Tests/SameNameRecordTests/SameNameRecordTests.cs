@@ -7,9 +7,9 @@
 public class SameNameRecordTests : BaseTest
 {
 	[Fact]
-	public Task UnrelatedRecordInOtherNamespaceDoesNotSuppressRowRecord()
+	public Task OtherNamespaceRecordKeepsRowRecord()
 	{
-		var name = nameof(UnrelatedRecordInOtherNamespaceDoesNotSuppressRowRecord);
+		var name = nameof(OtherNamespaceRecordKeepsRowRecord);
 		return TestHelper.Verify(
 			[TestHeader([name]), """
 			namespace Other.Colleague;
@@ -26,9 +26,9 @@ public class SameNameRecordTests : BaseTest
 	}
 
 	[Fact]
-	public Task UnrelatedPartialRecordInOtherNamespaceDoesNotSuppressRowRecord()
+	public Task OtherNamespacePartialKeepsRowRecord()
 	{
-		var name = nameof(UnrelatedPartialRecordInOtherNamespaceDoesNotSuppressRowRecord);
+		var name = nameof(OtherNamespacePartialKeepsRowRecord);
 		return TestHelper.Verify(
 			[TestHeader([name]), """
 			namespace Other.Colleague;
