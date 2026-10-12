@@ -73,7 +73,7 @@ public class SqliteTransactionTests
 		var result = await context.ProcessSqliteTxnCommitAsync(new SqliteTxnCommitRequest
 		{
 			Widget = [new(1, "Ada"), new(2, "Alan")],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.False(result.TryGetErrors(out _)); // no-return query → non-generic result; success
 		Assert.Equal(2, CountWidgets(keepAlive)); // committed
@@ -94,7 +94,7 @@ public class SqliteTransactionTests
 		var result = await context.ProcessSqliteTxnRollbackAsync(new SqliteTxnRollbackRequest
 		{
 			Widget = [new(1, "Ada"), new(2, "Alan")],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetErrors(out var errors)); // error surfaced through the result
 		Assert.NotEmpty(errors);
@@ -120,7 +120,7 @@ public class SqliteTransactionTests
 		{
 			Debug = true,
 			Widget = [new(1, "Ada"), new(2, "Alan")],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);
@@ -145,7 +145,7 @@ public class SqliteTransactionTests
 		{
 			Debug = false,
 			Widget = [new(1, "Ada"), new(2, "Alan")],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);

@@ -579,6 +579,12 @@ dotnet test SQuiL.Tests/SQuiL.Tests.csproj
 dotnet test SQuiL.Tests/SQuiL.Tests.csproj --filter "FullyQualifiedName~BasicIODeclareTests"
 ```
 
+Tests run on **Microsoft.Testing.Platform** (xunit.v3 4.x), opted in by the `test.runner` key in
+the root `global.json`. The test project is an `Exe` with no `Microsoft.NET.Test.Sdk`,
+`xunit.runner.visualstudio` or coverlet collector; don't re-add them. `--project <csproj>` is the
+documented spelling (CI uses it), and xunit's own `--filter-class` / `--filter-method` work next
+to the VSTest-style `--filter`. List them with `dotnet test --project SQuiL.Tests --help`.
+
 Tests use SGSnap (`SGSnap.SourceGenerators`, source at `c:/dev/projects/sgsnap`) for snapshot testing. Each test generates C# code from SQL input and compares it against verified snapshots in subdirectories.
 
 ### Example Application
@@ -735,7 +741,7 @@ entries, because analyzer content is never a `PackageReference`-driven
 transitive dependency by design.
 
 Test dependencies:
-- `xunit` - Test framework
+- `xunit.v3` (4.x) - Test framework, running on Microsoft.Testing.Platform
 - `SGSnap.SourceGenerators` - Snapshot testing for generated code (built-in line diff; opens VS Code on a mismatch)
 
 ## Debugging

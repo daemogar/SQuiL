@@ -44,7 +44,8 @@ jobs:
       run: dotnet build --no-restore "./SQuiL.Tests/SQuiL.Tests.csproj"
 
     - name: Test Generator
-      run: dotnet test --no-build --verbosity normal "./SQuiL.Tests/SQuiL.Tests.csproj"
+      # MTP mode (global.json "test.runner"): the project path needs --project.
+      run: dotnet test --no-build --verbosity normal --project "./SQuiL.Tests/SQuiL.Tests.csproj"
 
     # The required `build` check must also exercise the VS Code extension, so a
     # dependency bump that breaks `tsc` / `vsce package` is caught on the PR
