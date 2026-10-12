@@ -168,6 +168,15 @@ SQuiL/
       rendered copies (both extension builds plus `npm run compile`) and commit
       them. A missed copy stays stale silently.
 
+12. **Keep whole-document work off the UI thread.** `SQuiLLinter.Lint` with a
+    file path runs the context-resolver pass (SP0023–SP0028), which reads and
+    regex-masks every `.cs` file in the owning project. Resolve it ONCE per lint
+    and share the `ResolvedContext`. `SQuiLErrorTagger` runs the lint on a
+    background thread and applies tags on the UI thread. Before #86 it resolved
+    three times per lint on the UI thread, a 25–210 ms freeze at every typing
+    pause. Parsing is cheap (<1 ms on real files); the filesystem is not.
+    Measure with real `.squil` files on `net472` before blaming the parser.
+
 ### Editing rules
 
 - **Grammar / language-config / guide content** — edit only in
@@ -513,6 +522,10 @@ SQuiL/
 There is no "F5 → experimental hive" loop for the SSMS extension — SSMS 22
 doesn't support the experimental-instance pattern the way VS does. The
 iteration cycle is build → uninstall → install → restart SSMS:
+
+**Check before you kill.** The first step force-stops SSMS. If its window title
+carries a `*` (an unsaved query), ask Paul to close SSMS himself instead —
+`Stop-Process -Force` discards the unsaved work.
 
 ```powershell
 $proj    = 'C:\dev\projects\SQuiL\SQuiL.SsmsExtension\SQuiL.SsmsExtension.csproj'
