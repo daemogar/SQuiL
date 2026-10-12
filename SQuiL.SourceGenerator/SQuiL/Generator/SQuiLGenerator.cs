@@ -141,13 +141,17 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 						.Select(static (p, c) => p)
 						.Collect();
 
+		// [Embedded] keeps these per-assembly types invisible to referencing projects (CS0436).
+		context.RegisterPostInitializationOutput(static p => p.AddEmbeddedAttributeDefinition());
+
 		context.RegisterPostInitializationOutput(static p => p
 			.AddSource($"{QueryAttributeName}.g.cs", SourceText.From($$"""
 				{{FileHeader}}
 				namespace {{NamespaceName}};
 
+				[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
 				[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
-				public class {{QueryAttributeName}} : System.Attribute
+				internal class {{QueryAttributeName}} : System.Attribute
 				{
 					public QueryFiles Type { get; }
 
@@ -172,8 +176,9 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				{{FileHeader}}
 				namespace {{NamespaceName}};
 
+				[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
 				[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
-				public class {{TableTypeAttributeName}} : System.Attribute
+				internal class {{TableTypeAttributeName}} : System.Attribute
 				{
 					public TableType Type { get; }
 
@@ -189,8 +194,9 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				{{FileHeader}}
 				namespace {{NamespaceName}};
 
+				[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
 				[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
-				public class {{QueryTransactionAttributeName}} : System.Attribute
+				internal class {{QueryTransactionAttributeName}} : System.Attribute
 				{
 					public QueryFiles Type { get; }
 
@@ -320,6 +326,16 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 	/// </summary>
 	private void Execute(Compilation compilation, ImmutableArray<SQuiLDependency> dependencies, ImmutableArray<AdditionalText> files, ImmutableArray<SQuiLDefinition> definitions, SQuiLRecordIndex records, SourceProductionContext context)
 	{
+		// A project that only references a SQuiL library has no queries and no context: emit just
+		// the enums the attributes need, so its AddSQuiL() call binds to the library's (TODO #28).
+		if (!files.Any(p => IsSqlFile(p.Path))
+			&& !definitions.Any(p => p.Type is SQuiLDefinitionType.Query or SQuiLDefinitionType.Transaction))
+		{
+			GenerateQueryFilesEnum(context, files);
+			GenerateTablesEnum(context, default);
+			return;
+		}
+
 		var missingDependencyInjectable = !dependencies.Any(p => p?.DependencyInjection == true);
 		if (missingDependencyInjectable)
 			context.ReportNoMicrosoftExtensionsDependencyInjectionDll();
@@ -703,8 +719,9 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			sb.Append($$"""
 				{{FileHeader}}
 				namespace {{NamespaceName}};
-				
-				public enum QueryFiles
+
+				[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+				internal enum QueryFiles
 				{
 				""");
 			var comma = "";
@@ -730,8 +747,9 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			sb.Append($$"""
 				{{FileHeader}}
 				namespace {{NamespaceName}};
-				
-				public enum TableType
+
+				[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+				internal enum TableType
 				{
 				""");
 			if (tableMap is not null)

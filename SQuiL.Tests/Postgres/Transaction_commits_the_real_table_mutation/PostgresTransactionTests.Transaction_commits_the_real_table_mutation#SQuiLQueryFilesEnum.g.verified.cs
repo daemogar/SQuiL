@@ -5,7 +5,8 @@
 
 namespace SQuiL;
 
-public enum QueryFiles
+[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+internal enum QueryFiles
 {
 	Transaction_commits_the_real_table_mutation
 }

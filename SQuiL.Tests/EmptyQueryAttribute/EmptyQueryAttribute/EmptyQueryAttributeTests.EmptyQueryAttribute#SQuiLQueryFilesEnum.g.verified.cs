@@ -5,6 +5,7 @@
 
 namespace SQuiL;
 
-public enum QueryFiles
+[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+internal enum QueryFiles
 {
 }

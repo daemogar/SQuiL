@@ -5,7 +5,8 @@
 
 namespace SQuiL;
 
-public enum QueryFiles
+[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+internal enum QueryFiles
 {
 	Enabled_false_injects_no_transaction_wrapper
 }

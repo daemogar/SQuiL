@@ -5,6 +5,7 @@
 
 namespace SQuiL;
 
-public enum TableType
+[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+internal enum TableType
 {
 }

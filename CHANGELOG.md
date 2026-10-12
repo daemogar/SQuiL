@@ -76,6 +76,12 @@ from 1.0.0 onward.
   `SQuiLError`/`SQuiLException`/`SQuiLAggregateException` types are unchanged.
 
 ### Changed
+- **Breaking:** the generated `SQuiLQueryAttribute`, `SQuiLQueryTransactionAttribute`,
+  `SQuiLTableAttribute`, `QueryFiles` and `TableType` are now `internal` and
+  `[Embedded]`, so they are private to the project that owns the query files.
+  Code in another project that names them, even through `InternalsVisibleTo`,
+  no longer compiles. This removes the `CS0436` warnings every referencing
+  project used to get.
 - **Breaking:** nested objects now follow declaration order. The
   earlier-declared table contains the later one, no matter which side owns
   the `Primary Key`.
@@ -114,6 +120,11 @@ from 1.0.0 onward.
   `@Param_` / `@Return_` naming prefix.
 
 ### Fixed
+- A project that references a SQuiL library through a `ProjectReference`, and
+  has no query files and no data context of its own, no longer gets a second
+  `AddSQuiL()`. Its `services.AddSQuiL()` call was ambiguous (`CS0121`) and
+  needed an MSBuild target that stripped the analyzer. Such a project also no
+  longer gets the SP0005/SP0007/SP0008/SP0009 diagnostics.
 - An unrelated record that merely shared a generated type's name, in any
   namespace and even when not `partial`, was mistaken for the user's partial of
   it. A row record such as `<Ctx>.Models.Institution` was then never emitted, so

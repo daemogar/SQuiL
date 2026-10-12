@@ -636,6 +636,13 @@ For a SQL file `MyQuery.sql`, the generator creates:
 - `<Namespace>.<Context>DataContext.Constructor.g.cs` - Base class inheritance + `IConfiguration` constructor (emitted only when no constructor is declared on the context class; see Optional Inheritance below)
 - Partial classes for custom tables if `[SQuiLTable]` attributes are used
 
+The attributes plus `QueryFiles`/`TableType` are `[Embedded] internal`, so they never leak into
+a referencing project (no CS0436, even with `InternalsVisibleTo`). The analyzer DOES reach a
+project that only `ProjectReference`s a SQuiL library. A compilation with no SQL files and no
+query/transaction context therefore emits only the two enums: no `SQuiLExtensions.g.cs` and no
+SP0005/7/8/9, so its `AddSQuiL()` binds to the library's (TODO #28, `ConsumerProjectTests`).
+Two projects that BOTH have contexts still collide on `AddSQuiL` (TODO #30).
+
 ### Key Components
 
 - **SQuiLDefinition** (`SQuiL/Generator/SQuiLDefinition.cs`): Represents a class with `[SQuiLQuery]` or `[SQuiLTable]` attributes

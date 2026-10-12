@@ -5,8 +5,9 @@
 
 namespace SQuiL;
 
+[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
 [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
-public class SQuiLQueryAttribute : System.Attribute
+internal class SQuiLQueryAttribute : System.Attribute
 {
 	public QueryFiles Type { get; }
 

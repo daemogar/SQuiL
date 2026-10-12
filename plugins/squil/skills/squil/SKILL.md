@@ -657,13 +657,15 @@ public partial class Table { }
 
 The `QueryFiles` enum is generated from the query-file paths: `Queries/Example1.squil` becomes `QueryFiles.QueriesExample1` (folder name + file name, both PascalCased, joined). The `TableType` enum is generated from `@Returns_<Name>` and `@Params_<Name>` table declarations — one entry per distinct table name across all query files. Add a `[SQuiLTable]` for each table the project actually uses so the row record is emitted.
 
+The attributes and both enums are generated `internal` and marked `[Embedded]`, so they are private to the project that owns the query files. Projects that reference that project don't see them, even with `InternalsVisibleTo`. Use `QueryFiles` / `TableType` only inside the owning project. A referencing project with no query files and no context gets no `AddSQuiL()` of its own, so its `services.AddSQuiL()` calls the library's.
+
 ### `[SQuiLQueryTransaction]` — mutation queries with automatic transaction management
 
 `[SQuiLQueryTransaction]` is a sibling to `[SQuiLQuery]`. It produces the **same** `Process…Async` method, `*Request` / `*Response` models, and `SQuiLResultType` return type as `[SQuiLQuery]`, but wraps the query body in a C# `DbTransaction`. Use it for INSERT/UPDATE/DELETE/MERGE queries that should commit or roll back as a unit.
 
 ```csharp
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-public class SQuiLQueryTransactionAttribute : Attribute
+internal class SQuiLQueryTransactionAttribute : Attribute
 {
     public SQuiLQueryTransactionAttribute(
         QueryFiles type,

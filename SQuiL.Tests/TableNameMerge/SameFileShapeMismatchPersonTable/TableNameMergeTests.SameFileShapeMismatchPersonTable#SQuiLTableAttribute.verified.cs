@@ -5,8 +5,9 @@
 
 namespace SQuiL;
 
+[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
 [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
-public class SQuiLTableAttribute : System.Attribute
+internal class SQuiLTableAttribute : System.Attribute
 {
 	public TableType Type { get; }
 
