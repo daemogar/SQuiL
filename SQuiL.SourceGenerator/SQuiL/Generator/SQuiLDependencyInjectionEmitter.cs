@@ -12,6 +12,7 @@ internal static class SQuiLDependencyInjectionEmitter
 		var own = contexts.Count > 0;
 		var typeName = SQuiLRegistrations.TypeName(assemblyName);
 		var method = SQuiLRegistrations.MethodName(assemblyName);
+		var docName = assemblyName.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
 
 		StringBuilder sb = new();
 		sb.Append(FileHeader);
@@ -24,10 +25,10 @@ internal static class SQuiLDependencyInjectionEmitter
 
 		if (own)
 		{
-			sb.AppendLine($"/// <summary>Registers the SQuiL data contexts declared in {assemblyName}.</summary>")
+			sb.AppendLine($"/// <summary>Registers the SQuiL data contexts declared in {docName}.</summary>")
 				.AppendLine($"public static class {SQuiLRegistrations.ClassName(assemblyName)}")
 				.AppendLine("{")
-				.AppendLine($"    /// <summary>Registers the SQuiL data contexts declared in {assemblyName} as singletons. Safe to call more than once.</summary>")
+				.AppendLine($"    /// <summary>Registers the SQuiL data contexts declared in {docName} as singletons. Safe to call more than once.</summary>")
 				.AppendLine($"    public static IServiceCollection {method}(")
 				.AppendLine("        this IServiceCollection services)")
 				.AppendLine("    {");

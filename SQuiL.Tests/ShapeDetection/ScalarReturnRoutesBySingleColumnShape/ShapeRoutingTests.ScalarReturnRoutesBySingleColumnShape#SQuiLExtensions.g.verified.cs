@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.ScalarReturnRoutesBySingleColumnShapeDataContext>();
+        services.TryAddSingleton<global::TestCase.ScalarReturnRoutesBySingleColumnShapeDataContext>();
 
         return services;
     }

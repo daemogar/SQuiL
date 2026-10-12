@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.Enabled_false_injects_no_transaction_wrapperDataContext>();
+        services.TryAddSingleton<global::TestCase.Enabled_false_injects_no_transaction_wrapperDataContext>();
 
         return services;
     }

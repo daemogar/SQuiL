@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.IdenticalOutputSignaturesCollideSP0030DataContext>();
+        services.TryAddSingleton<global::TestCase.IdenticalOutputSignaturesCollideSP0030DataContext>();
 
         return services;
     }

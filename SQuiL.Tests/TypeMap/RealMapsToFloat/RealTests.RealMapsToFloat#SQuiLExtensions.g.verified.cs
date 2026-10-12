@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.RealMapsToFloatDataContext>();
+        services.TryAddSingleton<global::TestCase.RealMapsToFloatDataContext>();
 
         return services;
     }

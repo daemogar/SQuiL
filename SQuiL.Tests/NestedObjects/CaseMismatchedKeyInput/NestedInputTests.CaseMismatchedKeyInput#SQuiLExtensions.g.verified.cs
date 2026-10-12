@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.CaseMismatchedKeyInputDataContext>();
+        services.TryAddSingleton<global::TestCase.CaseMismatchedKeyInputDataContext>();
 
         return services;
     }

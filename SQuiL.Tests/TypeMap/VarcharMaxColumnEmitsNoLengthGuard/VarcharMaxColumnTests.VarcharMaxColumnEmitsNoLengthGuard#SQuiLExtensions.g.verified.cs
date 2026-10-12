@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.VarcharMaxColumnEmitsNoLengthGuardDataContext>();
+        services.TryAddSingleton<global::TestCase.VarcharMaxColumnEmitsNoLengthGuardDataContext>();
 
         return services;
     }

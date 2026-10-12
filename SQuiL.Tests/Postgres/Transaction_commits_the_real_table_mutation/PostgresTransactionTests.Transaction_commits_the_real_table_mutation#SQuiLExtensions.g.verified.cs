@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.Transaction_commits_the_real_table_mutationDataContext>();
+        services.TryAddSingleton<global::TestCase.Transaction_commits_the_real_table_mutationDataContext>();
 
         return services;
     }

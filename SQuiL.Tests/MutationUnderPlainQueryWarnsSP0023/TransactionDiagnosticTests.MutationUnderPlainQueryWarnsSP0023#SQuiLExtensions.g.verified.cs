@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.MutationUnderPlainQueryWarnsSP0023DataContext>();
+        services.TryAddSingleton<global::TestCase.MutationUnderPlainQueryWarnsSP0023DataContext>();
 
         return services;
     }

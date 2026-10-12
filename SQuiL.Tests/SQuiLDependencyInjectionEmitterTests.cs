@@ -23,6 +23,15 @@ public class SQuiLDependencyInjectionEmitterTests
 	}
 
 	[Fact]
+	public void Assembly_name_is_escaped_in_doc_comments()
+	{
+		var text = SQuiLDependencyInjectionEmitter.Render("A&B<C", ["X.Ctx"], []);
+
+		Assert.DoesNotContain("declared in A&B<C", text);
+		Assert.Contains("declared in A&amp;B&lt;C", text);
+	}
+
+	[Fact]
 	public void Without_contexts_emits_only_the_internal_aggregator()
 	{
 		var text = SQuiLDependencyInjectionEmitter.Render("Host", [], [LibA]);

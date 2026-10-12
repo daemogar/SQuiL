@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.TransactionAttributeIsEmittedAndContextCompilesDataContext>();
+        services.TryAddSingleton<global::TestCase.TransactionAttributeIsEmittedAndContextCompilesDataContext>();
 
         return services;
     }

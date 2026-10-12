@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.ReadOnlyUnderTransactionWarnsSP0024DataContext>();
+        services.TryAddSingleton<global::TestCase.ReadOnlyUnderTransactionWarnsSP0024DataContext>();
 
         return services;
     }

@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.OwnBeginTranUnderEnabledTransactionErrorsSP0025DataContext>();
+        services.TryAddSingleton<global::TestCase.OwnBeginTranUnderEnabledTransactionErrorsSP0025DataContext>();
 
         return services;
     }

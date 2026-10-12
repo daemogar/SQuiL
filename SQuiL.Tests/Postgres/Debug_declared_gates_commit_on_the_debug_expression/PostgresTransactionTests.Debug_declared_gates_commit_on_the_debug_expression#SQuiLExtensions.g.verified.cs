@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.Debug_declared_gates_commit_on_the_debug_expressionDataContext>();
+        services.TryAddSingleton<global::TestCase.Debug_declared_gates_commit_on_the_debug_expressionDataContext>();
 
         return services;
     }

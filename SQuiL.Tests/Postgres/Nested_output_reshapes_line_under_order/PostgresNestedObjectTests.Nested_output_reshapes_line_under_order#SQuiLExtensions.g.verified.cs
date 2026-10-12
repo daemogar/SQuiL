@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.Nested_output_reshapes_line_under_orderDataContext>();
+        services.TryAddSingleton<global::TestCase.Nested_output_reshapes_line_under_orderDataContext>();
 
         return services;
     }

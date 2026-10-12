@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.InputTableQueryGeneratesJsonToRecordsetShredDataContext>();
+        services.TryAddSingleton<global::TestCase.InputTableQueryGeneratesJsonToRecordsetShredDataContext>();
 
         return services;
     }

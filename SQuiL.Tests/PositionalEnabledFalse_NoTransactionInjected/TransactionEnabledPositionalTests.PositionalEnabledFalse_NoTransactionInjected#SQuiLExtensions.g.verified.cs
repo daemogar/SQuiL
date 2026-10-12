@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.PositionalEnabledFalse_NoTransactionInjectedDataContext>();
+        services.TryAddSingleton<global::TestCase.PositionalEnabledFalse_NoTransactionInjectedDataContext>();
 
         return services;
     }

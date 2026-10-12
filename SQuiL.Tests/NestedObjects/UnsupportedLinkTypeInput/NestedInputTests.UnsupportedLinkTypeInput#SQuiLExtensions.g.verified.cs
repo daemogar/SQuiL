@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.UnsupportedLinkTypeInputDataContext>();
+        services.TryAddSingleton<global::TestCase.UnsupportedLinkTypeInputDataContext>();
 
         return services;
     }

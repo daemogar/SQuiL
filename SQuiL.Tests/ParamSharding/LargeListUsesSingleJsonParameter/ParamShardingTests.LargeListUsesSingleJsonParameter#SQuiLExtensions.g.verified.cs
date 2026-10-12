@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.LargeListUsesSingleJsonParameterDataContext>();
+        services.TryAddSingleton<global::TestCase.LargeListUsesSingleJsonParameterDataContext>();
 
         return services;
     }

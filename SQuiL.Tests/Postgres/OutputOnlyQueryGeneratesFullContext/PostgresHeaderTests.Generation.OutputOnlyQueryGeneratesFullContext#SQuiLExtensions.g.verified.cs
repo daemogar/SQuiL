@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.OutputOnlyQueryGeneratesFullContextDataContext>();
+        services.TryAddSingleton<global::TestCase.OutputOnlyQueryGeneratesFullContextDataContext>();
 
         return services;
     }

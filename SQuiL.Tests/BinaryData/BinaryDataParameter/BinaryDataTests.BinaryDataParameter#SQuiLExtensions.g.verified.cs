@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.BinaryDataParameterDataContext>();
+        services.TryAddSingleton<global::TestCase.BinaryDataParameterDataContext>();
 
         return services;
     }

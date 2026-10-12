@@ -144,6 +144,18 @@ public class ConsumerProjectTests
 	}
 
 	[Fact]
+	public void Context_namespace_that_shadows_Microsoft_Extensions_still_registers()
+	{
+		var library = Build("Extensions.Data");
+
+		var (consumer, result) = Compile("Consumer", [ConsumerSource], [], [library.Reference]);
+
+		AssertClean(consumer);
+		Assert.Contains($"{Registrations}.SQuiLExtensionsDataExtensions.AddSQuiLExtensionsData(services);",
+			DependencyInjectionText(result));
+	}
+
+	[Fact]
 	public void Assemblies_that_reduce_to_one_registration_name_report_SP0046()
 	{
 		var dotted = Build("A.B");

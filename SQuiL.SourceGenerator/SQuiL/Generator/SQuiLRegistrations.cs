@@ -14,9 +14,15 @@ internal static class SQuiLRegistrations
 
 	public const string ExtensionsNamespace = "Microsoft.Extensions.DependencyInjection";
 
-	/// <summary>The assembly name with every character that is not a letter, digit or <c>_</c> removed.</summary>
+	/// <summary>
+	/// The assembly name with every character that is not a letter, digit or <c>_</c> removed;
+	/// <c>Assembly</c> when nothing is left, so the class never collides with <c>SQuiLExtensions</c>.
+	/// </summary>
 	public static string Suffix(string assemblyName)
-		=> new(assemblyName.Where(p => char.IsLetterOrDigit(p) || p == '_').ToArray());
+	{
+		var suffix = new string(assemblyName.Where(p => char.IsLetterOrDigit(p) || p == '_').ToArray());
+		return suffix.Length == 0 ? "Assembly" : suffix;
+	}
 
 	public static string ClassName(string assemblyName) => $"SQuiL{Suffix(assemblyName)}Extensions";
 

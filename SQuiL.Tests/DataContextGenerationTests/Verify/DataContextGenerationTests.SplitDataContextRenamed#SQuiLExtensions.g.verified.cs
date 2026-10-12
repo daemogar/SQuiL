@@ -15,8 +15,8 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.QueriesExampleDataContext>();
-        services.TryAddSingleton<TestCase.QueriesGetStudentCoursesForEvaluationDataContext>();
+        services.TryAddSingleton<global::TestCase.QueriesExampleDataContext>();
+        services.TryAddSingleton<global::TestCase.QueriesGetStudentCoursesForEvaluationDataContext>();
 
         return services;
     }

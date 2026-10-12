@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.EnabledTransactionWrapsReaderPathDataContext>();
+        services.TryAddSingleton<global::TestCase.EnabledTransactionWrapsReaderPathDataContext>();
 
         return services;
     }

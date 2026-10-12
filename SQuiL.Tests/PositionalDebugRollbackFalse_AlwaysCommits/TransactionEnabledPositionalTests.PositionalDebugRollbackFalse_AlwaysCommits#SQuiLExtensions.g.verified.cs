@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.PositionalDebugRollbackFalse_AlwaysCommitsDataContext>();
+        services.TryAddSingleton<global::TestCase.PositionalDebugRollbackFalse_AlwaysCommitsDataContext>();
 
         return services;
     }

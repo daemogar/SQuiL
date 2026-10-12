@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.Nested_input_reshapes_item_under_cartDataContext>();
+        services.TryAddSingleton<global::TestCase.Nested_input_reshapes_item_under_cartDataContext>();
 
         return services;
     }

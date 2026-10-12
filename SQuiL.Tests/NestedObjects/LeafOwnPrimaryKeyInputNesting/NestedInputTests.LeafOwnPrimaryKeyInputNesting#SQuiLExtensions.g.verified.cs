@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.LeafOwnPrimaryKeyInputNestingDataContext>();
+        services.TryAddSingleton<global::TestCase.LeafOwnPrimaryKeyInputNestingDataContext>();
 
         return services;
     }

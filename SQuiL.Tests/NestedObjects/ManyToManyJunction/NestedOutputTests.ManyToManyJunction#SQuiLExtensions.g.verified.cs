@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.ManyToManyJunctionDataContext>();
+        services.TryAddSingleton<global::TestCase.ManyToManyJunctionDataContext>();
 
         return services;
     }

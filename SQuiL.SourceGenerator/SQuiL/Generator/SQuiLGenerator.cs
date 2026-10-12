@@ -594,7 +594,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			var providerReferenced = SQuiL.Dialects.DialectRegistry.IsProviderReferenced(dialectId, compilation);
 			if (!providerReferenced)
 			{
-				contexts.Add($"{@namespace}.{classname}");
+				contexts.Add($"global::{@namespace}.{classname}");
 				context.ReportMissingProvider(
 					classname,
 					SQuiL.Dialects.DialectRegistry.DialectName(dialectId),
@@ -607,7 +607,8 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 			if (providerReferenced)
 			{
-				contexts.Add($"{@namespace}.{classname}");
+				// global:: because SQuiLExtensions.g.cs lives in Microsoft.Extensions.DependencyInjection.
+				contexts.Add($"global::{@namespace}.{classname}");
 
 				var symbol = compilation
 					.GetSemanticModel(definition.Class.SyntaxTree)

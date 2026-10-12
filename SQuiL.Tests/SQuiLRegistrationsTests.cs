@@ -15,6 +15,8 @@ public class SQuiLRegistrationsTests
 	[InlineData("My-Lib.Data", "MyLibData")]
 	[InlineData("1Lib", "1Lib")]
 	[InlineData("Lib_A", "Lib_A")]
+	[InlineData("", "Assembly")]
+	[InlineData("...", "Assembly")]
 	public void Suffix_strips_non_identifier_characters(string assembly, string expected)
 	{
 		Assert.Equal(expected, SQuiLRegistrations.Suffix(assembly));

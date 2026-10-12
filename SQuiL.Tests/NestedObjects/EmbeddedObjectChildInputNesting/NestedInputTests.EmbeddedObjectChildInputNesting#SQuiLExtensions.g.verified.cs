@@ -15,7 +15,7 @@ public static class SQuiLTestsExtensions
     public static IServiceCollection AddSQuiLTests(
         this IServiceCollection services)
     {
-        services.TryAddSingleton<TestCase.EmbeddedObjectChildInputNestingDataContext>();
+        services.TryAddSingleton<global::TestCase.EmbeddedObjectChildInputNestingDataContext>();
 
         return services;
     }
