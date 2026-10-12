@@ -513,6 +513,13 @@ public static class DiagnosticsMessages
 			+ "from the declared name is not routable.",
 			Location.None));
 
+	/// <summary>SP0046 — two SQuiL assemblies reduce to the same registration class, so <c>AddSQuiL()</c> can't call them apart (TODO #30).</summary>
+	public static void ReportRegistrationNameCollision(this SourceProductionContext context, string typeName, IEnumerable<string> assemblies)
+		=> context.ReportDiagnostic(CreateDiagnostic(
+			DiagnosticSeverity.Error, "SP0046", "SQuiL Registration Name Collision",
+			$"The SQuiL assemblies {string.Join(", ", assemblies.Select(p => $"'{p}'"))} all generate `{typeName}`, "
+			+ "so this project's AddSQuiL() cannot call them apart. Rename one of the assemblies."));
+
 	/// <summary>
 	/// Builds a <see cref="Diagnostic"/> with newlines removed from the message so IDEs display it on one line.
 	/// </summary>

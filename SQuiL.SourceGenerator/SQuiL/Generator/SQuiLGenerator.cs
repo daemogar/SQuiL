@@ -658,40 +658,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			if (contexts.Count == 0)
 				context.ReportNoDataContextUsage();
 
-			StringWriter text = new();
-			IndentedTextWriter writer = new(text);
-
-			writer.Block($"""
-				{FileHeader}
-				namespace Microsoft.Extensions.DependencyInjection;
-
-				using Microsoft.Extensions.DependencyInjection.Extensions;
-
-				public static class {NamespaceName}Extensions
-				""",
-				() =>
-				{
-					// Idempotent per collection via TryAdd; no static guard, so every host
-					// (and every parallel test) gets its own registrations.
-					writer.Block("""
-						/// <summary>Registers every SQuiL data context as a singleton. Safe to call more than once.</summary>
-						public static IServiceCollection AddSQuiL(
-							this IServiceCollection services)
-						""", () =>
-					{
-						if (contexts.Count > 0)
-						{
-							foreach (var singleton in contexts.Distinct())
-								writer.WriteLine($"services.TryAddSingleton<{singleton}>();");
-
-							writer.WriteLine();
-						}
-
-						writer.WriteLine("return services;");
-					});
-				});
-
-			context.AddSource($"{NamespaceName}Extensions.g.cs", SourceText.From(text.ToString(), Encoding.UTF8));
+			EmitDependencyInjection(compilation, context, [.. contexts.Distinct()], SQuiLRegistrations.Scan(compilation));
 		}
 
 		void EmitConstructor(string @namespace, string classname, string baseType)
@@ -767,6 +734,29 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 			context.AddSource($"{NamespaceName}TableTypeEnum.g.cs", sb.ToString());
 		}
+	}
+
+	/// <summary>Writes <c>SQuiLExtensions.g.cs</c>; reports SP0046 for registration classes that would collide (TODO #30).</summary>
+	private static void EmitDependencyInjection(Compilation compilation, SourceProductionContext context,
+		IReadOnlyList<string> contexts, ImmutableArray<SQuiLRegistrationReference> references)
+	{
+		var assembly = compilation.AssemblyName ?? "";
+
+		List<(string Assembly, string TypeName)> named = [.. references.Select(p => (p.Assembly, p.TypeName))];
+		if (contexts.Count > 0)
+			named.Add((assembly, SQuiLRegistrations.TypeName(assembly)));
+
+		HashSet<string> clashing = [];
+		foreach (var clash in named.GroupBy(p => p.TypeName).Where(p => p.Count() > 1))
+		{
+			clashing.Add(clash.Key);
+			context.ReportRegistrationNameCollision(clash.Key, clash.Select(p => p.Assembly));
+		}
+
+		List<SQuiLRegistrationReference> callable = [.. references.Where(p => !clashing.Contains(p.TypeName))];
+
+		context.AddSource($"{NamespaceName}Extensions.g.cs", SourceText.From(
+			SQuiLDependencyInjectionEmitter.Render(assembly, contexts, callable), Encoding.UTF8));
 	}
 }
 
