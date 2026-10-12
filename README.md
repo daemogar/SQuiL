@@ -281,9 +281,9 @@ dotnet add package SQuiL.Postgres
 Same reference-both model as SQL Server and SQLite: `SQuiL.Core` carries the
 generator (a NuGet analyzer) plus the provider-neutral runtime types;
 `SQuiL.Postgres` carries `PostgresDataContext` and the `Npgsql` plumbing.
-`SQuiL.Postgres` multi-targets `netstandard2.0` (Npgsql 6.0.x) and `net10.0`
-(Npgsql 10.x), so it can be consumed from either TFM. Both packages are
-required — an analyzer never flows through a transitive dependency.
+`SQuiL.Postgres` targets `net10.0` only (Npgsql 10.x), because Npgsql dropped
+`netstandard2.0` after 6.0. Both packages are required — an analyzer never
+flows through a transitive dependency.
 
 The dialect is inferred from the referenced provider package, or pin it
 explicitly:
