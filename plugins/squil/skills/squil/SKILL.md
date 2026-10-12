@@ -505,11 +505,10 @@ provider is referenced (see "Selecting a dialect" below, "Authoring for
 SQLite", and "Authoring for PostgreSQL"). The generated surface is identical
 across dialects.
 
-**Both are required, not either/or.** NuGet does not flow a package's
-analyzer through a transitive dependency — only a *direct* `PackageReference`
-activates it. So referencing `SQuiL.SqlServer` alone pulls in `SQuiL.Core`'s
-runtime DLL (a normal transitive package reference) but **not** its analyzer,
-and the generator never runs. Referencing `SQuiL.Core` alone gives you
+**Reference both, not either/or.** Referencing both directly is the supported
+setup, the same as EF Core and its provider package. The generator does run in
+any project downstream of a SQuiL reference, which is why a project that only
+references a SQuiL library still gets its own `AddSQuiL()`. Referencing `SQuiL.Core` alone gives you
 generation but no runtime base class to inherit — the generated
 `Constructor.g.cs` file references a type (`SqlServerDataContext`) that isn't
 in the compilation, which is build error **SP0038** ("SQuiL Provider Package
@@ -852,6 +851,11 @@ per service collection (it uses `TryAddSingleton`), so calling it twice is
 harmless and every separate collection (each test host, each
 `WebApplicationFactory`) gets its own registrations. A context you registered
 yourself before calling it is left as is.
+
+"Can see" means the project's compile references. A project that sets
+`DisableTransitiveProjectReferences=true` doesn't see the libraries behind its
+direct references, so their contexts aren't registered. Reference those
+libraries directly, or call their `AddSQuiL<AssemblyName>()` yourself.
 
 ### Error handling
 

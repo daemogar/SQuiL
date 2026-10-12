@@ -651,7 +651,8 @@ assemblies (TODO #30, `ConsumerProjectTests`): each project with contexts emits 
 `SQuiL.Core`); every project with contexts or a marked reference emits an `internal`,
 `[Embedded]` `AddSQuiL()` that calls them all by fully qualified name. `[Embedded]` matters: with
 `InternalsVisibleTo`, two internal `AddSQuiL()`s would be CS0121. `SQuiLRegistrations.Scan` reads
-markers from `ReferencedAssemblySymbols`, which already include transitive references. SP0046 =
+markers from `ReferencedAssemblySymbols`, which include transitive references by default (not under
+`DisableTransitiveProjectReferences=true`; SKILL.md "DI registration" documents that caveat). SP0046 =
 two assemblies reduce to one `<Asm>`.
 
 ### Key Components

@@ -980,9 +980,8 @@ and re-running it replaces the existing block in place. <strong>Existing blocks 
 &lt;<span class="cs-cls">PackageReference</span> <span class="cs-pn">Include</span>=<span class="str">"SQuiL.SqlServer"</span> <span class="cs-pn">Version</span>=<span class="str">"*"</span> /&gt;</code></pre>
 <p>Reference <strong>both</strong> packages: <code>SQuiL.Core</code> carries the generator (as a NuGet analyzer)
 plus the provider-neutral runtime types; <code>SQuiL.SqlServer</code> carries the SQL Server provider
-(<code>SqlServerDataContext</code> and the <code>Microsoft.Data.SqlClient</code> plumbing). NuGet does not
-activate a package's analyzer through a transitive dependency, so referencing <code>SQuiL.SqlServer</code>
-alone gets you the runtime but not code generation — both references are required.</p>
+(<code>SqlServerDataContext</code> and the <code>Microsoft.Data.SqlClient</code> plumbing). Reference both
+directly, as you would EF Core and its provider package; that is the supported setup.</p>
 
 <h3>2. Register your <code>.squil</code> files as <code>AdditionalFiles</code></h3>
 <p>SQuiL discovers queries via MSBuild's <code>AdditionalFiles</code> item. The simplest pattern picks up every <code>.squil</code> file anywhere in the project — the file's relative path becomes the entry in the generated <code>QueryFiles</code> enum:</p>

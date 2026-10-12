@@ -53,11 +53,10 @@ Reference **both** packages:
 - `SQuiL.SqlServer` — the SQL Server provider: `SqlServerDataContext` and the
   `Microsoft.Data.SqlClient` plumbing generated code executes against.
 
-Both are required because NuGet does **not** flow a package's analyzer through
-a transitive dependency — only a *direct* `PackageReference` activates it (the
-same reason EF Core's provider packages require the main package alongside
-them). Referencing `SQuiL.SqlServer` alone gets you the runtime but no code
-generation.
+Reference both directly, as you would EF Core and its provider package; that is
+the supported setup. The generator in `SQuiL.Core` also runs in every project
+downstream of a SQuiL reference, so a project that only references a SQuiL
+library gets its own `AddSQuiL()` covering that library's contexts.
 
 The dialect is inferred from the provider package you reference
 (`SQuiL.SqlServer` here). Add `[SQuiLDialect(SQuiLDialect.SqlServer)]` to a
@@ -141,8 +140,7 @@ dotnet add package SQuiL.Sqlite
 Same reference-both model as SQL Server (and as EF Core's provider packages):
 `SQuiL.Core` carries the generator (a NuGet analyzer) plus the provider-neutral
 runtime types; `SQuiL.Sqlite` carries the SQLite provider — `SqliteDataContext`
-and the `Microsoft.Data.Sqlite` plumbing. Both are required, because an
-analyzer does not flow through a transitive dependency.
+and the `Microsoft.Data.Sqlite` plumbing. Reference both directly.
 
 ### Dialect selection
 
@@ -282,8 +280,7 @@ Same reference-both model as SQL Server and SQLite: `SQuiL.Core` carries the
 generator (a NuGet analyzer) plus the provider-neutral runtime types;
 `SQuiL.Postgres` carries `PostgresDataContext` and the `Npgsql` plumbing.
 `SQuiL.Postgres` targets `net10.0` only (Npgsql 10.x), because Npgsql dropped
-`netstandard2.0` after 6.0. Both packages are required — an analyzer never
-flows through a transitive dependency.
+`netstandard2.0` after 6.0. Reference both packages directly.
 
 The dialect is inferred from the referenced provider package, or pin it
 explicitly:
