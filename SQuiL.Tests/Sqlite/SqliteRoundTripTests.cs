@@ -75,7 +75,7 @@ public class SqliteRoundTripTests
 		var result = await context.ProcessImportPeopleAsync(new ImportPeopleRequest
 		{
 			Person = [new(1, "Ada", 36), new(2, "Alan", 41)],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);
@@ -99,7 +99,7 @@ public class SqliteRoundTripTests
 		using var _ = keepAlive;
 
 		var context = provider.GetRequiredService<NullRoundTripDataContext>();
-		var result = await context.ProcessNullRoundTripAsync(new NullRoundTripRequest());
+		var result = await context.ProcessNullRoundTripAsync(new NullRoundTripRequest(), TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);
@@ -128,7 +128,7 @@ public class SqliteRoundTripTests
 		var result = await context.ProcessBlobRoundTripAsync(new BlobRoundTripRequest
 		{
 			Doc = [new(1, payload)],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);
@@ -153,7 +153,7 @@ public class SqliteRoundTripTests
 		var result = await context.ProcessCountPeopleAsync(new CountPeopleRequest
 		{
 			Counting = [new(1, "Ada"), new(2, "Alan"), new(3, "Grace")],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);
@@ -177,7 +177,7 @@ public class SqliteRoundTripTests
 		var result = await context.ProcessPeopleAndCountAsync(new PeopleAndCountRequest
 		{
 			Roster = [new(1, "Ada"), new(2, "Alan")],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);
@@ -203,7 +203,7 @@ public class SqliteRoundTripTests
 		var context = provider.GetRequiredService<MissingTableDataContext>();
 
 		// Must NOT throw — the SqliteException is caught and returned as an error.
-		var result = await context.ProcessMissingTableAsync(new MissingTableRequest());
+		var result = await context.ProcessMissingTableAsync(new MissingTableRequest(), TestContext.Current.CancellationToken);
 
 		Assert.False(result.TryGetValue(out var ignored, out var errors));
 		Assert.Null(ignored);
@@ -232,7 +232,7 @@ public class SqliteRoundTripTests
 		using var _ = keepAlive;
 
 		var context = provider.GetRequiredService<TypedRoutingDataContext>();
-		var result = await context.ProcessTypedRoutingAsync(new TypedRoutingRequest());
+		var result = await context.ProcessTypedRoutingAsync(new TypedRoutingRequest(), TestContext.Current.CancellationToken);
 
 		// Pre-fix, TryGetValue returned false here (the result set fell through routing and the
 		// guarded return threw "Expected return table 'Flag'"); post-fix it routes cleanly.

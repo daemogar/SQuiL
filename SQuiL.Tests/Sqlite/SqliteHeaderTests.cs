@@ -81,7 +81,7 @@ public class SqliteHeaderTests
 		var block = Assert.Single(blocks, b => (b.CodeType & CodeType.OUTPUT) == CodeType.OUTPUT);
 		Assert.Equal(CodeType.OUTPUT_TABLE, block.CodeType);
 		Assert.Equal("ID", block.Name);
-		Assert.Equal(1, block.Properties.Count);
+		Assert.Single(block.Properties);
 	}
 
 	[Fact]

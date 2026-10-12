@@ -84,7 +84,7 @@ public class PostgresRoundTripTests(PostgresContainerFixture fixture)
 		var peopleResult = await peopleContext.ProcessPgImportPeopleAsync(new PgImportPeopleRequest
 		{
 			PgPerson = [new(1, "Ada", 36), new(2, "Alan", 41)],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(peopleResult.TryGetValue(out var peopleResponse, out var peopleErrors));
 		Assert.Null(peopleErrors);
@@ -99,7 +99,7 @@ public class PostgresRoundTripTests(PostgresContainerFixture fixture)
 		var countResult = await countContext.ProcessPgCountPeopleAsync(new PgCountPeopleRequest
 		{
 			PgCounting = [new(1, "Ada"), new(2, "Alan"), new(3, "Grace")],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(countResult.TryGetValue(out var countResponse, out var countErrors));
 		Assert.Null(countErrors);
@@ -110,7 +110,7 @@ public class PostgresRoundTripTests(PostgresContainerFixture fixture)
 		var addressResult = await addressContext.ProcessPgImportAddressAsync(new PgImportAddressRequest
 		{
 			Address = new("123 Main St", "Chattanooga"),
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(addressResult.TryGetValue(out var addressResponse, out var addressErrors));
 		Assert.Null(addressErrors);
@@ -130,7 +130,7 @@ public class PostgresRoundTripTests(PostgresContainerFixture fixture)
 		using var provider = Arrange();
 
 		var context = provider.GetRequiredService<PgNullRoundTripDataContext>();
-		var result = await context.ProcessPgNullRoundTripAsync(new PgNullRoundTripRequest());
+		var result = await context.ProcessPgNullRoundTripAsync(new PgNullRoundTripRequest(), TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);
@@ -159,7 +159,7 @@ public class PostgresRoundTripTests(PostgresContainerFixture fixture)
 		var result = await context.ProcessPgBlobRoundTripAsync(new PgBlobRoundTripRequest
 		{
 			PgDoc = [new(1, payload)],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);
@@ -187,7 +187,7 @@ public class PostgresRoundTripTests(PostgresContainerFixture fixture)
 		var peopleAndCountResult = await peopleAndCountContext.ProcessPgPeopleAndCountAsync(new PgPeopleAndCountRequest
 		{
 			PgRoster = [new(1, "Ada"), new(2, "Alan")],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(peopleAndCountResult.TryGetValue(out var peopleAndCountResponse, out var peopleAndCountErrors));
 		Assert.Null(peopleAndCountErrors);
@@ -197,7 +197,7 @@ public class PostgresRoundTripTests(PostgresContainerFixture fixture)
 
 		// (b) uuid + boolean + timestamp columns in one result set.
 		var typedRoutingContext = provider.GetRequiredService<PgTypedRoutingDataContext>();
-		var typedRoutingResult = await typedRoutingContext.ProcessPgTypedRoutingAsync(new PgTypedRoutingRequest());
+		var typedRoutingResult = await typedRoutingContext.ProcessPgTypedRoutingAsync(new PgTypedRoutingRequest(), TestContext.Current.CancellationToken);
 
 		Assert.True(typedRoutingResult.TryGetValue(out var typedRoutingResponse, out var typedRoutingErrors));
 		Assert.Null(typedRoutingErrors);
@@ -226,7 +226,7 @@ public class PostgresRoundTripTests(PostgresContainerFixture fixture)
 		var context = provider.GetRequiredService<PgMissingTableDataContext>();
 
 		// Must NOT throw — the NpgsqlException is caught and returned as an error.
-		var result = await context.ProcessPgMissingTableAsync(new PgMissingTableRequest());
+		var result = await context.ProcessPgMissingTableAsync(new PgMissingTableRequest(), TestContext.Current.CancellationToken);
 
 		Assert.False(result.TryGetValue(out var ignored, out var errors));
 		Assert.Null(ignored);

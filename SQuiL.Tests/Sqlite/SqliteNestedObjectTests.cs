@@ -51,7 +51,7 @@ public class SqliteNestedObjectTests
 		using var _ = keepAlive;
 
 		var context = provider.GetRequiredService<SqliteNestedOutputDataContext>();
-		var result = await context.ProcessSqliteNestedOutputAsync(new SqliteNestedOutputRequest());
+		var result = await context.ProcessSqliteNestedOutputAsync(new SqliteNestedOutputRequest(), TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);
@@ -96,7 +96,7 @@ public class SqliteNestedObjectTests
 					new(0, 0, "Gadget"),
 				],
 			},
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);
@@ -119,7 +119,7 @@ public class SqliteNestedObjectTests
 		var result = await context.ProcessSqliteEmbedWithChildInputAsync(new SqliteEmbedWithChildInputRequest
 		{
 			Structure = [new("A") { Contact = contact }, new("B") { Contact = contact }],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);
@@ -144,7 +144,7 @@ public class SqliteNestedObjectTests
 			],
 		};
 
-		var e = await Assert.ThrowsAsync<InvalidOperationException>(() => context.ProcessSqliteEmbedWithChildInputAsync(request));
+		var e = await Assert.ThrowsAsync<InvalidOperationException>(() => context.ProcessSqliteEmbedWithChildInputAsync(request, TestContext.Current.CancellationToken));
 		Assert.Contains("Contact with ContactID '1' was supplied twice with nested children", e.Message);
 	}
 
@@ -165,7 +165,7 @@ public class SqliteNestedObjectTests
 			],
 		};
 
-		var e = await Assert.ThrowsAsync<InvalidOperationException>(() => context.ProcessSqliteEmbedWithChildInputAsync(request));
+		var e = await Assert.ThrowsAsync<InvalidOperationException>(() => context.ProcessSqliteEmbedWithChildInputAsync(request, TestContext.Current.CancellationToken));
 		Assert.Contains("Contact with ContactID '1' was supplied twice with nested children", e.Message);
 	}
 
@@ -177,7 +177,7 @@ public class SqliteNestedObjectTests
 		using var _ = keepAlive;
 
 		var context = provider.GetRequiredService<SqliteEmbedOutputDataContext>();
-		var result = await context.ProcessSqliteEmbedOutputAsync(new SqliteEmbedOutputRequest());
+		var result = await context.ProcessSqliteEmbedOutputAsync(new SqliteEmbedOutputRequest(), TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);
@@ -195,7 +195,7 @@ public class SqliteNestedObjectTests
 		using var _ = keepAlive;
 
 		var context = provider.GetRequiredService<SqliteJunctionOutputDataContext>();
-		var result = await context.ProcessSqliteJunctionOutputAsync(new SqliteJunctionOutputRequest());
+		var result = await context.ProcessSqliteJunctionOutputAsync(new SqliteJunctionOutputRequest(), TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);
@@ -225,7 +225,7 @@ public class SqliteNestedObjectTests
 				new("A") { Agent = new(1, "Ada") { Site = new(5, "Main") } },
 				new("B") { Agent = new(1, "Ada") { Site = new(5, "Main") } },
 			],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);
@@ -250,7 +250,7 @@ public class SqliteNestedObjectTests
 			],
 		};
 
-		var e = await Assert.ThrowsAsync<Exception>(() => context.ProcessSqliteChainedEmbedInputAsync(request));
+		var e = await Assert.ThrowsAsync<Exception>(() => context.ProcessSqliteChainedEmbedInputAsync(request, TestContext.Current.CancellationToken));
 		Assert.Contains("Conflicting values supplied for Agent with AgentID '1'", e.Message);
 	}
 
@@ -269,7 +269,7 @@ public class SqliteNestedObjectTests
 				new("A") { Contact = new(1, "Ada") { Phone = [new(0, 0, "555-0100")] } },
 				new("B") { Contact = new(1, "Ada") },
 			],
-		});
+		}, TestContext.Current.CancellationToken);
 
 		Assert.True(result.TryGetValue(out var response, out var errors));
 		Assert.Null(errors);

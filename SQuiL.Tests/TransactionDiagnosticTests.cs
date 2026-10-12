@@ -111,7 +111,7 @@ public class TransactionDiagnosticTests
 			""";
 
 		// Run the generator directly so we can inspect the diagnostic list.
-		var syntaxTree = CSharpSyntaxTree.ParseText(source);
+		var syntaxTree = CSharpSyntaxTree.ParseText(source, cancellationToken: TestContext.Current.CancellationToken);
 		var compilation = CSharpCompilation.Create(
 			assemblyName: "Tests",
 			syntaxTrees: [syntaxTree]);
@@ -120,7 +120,7 @@ public class TransactionDiagnosticTests
 		var generator = new SQuiLGenerator(true);
 		var driver = CSharpGeneratorDriver.Create(generator);
 		driver = (CSharpGeneratorDriver)driver.AddAdditionalTexts([additionalFile]);
-		driver = (CSharpGeneratorDriver)driver.RunGenerators(compilation);
+		driver = (CSharpGeneratorDriver)driver.RunGenerators(compilation, cancellationToken: TestContext.Current.CancellationToken);
 
 		var diagnostics = driver.GetRunResult().Diagnostics;
 		var sp0026 = diagnostics.Where(d => d.Id == "SP0026").ToList();
