@@ -135,3 +135,48 @@ list per table:
   one instance is fine.
 - **A missing embed behind a `not null` container column** throws `InvalidOperationException`
   instead of sending NULL.
+
+## Shape key
+
+Each result set a query returns is routed to its declared `@Return*` output by an ordered
+signature: `name:type` per column, joined by `|`, names lower-cased, a trailing `?` stripped. The
+build side is `SQuiL/Models/SQuiLShapeKey.cs`, which emits `case "personid:int|name:string":`
+labels. The runtime side is `SQuiLBaseDataContext.ShapeKey`, which reads `reader.GetName` and
+`reader.GetDataTypeName` and passes the type through each provider's `NormalizeType`. The two
+must agree, and `SQuiL.Tests/ShapeDetection/KeyParityTests.cs` and
+`SQuiL.Tests/Postgres/PostgresKeyParityTests.cs` guard that. SQLite uses coarser tokens
+(`bool`, `DateTime` and `Guid` become `long` or `string`), because a live SQLite reader only
+reports a storage-class affinity.
+
+### What the key leaves out
+
+The type token is the mapped C# type, so **length, precision, and `varchar` vs `nvarchar` are not
+part of the key**. `varchar(50)` and `nvarchar(100)` are both `string`; `decimal(18,2)` and
+`decimal(10,4)` are both `decimal`. `int` vs `bigint` and `date` vs `datetime` still differ,
+because their C# types differ. Two outputs in one file that differ only by length, precision, or
+`varchar`/`nvarchar` therefore collide, which is SP0030
+(`SQuiL.Tests/ShapeDetection/ShapeCollisionTests.cs`, `LengthOnlyDifferenceStillCollidesSP0030`).
+
+Why length stays out:
+
+- **It never affects a read.** A `varchar(50)` and a `varchar(100)` column read into the same
+  `string`.
+- **The runtime length comes from the `Select`, not the `Declare`.** In direct-select style the
+  columns carry their source table's lengths. A key with length in it would silently skip a
+  result set whose source column is `varchar(80)` when the output declares `varchar(100)`. The
+  published guide promises that "length casts are never required" (`SKILL.md`, direct-select
+  style).
+- **The cost is real.** `GetDataTypeName` carries no length on SQL Server, so reading it needs
+  `GetColumnSchema` (`ColumnSize`, `NumericPrecision`, `NumericScale`) plus handling for `max`
+  (-1). PostgreSQL's `NormalizeType` has to strip the facets Npgsql does report, and SQLite
+  routes by storage-class affinity, so length can't take part there.
+
+### Parked: tie-break escalation
+
+The considered alternative was to keep this key as the default and add the full facets (length,
+precision, `nvarchar`) **only** to outputs that already collide on it. That would confine the
+`GetColumnSchema` cost and the silent-skip risk to those files. It was rejected on 2026-10-12
+(TODO #16) because no real query had hit a length-only collision. SP0030 already gives a clear
+remedy: rename or reorder a column, change a C# type, or merge the two outputs under one name.
+Revisit only if a real consumer hits a length-only SP0030. Even then, SQLite would keep
+reporting SP0030, because affinity-based routing has no length to break the tie.

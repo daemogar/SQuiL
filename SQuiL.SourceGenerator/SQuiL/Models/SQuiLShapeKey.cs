@@ -13,6 +13,7 @@ using System.Linq;
 /// key here MUST match the runtime key produced by each provider's <c>NormalizeType</c>
 /// override (SqlServerDataContext / SqliteDataContext), reached via SQuiLBaseDataContext.ShapeKey.
 /// </summary>
+/// <remarks>Why length/precision stay out: see README.md, "Shape key".</remarks>
 public static class SQuiLShapeKey
 {
 	/// <summary>
