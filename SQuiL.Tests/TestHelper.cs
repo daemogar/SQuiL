@@ -5,6 +5,9 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
+using SGSnap;
+using SGSnap.SourceGenerators;
+
 using SQuiL;
 using SQuiL.Generator;
 
@@ -225,31 +228,17 @@ public static class TestHelper
 			&& !driver.GetRunResult().Diagnostics.Any(p => p.Severity == DiagnosticSeverity.Error))
 			CompilationAssert.GeneratedCodeCompiles(sources, files, includeSqlite: includeSqlite, includePostgres: includePostgres);
 
-		VerifySettings settings = default!;
-		if (path is not null)
-		{
-			path = Path.Combine(Path.GetDirectoryName(path)!, name) + Path.DirectorySeparatorChar;
-			if (!Directory.Exists(path))
-				Directory.CreateDirectory(path);
-			settings = new();
-			settings.UseDirectory(path);
-			//settings.UseTypeName("bob");
+		path = Path.Combine(Path.GetDirectoryName(path)!, name) + Path.DirectorySeparatorChar;
 
-			// Token.Offset is an absolute character position into the input SQL,
-			// so it shifts with CRLF vs LF line endings (autocrlf checkouts vs
-			// LF/CI). It carries no behavioral meaning in these AST-dump
-			// snapshots, so scrub it to keep snapshots line-ending-independent
-			// across Windows and Linux CI.
-			settings.AddScrubber(builder =>
-			{
-				var scrubbed = System.Text.RegularExpressions.Regex.Replace(
-					builder.ToString(), @"Offset = \d+", "Offset = {scrubbed}");
-				builder.Clear();
-				builder.Append(scrubbed);
-			});
-		}
+		// Token.Offset is an absolute character position into the input SQL,
+		// so it shifts with CRLF vs LF line endings (autocrlf checkouts vs
+		// LF/CI). It carries no behavioral meaning in these AST-dump
+		// snapshots, so scrub it to keep snapshots line-ending-independent
+		// across Windows and Linux CI.
+		var settings = new SnapshotSettings { Directory = path }
+			.AddScrubber(new System.Text.RegularExpressions.Regex(@"Offset = \d+"), "Offset = {scrubbed}");
 
-		return Verifier.Verify(driver, settings);
+		return GeneratorSnapshot.Match(driver, settings);
 	}
 
 	/// <summary>
