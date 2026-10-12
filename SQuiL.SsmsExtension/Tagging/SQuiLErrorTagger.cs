@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using System.Windows.Threading;
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Adornments;
 using Microsoft.VisualStudio.Text.Tagging;
+using Microsoft.VisualStudio.Threading;
 using SQuiL.SsmsExtension.Parsing;
 
 namespace SQuiL.SsmsExtension.Tagging;
@@ -20,7 +23,9 @@ namespace SQuiL.SsmsExtension.Tagging;
 /// idle timer, and the recompute runs once typing pauses (matching the 500 ms
 /// debounce in the canonical <c>diagnosticsProvider.ts</c>).  Recomputing
 /// synchronously on every keystroke — and invalidating the entire buffer each
-/// time — made typing visibly laggy in larger files.
+/// time — made typing visibly laggy in larger files.  The recompute itself runs
+/// on a background thread: the context-resolver pass reads every .cs file in the
+/// project, which froze the UI for 25–200 ms at each typing pause.
 /// </summary>
 internal sealed class SQuiLErrorTagger : ITagger<IErrorTag>
 {
@@ -30,6 +35,9 @@ internal sealed class SQuiLErrorTagger : ITagger<IErrorTag>
     private readonly ITextBuffer _buffer;
     private readonly DispatcherTimer _debounce;
     private List<TagSpan<IErrorTag>> _tags = new();
+
+    // Bumped per scheduled recompute (UI thread only); a result is applied only if still latest.
+    private int _generation;
 
     public event EventHandler<SnapshotSpanEventArgs>? TagsChanged;
 
@@ -44,7 +52,7 @@ internal sealed class SQuiLErrorTagger : ITagger<IErrorTag>
         _debounce.Tick += OnDebounceTick;
 
         _buffer.Changed += OnBufferChanged;
-        Recompute(buffer.CurrentSnapshot); // initial pass is one-time, fine to run now
+        ScheduleRecompute();
     }
 
     private void OnBufferChanged(object sender, TextContentChangedEventArgs e)
@@ -58,10 +66,34 @@ internal sealed class SQuiLErrorTagger : ITagger<IErrorTag>
     private void OnDebounceTick(object sender, EventArgs e)
     {
         _debounce.Stop();
+        ScheduleRecompute();
+    }
+
+    /// <summary>Computes tags for the current snapshot off the UI thread, then
+    /// applies them on the UI thread unless a newer recompute has started.</summary>
+    private void ScheduleRecompute()
+    {
         var snapshot = _buffer.CurrentSnapshot;
-        Recompute(snapshot);
-        TagsChanged?.Invoke(this,
-            new SnapshotSpanEventArgs(new SnapshotSpan(snapshot, 0, snapshot.Length)));
+        int generation = ++_generation;
+
+        // Read on the UI thread; the ITextDocument is not ours to touch from a worker.
+        string? filePath = null;
+        if (_buffer.Properties.TryGetProperty(typeof(ITextDocument), out ITextDocument doc))
+            filePath = doc.FilePath;
+
+#pragma warning disable VSSDK007 // MEF part, no package JTF to track it; a recompute cut off at shutdown only loses a tag update.
+        ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+        {
+            await TaskScheduler.Default;
+            var tags = Compute(snapshot, filePath);
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            if (generation != _generation) return;
+            _tags = tags;
+            TagsChanged?.Invoke(this,
+                new SnapshotSpanEventArgs(new SnapshotSpan(snapshot, 0, snapshot.Length)));
+        }).FileAndForget("SQuiL/ErrorTagger/Recompute");
+#pragma warning restore VSSDK007
     }
 
     public IEnumerable<ITagSpan<IErrorTag>> GetTags(NormalizedSnapshotSpanCollection spans)
@@ -85,17 +117,13 @@ internal sealed class SQuiLErrorTagger : ITagger<IErrorTag>
 
     // ── Recompute logic ───────────────────────────────────────────────────
 
-    private void Recompute(ITextSnapshot snapshot)
+    /// <summary>Parses + lints <paramref name="snapshot"/>. Pure and thread-safe; runs on a
+    /// background thread. <paramref name="filePath"/> enables the context-resolver pass
+    /// (SP0028/SP0027).</summary>
+    private static List<TagSpan<IErrorTag>> Compute(ITextSnapshot snapshot, string? filePath)
     {
         var newTags = new List<TagSpan<IErrorTag>>();
         string text = snapshot.GetText();
-
-        // Extract the on-disk file path so the linter can run the
-        // context-resolver pass (SP0028/SP0027). Uses the same
-        // ITextDocument lookup as SQuiLContentTypeDefinition.IsSquilBuffer.
-        string? filePath = null;
-        if (_buffer.Properties.TryGetProperty(typeof(Microsoft.VisualStudio.Text.ITextDocument), out Microsoft.VisualStudio.Text.ITextDocument doc))
-            filePath = doc.FilePath;
 
         // Resolve the editor dialect (SQL Server vs SQLite) for the owning project the same
         // way QuickInfo/Preview do — SQuiLContextResolver.ResolveDialect (.csproj PackageReference
@@ -118,7 +146,7 @@ internal sealed class SQuiLErrorTagger : ITagger<IErrorTag>
                 new ErrorTag(MapErrorType(d.Severity), d.Message)));
         }
 
-        _tags = newTags;
+        return newTags;
     }
 
     /// <summary>
