@@ -51,24 +51,10 @@ public class SqliteRoundTripTests
 			["ConnectionStrings:SQuiLDatabase"] = connectionString,
 		}).Build();
 
-		// The generated SQuiLExtensions.AddSQuiL() carries a static `IsLoaded` guard so a real
-		// app registers exactly once. These facts each need their OWN provider (a per-test unique
-		// connection string), so reset the process-wide guard before every call. Tests in one
-		// xUnit class run sequentially, so there is no parallel race on this static.
-		ResetAddSQuiLGuard();
-
 		var services = new ServiceCollection();
 		services.AddSingleton<IConfiguration>(config);
 		services.AddSQuiL();
 		return (keepAlive, services.BuildServiceProvider());
-	}
-
-	private static void ResetAddSQuiLGuard()
-	{
-		var property = typeof(SQuiLExtensions).GetProperty(
-			nameof(SQuiLExtensions.IsLoaded),
-			System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-		property!.SetValue(null, false);
 	}
 
 	/// <summary>

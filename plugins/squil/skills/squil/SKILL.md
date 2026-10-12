@@ -843,7 +843,10 @@ services.AddSQuiL();
 
 You still need `IConfiguration` registered (or otherwise injectable) so the
 context's constructor can resolve connection strings. `AddSQuiL()` is idempotent
-(guarded by an `IsLoaded` flag).
+per service collection (it uses `TryAddSingleton`), so calling it twice is
+harmless and every separate collection (each test host, each
+`WebApplicationFactory`) gets its own registrations. A context you registered
+yourself before calling it is left as is.
 
 ### Error handling
 

@@ -648,26 +648,25 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			writer.Block($"""
 				{FileHeader}
 				namespace Microsoft.Extensions.DependencyInjection;
-				
+
+				using Microsoft.Extensions.DependencyInjection.Extensions;
+
 				public static class {NamespaceName}Extensions
 				""",
 				() =>
 				{
-					writer.WriteLine("public static bool IsLoaded { get; private set; }");
-					writer.WriteLine();
+					// Idempotent per collection via TryAdd; no static guard, so every host
+					// (and every parallel test) gets its own registrations.
 					writer.Block("""
+						/// <summary>Registers every SQuiL data context as a singleton. Safe to call more than once.</summary>
 						public static IServiceCollection AddSQuiL(
 							this IServiceCollection services)
 						""", () =>
 					{
-						writer.WriteLine("if (IsLoaded) return services;");
-						writer.WriteLine("IsLoaded = true;");
-						writer.WriteLine();
-
 						if (contexts.Count > 0)
 						{
 							foreach (var singleton in contexts.Distinct())
-								writer.WriteLine($"services.AddSingleton<{singleton}>();");
+								writer.WriteLine($"services.TryAddSingleton<{singleton}>();");
 
 							writer.WriteLine();
 						}

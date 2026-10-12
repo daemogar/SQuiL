@@ -64,6 +64,12 @@ from 1.0.0 onward.
   `.editorconfig`).
 
 ### Removed
+- **Breaking:** the generated `SQuiLExtensions.IsLoaded` property. It was a
+  process-wide guard that made `AddSQuiL()` a silent no-op for every service
+  collection after the first, so a second host (a test host, a
+  `WebApplicationFactory`) got no SQuiL registrations at all. `AddSQuiL()` is
+  now idempotent per collection via `TryAddSingleton`, and a context you have
+  already registered yourself is no longer overridden.
 - **Breaking:** the `@Error`/`@Errors` in-SQL error-collection variables. SQL
   errors now surface solely via `SQuiLResultType` (unwrap with
   `result.TryGetValue(out value, out errors)`). The
