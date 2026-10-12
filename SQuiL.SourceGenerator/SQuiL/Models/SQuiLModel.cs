@@ -27,7 +27,7 @@ public class SQuiLModel(
 	string ModelName,
 	string ModelType,
 	SQuiLTableMap TableMap,
-	ImmutableDictionary<string, SQuiLPartialModel> Records)
+	SQuiLRecordIndex Records)
 {
 	/// <summary>Full model type name, e.g. <c>MyQueryRequest</c> or <c>MyQueryResponse</c>.</summary>
 	public string ModelName { get; } = $"{ModelName}{ModelType}";
@@ -83,7 +83,7 @@ public class SQuiLModel(
 		string modelname,
 		List<CodeBlock> blocks,
 		SQuiLTableMap tableMap,
-		ImmutableDictionary<string, SQuiLPartialModel> records,
+		SQuiLRecordIndex records,
 		string sql = "",
 		SQuiLKeyGraph? outputGraph = null,
 		SQuiLKeyGraph? inputGraph = null,
@@ -214,7 +214,7 @@ public class SQuiLModel(
 			throw new DiagnosticException(
 				$"Cannot generate {type} `{block.Name}` for {ModelName}");
 
-		var hasParameterizedConstructor = !Records.TryGetValue(type, out var partial)
+		var hasParameterizedConstructor = !Records.TryGetPartial(type, NameSpace, out var partial)
 			|| partial.Syntax.ParameterList?.Parameters.Count == 0;
 
 		var name = $"{block.Name}{type}";
@@ -292,8 +292,8 @@ public class SQuiLModel(
 	{
 		var modifiers = "partial record";
 
-		if (!Records.TryGetValue(name, out var access)
-			&& !Records.TryGetValue($"{SourceGeneratorHelper.NamespaceName}{name}", out access))
+		if (!Records.TryGetPartial(name, NameSpace, out var access)
+			&& !Records.TryGetPartial($"{SourceGeneratorHelper.NamespaceName}{name}", NameSpace, out access))
 			return $"public {modifiers}";
 
 		if (access.Syntax.Modifiers.Any(SyntaxKind.PublicKeyword))
@@ -316,10 +316,10 @@ public class SQuiLModel(
 	}
 
 	private bool InheritsProperty(string model, string name)
-	{
-		if (!Records.TryGetValue(model, out var record))
-			return false;
+		=> Records.TryGetPartial(model, NameSpace, out var record) && HasProperty(record, name);
 
+	private bool HasProperty(SQuiLPartialModel record, string name)
+	{
 		foreach (var member in record.Syntax.Members)
 		{
 			if (member is not PropertyDeclarationSyntax property)
@@ -341,12 +341,16 @@ public class SQuiLModel(
 			{
 				if (type switch
 				{
-					SimpleBaseTypeSyntax basic => InheritsProperty(basic.Type.ToString(), name),
-					PrimaryConstructorBaseTypeSyntax primary => InheritsProperty(primary.Type.ToString(), name),
+					SimpleBaseTypeSyntax basic => BaseHasProperty(basic.Type.ToString(), name),
+					PrimaryConstructorBaseTypeSyntax primary => BaseHasProperty(primary.Type.ToString(), name),
 					_ => false
 				}) return true;
 			}
 
 		return false;
 	}
+
+	// A base record need not be partial, so it resolves by simple name.
+	private bool BaseHasProperty(string type, string name)
+		=> Records.TryGetValue(type, out var record) && HasProperty(record, name);
 }

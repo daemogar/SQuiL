@@ -69,7 +69,7 @@ public class FileGenerator(
 	// last parameter and C# requires optional parameters to precede required ones in a declaration
 	// list, recordNamespace/enabled/debugRollback also drop their defaults here — the sole call site
 	// (SQuiLGenerator.cs) already supplies every argument positionally, so this is behavior-neutral.
-	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, ImmutableDictionary<string, SQuiLPartialModel> records, string recordNamespace, bool enabled, bool debugRollback, SQuiL.Dialects.ISqlDialect dialect, int dialectId, bool registerTables)
+	public SQuiLFileGeneration? Create(string @namespace, string classname, string method, string setting, SourceText text, SQuiLRecordIndex records, string recordNamespace, bool enabled, bool debugRollback, SQuiL.Dialects.ISqlDialect dialect, int dialectId, bool registerTables)
 	{
 		try
 		{

@@ -108,6 +108,13 @@ from 1.0.0 onward.
   `@Param_` / `@Return_` naming prefix.
 
 ### Fixed
+- An unrelated record that merely shared a generated type's name, in any
+  namespace and even when not `partial`, was mistaken for the user's partial of
+  it. A row record such as `<Ctx>.Models.Institution` was then never emitted, so
+  the request or response failed with `CS0234` and no SQuiL diagnostic. A
+  same-named `internal` record failed generation with a false SP1001. Only a
+  top-level `partial` record in the namespace the generated type lands in now
+  merges with it.
 - `decimal(p,s)`/`numeric(p,s)` types lost their precision and scale during
   parsing — emitted as bare `decimal` (SQL Server default `decimal(18,0)`,
   truncating fractional values) and silently dropped any columns declared

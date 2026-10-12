@@ -23,6 +23,6 @@ public class SQuiLObject(
 	string Type,
 	CodeBlock Block,
 	SQuiLTableMap TableMap,
-	ImmutableDictionary<string, Generator.SQuiLPartialModel> Records)
+	Generator.SQuiLRecordIndex Records)
 	: SQuiLTable(NameSpace, Modifiers, Type, Block, TableMap, Records)
 { }
