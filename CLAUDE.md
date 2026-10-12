@@ -672,9 +672,9 @@ Required NuGet packages, split by which package now carries them:
 - `SQuiL.Sqlite` (SQLite provider, depends on `SQuiL.Core`):
   `Microsoft.Data.Sqlite` - SQLite connectivity.
 - `SQuiL.Postgres` (PostgreSQL provider, depends on `SQuiL.Core`): `Npgsql` -
-  PostgreSQL connectivity. Multi-targets `netstandard2.0;net10.0`, pinned to
-  different Npgsql versions per TFM (`Npgsql 6.0.11` on `netstandard2.0`,
-  `Npgsql 10.0.3` on `net10.0`; see `Directory.Packages.props`).
+  PostgreSQL connectivity. Targets `net10.0` only (TODO #25): Npgsql 7+ ships
+  no `netstandard2.0` build, and a conditioned per-TFM pin was invisible to
+  Renovate, which bumped it every run and broke restore with NU1202.
 - `Microsoft.Extensions.DependencyInjection` - DI support (consumer-side, for
   the generated `AddSQuiL()` extension's registration).
 
@@ -900,11 +900,10 @@ differ per dialect via `ISqlDialect`.
 - A consumer references BOTH `SQuiL.Core` AND `SQuiL.Postgres` (same
   reference-both model). `PostgresDataContext : SQuiLBaseDataContext`
   (package `SQuiL.Postgres`, depends on `Npgsql`) carries the provider
-  plumbing and `CreateError(NpgsqlException)`. `SQuiL.Postgres` **multi-targets
-  `netstandard2.0;net10.0`** with different pinned Npgsql versions per leg
-  (`Directory.Packages.props`: `Npgsql 6.0.11` on the `netstandard2.0` TFM,
-  `Npgsql 10.0.3` on `net10.0` — Npgsql's own major-version support boundary),
-  unlike `SQuiL.Sqlite` which single-targets.
+  plumbing and `CreateError(NpgsqlException)`. `SQuiL.Postgres` **targets
+  `net10.0` only** (one unconditioned Npgsql pin), unlike `SQuiL.Core`/
+  `SQuiL.SqlServer`/`SQuiL.Sqlite`, which target `netstandard2.0`. Do not
+  re-add a `netstandard2.0` leg: Npgsql dropped it after 6.0.
 - **Input shred — `json_to_recordset`, not `json_each`.** Unlike SQLite's
   untyped `json_each`, PostgreSQL's `json_to_recordset(@json) AS x(col type,
   …)` needs an explicit TYPED column list to shred a JSON array into rows —

@@ -499,8 +499,8 @@ shape as EF Core's provider packages:
 For **SQLite**, reference `SQuiL.Sqlite` instead of (or alongside)
 `SQuiL.SqlServer` — it carries `SqliteDataContext` and the
 `Microsoft.Data.Sqlite` plumbing. For **PostgreSQL**, reference `SQuiL.Postgres`
-instead — it carries `PostgresDataContext` and the `Npgsql` plumbing (multi-
-targets `netstandard2.0;net10.0`). The dialect is inferred from whichever
+instead — it carries `PostgresDataContext` and the `Npgsql` plumbing (targets
+`net10.0` only, so the consuming project must too). The dialect is inferred from whichever
 provider is referenced (see "Selecting a dialect" below, "Authoring for
 SQLite", and "Authoring for PostgreSQL"). The generated surface is identical
 across dialects.
