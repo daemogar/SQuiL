@@ -137,6 +137,8 @@ from 1.0.0 onward.
   longer gets the SP0005/SP0007/SP0008/SP0009 diagnostics.
 - Two SQuiL projects with their own data contexts, where one references the other or both are
   referenced by one host, no longer collide on `AddSQuiL()` (`CS0121`).
+- A data context in a namespace starting with `Extensions.` or `DependencyInjection.` no longer
+  breaks the generated DI registration (`CS0234`); context types are now written `global::`.
 - An unrelated record that merely shared a generated type's name, in any
   namespace and even when not `partial`, was mistaken for the user's partial of
   it. A row record such as `<Ctx>.Models.Institution` was then never emitted, so

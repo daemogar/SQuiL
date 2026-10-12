@@ -857,6 +857,10 @@ yourself before calling it is left as is.
 direct references, so their contexts aren't registered. Reference those
 libraries directly, or call their `AddSQuiL<AssemblyName>()` yourself.
 
+Build every SQuiL project in a solution with the same SQuiL version. A library built
+with an older SQuiL carries no registration marker, so `AddSQuiL()` skips it, and its
+old public `AddSQuiL()` can clash with the new one.
+
 ### Error handling
 
 A query's result comes back as `SQuiLResultType<TResponse>` (or non-generic
