@@ -12,6 +12,8 @@ from 1.0.0 onward.
 ## [Unreleased]
 
 ### Added
+- SP0046 (build error): two referenced SQuiL projects whose names reduce to the same
+  `AddSQuiL<AssemblyName>()` (for example `A.B` and `AB`). Rename one.
 - **`SQuiL-Install.cmd` installs the VS Code extension too.** It now covers all
   three editors: it installs `SQuiL-VSCode.vsix` into every VS Code and VS Code
   Insiders found, as the signed-in user and before elevating (VS Code
@@ -82,6 +84,14 @@ from 1.0.0 onward.
   Code in another project that names them, even through `InternalsVisibleTo`,
   no longer compiles. This removes the `CS0436` warnings every referencing
   project used to get.
+- **Breaking:** `AddSQuiL()` is now generated `internal` in every project that has a data
+  context or references a SQuiL project, and it registers every context that project can see:
+  its own and every referenced SQuiL project's. Each project with contexts also gets a public
+  `services.AddSQuiL<AssemblyName>()` (`Checklist.API` → `AddSQuiLChecklistAPI()`) that registers
+  only its own. The public `SQuiLExtensions` type is gone, so code that called
+  `SQuiLExtensions.AddSQuiL(services)` from another project no longer compiles; call
+  `services.AddSQuiL()` instead. A project built with an older SQuiL isn't picked up and can
+  still clash, so build every SQuiL project in a solution with the same version.
 - **Breaking:** nested objects now follow declaration order. The
   earlier-declared table contains the later one, no matter which side owns
   the `Primary Key`.
@@ -122,9 +132,11 @@ from 1.0.0 onward.
 ### Fixed
 - A project that references a SQuiL library through a `ProjectReference`, and
   has no query files and no data context of its own, no longer gets a second
-  `AddSQuiL()`. Its `services.AddSQuiL()` call was ambiguous (`CS0121`) and
+  public `AddSQuiL()`. Its `services.AddSQuiL()` call was ambiguous (`CS0121`) and
   needed an MSBuild target that stripped the analyzer. Such a project also no
   longer gets the SP0005/SP0007/SP0008/SP0009 diagnostics.
+- Two SQuiL projects with their own data contexts, where one references the other or both are
+  referenced by one host, no longer collide on `AddSQuiL()` (`CS0121`).
 - An unrelated record that merely shared a generated type's name, in any
   namespace and even when not `partial`, was mistaken for the user's partial of
   it. A row record such as `<Ctx>.Models.Institution` was then never emitted, so
