@@ -5,17 +5,15 @@
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
 public static class SQuiLExtensions
 {
-    public static bool IsLoaded { get; private set; }
-    
+    /// <summary>Registers every SQuiL data context as a singleton. Safe to call more than once.</summary>
     public static IServiceCollection AddSQuiL(
         this IServiceCollection services)
     {
-        if (IsLoaded) return services;
-        IsLoaded = true;
-        
-        services.AddSingleton<TestCase.MutationUnderPlainQueryWarnsSP0023DataContext>();
+        services.TryAddSingleton<TestCase.MutationUnderPlainQueryWarnsSP0023DataContext>();
         
         return services;
     }

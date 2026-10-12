@@ -46,20 +46,10 @@ public class SqliteTransactionTests
 
 		var config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
 
-		ResetAddSQuiLGuard();
-
 		var services = new ServiceCollection();
 		services.AddSingleton<IConfiguration>(config);
 		services.AddSQuiL();
 		return (keepAlive, services.BuildServiceProvider());
-	}
-
-	private static void ResetAddSQuiLGuard()
-	{
-		var property = typeof(SQuiLExtensions).GetProperty(
-			nameof(SQuiLExtensions.IsLoaded),
-			System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-		property!.SetValue(null, false);
 	}
 
 	private static long CountWidgets(SqliteConnection connection)
