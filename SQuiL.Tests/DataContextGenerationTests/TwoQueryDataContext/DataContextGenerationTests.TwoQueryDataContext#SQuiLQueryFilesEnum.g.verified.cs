@@ -5,7 +5,8 @@
 
 namespace SQuiL;
 
-public enum QueryFiles
+[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+internal enum QueryFiles
 {
 	TwoQueryDataContext1,
 	TwoQueryDataContext2

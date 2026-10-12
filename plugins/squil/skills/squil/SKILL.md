@@ -505,11 +505,10 @@ provider is referenced (see "Selecting a dialect" below, "Authoring for
 SQLite", and "Authoring for PostgreSQL"). The generated surface is identical
 across dialects.
 
-**Both are required, not either/or.** NuGet does not flow a package's
-analyzer through a transitive dependency — only a *direct* `PackageReference`
-activates it. So referencing `SQuiL.SqlServer` alone pulls in `SQuiL.Core`'s
-runtime DLL (a normal transitive package reference) but **not** its analyzer,
-and the generator never runs. Referencing `SQuiL.Core` alone gives you
+**Reference both, not either/or.** Referencing both directly is the supported
+setup, the same as EF Core and its provider package. The generator does run in
+any project downstream of a SQuiL reference, which is why a project that only
+references a SQuiL library still gets its own `AddSQuiL()`. Referencing `SQuiL.Core` alone gives you
 generation but no runtime base class to inherit — the generated
 `Constructor.g.cs` file references a type (`SqlServerDataContext`) that isn't
 in the compilation, which is build error **SP0038** ("SQuiL Provider Package
@@ -657,13 +656,15 @@ public partial class Table { }
 
 The `QueryFiles` enum is generated from the query-file paths: `Queries/Example1.squil` becomes `QueryFiles.QueriesExample1` (folder name + file name, both PascalCased, joined). The `TableType` enum is generated from `@Returns_<Name>` and `@Params_<Name>` table declarations — one entry per distinct table name across all query files. Add a `[SQuiLTable]` for each table the project actually uses so the row record is emitted.
 
+The attributes and both enums are generated `internal` and marked `[Embedded]`, so they are private to the project that owns the query files. Projects that reference that project don't see them, even with `InternalsVisibleTo`. Use `QueryFiles` / `TableType` only inside the owning project. Every project gets its own `internal` `AddSQuiL()`, which also registers the contexts of every SQuiL project it references (see "DI registration").
+
 ### `[SQuiLQueryTransaction]` — mutation queries with automatic transaction management
 
 `[SQuiLQueryTransaction]` is a sibling to `[SQuiLQuery]`. It produces the **same** `Process…Async` method, `*Request` / `*Response` models, and `SQuiLResultType` return type as `[SQuiLQuery]`, but wraps the query body in a C# `DbTransaction`. Use it for INSERT/UPDATE/DELETE/MERGE queries that should commit or roll back as a unit.
 
 ```csharp
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-public class SQuiLQueryTransactionAttribute : Attribute
+internal class SQuiLQueryTransactionAttribute : Attribute
 {
     public SQuiLQueryTransactionAttribute(
         QueryFiles type,
@@ -831,10 +832,13 @@ This is purely cosmetic — it doesn't affect the generator or the build — but
 
 ### DI registration
 
-The generator emits an `AddSQuiL()` extension method (in the
-`Microsoft.Extensions.DependencyInjection` namespace) that registers every
-generated data context as a singleton. Prefer it — new contexts come along
-automatically as queries are added:
+Call `services.AddSQuiL()` (namespace `Microsoft.Extensions.DependencyInjection`). It registers
+every data context the calling project can see, as singletons: the project's own, plus those of
+every SQuiL project it references, directly or transitively. It is generated `internal` in each
+project, so a host that references several SQuiL libraries never gets an ambiguous call. Each
+project with contexts also exposes a public `AddSQuiL<AssemblyName>()` (dots and other
+non-identifier characters removed, e.g. `AddSQuiLChecklistAPI()`) that registers only its own
+contexts; use it only when you want one library's contexts and not the rest.
 
 ```csharp
 services.AddSingleton<IConfiguration>(configuration);
@@ -847,6 +851,15 @@ per service collection (it uses `TryAddSingleton`), so calling it twice is
 harmless and every separate collection (each test host, each
 `WebApplicationFactory`) gets its own registrations. A context you registered
 yourself before calling it is left as is.
+
+"Can see" means the project's compile references. A project that sets
+`DisableTransitiveProjectReferences=true` doesn't see the libraries behind its
+direct references, so their contexts aren't registered. Reference those
+libraries directly, or call their `AddSQuiL<AssemblyName>()` yourself.
+
+Build every SQuiL project in a solution with the same SQuiL version. A library built
+with an older SQuiL carries no registration marker, so `AddSQuiL()` skips it, and its
+old public `AddSQuiL()` can clash with the new one.
 
 ### Error handling
 

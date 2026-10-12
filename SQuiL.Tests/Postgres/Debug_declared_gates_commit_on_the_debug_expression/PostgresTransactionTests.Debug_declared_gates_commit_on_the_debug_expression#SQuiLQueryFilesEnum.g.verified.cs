@@ -5,7 +5,8 @@
 
 namespace SQuiL;
 
-public enum QueryFiles
+[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+internal enum QueryFiles
 {
 	Debug_declared_gates_commit_on_the_debug_expression
 }

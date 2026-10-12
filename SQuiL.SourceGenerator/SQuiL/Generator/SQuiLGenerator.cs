@@ -141,13 +141,17 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 						.Select(static (p, c) => p)
 						.Collect();
 
+		// [Embedded] keeps these per-assembly types invisible to referencing projects (CS0436).
+		context.RegisterPostInitializationOutput(static p => p.AddEmbeddedAttributeDefinition());
+
 		context.RegisterPostInitializationOutput(static p => p
 			.AddSource($"{QueryAttributeName}.g.cs", SourceText.From($$"""
 				{{FileHeader}}
 				namespace {{NamespaceName}};
 
+				[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
 				[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
-				public class {{QueryAttributeName}} : System.Attribute
+				internal class {{QueryAttributeName}} : System.Attribute
 				{
 					public QueryFiles Type { get; }
 
@@ -172,8 +176,9 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				{{FileHeader}}
 				namespace {{NamespaceName}};
 
+				[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
 				[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
-				public class {{TableTypeAttributeName}} : System.Attribute
+				internal class {{TableTypeAttributeName}} : System.Attribute
 				{
 					public TableType Type { get; }
 
@@ -189,8 +194,9 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				{{FileHeader}}
 				namespace {{NamespaceName}};
 
+				[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
 				[System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
-				public class {{QueryTransactionAttributeName}} : System.Attribute
+				internal class {{QueryTransactionAttributeName}} : System.Attribute
 				{
 					public QueryFiles Type { get; }
 
@@ -320,6 +326,21 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 	/// </summary>
 	private void Execute(Compilation compilation, ImmutableArray<SQuiLDependency> dependencies, ImmutableArray<AdditionalText> files, ImmutableArray<SQuiLDefinition> definitions, SQuiLRecordIndex records, SourceProductionContext context)
 	{
+		// A project with no queries and no context: no SP0005/7/8/9 (TODO #28). It still gets an
+		// internal AddSQuiL() that calls every referenced SQuiL library's (TODO #30).
+		if (!files.Any(p => IsSqlFile(p.Path))
+			&& !definitions.Any(p => p.Type is SQuiLDefinitionType.Query or SQuiLDefinitionType.Transaction))
+		{
+			GenerateQueryFilesEnum(context, files);
+			GenerateTablesEnum(context, default);
+
+			var references = SQuiLRegistrations.Scan(compilation);
+			if (references.Length > 0 && dependencies.Any(p => p?.DependencyInjection == true))
+				EmitDependencyInjection(compilation, context, [], references);
+
+			return;
+		}
+
 		var missingDependencyInjectable = !dependencies.Any(p => p?.DependencyInjection == true);
 		if (missingDependencyInjectable)
 			context.ReportNoMicrosoftExtensionsDependencyInjectionDll();
@@ -573,7 +594,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			var providerReferenced = SQuiL.Dialects.DialectRegistry.IsProviderReferenced(dialectId, compilation);
 			if (!providerReferenced)
 			{
-				contexts.Add($"{@namespace}.{classname}");
+				contexts.Add($"global::{@namespace}.{classname}");
 				context.ReportMissingProvider(
 					classname,
 					SQuiL.Dialects.DialectRegistry.DialectName(dialectId),
@@ -586,7 +607,8 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 			if (providerReferenced)
 			{
-				contexts.Add($"{@namespace}.{classname}");
+				// global:: because SQuiLExtensions.g.cs lives in Microsoft.Extensions.DependencyInjection.
+				contexts.Add($"global::{@namespace}.{classname}");
 
 				var symbol = compilation
 					.GetSemanticModel(definition.Class.SyntaxTree)
@@ -642,40 +664,7 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			if (contexts.Count == 0)
 				context.ReportNoDataContextUsage();
 
-			StringWriter text = new();
-			IndentedTextWriter writer = new(text);
-
-			writer.Block($"""
-				{FileHeader}
-				namespace Microsoft.Extensions.DependencyInjection;
-
-				using Microsoft.Extensions.DependencyInjection.Extensions;
-
-				public static class {NamespaceName}Extensions
-				""",
-				() =>
-				{
-					// Idempotent per collection via TryAdd; no static guard, so every host
-					// (and every parallel test) gets its own registrations.
-					writer.Block("""
-						/// <summary>Registers every SQuiL data context as a singleton. Safe to call more than once.</summary>
-						public static IServiceCollection AddSQuiL(
-							this IServiceCollection services)
-						""", () =>
-					{
-						if (contexts.Count > 0)
-						{
-							foreach (var singleton in contexts.Distinct())
-								writer.WriteLine($"services.TryAddSingleton<{singleton}>();");
-
-							writer.WriteLine();
-						}
-
-						writer.WriteLine("return services;");
-					});
-				});
-
-			context.AddSource($"{NamespaceName}Extensions.g.cs", SourceText.From(text.ToString(), Encoding.UTF8));
+			EmitDependencyInjection(compilation, context, [.. contexts.Distinct()], SQuiLRegistrations.Scan(compilation));
 		}
 
 		void EmitConstructor(string @namespace, string classname, string baseType)
@@ -703,8 +692,9 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			sb.Append($$"""
 				{{FileHeader}}
 				namespace {{NamespaceName}};
-				
-				public enum QueryFiles
+
+				[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+				internal enum QueryFiles
 				{
 				""");
 			var comma = "";
@@ -730,8 +720,9 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			sb.Append($$"""
 				{{FileHeader}}
 				namespace {{NamespaceName}};
-				
-				public enum TableType
+
+				[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+				internal enum TableType
 				{
 				""");
 			if (tableMap is not null)
@@ -749,6 +740,29 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 
 			context.AddSource($"{NamespaceName}TableTypeEnum.g.cs", sb.ToString());
 		}
+	}
+
+	/// <summary>Writes <c>SQuiLExtensions.g.cs</c>; reports SP0046 for registration classes that would collide (TODO #30).</summary>
+	private static void EmitDependencyInjection(Compilation compilation, SourceProductionContext context,
+		IReadOnlyList<string> contexts, ImmutableArray<SQuiLRegistrationReference> references)
+	{
+		var assembly = compilation.AssemblyName ?? "";
+
+		List<(string Assembly, string TypeName)> named = [.. references.Select(p => (p.Assembly, p.TypeName))];
+		if (contexts.Count > 0)
+			named.Add((assembly, SQuiLRegistrations.TypeName(assembly)));
+
+		HashSet<string> clashing = [];
+		foreach (var clash in named.GroupBy(p => p.TypeName).Where(p => p.Count() > 1))
+		{
+			clashing.Add(clash.Key);
+			context.ReportRegistrationNameCollision(clash.Key, clash.Select(p => p.Assembly));
+		}
+
+		List<SQuiLRegistrationReference> callable = [.. references.Where(p => !clashing.Contains(p.TypeName))];
+
+		context.AddSource($"{NamespaceName}Extensions.g.cs", SourceText.From(
+			SQuiLDependencyInjectionEmitter.Render(assembly, contexts, callable), Encoding.UTF8));
 	}
 }
 

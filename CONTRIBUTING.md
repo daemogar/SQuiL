@@ -94,15 +94,22 @@ never commit them. `SGSNAP_CHECKONLY=1` compares without writing anything.
 
 ## Packaging note (important)
 
-`SQuiL.SourceGenerator` is distributed as a single package that bundles the
-`SQuiL.Library` runtime DLL. Because the library DLL is embedded rather than
-referenced as a NuGet dependency, its transitive `PackageReference`s are **not**
-resolved automatically for consumers.
+SQuiL ships as `SQuiL.Core` plus one package per provider (`SQuiL.SqlServer`,
+`SQuiL.Sqlite`, `SQuiL.Postgres`). `SQuiL.Core` packs the generator DLL (built
+from `SQuiL.SourceGenerator`) into `analyzers/dotnet/cs` and its own runtime DLL
+into `lib/`. Each provider package depends on `SQuiL.Core` through a normal
+`ProjectReference`.
 
-**Rule:** any `PackageReference` added to `SQuiL.Library.csproj` that a consumer
-needs at runtime (e.g. `Microsoft.Extensions.Configuration`) must be mirrored in
-`SQuiL.SourceGenerator.csproj` so it flows through. Keep the two dependency
-lists in sync.
+- Runtime `PackageReference`s on `SQuiL.Core` and the provider projects are real
+  NuGet dependencies and flow to consumers on their own. There is nothing to
+  mirror by hand.
+- The analyzer is the one manual piece: `SQuiL.Core.csproj` packs
+  `SQuiL.SourceGenerator.dll` with explicit `<None Pack="true" PackagePath="analyzers/dotnet/cs">`
+  entries (the `.dll` and its `.pdb`). Update them if the generator's target
+  framework or output path changes.
+- The generator runs in every project downstream of a SQuiL reference, so
+  everything it emits must be safe in a project that only references a SQuiL
+  library. CLAUDE.md, "Package structure", has the details.
 
 ## License
 

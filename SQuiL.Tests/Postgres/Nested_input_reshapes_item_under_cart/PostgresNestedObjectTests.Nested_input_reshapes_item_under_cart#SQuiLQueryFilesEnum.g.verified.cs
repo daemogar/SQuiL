@@ -5,7 +5,8 @@
 
 namespace SQuiL;
 
-public enum QueryFiles
+[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+internal enum QueryFiles
 {
 	Nested_input_reshapes_item_under_cart
 }

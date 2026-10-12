@@ -227,9 +227,11 @@ SQuiL/
       `[SQuiLQuery]` accepts a `Namespace` property (default `"Models"`,
       `""` = top-level) to override: `[SQuiLQuery(QueryFiles.X, Namespace: "Dto")]`
       → `<Ctx>.Dto.<Name>`. `[SQuiLTable]`-mapped records stay in `<Ctx>` (top-level).
-    - DI: a `services.AddSQuiL()` extension (namespace
-      `Microsoft.Extensions.DependencyInjection`) IS generated and registers
-      the context as a singleton.
+    - DI: every project with a context or a SQuiL reference gets an `internal` `[Embedded]`
+      `services.AddSQuiL()` (namespace `Microsoft.Extensions.DependencyInjection`) that registers
+      every context it can see (its own + every referenced SQuiL project's) as singletons. Each
+      project with contexts also gets a public `AddSQuiL<Asm>()` (`<Asm>` = assembly name with
+      non-identifier characters removed) and an `[assembly: SQuiL.SQuiLRegistration]` marker.
     - authoring features that exist: unified nullability rule (scalars via
       `= null` initializer, table columns via `null`/`not null` marker,
       non-nullable by default; SP0010 editor-only Hint for unmarked declares;
@@ -499,7 +501,11 @@ SQuiL/
     INPUT graphs. See `nestedObjectHints.ts` (VS Code, `containmentHints`) and
     `SQuiLLinter.LintContainmentHint` (SSMS + Visual Studio); the generator never
     produces it.
-    Next free: **SP0046**. (Verify an id is truly unreferenced with a repo-wide grep
+    **SP0046 is now TAKEN** — build error (generator only; editors don't see references): two
+    SQuiL assemblies (two references, or a reference and the project itself) reduce to the same
+    `SQuiL<Asm>Extensions` registration class, so `AddSQuiL()` can't call them apart. See
+    `SQuiLRegistrations.cs` + `DiagnosticsMessages.ReportRegistrationNameCollision`.
+    Next free: **SP0047**. (Verify an id is truly unreferenced with a repo-wide grep
     before reusing it.)
 - **`[SQuiLQueryTransaction]` attribute** — a sibling to `[SQuiLQuery]` for mutation queries that need automatic transaction management. Produces the same `Process…Async` / `*Request` / `*Response` / `SQuiLResultType` surface as `[SQuiLQuery]`, but wraps the SQL execution in a C# `DbTransaction`.
   - Signature: `[SQuiLQueryTransaction(QueryFiles type, string setting = "SQuiLDatabase", bool enabled = true, bool debugRollback = true)]`
@@ -636,6 +642,19 @@ For a SQL file `MyQuery.sql`, the generator creates:
 - `<Namespace>.<Context>DataContext.Constructor.g.cs` - Base class inheritance + `IConfiguration` constructor (emitted only when no constructor is declared on the context class; see Optional Inheritance below)
 - Partial classes for custom tables if `[SQuiLTable]` attributes are used
 
+The attributes plus `QueryFiles`/`TableType` are `[Embedded] internal`, so they never leak into
+a referencing project (no CS0436, even with `InternalsVisibleTo`). The analyzer DOES reach a
+project that only `ProjectReference`s a SQuiL library. A compilation with no SQL files and no
+query/transaction context therefore gets no SP0005/7/8/9 (TODO #28). Registration across
+assemblies (TODO #30, `ConsumerProjectTests`): each project with contexts emits a public
+`SQuiL<Asm>Extensions.AddSQuiL<Asm>()` plus `[assembly: SQuiLRegistration]` (runtime type in
+`SQuiL.Core`); every project with contexts or a marked reference emits an `internal`,
+`[Embedded]` `AddSQuiL()` that calls them all by fully qualified name. `[Embedded]` matters: with
+`InternalsVisibleTo`, two internal `AddSQuiL()`s would be CS0121. `SQuiLRegistrations.Scan` reads
+markers from `ReferencedAssemblySymbols`, which include transitive references by default (not under
+`DisableTransitiveProjectReferences=true`; SKILL.md "DI registration" documents that caveat). SP0046 =
+two assemblies reduce to one `<Asm>`.
+
 ### Key Components
 
 - **SQuiLDefinition** (`SQuiL/Generator/SQuiLDefinition.cs`): Represents a class with `[SQuiLQuery]` or `[SQuiLTable]` attributes
@@ -714,18 +733,15 @@ Required NuGet packages, split by which package now carries them:
   alone pulls `SQuiL.Core`'s **runtime DLL** in transitively like any normal
   NuGet dependency.
 
-**What does *not* flow transitively: the analyzer.** NuGet only activates a
-package's `analyzers/` content for a project that *directly*
-`PackageReference`s that package — a transitive dependency's analyzer is
-never loaded (verified empirically 2026-07-20 against `SQuiL.Core` and, as a
-sanity check, against `Microsoft.Extensions.Logging` → `Logging.Abstractions`'
-`LoggerMessage` generator, so this is general NuGet/SDK behavior, not
-SQuiL-specific). **Consequence: consumers must reference `SQuiL.Core` directly
-in addition to `SQuiL.SqlServer`** — same pattern as EF Core's provider
-packages requiring the main package alongside them. A project with only
-`SQuiL.SqlServer` referenced compiles and runs, but the generator never fires
-(no `Process…Async` methods materialize) because its analyzer was never
-activated.
+**The analyzer reaches every downstream project.** Measured 2026-10-12 (SQuiL.Core
+1.0.0-beta.198, SDK 10.0.401), by checking `obj/generated` and the compiler's `/analyzer:` line:
+the generator ran in App → LibB → LibA (two ProjectReference hops), in an App that only
+PackageReferences a packed LibA whose nuspec says `exclude="Build,Analyzers"`, and in a project
+referencing only `SQuiL.SqlServer`. The 2026-07-20 note that a transitive analyzer is never
+loaded was wrong. Consumers should still reference `SQuiL.Core` directly, since that's the
+documented setup, but nothing breaks if they don't. Everything SQuiL generates must therefore be
+safe to emit in a project that merely references a SQuiL project: hence `[Embedded] internal`
+(#28) and the internal `AddSQuiL()` (#30).
 
 **Runtime deps are now normal NuGet dependencies — no manual mirroring.**
 Every `PackageReference` on `SQuiL.Core.csproj` / `SQuiL.SqlServer.csproj` is a
@@ -989,7 +1005,7 @@ differ per dialect via `ISqlDialect`.
 - **No new diagnostic id.** PostgreSQL reuses SP0038 (missing provider
   package)/SP0039 (ambiguous dialect)/SP0040 (params-before-returns, error
   for PostgreSQL as a temp-table dialect) unchanged. Next free id is now
-  **SP0046** (SP0041–SP0045 have since been taken by later features; see
+  **SP0047** (SP0041–SP0046 have since been taken by later features; see
   "Diagnostic IDs" above).
 
 Inheriting the provider base class explicitly is **not required**. When the context class declares no constructor of its own, the generator emits a `<Ctx>.Constructor.g.cs` file that supplies:
@@ -1316,8 +1332,9 @@ plural-scalar-declare check. SP0044 (build error + all 3 editors — a bare scal
 `Select` followed by the ambiguous `throw`/`go`, which is both a statement starter
 and a legal AS-less alias) is taken by the ambiguous-scalar-alias check.
 SP0045 is taken by the editor-only containment-direction hint (R1/R3 — explains which way
-each nested-object edge nests and why).
-Next free id: **SP0046**.
+each nested-object edge nests and why). SP0046 (build error — two SQuiL assemblies reduce to
+the same `AddSQuiL<Asm>()` registration class) is taken by cross-assembly DI registration (TODO #30).
+Next free id: **SP0047**.
 
 ## Special Handling
 
