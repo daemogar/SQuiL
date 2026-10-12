@@ -579,7 +579,7 @@ dotnet test SQuiL.Tests/SQuiL.Tests.csproj
 dotnet test SQuiL.Tests/SQuiL.Tests.csproj --filter "FullyQualifiedName~BasicIODeclareTests"
 ```
 
-Tests use Verify.SourceGenerators for snapshot testing. Each test generates C# code from SQL input and compares it against verified snapshots in subdirectories.
+Tests use SGSnap (`SGSnap.SourceGenerators`, source at `c:/dev/projects/sgsnap`) for snapshot testing. Each test generates C# code from SQL input and compares it against verified snapshots in subdirectories.
 
 ### Example Application
 ```bash
@@ -647,7 +647,7 @@ Tests in `SQuiL.Tests/` follow a pattern:
 4. Output is verified against snapshots in `<TestClass>/<TestMethod>/` subdirectories
 5. Use `dotnet test` to run tests, which will fail if generated code doesn't match snapshots
 
-To accept new snapshots after intentional changes, delete the `.verified.cs` files and re-run tests.
+To accept new snapshots after intentional changes, rename each `.received.*` file to `.verified.*` (the failure message prints the command), or re-run with `SGSNAP_ACCEPT=1` and review the git diff. Deleting a `.verified.cs` does NOT regenerate it — the next run writes a `.received` file and fails as Missing.
 
 ## SQL File Requirements
 
@@ -736,8 +736,7 @@ transitive dependency by design.
 
 Test dependencies:
 - `xunit` - Test framework
-- `Verify.SourceGenerators` - Snapshot testing for generated code
-- `Verify.DiffPlex` - Diff visualization
+- `SGSnap.SourceGenerators` - Snapshot testing for generated code (built-in line diff; opens VS Code on a mismatch)
 
 ## Debugging
 

@@ -15,7 +15,7 @@ test, and work within the codebase.
 |---|---|
 | `SQuiL.SourceGenerator` | The incremental Roslyn generator (tokenizer → parser → emitter). Also the published NuGet package, which bundles the runtime library. |
 | `SQuiL.Library` | Runtime types used by generated code (`SQuiLBaseDataContext`, attributes, exceptions). Targets `netstandard2.0`. |
-| `SQuiL.Tests` | Verify snapshot tests of the generator. |
+| `SQuiL.Tests` | Snapshot tests of the generator (SGSnap). |
 | `SQuiL.Simple` | A runnable example application. |
 | `SQuiL.VSCodeExtension` | VS Code editor support for `.squil` files. |
 | `SQuiL.SsmsExtension` | SSMS 22.6 editor support. |
@@ -57,9 +57,9 @@ dotnet build SQuiL.sln            # whole solution
 
 ## Test
 
-The test suite uses [Verify](https://github.com/VerifyTests/Verify) snapshot
+The test suite uses [SGSnap](https://github.com/daemogar/sgsnap) snapshot
 tests: each test runs the generator over a SQL/C# input and compares the output
-against a committed `.verified.cs` snapshot.
+against committed `.verified.cs` / `.verified.txt` snapshots.
 
 ```bash
 dotnet test SQuiL.Tests/SQuiL.Tests.csproj
@@ -67,10 +67,12 @@ dotnet test SQuiL.Tests/SQuiL.Tests.csproj --filter "FullyQualifiedName~BasicIOD
 ```
 
 When you intentionally change generator output, the affected snapshot tests will
-fail with a diff. To accept the new output as the baseline, delete the relevant
-`.verified.cs` files and re-run the tests (Verify writes the new snapshot), then
-review the diff before committing. `.received.*` files are intermediate output
-and are git-ignored — never commit them.
+fail with a diff and write a `.received.*` file beside each changed snapshot. To
+accept the new output, rename each `.received.*` to `.verified.*` (the failure
+message prints the exact command), or run the tests once with
+`SGSNAP_ACCEPT=1` to accept every change, then review the diff before
+committing. `.received.*` files are intermediate output and are git-ignored —
+never commit them. `SGSNAP_CHECKONLY=1` compares without writing anything.
 
 ## Conventions
 

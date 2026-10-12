@@ -63,7 +63,7 @@ generated_code = true
 indent_style = space
 indent_size = 4
 
-# Verify snapshot assets — must be LF (Verify 31.x rejects CR) even though the
+# Snapshot files — written with LF (SGSnap writes them byte-exact) even though the
 # repo default is CRLF. Keep editors in sync with .gitattributes so they don't
 # re-introduce CRLF on save. (.verified.cs keeps utf-8-bom from [*.cs] above.)
 #
