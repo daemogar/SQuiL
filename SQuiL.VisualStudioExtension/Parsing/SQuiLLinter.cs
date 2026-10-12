@@ -88,9 +88,11 @@ internal static class SQuiLLinter
         LintParamsBeforeReturns(text, diagnostics, dialect);
         if (squilFilePath is not null)
         {
-            LintOrphanContext(squilFilePath, diagnostics);
-            LintMutationDiagnostics(text, squilFilePath, diagnostics, dialect);
-            LintDebugRollbackHint(text, squilFilePath, diagnostics, dialect);
+            // Resolve once and share: each call reads every .cs file in the project.
+            var ctx = SQuiLContextResolver.Resolve(squilFilePath);
+            LintOrphanContext(ctx, diagnostics);
+            LintMutationDiagnostics(text, ctx, diagnostics, dialect);
+            LintDebugRollbackHint(text, ctx, diagnostics, dialect);
         }
     }
 
@@ -1493,9 +1495,8 @@ internal static class SQuiLLinter
     // Port of the SP0028/SP0027 block in diagnosticsProvider.ts (VS Code) —
     // change one side, change all three.
 
-    internal static void LintOrphanContext(string squilFilePath, List<SQuiLDiagnostic> diagnostics)
+    internal static void LintOrphanContext(SQuiLContextResolver.ResolvedContext ctx, List<SQuiLDiagnostic> diagnostics)
     {
-        var ctx = SQuiLContextResolver.Resolve(squilFilePath);
         if (ctx.Found) return;
 
         if (ctx.MatchCount == 0)
@@ -1536,9 +1537,8 @@ internal static class SQuiLLinter
     // Port of the build-time emit in FileGenerator.cs and the SP0023/SP0024/SP0025
     // block in diagnosticsProvider.ts (VS Code) — change one, change all three.
 
-    internal static void LintMutationDiagnostics(string sql, string squilFilePath, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
+    internal static void LintMutationDiagnostics(string sql, SQuiLContextResolver.ResolvedContext ctx, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
-        var ctx = SQuiLContextResolver.Resolve(squilFilePath);
         if (!ctx.Found) return; // orphan/duplicate already reported by LintOrphanContext
 
         // Extract the body text (dialect-aware). For T-SQL the body starts on the line AFTER the
@@ -1654,9 +1654,8 @@ internal static class SQuiLLinter
     // Port of transactionHints.ts (VS Code extension, Hint severity there) —
     // change one side, change all three.
 
-    internal static void LintDebugRollbackHint(string sql, string squilFilePath, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
+    internal static void LintDebugRollbackHint(string sql, SQuiLContextResolver.ResolvedContext ctx, List<SQuiLDiagnostic> diagnostics, EditorDialect dialect = EditorDialect.SqlServer)
     {
-        var ctx = SQuiLContextResolver.Resolve(squilFilePath);
         if (!ctx.Found) return;
         if (ctx.Attribute != "SQuiLQueryTransaction") return;
         if (!ctx.Enabled) return;
