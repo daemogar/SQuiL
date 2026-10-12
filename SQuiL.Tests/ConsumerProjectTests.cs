@@ -10,6 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 using SQuiL.Generator;
 
 using System.Collections.Immutable;
+using System.Reflection;
+using System.Runtime.Loader;
 
 namespace SQuiL.Tests;
 
@@ -153,6 +155,49 @@ public class ConsumerProjectTests
 		Assert.Equal(DiagnosticSeverity.Error, error.Severity);
 		Assert.Contains("'A.B'", error.GetMessage());
 		Assert.Contains("'AB'", error.GetMessage());
+	}
+
+	[Fact]
+	public void Host_AddSQuiL_resolves_every_referenced_context_at_runtime()
+	{
+		var libA = Build("LibA");
+		var libB = Build("LibB", libA.Reference);
+		var (consumer, _) = Compile("Consumer", [ConsumerSource], [], [libA.Reference, libB.Reference]);
+		AssertClean(consumer);
+
+		ImageLoadContext images = new([libA.Image, libB.Image, Emit(consumer)]);
+		try
+		{
+			var services = new ServiceCollection().AddSingleton<IConfiguration>(new ConfigurationBuilder()
+				.AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:SQuiLDatabase"] = "Server=.;Database=Db" })
+				.Build());
+
+			images.Type("Consumer", "Consumer.Startup").GetMethod("Configure")!.Invoke(null, [services]);
+
+			using var provider = services.BuildServiceProvider();
+			Assert.NotNull(provider.GetService(images.Type("LibA", "LibA.QueryContext")));
+			Assert.NotNull(provider.GetService(images.Type("LibB", "LibB.QueryContext")));
+		}
+		finally
+		{
+			images.Unload();
+		}
+	}
+
+	/// <summary>Loads emitted images side by side and resolves their references to each other.</summary>
+	private sealed class ImageLoadContext : AssemblyLoadContext
+	{
+		public ImageLoadContext(IEnumerable<byte[]> images) : base(isCollectible: true)
+		{
+			foreach (var image in images)
+				LoadFromStream(new MemoryStream(image));
+		}
+
+		public Type Type(string assembly, string name)
+			=> Assemblies.Single(p => p.GetName().Name == assembly).GetType(name, throwOnError: true)!;
+
+		protected override Assembly? Load(AssemblyName name)
+			=> Assemblies.FirstOrDefault(p => p.GetName().Name == name.Name);
 	}
 
 	/// <summary>Compiles a library named <paramref name="name"/> with one context in namespace <paramref name="name"/>, and emits it.</summary>
