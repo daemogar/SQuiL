@@ -10,6 +10,14 @@ SQuiL is a C# source generator that converts SQL files into strongly-typed C# co
 - Dependency injection extensions
 - Enum types for queries and tables
 
+## TODO list — where it lives
+
+The TODO list is NOT in this file. It is in Claude's project memory for this repo:
+`project_master_todo.md` (index, sequence, next pickup) plus one `project_todo_<slug>.md` per item,
+listed in that memory's `MEMORY.md`. TODOs are numbered (`TODO #N`; take the next free number).
+To log a new bug or TODO, add a `project_todo_*.md` file, a `MEMORY.md` line, and an entry in the
+master TODO. Paul sets the sequence, so a new item stays unsequenced until he rules on it.
+
 ## Editor extensions (VS Code + SSMS 22.6)
 
 This repo ships two editor extensions that provide syntax highlighting and a
