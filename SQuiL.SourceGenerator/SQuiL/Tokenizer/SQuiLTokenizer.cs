@@ -454,7 +454,7 @@ public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 				case "nchar":
 				case "varchar":
 				case "nvarchar":
-					return T(TokenType.TYPE_STRING, p.Value, Value());
+					return T(TokenType.TYPE_STRING, p.Value, Value()) with { SqlTypeName = value[0].Trim() };
 				//Value().Replace("max", "4096"));
 				case "binary":
 					return T(TokenType.TYPE_BINARY, p.Value, Value());
@@ -462,7 +462,7 @@ public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 					return T(TokenType.TYPE_VARBINARY, p.Value, "max");
 				case "text":
 				case "ntext":
-					return T(TokenType.TYPE_STRING, p.Value, p.Value);
+					return T(TokenType.TYPE_STRING, p.Value, p.Value) with { SqlTypeName = value[0].Trim() };
 				case "date":
 					// SQLite has no dedicated DATE storage class; it stores date values as TEXT
 					// alongside DATETIME, so both map to the same TokenType under this dialect.

@@ -1261,8 +1261,9 @@ public class SQuiLDataContext(
 				{
 					var value = $"request.{parameter.Name}";
 
+					// Only a numeric length is guarded: max, text and ntext are unbounded.
 					if (parameter.DatabaseType.Type != TokenType.TYPE_STRING
-						|| parameter.Size?.Equals("max", StringComparison.OrdinalIgnoreCase) == true)
+						|| !int.TryParse(parameter.Size, out _))
 					{
 						writer.Write(value);
 
