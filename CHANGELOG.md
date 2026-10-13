@@ -130,6 +130,11 @@ from 1.0.0 onward.
   `@Param_` / `@Return_` naming prefix.
 
 ### Fixed
+- String parameters now bind as their declared type. Every `@Param_` string was sent as
+  `SqlDbType.VarChar`, so an `nvarchar`/`nchar`/`ntext` value lost any character outside the
+  database collation's code page (`Łódź 中` arrived as `Lodz ?`), with no error. `char` and
+  `text` now bind as `Char` and `Text` too. A `text`/`ntext` parameter no longer generates code
+  that fails to compile. The C# type is unchanged: SQL `char(n)` is still `string`.
 - A project that references a SQuiL library through a `ProjectReference`, and
   has no query files and no data context of its own, no longer gets a second
   public `AddSQuiL()`. Its `services.AddSQuiL()` call was ambiguous (`CS0121`) and

@@ -41,4 +41,27 @@ public class TypeMapTests
         // VarBinary size arg not exercised here; scalar types only.
         Assert.Equal(sqlDbType, token.SqlDbType(allowNullSize: true));
     }
+
+    /// <summary>
+    /// Every string spelling collapses to <c>TYPE_STRING</c>, so the parameter type comes from
+    /// the declared spelling. An <c>n</c>-type sent as <c>VarChar</c> loses non-Latin text (TODO #31).
+    /// </summary>
+    [Theory]
+    // declared,  size,    sqlDbType
+    [InlineData("char",     "5",     "System.Data.SqlDbType.Char, 5")]
+    [InlineData("nchar",    "5",     "System.Data.SqlDbType.NChar, 5")]
+    [InlineData("varchar",  "10",    "System.Data.SqlDbType.VarChar, 10")]
+    [InlineData("nvarchar", "10",    "System.Data.SqlDbType.NVarChar, 10")]
+    [InlineData("nvarchar", "max",   "System.Data.SqlDbType.NVarChar, -1")]
+    [InlineData("varchar",  "max",   "System.Data.SqlDbType.VarChar, -1")]
+    [InlineData("text",     "text",  "System.Data.SqlDbType.Text")]
+    [InlineData("ntext",    "ntext", "System.Data.SqlDbType.NText")]
+    [InlineData(null,       "10",    "System.Data.SqlDbType.VarChar, 10")]
+    public void StringTypeMapping(string? declared, string size, string sqlDbType)
+    {
+        var token = new Token(TokenType.TYPE_STRING, 0, size) { SqlTypeName = declared };
+        Assert.Equal(sqlDbType, token.SqlDbType(size));
+        // SQL char(n) is a string, never System.Char.
+        Assert.Equal("string", token.CSharpType());
+    }
 }

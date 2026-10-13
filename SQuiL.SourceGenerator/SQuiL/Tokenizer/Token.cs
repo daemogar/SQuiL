@@ -16,6 +16,12 @@ public record Token(TokenType Type, int Offset, string Value)
 	/// <summary>The verbatim source text for this token, preserved for diagnostic and SQL-emit purposes.</summary>
 	public string? Original { get; init; }
 
+	/// <summary>
+	/// The declared SQL type keyword of a <c>TYPE_STRING</c> token (<c>nvarchar</c>, <c>char</c>, …).
+	/// Internal so the record's printed form, which snapshots dump, stays unchanged.
+	/// </summary>
+	internal string? SqlTypeName { get; init; }
+
 	/// <summary>Creates a token with no value (used for punctuation tokens whose value is implicit).</summary>
 	public Token(TokenType Type, int Offset) : this(Type, Offset, default!) { }
 
@@ -53,7 +59,7 @@ public record Token(TokenType Type, int Offset, string Value)
 	/// Returns a <c>System.Data.SqlDbType.*</c> expression (optionally with size) for this token's SQL type.
 	/// </summary>
 	/// <param name="size">The size string to embed (e.g. <c>"50"</c> or <c>"max"</c>), or <c>null</c>.</param>
-	/// <param name="allowNullSize">When <c>true</c>, a <c>string</c> type without a size emits <c>VarChar</c> instead of throwing.</param>
+	/// <param name="allowNullSize">When <c>true</c>, a <c>string</c> type without a size emits its type with no size instead of throwing.</param>
 	public string SqlDbType(string? size = default, bool allowNullSize = false) => "System.Data.SqlDbType." + Type switch
 	{
 		TokenType.TYPE_BOOLEAN => nameof(System.Data.SqlDbType.Bit),
@@ -66,9 +72,10 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_DECIMAL => "Decimal",
 		TokenType.TYPE_MONEY => nameof(System.Data.SqlDbType.Money),
 		TokenType.TYPE_SMALLMONEY => nameof(System.Data.SqlDbType.SmallMoney),
-		TokenType.TYPE_STRING when size?.Equals("max", StringComparison.OrdinalIgnoreCase) == true => $"VarChar, -1",
-		TokenType.TYPE_STRING when size is not null => $"VarChar, {size}",
-		TokenType.TYPE_STRING when allowNullSize => $"VarChar",
+		TokenType.TYPE_STRING when size?.Equals("max", StringComparison.OrdinalIgnoreCase) == true => $"{StringDbType()}, -1",
+		TokenType.TYPE_STRING when int.TryParse(size, out _) => $"{StringDbType()}, {size}",
+		// A non-numeric size is the type name itself (`text`/`ntext`), which carries no length.
+		TokenType.TYPE_STRING when size is not null || allowNullSize => StringDbType(),
 		TokenType.TYPE_STRING => throw new DiagnosticException("Size cannot be null."),
 		TokenType.TYPE_DATE => "Date",
 		TokenType.TYPE_TIME => "Time",
@@ -82,6 +89,21 @@ public record Token(TokenType Type, int Offset, string Value)
 		TokenType.TYPE_TIMESTAMP => nameof(System.Data.SqlDbType.Timestamp),
 		TokenType.TYPE_XML => nameof(System.Data.SqlDbType.Xml),
 		_ => throw new Exception($"Unsupported database type `{Type}`")
+	};
+
+	/// <summary>
+	/// The <c>SqlDbType</c> member for a string token, taken from its declared spelling: every
+	/// string type shares <c>TYPE_STRING</c>, and sending an <c>n</c>-type as <c>VarChar</c> loses
+	/// any character outside the collation's code page.
+	/// </summary>
+	string StringDbType() => SqlTypeName switch
+	{
+		"char" => nameof(System.Data.SqlDbType.Char),
+		"nchar" => nameof(System.Data.SqlDbType.NChar),
+		"nvarchar" => nameof(System.Data.SqlDbType.NVarChar),
+		"text" => nameof(System.Data.SqlDbType.Text),
+		"ntext" => nameof(System.Data.SqlDbType.NText),
+		_ => nameof(System.Data.SqlDbType.VarChar),
 	};
 
 	/// <summary>Returns the C# type keyword or full type name for this SQL type token.</summary>
