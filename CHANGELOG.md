@@ -133,6 +133,11 @@ from 1.0.0 onward.
 - **PostgreSQL and SQLite projects without `Microsoft.Data.SqlClient` got no code.** The
   generator skipped every data context when SqlClient wasn't referenced, whatever its dialect,
   so a Postgres-only project saw SP0005 "no contexts". Only SQL Server contexts need SqlClient now.
+- **A temp-table header (SQLite, PostgreSQL) that starts with a comment was read as all body.**
+  A leading `--Name:` or description comment made the tokenizer treat the whole file as the
+  body: an empty `*Response`, a non-generic `SQuiLResultType`, the header sent verbatim through
+  `ExecuteNonQueryAsync`, and a false SP0023 on `Insert Into Return_*`. Comments between header
+  statements are now skipped, as the editors already did.
 - String parameters now bind as their declared type. Every `@Param_` string was sent as
   `SqlDbType.VarChar`, so an `nvarchar`/`nchar`/`ntext` value lost any character outside the
   database collation's code page (`Łódź 中` arrived as `Lodz ?`), with no error. `char` and
