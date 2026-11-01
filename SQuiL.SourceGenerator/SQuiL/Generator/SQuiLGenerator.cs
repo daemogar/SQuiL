@@ -602,7 +602,10 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					definition.Class.GetLocation());
 			}
 
-			if (missingDataClient)
+			// Only a SQL Server context needs Microsoft.Data.SqlClient. SQLite and PostgreSQL
+			// contexts use their own drivers, so a project without SqlClient must still get code
+			// for them (before this, every context was skipped and SP0005 claimed none existed).
+			if (missingDataClient && dialectId == 0)
 				continue;
 
 			if (providerReferenced)
