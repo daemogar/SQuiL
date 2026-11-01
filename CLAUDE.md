@@ -211,7 +211,10 @@ SQuiL/
     hash-verify). Facts SKILL.md must keep correct:
     - method = `Process<QueryName>Async`, request = `<QueryName>Request`,
       response = `<QueryName>Response` (NO `Process` prefix on the models);
-      `<QueryName>` is the `QueryFiles` enum member (folder+file PascalCased).
+      `<QueryName>` is the `QueryFiles` enum member: the path with extension and
+      separators removed, counted from the nearest enclosing folder that holds a `.cs`
+      file (no case changes; `--Name:` is ignored by the build — it only names
+      inline test queries in `SQuiL.Tests`).
     - methods return `Task<SQuiLResultType<TResponse>>` (or non-generic
       `Task<SQuiLResultType>` when the query declares no `@Return*`); the
       caller unwraps with `result.TryGetValue(out var value, out var errors)`.
