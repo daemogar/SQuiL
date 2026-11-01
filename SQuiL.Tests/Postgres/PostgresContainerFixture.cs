@@ -34,8 +34,9 @@ using Xunit;
 /// </summary>
 public sealed class PostgresContainerFixture : IAsyncLifetime
 {
-	private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17")
-		.Build();
+	// Built in InitializeAsync, not here: building probes for Docker and throws in the constructor
+	// when none is reachable, which would fail the collection instead of letting it skip.
+	private PostgreSqlContainer? _container;
 
 	/// <summary>
 	/// Non-null when <see cref="InitializeAsync"/> could not start a container (no Docker/Podman
@@ -43,13 +44,26 @@ public sealed class PostgresContainerFixture : IAsyncLifetime
 	/// </summary>
 	public Exception? StartupFailure { get; private set; }
 
-	/// <summary>The live container's connection string. Only valid when <see cref="StartupFailure"/> is null.</summary>
-	public string ConnectionString => _container.GetConnectionString();
+	/// <summary>
+	/// Connection string of an already-running PostgreSQL server to use instead of starting a
+	/// container, for machines with no Docker/Podman (e.g.
+	/// <c>Host=127.0.0.1;Port=55432;Username=postgres;Database=postgres</c>). The tests only use
+	/// temp tables, so any scratch database works.
+	/// </summary>
+	private static readonly string? ExternalConnectionString
+		= Environment.GetEnvironmentVariable("SQUIL_TEST_POSTGRES") is { Length: > 0 } value ? value : null;
+
+	/// <summary>The live server's connection string. Only valid when <see cref="StartupFailure"/> is null.</summary>
+	public string ConnectionString => ExternalConnectionString ?? _container!.GetConnectionString();
 
 	public async ValueTask InitializeAsync()
 	{
+		if (ExternalConnectionString is not null)
+			return;
+
 		try
 		{
+			_container = new PostgreSqlBuilder("postgres:17").Build();
 			await _container.StartAsync();
 		}
 		catch (Exception ex)
@@ -62,7 +76,7 @@ public sealed class PostgresContainerFixture : IAsyncLifetime
 
 	public async ValueTask DisposeAsync()
 	{
-		if (StartupFailure is null)
+		if (_container is not null)
 			await _container.DisposeAsync();
 	}
 }
