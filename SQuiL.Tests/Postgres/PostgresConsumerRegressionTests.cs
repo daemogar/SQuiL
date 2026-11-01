@@ -13,8 +13,9 @@ namespace SQuiL.Tests.Postgres;
 
 /// <summary>
 /// Regressions found by the first real PostgreSQL consumer (family-todo, SQuiL 1.0.0-beta.215):
-/// a Postgres-only project (no Microsoft.Data.SqlClient) got no code, and a header that starts
-/// with a comment was read as all body.
+/// a Postgres-only project (no Microsoft.Data.SqlClient) got no code, a header that starts with a
+/// comment was read as all body, and a context naming a missing query file stopped the run before
+/// the TableType enum was emitted.
 /// </summary>
 public class PostgresConsumerRegressionTests
 {
@@ -98,6 +99,17 @@ public class PostgresConsumerRegressionTests
 		Assert.Contains("int MigrationCount", response);
 		Assert.Contains(sources, s => s.HintName.EndsWith("Constructor.g.cs")
 			&& s.SourceText.ToString().Contains(": PostgresDataContext"));
+	}
+
+	[Fact]
+	public void Context_naming_a_missing_query_file_still_emits_the_TableType_enum()
+	{
+		var result = TestHelper.RunForDiagnosticsAndSources([Context], [],
+			includeSqlServer: false, includeSqlite: false, includePostgres: true,
+			includeSqlClient: false, rawFiles: [new RawFile("Queries/GetDbStatus.squil", GetDbStatus)]);
+
+		Assert.Contains(result.Results.SelectMany(r => r.GeneratedSources),
+			s => s.HintName.EndsWith("TableTypeEnum.g.cs"));
 	}
 
 	sealed class RawFile(string path, string text) : AdditionalText
