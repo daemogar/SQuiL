@@ -25,6 +25,7 @@
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" />
 		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" />
 		<PackageReference Include="Npgsql" />
+		<PackageReference Include="Testcontainers.MsSql" />
 		<PackageReference Include="Testcontainers.PostgreSql" />
 		<PackageReference Include="SGSnap.SourceGenerators" />
 		<PackageReference Include="xunit.v3" />
