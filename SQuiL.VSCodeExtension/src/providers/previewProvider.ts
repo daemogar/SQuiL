@@ -67,10 +67,8 @@ export async function openPreview(
   const dialect = resolveProjectDialect(document.uri.fsPath, fsReadFile, fsListDir);
   const parsed = parseSQuiL(text, dialect);
 
-  // Derive query name: prefer --Name: annotation, fallback to file stem
-  const queryName =
-    parsed.queryName ??
-    path.basename(document.fileName, path.extname(document.fileName));
+  // The build ignores --Name:, so the preview names the query after its file.
+  const queryName = path.basename(document.fileName, path.extname(document.fileName));
 
   // Resolve [SQuiLQuery]/[SQuiLQueryTransaction] context from disk to pick up
   // enabled/debugRollback. Falls back to enabled=false (no transaction) when
@@ -101,9 +99,7 @@ export function refreshPreview(
   const text = document.getText();
   const dialect = resolveProjectDialect(document.uri.fsPath, fsReadFile, fsListDir);
   const parsed = parseSQuiL(text, dialect);
-  const queryName =
-    parsed.queryName ??
-    path.basename(document.fileName, path.extname(document.fileName));
+  const queryName = path.basename(document.fileName, path.extname(document.fileName));
 
   // Re-resolve context on each refresh so the preview stays in sync with
   // any changes to the C# attribute.

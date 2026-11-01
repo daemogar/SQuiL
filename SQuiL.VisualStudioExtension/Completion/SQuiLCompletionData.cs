@@ -264,8 +264,6 @@ internal static class SQuiLCompletionData
         new("Scaffold a complete SQuiL file",
             string.Join("\r\n", new[]
             {
-                "--Name: QueryName",
-                "",
                 "Declare @Param_Name varchar(100);",
                 "Declare @Return_Result int;",
                 "",
@@ -316,8 +314,6 @@ internal static class SQuiLCompletionData
         new("Scaffold a complete SQLite SQuiL file",
             string.Join("\r\n", new[]
             {
-                "--Name: QueryName",
-                "",
                 "Create Temp Table Params_Roster (PersonID INTEGER Primary Key, Name TEXT);",
                 "Create Temp Table Returns_Echoed (PersonID INTEGER Primary Key, Name TEXT);",
                 "",
@@ -366,8 +362,6 @@ internal static class SQuiLCompletionData
         new("Scaffold a complete PostgreSQL SQuiL file",
             string.Join("\r\n", new[]
             {
-                "--Name: QueryName",
-                "",
                 "Create Temp Table Params_Roster (PersonID integer Primary Key, Name text);",
                 "Create Temp Table Returns_Echoed (PersonID integer Primary Key, Name text);",
                 "",

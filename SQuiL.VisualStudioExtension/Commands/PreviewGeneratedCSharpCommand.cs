@@ -87,7 +87,8 @@ internal sealed class PreviewGeneratedCSharpCommand
         // previewProvider.ts's `parseSQuiL(text, resolveProjectDialect(...))`.
         var dialect = SQuiL.VisualStudioExtension.Parsing.SQuiLContextResolver.ResolveDialect(fullPath);
         var parsed = SQuiLParser.Parse(bufferText, dialect);
-        string queryName = parsed.QueryName ?? Path.GetFileNameWithoutExtension(fullPath);
+        // The build ignores --Name:, so the preview names the query after its file.
+        string queryName = Path.GetFileNameWithoutExtension(fullPath);
 
         // Resolve [SQuiLQuery]/[SQuiLQueryTransaction] context from disk so the
         // preview shows the correct transaction scaffold; the dialect (resolved
