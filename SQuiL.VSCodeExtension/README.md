@@ -57,8 +57,6 @@ The highlighting, hover info, and linting all understand these patterns:
 ## Example SQuiL File
 
 ```sql
---Name: GetUsersByDepartment
-
 DECLARE @Param_DepartmentId INT;
 DECLARE @Param_ActiveOnly BIT;
 DECLARE @Returns_Users TABLE (

@@ -470,8 +470,12 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 				continue;
 
 			var file = files.FirstOrDefault(p => StripSqlExtension(FlattenPath(p.Path)).Equals(method));
+			// No query file matches this QueryFiles member (the compiler already reports the
+			// bad enum member). Skip just this context: returning here used to stop the whole
+			// run before the TableType enum and DI code were emitted, which caused a
+			// CS0246 on SQuiLTableAttribute's TableType reference.
 			if (file is null)
-				return;
+				continue;
 
 			var text = file.GetText(context.CancellationToken);
 
@@ -602,7 +606,10 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 					definition.Class.GetLocation());
 			}
 
-			if (missingDataClient)
+			// Only a SQL Server context needs Microsoft.Data.SqlClient. SQLite and PostgreSQL
+			// contexts use their own drivers, so a project without SqlClient must still get code
+			// for them (before this, every context was skipped and SP0005 claimed none existed).
+			if (missingDataClient && dialectId == 0)
 				continue;
 
 			if (providerReferenced)

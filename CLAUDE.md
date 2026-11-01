@@ -211,7 +211,10 @@ SQuiL/
     hash-verify). Facts SKILL.md must keep correct:
     - method = `Process<QueryName>Async`, request = `<QueryName>Request`,
       response = `<QueryName>Response` (NO `Process` prefix on the models);
-      `<QueryName>` is the `QueryFiles` enum member (folder+file PascalCased).
+      `<QueryName>` is the `QueryFiles` enum member: the path with extension and
+      separators removed, counted from the nearest enclosing folder that holds a `.cs`
+      file (no case changes; `--Name:` is ignored by the build — it only names
+      inline test queries in `SQuiL.Tests`).
     - methods return `Task<SQuiLResultType<TResponse>>` (or non-generic
       `Task<SQuiLResultType>` when the query declares no `@Return*`); the
       caller unwraps with `result.TryGetValue(out var value, out var errors)`.
@@ -590,6 +593,11 @@ the root `global.json`. The test project is an `Exe` with no `Microsoft.NET.Test
 `xunit.runner.visualstudio` or coverlet collector; don't re-add them. `--project <csproj>` is the
 documented spelling (CI uses it), and xunit's own `--filter-class` / `--filter-method` work next
 to the VSTest-style `--filter`. List them with `dotnet test --project SQuiL.Tests --help`.
+
+The live PostgreSQL tests (`PostgresRoundTripTests`, `PostgresKeyParityTests`) start a `postgres:17`
+container through Testcontainers and skip when no Docker/Podman is reachable. On a machine without
+a container runtime, set `SQUIL_TEST_POSTGRES` to the connection string of a running server instead
+(e.g. `Host=127.0.0.1;Port=55432;Username=postgres;Database=postgres`); they only use temp tables.
 
 Tests use SGSnap (`SGSnap.SourceGenerators`, source at `c:/dev/projects/sgsnap`) for snapshot testing. Each test generates C# code from SQL input and compares it against verified snapshots in subdirectories.
 

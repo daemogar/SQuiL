@@ -318,7 +318,6 @@ Rules specific to SQLite authoring:
 Worked example — author writes valid, runnable SQLite:
 
 ```sql
---Name: ImportPeople
 Create Temp Table Params_Person (PersonID INTEGER Primary Key, Name TEXT, Age INTEGER);
 Create Temp Table Return_Count (Value INTEGER);
 Create Temp Table Returns_Imported (PersonID INTEGER, Status TEXT);
@@ -416,7 +415,6 @@ PostgreSQL type map (author writes native PostgreSQL types):
 Worked example — author writes valid, runnable PostgreSQL:
 
 ```sql
---Name: ImportPeople
 Create Temp Table Params_Person (PersonID int4 Primary Key, Name text, Photo bytea);
 Create Temp Table Returns_Imported (PersonID int4, Name text);
 
@@ -612,7 +610,7 @@ The generator emits a partial data-context class plus per-query types. For a que
 - row records for table-valued and single-object variables, named `<Name>` (NO `Table`/`Object` suffix — just the bare name) — never `<Name>Table`/`<Name>Object`/`<Name>Row`/`<Name>Item`; auto-generated row records are emitted into `<ContextNamespace>.Models` by default; override with `[SQuiLQuery(..., Namespace: "Dto")]` or `""` for top-level;
 - the method returns `Task<SQuiLResultType<<QueryName>Response>>` (or the non-generic `Task<SQuiLResultType>` when the query declares no `@Return*`). `SQuiLResultType<T>` is a result wrapper, **not** the response itself — unwrap it with `result.TryGetValue(out var value, out var errors)`. Errors are *returned in the result*, not thrown.
 
-`<QueryName>` is the enum member: folder name + file name, both PascalCased and joined. So `Queries/Example1.squil` → `QueriesExample1` → method `ProcessQueriesExample1Async`, types `QueriesExample1Request` / `QueriesExample1Response`.
+`<QueryName>` is the enum member: the file's path with the extension and folder separators removed, counted from the nearest enclosing folder that holds a `.cs` file (no case changes). With the `.cs` files at the project root, `Queries/Example1.squil` → `QueriesExample1` → method `ProcessQueriesExample1Async`, types `QueriesExample1Request` / `QueriesExample1Response`. Put a `.cs` file (such as a wrapper) in `Queries/` and the member becomes `Example1`. A `--Name:` comment does not change it.
 
 **Don't call those generated methods from the rest of the app.** They are a low-level surface — every call site would have to remember the right request shape, unwrap the result, and apply the right cancellation pattern, and any rename in the SQL would break consumers.
 
@@ -639,9 +637,9 @@ using SQuiL;
 
 namespace MyProject;
 
-[SQuiLQuery(QueryFiles.QueriesExample1, setting: "ExampleOne")]
-[SQuiLQuery(QueryFiles.QueriesExample2, setting: "ExampleTwo")]
-[SQuiLQueryTransaction(QueryFiles.QueriesUpsertDocument, setting: "ExampleOne")]
+[SQuiLQuery(QueryFiles.Example1, setting: "ExampleOne")]
+[SQuiLQuery(QueryFiles.Example2, setting: "ExampleTwo")]
+[SQuiLQueryTransaction(QueryFiles.UpsertDocument, setting: "ExampleOne")]
 public partial class MyDataContext { }
 
 // SQuiL auto-supplies the resolved dialect's runtime base (: SqlServerDataContext
@@ -654,7 +652,7 @@ public partial class MyDataContext { }
 public partial class Table { }
 ```
 
-The `QueryFiles` enum is generated from the query-file paths: `Queries/Example1.squil` becomes `QueryFiles.QueriesExample1` (folder name + file name, both PascalCased, joined). The `TableType` enum is generated from `@Returns_<Name>` and `@Params_<Name>` table declarations — one entry per distinct table name across all query files. Add a `[SQuiLTable]` for each table the project actually uses so the row record is emitted.
+The `QueryFiles` enum is generated from the query-file paths. In this layout the wrappers put `.cs` files in `Queries/`, so `Queries/Example1.squil` becomes `QueryFiles.Example1`; without them it would be `QueryFiles.QueriesExample1` (see the naming rule above). The `TableType` enum is generated from `@Returns_<Name>` and `@Params_<Name>` table declarations — one entry per distinct table name across all query files. Add a `[SQuiLTable]` for each table the project actually uses so the row record is emitted.
 
 The attributes and both enums are generated `internal` and marked `[Embedded]`, so they are private to the project that owns the query files. Projects that reference that project don't see them, even with `InternalsVisibleTo`. Use `QueryFiles` / `TableType` only inside the owning project. Every project gets its own `internal` `AddSQuiL()`, which also registers the contexts of every SQuiL project it references (see "DI registration").
 
@@ -701,7 +699,7 @@ Select @Return_RowsAffected As RowsAffected;  -- optional on SQL Server (shown f
 
 ```csharp
 // MyDataContext.cs
-[SQuiLQueryTransaction(QueryFiles.QueriesUpsertDocument, setting: "MyDB")]
+[SQuiLQueryTransaction(QueryFiles.UpsertDocument, setting: "MyDB")]
 public partial class MyDataContext { }
 ```
 
@@ -712,8 +710,8 @@ public partial class MyDataContext
     public async Task<int> UpsertDocumentAsync(
         long id, bool debug = false, CancellationToken ct = default)
     {
-        var result = await ProcessQueriesUpsertDocumentAsync(
-            new QueriesUpsertDocumentRequest { ID = id, Debug = debug }, ct);
+        var result = await ProcessUpsertDocumentAsync(
+            new UpsertDocumentRequest { ID = id, Debug = debug }, ct);
 
         if (!result.TryGetValue(out var response, out var errors))
             throw new SQuiLAggregateException(errors);
@@ -746,7 +744,7 @@ public partial record Terms { }
 
 ### `<queryfilename>.cs` — per-query wrappers
 
-Each `.squil` gets a sibling `.cs` that adds wrapper methods to `MyDataContext` via `partial`. These wrappers are the public API: callers call `GetParticipationForPersonAsync(personId)`, not `ProcessQueriesExample2Async(new QueriesExample2Request { … })` followed by unwrapping a `SQuiLResultType`. The wrapper is also where the result is unwrapped — decide there what an error *means* (return a default, throw, log), so call sites never see `SQuiLResultType`.
+Each `.squil` gets a sibling `.cs` that adds wrapper methods to `MyDataContext` via `partial`. These wrappers are the public API: callers call `GetParticipationForPersonAsync(personId)`, not `ProcessExample2Async(new Example2Request { … })` followed by unwrapping a `SQuiLResultType`. The wrapper is also where the result is unwrapped — decide there what an error *means* (return a default, throw, log), so call sites never see `SQuiLResultType`.
 
 ```csharp
 using SQuiL;
@@ -757,8 +755,8 @@ public partial class MyDataContext
 {
     public async Task<int> GetExample1ScalerAsync(CancellationToken ct = default)
     {
-        var result = await ProcessQueriesExample1Async(
-            new QueriesExample1Request(),
+        var result = await ProcessExample1Async(
+            new Example1Request(),
             ct);
 
         if (!result.TryGetValue(out var response, out var errors))
@@ -780,8 +778,8 @@ public partial class MyDataContext
         string personId,
         CancellationToken ct = default)
     {
-        var result = await ProcessQueriesExample2Async(
-            new QueriesExample2Request { PersonID = personId },
+        var result = await ProcessExample2Async(
+            new Example2Request { PersonID = personId },
             ct);
 
         if (!result.TryGetValue(out var response, out var errors))
@@ -804,7 +802,7 @@ Why this layout matters:
 
 - **One place to register queries.** Adding a new query is two steps (drop the `.squil`, add an attribute on `MyDataContext`) — not a hunt across the codebase.
 - **Authoring files travel together.** SQL + its wrapper live in the same folder. Renaming a `@Param_` and the call-site update is one folder, not two.
-- **Stable consumer API.** Callers see hand-named methods describing intent (`GetParticipationForPersonAsync`), not generator-named methods describing mechanics (`ProcessQueriesExample2Async`). The wrapper absorbs SQL-shape changes without breaking consumers.
+- **Stable consumer API.** Callers see hand-named methods describing intent (`GetParticipationForPersonAsync`), not generator-named methods describing mechanics (`ProcessExample2Async`). The wrapper absorbs SQL-shape changes without breaking consumers.
 - **Error handling has a home.** The `SQuiLResultType` is unwrapped in the wrapper, where there's enough context to know what an error *means* — turn it into a thrown `SQuiLAggregateException`, a default, or a domain result; call sites only see the translated outcome.
 - **Cancellation and instrumentation in one spot.** Logging, metrics, retries, timeouts: applied per-query in the wrapper, not sprinkled at every call site.
 

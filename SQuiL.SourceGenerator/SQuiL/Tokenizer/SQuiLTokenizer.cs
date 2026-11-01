@@ -165,6 +165,13 @@ public class SQuiLTokenizer(string Text, ISqlDialect? Dialect = null)
 
 			if (Dialect is ITempTableHeaderDialect && sqliteDepth == 0)
 			{
+				// Comments between header statements (a leading `--Name:` line, a description
+				// comment) are not the body. Symbol() emits them as COMMENT_* tokens, which the
+				// parser skips. Mirrors the editors' sqliteBodyStartLine, which skips
+				// comment-only lines. Without this a file whose first line is a comment became
+				// one BODY token with no declarations at all.
+				if ((Word.StartsWith("--") || Word.StartsWith("/*")) && Symbol())
+					continue;
 				if (SqliteCreateTempTable())
 				{
 					sqliteDepth++;

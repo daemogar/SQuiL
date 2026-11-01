@@ -270,8 +270,6 @@ export const FILE_SNIPPETS: FileSnippetDescriptor[] = [
   {
     label: 'squil-file',
     snippet: [
-      '--Name: ${1:QueryName}',
-      '',
       'Declare @Param_${2:Name} ${3:varchar(100)};',
       'Declare @Return_${4:Result} ${5:int};',
       '',
@@ -318,8 +316,6 @@ export const SQLITE_FILE_SNIPPETS: FileSnippetDescriptor[] = [
   {
     label: 'squil-file',
     snippet: [
-      '--Name: ${1:QueryName}',
-      '',
       'Create Temp Table Params_${2:Roster} (${3:PersonID INTEGER Primary Key, Name TEXT});',
       'Create Temp Table Returns_${4:Echoed} (${5:PersonID INTEGER Primary Key, Name TEXT});',
       '',
@@ -365,8 +361,6 @@ export const POSTGRES_FILE_SNIPPETS: FileSnippetDescriptor[] = [
   {
     label: 'squil-file',
     snippet: [
-      '--Name: ${1:QueryName}',
-      '',
       'Create Temp Table Params_${2:Roster} (${3:PersonID integer Primary Key, Name text});',
       'Create Temp Table Returns_${4:Echoed} (${5:PersonID integer Primary Key, Name text});',
       '',

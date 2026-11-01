@@ -324,7 +324,9 @@ public static class TestHelper
 		IEnumerable<string> files,
 		bool includeSqlServer,
 		bool includeSqlite,
-		bool includePostgres = false)
+		bool includePostgres = false,
+		bool includeSqlClient = true,
+		IEnumerable<AdditionalText>? rawFiles = null)
 	{
 		var syntaxTrees = sources.Select(p => CSharpSyntaxTree.ParseText(p));
 
@@ -337,9 +339,11 @@ public static class TestHelper
 			.. Basic.Reference.Assemblies.Net100.References.All,
 			MetadataReference.CreateFromFile(typeof(IServiceCollection).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(IConfiguration).Assembly.Location),
-			MetadataReference.CreateFromFile(typeof(SqlConnection).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(SQuiLDialectAttribute).Assembly.Location),
 		];
+
+		if (includeSqlClient)
+			metareferences.Add(MetadataReference.CreateFromFile(typeof(SqlConnection).Assembly.Location));
 
 		if (includeSqlServer)
 			metareferences.Add(MetadataReference.CreateFromFile(typeof(SqlServerDataContext).Assembly.Location));
@@ -354,6 +358,7 @@ public static class TestHelper
 			.Select(p => (AdditionalText)(p.StartsWith("--Name:")
 				? new AdditionalQuery(p)
 				: new AdditionalFile(p)))
+			.Concat(rawFiles ?? [])
 			.ToImmutableArray();
 
 		var compilation = CSharpCompilation.Create(

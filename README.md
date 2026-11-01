@@ -201,7 +201,6 @@ Rules:
 Author writes (valid, runnable SQLite):
 
 ```sql
---Name: ImportPeople
 Create Temp Table Params_Person (PersonID INTEGER Primary Key, Name TEXT, Age INTEGER);
 Create Temp Table Return_Count (Value INTEGER);
 Create Temp Table Returns_Imported (PersonID INTEGER, Status TEXT);
@@ -328,7 +327,6 @@ The short version:
 Author writes (valid, runnable PostgreSQL):
 
 ```sql
---Name: ImportPeople
 Create Temp Table Params_Person (PersonID int4 Primary Key, Name text, Photo bytea);
 Create Temp Table Returns_Imported (PersonID int4, Name text);
 
