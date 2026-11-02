@@ -100,6 +100,9 @@ provider-neutral `SQuiLBaseDataContext`) — and an `IConfiguration` constructor
 of its own — declaring any constructor opts out (it must chain `: base(configuration)`).
 The connection string is read from `IConfiguration` (default name
 `SQuiLDatabase`, overridable per query via `[SQuiLQuery(…, setting: "Name")]`).
+On SQL Server the query always runs in the connection string's database: SQuiL
+replaces the database in the file's `Use` with it. A connection string that names
+no database returns error 51002 instead of running.
 
 ## Variable-naming conventions
 
