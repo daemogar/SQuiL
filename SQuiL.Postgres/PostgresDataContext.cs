@@ -29,15 +29,27 @@ public abstract partial class PostgresDataContext(IConfiguration configuration)
 
 	/// <summary>Creates a typed Npgsql parameter (null -> DBNull).</summary>
 	protected virtual DbParameter CreateParameter(string name, NpgsqlDbType type, object? value)
-		=> new NpgsqlParameter(name, type) { Value = value ?? DBNull.Value };
+		=> new NpgsqlParameter(name, type) { Value = ToProviderValue(value) };
 
 	/// <summary>Creates a typed Npgsql parameter with post-configuration.</summary>
 	protected virtual DbParameter CreateParameter(string name, NpgsqlDbType type, object? value, Action<DbParameter>? configure)
 	{
-		var parameter = new NpgsqlParameter(name, type) { Value = value ?? DBNull.Value };
+		var parameter = new NpgsqlParameter(name, type) { Value = ToProviderValue(value) };
 		configure?.Invoke(parameter);
 		return parameter;
 	}
+
+	/// <summary>
+	/// Npgsql only writes a <see cref="DateTimeOffset"/> with offset 0 to <c>timestamptz</c> and
+	/// throws for any other offset. A <c>timestamptz</c> stores an instant, not an offset, so
+	/// converting to UTC keeps the value and lets a caller pass local times.
+	/// </summary>
+	private static object ToProviderValue(object? value) => value switch
+	{
+		null => DBNull.Value,
+		DateTimeOffset dateTimeOffset => dateTimeOffset.ToUniversalTime(),
+		_ => value,
+	};
 
 	/// <summary>
 	/// Serialises <paramref name="value"/> to JSON and adds it as a <c>json</c>-typed parameter. The
