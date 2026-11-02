@@ -83,11 +83,12 @@ neither, they are skipped. To use servers you already have instead, set:
 
 ```bash
 export SQUIL_TEST_POSTGRES='Host=localhost;Port=5432;Username=postgres;Password=...;Database=postgres'
-export SQUIL_TEST_MSSQL='Server=localhost,1433;User ID=sa;Password=...;TrustServerCertificate=True'
+export SQUIL_TEST_MSSQL='Server=localhost,1433;User ID=sa;Password=...;Database=tempdb;TrustServerCertificate=True'
 ```
 
 The tests only use temp tables and table variables, so nothing is created on the
-server. When `SQUIL_TEST_MSSQL` names no database, `tempdb` is used.
+server. `SQUIL_TEST_MSSQL` must name a database, since SQL Server queries run in
+the connection string's database.
 
 ## Conventions
 
