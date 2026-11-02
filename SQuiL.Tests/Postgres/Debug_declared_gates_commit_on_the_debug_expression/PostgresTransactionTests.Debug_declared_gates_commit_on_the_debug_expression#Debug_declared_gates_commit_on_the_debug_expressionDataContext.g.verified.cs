@@ -105,6 +105,11 @@ partial class Debug_declared_gates_commit_on_the_debug_expressionDataContext : P
 		}
 		
 		string Query(List<DbParameter> parameters) => $"""
+		Drop Table If Exists Debug;
+		Create Temp Table Debug (
+			Value int Not Null);
+		Insert Into Debug (Value) Values (Cast(@Debug As int));
+		
 		Drop Table If Exists Params_Widget;
 		Create Temp Table Params_Widget (
 			WidgetID int Not Null Primary Key,

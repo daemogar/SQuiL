@@ -347,6 +347,32 @@ public class SQuiLDataContext(
 
 		void QueryDeclareStatements()
 		{
+			// Temp-table dialects: a one-column `Param_X` input is bound as the `@Param_X` command
+			// parameter (`@Debug` etc. for a special), but the body reads it from the `Param_X`
+			// table, so create that table and fill it from the parameter. SQL Server needs neither:
+			// its body reads the bound `@Param_X` directly.
+			if (Sql is ITempTableHeaderDialect tempTables)
+				foreach (var block in Blocks.Where(p => p.CodeType == CodeType.INPUT_ARGUMENT))
+				{
+					// A collapsed `Param_X` keeps its column in TempScalarColumn; a special (`Debug`,
+					// `AsOfDate`, ...) stays a one-column table block.
+					var column = block.TempScalarColumn ?? block.Properties.FirstOrDefault();
+					if (column is null)
+						continue;
+
+					var tableName = block.TempScalarTableName ?? block.TempTableName ?? block.Name;
+					var declaration = block.TempScalarColumn is not null
+						? Sql.ScalarVariableDeclaration(block, writer.NewLine)
+						: Sql.TableVariableDeclaration(block, writer.NewLine);
+					var parameterName = block.IsSpecialDeclaration ? $"@{block.Name}" : $"@Param_{block.Name}";
+
+					writer.Block($$"""
+						{{declaration}}
+						{{tempTables.ScalarInputInsert(tableName, column, parameterName)}}
+
+						""");
+				}
+
 			foreach (var (CodeBlock, Query) in inputs)
 				writer.Block($$"""
 					{{Query}}

@@ -44,3 +44,7 @@ public partial class PgTypedRoutingDataContext(IConfiguration Configuration) : P
 [SQuiLDialect(SQuiLDialect.Postgres)]
 [SQuiLQuery(QueryFiles.PgMissingTable)]
 public partial class PgMissingTableDataContext(IConfiguration Configuration) : PostgresDataContext(Configuration);
+
+[SQuiLDialect(SQuiLDialect.Postgres)]
+[SQuiLQuery(QueryFiles.PgScalarInputs)]
+public partial class PgScalarInputsDataContext(IConfiguration Configuration) : PostgresDataContext(Configuration);

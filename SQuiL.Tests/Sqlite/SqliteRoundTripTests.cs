@@ -245,4 +245,30 @@ public class SqliteRoundTripTests
 		Assert.Equal(System.Guid.Parse("6f9619ff-8b86-d011-b42d-00c04fc964ff"), row.RowGuid);
 		Assert.Equal(new System.DateTime(2026, 7, 27, 13, 45, 0), row.CreatedAt);
 	}
+	/// <summary>
+	/// One-column <c>Param_</c> inputs and the <c>Debug</c> special are read from their temp tables
+	/// in the body, so the generated query must create and fill those tables from the bound
+	/// parameters. Before this, it only bound the parameters and the body failed with "no such
+	/// table: Param_Lang".
+	/// </summary>
+	[Fact]
+	public async Task Scalar_inputs_are_readable_from_their_temp_tables()
+	{
+		var (keepAlive, provider) = Arrange(nameof(Scalar_inputs_are_readable_from_their_temp_tables));
+		using var _ = keepAlive;
+
+		var context = provider.GetRequiredService<ScalarInputsDataContext>();
+		var result = await context.ProcessScalarInputsAsync(new ScalarInputsRequest
+		{
+			PersonID = 7,
+			Lang = "fr",
+		}, TestContext.Current.CancellationToken);
+
+		if (!result.TryGetValue(out var response, out var errors))
+			Assert.Fail("SQuiL returned errors: " + string.Join(" | ", errors.Select(e => e.Message)));
+
+		Assert.Equal(7, response!.Echo!.PersonID);
+		Assert.Equal("fr", response.Echo.Lang);
+		Assert.Equal(1, response.Echo.DebugRows);
+	}
 }

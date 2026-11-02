@@ -79,7 +79,16 @@ public class SQuiLParser(List<Token> Tokens, ISqlDialect? Dialect = null)
 				// NEW: only the four input specials are recognized; a bare @Error/@Errors is
 				// no longer special and falls through to the unprefixed-declare error below.
 				if (SQuiLGenerator.IsSpecial(parts[0]))
+				{
+					// Temp-table dialects spell a special as a one-column table (`Create Temp Table
+					// Debug (Value int)`). Parse it as an object so the one-column collapse below
+					// turns it into a scalar that keeps its table and column, which the generated
+					// query needs to create and fill that table.
+					if (Dialect is ITempTableHeaderDialect && Current.Type == TokenType.TYPE_TABLE)
+						return new(token, CodeType.INPUT_OBJECT, true, false, parts[0], IsSpecialDeclaration: true);
+
 					return new(token, CodeType.INPUT_ARGUMENT, false, false, parts[0], IsSpecialDeclaration: true);
+				}
 
 				if (parts[0].StartsWith("param", StringComparison.CurrentCultureIgnoreCase))
 				{
@@ -333,6 +342,9 @@ public class SQuiLParser(List<Token> Tokens, ISqlDialect? Dialect = null)
 
 						return;
 					}
+
+					if (variable.IsSpecialDeclaration)
+						throw DE($"The special `{variable.Name}` must have exactly one column.");
 
 					CodeBlocks.Add(block);
 				}
