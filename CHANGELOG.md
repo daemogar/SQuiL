@@ -130,6 +130,15 @@ from 1.0.0 onward.
   `@Param_` / `@Return_` naming prefix.
 
 ### Fixed
+- **SQLite/PostgreSQL: scalar inputs are readable in the body.** A one-column
+  `Param_X` temp table (and a special such as `Debug`) was bound as a command
+  parameter, but the generated query never created or filled its table, so a
+  body reading `(Select Lang From Param_Lang)` failed with "relation does not
+  exist" / "no such table". The query now creates each scalar input's table
+  and inserts the request's value into it.
+- **PostgreSQL: a `DateTimeOffset` parameter with a non-zero offset no longer
+  throws.** Npgsql only writes offset 0 to `timestamptz`, so the runtime now
+  converts the value to UTC first (the same instant).
 - **A SQL Server connection string with no database failed with "Database '' does not exist".**
   The generated query replaces the file's `Use` with the connection string's database, so a
   connection string that named none sent `Use [];`. `Process…Async` now returns error 51002,

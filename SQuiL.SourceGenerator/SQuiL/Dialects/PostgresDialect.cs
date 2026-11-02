@@ -50,6 +50,15 @@ public class PostgresDialect : ITempTableHeaderDialect
 			""".Replace("\r\n", "\n");
 	}
 
+	/// <summary>
+	/// Fills a scalar input's temp table from its parameter. The value is cast to the column's
+	/// declared type: a special such as <c>Debug</c> is bound as <c>boolean</c> whatever type the
+	/// author gave its column, and PostgreSQL won't assign a boolean to an <c>int</c> column
+	/// without an explicit cast.
+	/// </summary>
+	public string ScalarInputInsert(string tableName, SQuiL.SourceGenerator.Parser.CodeItem column, string parameterName)
+		=> $"Insert Into {tableName} ({column.Identifier.Value}) Values (Cast({parameterName} As {column.Type.Original}));";
+
 	/// <summary>The <c>reader.GetXxx</c> accessor fragment for a table/object column. Npgsql's
 	/// <c>NpgsqlDataReader</c> is a full ADO.NET reader (unlike Microsoft.Data.Sqlite's), so this
 	/// delegates to the shared T-SQL accessor — every method name <c>Token.DataReader()</c> emits

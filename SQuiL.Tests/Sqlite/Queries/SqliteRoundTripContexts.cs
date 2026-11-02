@@ -38,3 +38,7 @@ public partial class MissingTableDataContext(IConfiguration Configuration) : Sql
 [SQuiLDialect(SQuiLDialect.Sqlite)]
 [SQuiLQuery(QueryFiles.TypedRouting)]
 public partial class TypedRoutingDataContext(IConfiguration Configuration) : SqliteDataContext(Configuration);
+
+[SQuiLDialect(SQuiLDialect.Sqlite)]
+[SQuiLQuery(QueryFiles.ScalarInputs)]
+public partial class ScalarInputsDataContext(IConfiguration Configuration) : SqliteDataContext(Configuration);

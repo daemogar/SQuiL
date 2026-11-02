@@ -235,4 +235,40 @@ public class PostgresRoundTripTests(PostgresContainerFixture fixture)
 		var pgError = Assert.Single(errors, e => e.AsDbException() is NpgsqlException);
 		Assert.Contains("nonexistenttable_xyz", pgError.Message, System.StringComparison.OrdinalIgnoreCase);
 	}
+	/// <summary>
+	/// One-column <c>Param_</c> inputs (int, text, timestamptz) and the <c>Debug</c> special are
+	/// read from their temp tables in the body, so the generated query must create and fill those
+	/// tables from the bound parameters. Before this, it only bound the parameters and the body
+	/// failed with "relation param_pglang does not exist". Also covers a timestamptz column inside a
+	/// list param's <c>json_to_recordset</c> shred, and reading timestamptz back.
+	/// </summary>
+	[Theory]
+	[InlineData(0)]
+	[InlineData(-5)]
+	public async Task Scalar_inputs_are_readable_from_their_temp_tables(int offsetHours)
+	{
+		SkipIfUnavailable();
+		using var provider = Arrange();
+
+		var offset = System.TimeSpan.FromHours(offsetHours);
+		var dayEnd = new System.DateTimeOffset(2026, 11, 1, 23, 59, 59, offset);
+
+		var context = provider.GetRequiredService<PgScalarInputsDataContext>();
+		var result = await context.ProcessPgScalarInputsAsync(new PgScalarInputsRequest
+		{
+			PgPersonID = 7,
+			PgLang = "fr",
+			PgDayEnd = dayEnd,
+			PgSlot = [new(1, dayEnd.AddHours(-1)), new(2, dayEnd.AddHours(1)), new(3, dayEnd.AddDays(-3))],
+		}, TestContext.Current.CancellationToken);
+
+		if (!result.TryGetValue(out var response, out var errors))
+			Assert.Fail("SQuiL returned errors: " + string.Join(" | ", errors.Select(e => e.Message)));
+
+		Assert.Equal(7, response!.PgEcho!.PersonID);
+		Assert.Equal("fr", response.PgEcho.Lang);
+		Assert.Equal(dayEnd, response.PgEcho.DayEnd);
+		Assert.Equal(2, response.PgEcho.SlotsBefore);
+		Assert.Equal(1, response.PgEcho.DebugRows);
+	}
 }

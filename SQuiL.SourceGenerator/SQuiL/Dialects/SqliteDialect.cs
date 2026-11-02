@@ -70,6 +70,14 @@ public class SqliteDialect : ITempTableHeaderDialect
 			""".Replace("\r\n", "\n");
 	}
 
+	/// <summary>
+	/// Fills a scalar input's temp table from its parameter. No cast: SQLite converts by the
+	/// column's affinity, and a cast to a type name it doesn't know (such as <c>GUID</c>) would turn
+	/// text into a number.
+	/// </summary>
+	public string ScalarInputInsert(string tableName, SQuiL.SourceGenerator.Parser.CodeItem column, string parameterName)
+		=> $"Insert Into {tableName} ({column.Identifier.Value}) Values ({parameterName});";
+
 	/// <summary>The <c>reader.GetXxx</c> accessor fragment for a table/object column. Computed
 	/// directly from the token type — does NOT delegate to <c>Token.DataReader()</c>, which is
 	/// SQL-Server-shaped (e.g. <c>GetGuid</c>, unavailable on Microsoft.Data.Sqlite's reader).</summary>
