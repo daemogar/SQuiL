@@ -130,6 +130,11 @@ from 1.0.0 onward.
   `@Param_` / `@Return_` naming prefix.
 
 ### Fixed
+- **A SQL Server connection string with no database failed with "Database '' does not exist".**
+  The generated query replaces the file's `Use` with the connection string's database, so a
+  connection string that named none sent `Use [];`. `Process…Async` now returns error 51002,
+  naming the connection string, before connecting. The writing guide also said the `Use`
+  database was the connection-string key; it isn't, and the guide now says so.
 - **PostgreSQL and SQLite projects without `Microsoft.Data.SqlClient` got no code.** The
   generator skipped every data context when SqlClient wasn't referenced, whatever its dialect,
   so a Postgres-only project saw SP0005 "no contexts". Only SQL Server contexts need SqlClient now.

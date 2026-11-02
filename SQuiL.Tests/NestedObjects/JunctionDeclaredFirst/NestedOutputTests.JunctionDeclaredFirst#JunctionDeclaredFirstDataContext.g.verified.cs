@@ -23,6 +23,9 @@ partial class JunctionDeclaredFirstDataContext : SqlServerDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
+		if (string.IsNullOrEmpty(builder.InitialCatalog))
+			return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `SQuiLDatabase` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+		
 		using var connection = CreateConnection(builder.ConnectionString);
 		
 		var command = connection.CreateCommand();
@@ -156,9 +159,9 @@ partial class JunctionDeclaredFirstDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isEnrollment) errors.Add(new(51001, 12, 1, 158, "Enrollment", "Expected return table `Enrollment`"));
-		if (!isStudent) errors.Add(new(51001, 12, 1, 159, "Student", "Expected return table `Student`"));
-		if (!isCourse) errors.Add(new(51001, 12, 1, 160, "Course", "Expected return table `Course`"));
+		if (!isEnrollment) errors.Add(new(51001, 12, 1, 161, "Enrollment", "Expected return table `Enrollment`"));
+		if (!isStudent) errors.Add(new(51001, 12, 1, 162, "Student", "Expected return table `Student`"));
+		if (!isCourse) errors.Add(new(51001, 12, 1, 163, "Course", "Expected return table `Course`"));
 		
 		if(errors.Count == 0)
 			return new(response);

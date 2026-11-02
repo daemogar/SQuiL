@@ -23,6 +23,9 @@ partial class ManyToManyJunctionDataContext : SqlServerDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
+		if (string.IsNullOrEmpty(builder.InitialCatalog))
+			return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `SQuiLDatabase` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+		
 		using var connection = CreateConnection(builder.ConnectionString);
 		
 		var command = connection.CreateCommand();
@@ -149,9 +152,9 @@ partial class ManyToManyJunctionDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isStudent) errors.Add(new(51001, 12, 1, 151, "Student", "Expected return table `Student`"));
-		if (!isCourse) errors.Add(new(51001, 12, 1, 152, "Course", "Expected return table `Course`"));
-		if (!isEnrollment) errors.Add(new(51001, 12, 1, 153, "Enrollment", "Expected return table `Enrollment`"));
+		if (!isStudent) errors.Add(new(51001, 12, 1, 154, "Student", "Expected return table `Student`"));
+		if (!isCourse) errors.Add(new(51001, 12, 1, 155, "Course", "Expected return table `Course`"));
+		if (!isEnrollment) errors.Add(new(51001, 12, 1, 156, "Enrollment", "Expected return table `Enrollment`"));
 		
 		if(errors.Count == 0)
 			return new(response);

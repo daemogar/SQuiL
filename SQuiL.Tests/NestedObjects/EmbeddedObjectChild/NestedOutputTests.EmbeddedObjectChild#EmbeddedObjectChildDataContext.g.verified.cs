@@ -23,6 +23,9 @@ partial class EmbeddedObjectChildDataContext : SqlServerDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
+		if (string.IsNullOrEmpty(builder.InitialCatalog))
+			return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `SQuiLDatabase` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+		
 		using var connection = CreateConnection(builder.ConnectionString);
 		
 		var command = connection.CreateCommand();
@@ -125,8 +128,8 @@ partial class EmbeddedObjectChildDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isTranscript) errors.Add(new(51001, 12, 1, 127, "Transcript", "Expected return object `Transcript`"));
-		if (!isStudent) errors.Add(new(51001, 12, 1, 128, "Student", "Expected return object `Student`"));
+		if (!isTranscript) errors.Add(new(51001, 12, 1, 130, "Transcript", "Expected return object `Transcript`"));
+		if (!isStudent) errors.Add(new(51001, 12, 1, 131, "Student", "Expected return object `Student`"));
 		
 		if(errors.Count == 0)
 			return new(response);

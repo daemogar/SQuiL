@@ -22,6 +22,9 @@ partial class UndeclaredReferenceFailsBuildDataContext : SqlServerDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
+		if (string.IsNullOrEmpty(builder.InitialCatalog))
+			return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `SQuiLDatabase` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+		
 		using var connection = CreateConnection(builder.ConnectionString);
 		
 		var command = connection.CreateCommand();
@@ -77,7 +80,7 @@ partial class UndeclaredReferenceFailsBuildDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isCount) errors.Add(new(51001, 12, 1, 79, "Count", "Expected return scaler `Count`"));
+		if (!isCount) errors.Add(new(51001, 12, 1, 82, "Count", "Expected return scaler `Count`"));
 		
 		if(errors.Count == 0)
 			return new(response);

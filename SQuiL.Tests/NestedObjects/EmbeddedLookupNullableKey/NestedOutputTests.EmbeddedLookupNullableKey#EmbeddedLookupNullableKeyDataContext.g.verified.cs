@@ -23,6 +23,9 @@ partial class EmbeddedLookupNullableKeyDataContext : SqlServerDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
+		if (string.IsNullOrEmpty(builder.InitialCatalog))
+			return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `SQuiLDatabase` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+		
 		using var connection = CreateConnection(builder.ConnectionString);
 		
 		var command = connection.CreateCommand();
@@ -119,8 +122,8 @@ partial class EmbeddedLookupNullableKeyDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isStructure) errors.Add(new(51001, 12, 1, 121, "Structure", "Expected return table `Structure`"));
-		if (!isContact) errors.Add(new(51001, 12, 1, 122, "Contact", "Expected return table `Contact`"));
+		if (!isStructure) errors.Add(new(51001, 12, 1, 124, "Structure", "Expected return table `Structure`"));
+		if (!isContact) errors.Add(new(51001, 12, 1, 125, "Contact", "Expected return table `Contact`"));
 		
 		if(errors.Count == 0)
 			return new(response);

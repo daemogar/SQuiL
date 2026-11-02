@@ -23,6 +23,9 @@ partial class ThreeLevelListNestingDataContext : SqlServerDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
+		if (string.IsNullOrEmpty(builder.InitialCatalog))
+			return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `SQuiLDatabase` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+		
 		using var connection = CreateConnection(builder.ConnectionString);
 		
 		var command = connection.CreateCommand();
@@ -150,9 +153,9 @@ partial class ThreeLevelListNestingDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isTranscript) errors.Add(new(51001, 12, 1, 152, "Transcript", "Expected return object `Transcript`"));
-		if (!isInstitution) errors.Add(new(51001, 12, 1, 153, "Institution", "Expected return table `Institution`"));
-		if (!isCourse) errors.Add(new(51001, 12, 1, 154, "Course", "Expected return table `Course`"));
+		if (!isTranscript) errors.Add(new(51001, 12, 1, 155, "Transcript", "Expected return object `Transcript`"));
+		if (!isInstitution) errors.Add(new(51001, 12, 1, 156, "Institution", "Expected return table `Institution`"));
+		if (!isCourse) errors.Add(new(51001, 12, 1, 157, "Course", "Expected return table `Course`"));
 		
 		if(errors.Count == 0)
 			return new(response);

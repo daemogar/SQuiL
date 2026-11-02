@@ -74,6 +74,22 @@ message prints the exact command), or run the tests once with
 committing. `.received.*` files are intermediate output and are git-ignored —
 never commit them. `SGSNAP_CHECKONLY=1` compares without writing anything.
 
+Some tests run against real databases. SQLite's run in-process and need nothing
+extra. The PostgreSQL and SQL Server ones (`PostgresRoundTripTests`,
+`PostgresKeyParityTests`, `SqlServerRoundTripTests`, `SqlServerKeyParityTests`)
+start a container through Testcontainers (`postgres:17` and
+`mcr.microsoft.com/mssql/server:2022-latest`), so they need Docker or Podman; with
+neither, they are skipped. To use servers you already have instead, set:
+
+```bash
+export SQUIL_TEST_POSTGRES='Host=localhost;Port=5432;Username=postgres;Password=...;Database=postgres'
+export SQUIL_TEST_MSSQL='Server=localhost,1433;User ID=sa;Password=...;Database=tempdb;TrustServerCertificate=True'
+```
+
+The tests only use temp tables and table variables, so nothing is created on the
+server. `SQUIL_TEST_MSSQL` must name a database, since SQL Server queries run in
+the connection string's database.
+
 ## Conventions
 
 - **`ID` is always upper-case** when it stands alone or ends an identifier:

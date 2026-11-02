@@ -228,7 +228,7 @@ You write SQL that looks like SQL — SQuiL handles the plumbing.
 <span class="kw">Declare</span> <span class="par">@Param_UserID</span>   <span class="tp">Int</span>;
 <span class="kw">Declare</span> <span class="ret">@Return_Username</span> <span class="tp">VarChar(100)</span>;
 
-<span class="cm">-- ② Use statement: must appear once, after all DECLAREs</span>
+<span class="cm">-- ② Use statement: must appear once, after all DECLAREs (SQuiL swaps in the connection string's database)</span>
 <span class="kw">Use</span> [MyDatabase];
 
 <span class="cm">-- ③ Body: your SQL logic</span>
@@ -992,14 +992,20 @@ and re-running it replaces the existing block in place. <strong>Existing blocks 
 
 <!-- ──────────────────── Connection Strings ────────────────────────────── -->
 <h2 id="connection-strings">Connection String Configuration</h2>
-<p>SQuiL uses the database name from the <code>Use</code> statement as the connection string key:</p>
+<p>SQuiL reads the connection string from <code>IConfiguration</code>, under
+<code>ConnectionStrings:SQuiLDatabase</code> by default:</p>
 
 <pre><code><span class="cm">// appsettings.json</span>
 {
   <span class="str">"ConnectionStrings"</span>: {
-    <span class="str">"HrDatabase"</span>: <span class="str">"Server=.;Database=HR;Trusted_Connection=True;"</span>
+    <span class="str">"SQuiLDatabase"</span>: <span class="str">"Server=.;Database=HR;Trusted_Connection=True;"</span>
   }
 }</code></pre>
+
+<p>On SQL Server, the query always runs in the database the connection string names. The
+database in the file's <code>Use</code> statement is never used: SQuiL replaces it with the
+connection string's, so one query works against each environment's database. The connection
+string must name a database; if it doesn't, the call returns error 51002 instead of running.</p>
 
 <p>To use a different key, pass it to the <code>[SQuiLQuery]</code> attribute:</p>
 <pre><code>[<span class="cs-attr">SQuiLQuery</span>(<span class="cs-cls">QueryFiles</span>.GetUserCount, <span class="cs-pn">setting</span>: <span class="str">"CustomKey"</span>)]

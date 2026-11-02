@@ -150,7 +150,7 @@ public static class TestHelper
 		bool compileCheck = true,
 		[CallerMemberName] string name = default!,
 		[CallerFilePath] string path = default!)
-		=> VerifyCore(sources, files, includeProvider: false, includeSqlClient: true, compileCheck, name, path, includeSqlite: true);
+		=> VerifyCore(sources, files, includeProvider: false, includeSqlClient: false, compileCheck, name, path, includeSqlite: true);
 
 	/// <summary>
 	/// PostgreSQL counterpart to <see cref="Verify"/>: the compilation references
@@ -165,7 +165,7 @@ public static class TestHelper
 		bool compileCheck = true,
 		[CallerMemberName] string name = default!,
 		[CallerFilePath] string path = default!)
-		=> VerifyCore(sources, files, includeProvider: false, includeSqlClient: true, compileCheck, name, path, includePostgres: true);
+		=> VerifyCore(sources, files, includeProvider: false, includeSqlClient: false, compileCheck, name, path, includePostgres: true);
 
 	static Task VerifyCore(
 		IEnumerable<string> sources,

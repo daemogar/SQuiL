@@ -22,6 +22,9 @@ partial class NotPrefixedColumnNamesDataContext : SqlServerDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
+		if (string.IsNullOrEmpty(builder.InitialCatalog))
+			return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `SQuiLDatabase` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+		
 		using var connection = CreateConnection(builder.ConnectionString);
 		
 		var command = connection.CreateCommand();
@@ -89,7 +92,7 @@ partial class NotPrefixedColumnNamesDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isRecords) errors.Add(new(51001, 12, 1, 91, "Records", "Expected return table `Records`"));
+		if (!isRecords) errors.Add(new(51001, 12, 1, 94, "Records", "Expected return table `Records`"));
 		
 		if(errors.Count == 0)
 			return new(response);

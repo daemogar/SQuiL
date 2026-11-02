@@ -22,6 +22,9 @@ partial class CourseEvaluationDataContext : SqlServerDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("Warehouse");
+		if (string.IsNullOrEmpty(builder.InitialCatalog))
+			return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `Warehouse` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+		
 		using var connection = CreateConnection(builder.ConnectionString);
 		
 		var command = connection.CreateCommand();
@@ -103,9 +106,9 @@ partial class CourseEvaluationDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isSectionID) errors.Add(new(51001, 12, 1, 105, "SectionID", "Expected return scaler `SectionID`"));
-		if (!isPersonID) errors.Add(new(51001, 12, 1, 106, "PersonID", "Expected return scaler `PersonID`"));
-		if (!isTermCode) errors.Add(new(51001, 12, 1, 107, "TermCode", "Expected return scaler `TermCode`"));
+		if (!isSectionID) errors.Add(new(51001, 12, 1, 108, "SectionID", "Expected return scaler `SectionID`"));
+		if (!isPersonID) errors.Add(new(51001, 12, 1, 109, "PersonID", "Expected return scaler `PersonID`"));
+		if (!isTermCode) errors.Add(new(51001, 12, 1, 110, "TermCode", "Expected return scaler `TermCode`"));
 		
 		if(errors.Count == 0)
 			return new(response);

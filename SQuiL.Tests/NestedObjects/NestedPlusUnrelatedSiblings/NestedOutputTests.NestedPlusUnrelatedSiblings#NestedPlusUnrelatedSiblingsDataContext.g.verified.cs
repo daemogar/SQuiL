@@ -23,6 +23,9 @@ partial class NestedPlusUnrelatedSiblingsDataContext : SqlServerDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
+		if (string.IsNullOrEmpty(builder.InitialCatalog))
+			return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `SQuiLDatabase` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+		
 		using var connection = CreateConnection(builder.ConnectionString);
 		
 		var command = connection.CreateCommand();
@@ -185,11 +188,11 @@ partial class NestedPlusUnrelatedSiblingsDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isTotal) errors.Add(new(51001, 12, 1, 187, "Total", "Expected return scaler `Total`"));
-		if (!isTranscript) errors.Add(new(51001, 12, 1, 188, "Transcript", "Expected return object `Transcript`"));
-		if (!isInstitution) errors.Add(new(51001, 12, 1, 189, "Institution", "Expected return table `Institution`"));
-		if (!isCourse) errors.Add(new(51001, 12, 1, 190, "Course", "Expected return table `Course`"));
-		if (!isLog) errors.Add(new(51001, 12, 1, 191, "Log", "Expected return table `Log`"));
+		if (!isTotal) errors.Add(new(51001, 12, 1, 190, "Total", "Expected return scaler `Total`"));
+		if (!isTranscript) errors.Add(new(51001, 12, 1, 191, "Transcript", "Expected return object `Transcript`"));
+		if (!isInstitution) errors.Add(new(51001, 12, 1, 192, "Institution", "Expected return table `Institution`"));
+		if (!isCourse) errors.Add(new(51001, 12, 1, 193, "Course", "Expected return table `Course`"));
+		if (!isLog) errors.Add(new(51001, 12, 1, 194, "Log", "Expected return table `Log`"));
 		
 		if(errors.Count == 0)
 			return new(response);

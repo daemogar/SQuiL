@@ -587,7 +587,7 @@ The `OutputItemType="Analyzer"` and `ReferenceOutputAssembly="false"` attributes
 
 ### Connection strings and environment
 
-The provider runtime base class (`SqlServerDataContext` for the SQL Server provider) reads connection strings from `IConfiguration` with the standard `ConnectionStrings:<Name>` key. Each `[SQuiLQuery(..., setting: "Name")]` attribute names which connection-string key that query uses, so the project's configuration needs at least one connection string per distinct `setting:` value used in the data context. (Environment resolution, below, lives on the provider-neutral `SQuiLBaseDataContext` instead — every provider shares it.)
+The provider runtime base class (`SqlServerDataContext` for the SQL Server provider) reads connection strings from `IConfiguration` with the standard `ConnectionStrings:<Name>` key. Each `[SQuiLQuery(..., setting: "Name")]` attribute names which connection-string key that query uses, so the project's configuration needs at least one connection string per distinct `setting:` value used in the data context. On SQL Server the query always runs in the database the connection string names: the generated query replaces the database in the file's `Use` with it, and never uses the one the developer wrote. A connection string that names no database makes `Process…Async` return error 51002 (`The connection string `<setting>` names no database…`) without connecting. (Environment resolution, below, lives on the provider-neutral `SQuiLBaseDataContext` instead — every provider shares it.)
 
 ```csharp
 ConfigurationBuilder builder = new();

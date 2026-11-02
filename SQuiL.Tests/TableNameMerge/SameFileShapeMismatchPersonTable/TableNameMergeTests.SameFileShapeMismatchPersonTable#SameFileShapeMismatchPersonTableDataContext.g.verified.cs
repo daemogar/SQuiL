@@ -22,6 +22,9 @@ partial class SameFileShapeMismatchPersonTableDataContext : SqlServerDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
+		if (string.IsNullOrEmpty(builder.InitialCatalog))
+			return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `SQuiLDatabase` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+		
 		using var connection = CreateConnection(builder.ConnectionString);
 		
 		var command = connection.CreateCommand();
@@ -80,7 +83,7 @@ partial class SameFileShapeMismatchPersonTableDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isPerson) errors.Add(new(51001, 12, 1, 82, "Person", "Expected return object `Person`"));
+		if (!isPerson) errors.Add(new(51001, 12, 1, 85, "Person", "Expected return object `Person`"));
 		
 		if(errors.Count == 0)
 			return new(response);

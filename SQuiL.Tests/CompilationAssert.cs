@@ -52,7 +52,6 @@ public static class CompilationAssert
 		IEnumerable<MetadataReference> references = [
 			.. Net100.References.All,
 			MetadataReference.CreateFromFile(typeof(SQuiLBaseDataContext).Assembly.Location),
-			MetadataReference.CreateFromFile(typeof(SqlConnection).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(IConfiguration).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(ConfigurationBuilder).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(IServiceCollection).Assembly.Location),
@@ -68,11 +67,14 @@ public static class CompilationAssert
 				: includePostgres
 					? MetadataReference.CreateFromFile(typeof(PostgresDataContext).Assembly.Location)
 					: MetadataReference.CreateFromFile(typeof(SqlServerDataContext).Assembly.Location),
-			.. includeSqlite
-				? [MetadataReference.CreateFromFile(typeof(Microsoft.Data.Sqlite.SqliteConnection).Assembly.Location)]
+			// Each dialect gets only its own ADO.NET driver. SQLite and PostgreSQL projects don't
+			// reference Microsoft.Data.SqlClient, and loading it here once hid a generator bug that
+			// skipped their contexts without it.
+			MetadataReference.CreateFromFile((includeSqlite
+				? typeof(Microsoft.Data.Sqlite.SqliteConnection)
 				: includePostgres
-					? [MetadataReference.CreateFromFile(typeof(Npgsql.NpgsqlConnection).Assembly.Location)]
-					: Array.Empty<MetadataReference>(),
+					? typeof(Npgsql.NpgsqlConnection)
+					: typeof(SqlConnection)).Assembly.Location),
 		];
 
 		var additionalFiles = files
