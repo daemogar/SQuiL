@@ -23,6 +23,9 @@ partial class ChainedEmbedDataContext : SqlServerDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
+		if (string.IsNullOrEmpty(builder.InitialCatalog))
+			return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `SQuiLDatabase` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+		
 		using var connection = CreateConnection(builder.ConnectionString);
 		
 		var command = connection.CreateCommand();
@@ -156,9 +159,9 @@ partial class ChainedEmbedDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isStructure) errors.Add(new(51001, 12, 1, 158, "Structure", "Expected return table `Structure`"));
-		if (!isContact) errors.Add(new(51001, 12, 1, 159, "Contact", "Expected return table `Contact`"));
-		if (!isAddress) errors.Add(new(51001, 12, 1, 160, "Address", "Expected return table `Address`"));
+		if (!isStructure) errors.Add(new(51001, 12, 1, 161, "Structure", "Expected return table `Structure`"));
+		if (!isContact) errors.Add(new(51001, 12, 1, 162, "Contact", "Expected return table `Contact`"));
+		if (!isAddress) errors.Add(new(51001, 12, 1, 163, "Address", "Expected return table `Address`"));
 		
 		if(errors.Count == 0)
 			return new(response);

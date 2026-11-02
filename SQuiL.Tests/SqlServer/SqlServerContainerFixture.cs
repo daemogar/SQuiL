@@ -16,9 +16,10 @@ using Xunit;
 /// <para>
 /// <b>Existing server</b>: when <c>SQUIL_TEST_MSSQL</c> holds a connection string, the tests use
 /// that server instead of starting a container, for machines with no Docker/Podman (for example
-/// <c>Server=host,1433;User ID=sa;Password=...;TrustServerCertificate=True</c>). The tests only use
-/// table variables, so any database works and nothing is created on the server. With no database
-/// named, <c>tempdb</c> is used.
+/// <c>Server=host,1433;User ID=sa;Password=...;Database=tempdb;TrustServerCertificate=True</c>).
+/// It must name a database, since generated SQL Server code runs the query in the connection
+/// string's database. The tests only use table variables, so any database works and nothing is
+/// created on the server.
 /// </para>
 ///
 /// <para>
@@ -30,20 +31,7 @@ using Xunit;
 public sealed class SqlServerContainerFixture : IAsyncLifetime
 {
 	private static readonly string? ExternalConnectionString
-		= Environment.GetEnvironmentVariable("SQUIL_TEST_MSSQL") is { Length: > 0 } value ? WithDatabase(value) : null;
-
-	/// <summary>
-	/// Generated SQL Server code replaces the query's <c>Use</c> with the connection string's
-	/// database, so a connection string that names none would run <c>Use [];</c>. Default it to
-	/// <c>tempdb</c>, which every server has.
-	/// </summary>
-	private static string WithDatabase(string connectionString)
-	{
-		var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString);
-		if (string.IsNullOrEmpty(builder.InitialCatalog))
-			builder.InitialCatalog = "tempdb";
-		return builder.ConnectionString;
-	}
+		= Environment.GetEnvironmentVariable("SQUIL_TEST_MSSQL") is { Length: > 0 } value ? value : null;
 
 	// Built in InitializeAsync, not here: building probes for Docker and throws in the constructor
 	// when none is reachable, which would fail the collection instead of letting it skip.

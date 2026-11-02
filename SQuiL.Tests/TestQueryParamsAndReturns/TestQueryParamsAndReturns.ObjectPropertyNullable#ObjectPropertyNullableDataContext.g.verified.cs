@@ -22,6 +22,9 @@ partial class TestQueryParamsAndReturnsDataContext : SqlServerDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
+		if (string.IsNullOrEmpty(builder.InitialCatalog))
+			return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `SQuiLDatabase` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+		
 		using var connection = CreateConnection(builder.ConnectionString);
 		
 		var command = connection.CreateCommand();
@@ -116,8 +119,8 @@ partial class TestQueryParamsAndReturnsDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isStudent) errors.Add(new(51001, 12, 1, 118, "Student", "Expected return object `Student`"));
-		if (!isParents) errors.Add(new(51001, 12, 1, 119, "Parents", "Expected return table `Parents`"));
+		if (!isStudent) errors.Add(new(51001, 12, 1, 121, "Student", "Expected return object `Student`"));
+		if (!isParents) errors.Add(new(51001, 12, 1, 122, "Parents", "Expected return table `Parents`"));
 		
 		if(errors.Count == 0)
 			return new(response);

@@ -22,6 +22,9 @@ partial class CourseEvaluationDataContext : SqlServerDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("DataRepository");
+		if (string.IsNullOrEmpty(builder.InitialCatalog))
+			return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `DataRepository` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+		
 		using var connection = CreateConnection(builder.ConnectionString);
 		
 		var command = connection.CreateCommand();
@@ -129,8 +132,8 @@ partial class CourseEvaluationDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isParticipation) errors.Add(new(51001, 12, 1, 131, "Participation", "Expected return table `Participation`"));
-		if (!isOverrides) errors.Add(new(51001, 12, 1, 132, "Overrides", "Expected return table `Overrides`"));
+		if (!isParticipation) errors.Add(new(51001, 12, 1, 134, "Participation", "Expected return table `Participation`"));
+		if (!isOverrides) errors.Add(new(51001, 12, 1, 135, "Overrides", "Expected return table `Overrides`"));
 		
 		if(errors.Count == 0)
 			return new(response);

@@ -45,3 +45,7 @@ public partial class MsTypedRoutingDataContext(IConfiguration Configuration) : S
 [SQuiLDialect(SQuiLDialect.SqlServer)]
 [SQuiLQuery(QueryFiles.MsMissingTable)]
 public partial class MsMissingTableDataContext(IConfiguration Configuration) : SqlServerDataContext(Configuration);
+
+[SQuiLDialect(SQuiLDialect.SqlServer)]
+[SQuiLQuery(QueryFiles.MsCurrentDatabase)]
+public partial class MsCurrentDatabaseDataContext(IConfiguration Configuration) : SqlServerDataContext(Configuration);

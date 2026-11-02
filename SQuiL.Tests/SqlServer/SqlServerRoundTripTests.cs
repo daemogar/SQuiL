@@ -28,11 +28,11 @@ namespace SQuiL.Tests.SqlServer;
 [Collection("SqlServer container")]
 public class SqlServerRoundTripTests(SqlServerContainerFixture fixture)
 {
-	private ServiceProvider Arrange()
+	private ServiceProvider Arrange(string? connectionString = null)
 	{
 		var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
 		{
-			["ConnectionStrings:SQuiLDatabase"] = fixture.ConnectionString,
+			["ConnectionStrings:SQuiLDatabase"] = connectionString ?? fixture.ConnectionString,
 		}).Build();
 
 		var services = new ServiceCollection();
@@ -202,6 +202,46 @@ public class SqlServerRoundTripTests(SqlServerContainerFixture fixture)
 		Assert.Equal(new System.DateTime(2026, 7, 27, 13, 45, 0), row.CreatedAt);
 		Assert.Equal(12.34m, row.Amount);
 		Assert.Equal(new System.DateTimeOffset(2026, 7, 27, 13, 45, 0, System.TimeSpan.FromHours(-5)), row.Stamp);
+	}
+
+	/// <summary>
+	/// The generated query's <c>Use</c> always names the connection string's database, never the one
+	/// the query file names: <c>MsCurrentDatabase.sql</c> says <c>Use [tempdb]</c>, yet it runs in
+	/// whatever database the connection string names.
+	/// </summary>
+	[Theory]
+	[InlineData("master")]
+	[InlineData("model")]
+	[InlineData("tempdb")]
+	public async Task Query_runs_in_the_connection_string_database_not_its_own_Use(string database)
+	{
+		SkipIfUnavailable();
+		using var provider = Arrange(new SqlConnectionStringBuilder(fixture.ConnectionString) { InitialCatalog = database }.ConnectionString);
+
+		var context = provider.GetRequiredService<MsCurrentDatabaseDataContext>();
+		var result = await context.ProcessMsCurrentDatabaseAsync(new MsCurrentDatabaseRequest(), TestContext.Current.CancellationToken);
+
+		Assert.Equal(database, Ok(result)!.Database);
+	}
+
+	/// <summary>
+	/// A connection string that names no database returns a clear error and never reaches the server.
+	/// Before this, the generated query sent <c>Use [];</c>, which failed with "Database '' does not
+	/// exist". The server isn't needed for this, so the test doesn't skip without one.
+	/// </summary>
+	[Fact]
+	public async Task Connection_string_without_a_database_returns_a_clear_error()
+	{
+		var builder = new SqlConnectionStringBuilder("Server=127.0.0.1,1;User ID=sa;Password=unused;Connect Timeout=1");
+		using var provider = Arrange(builder.ConnectionString);
+
+		var context = provider.GetRequiredService<MsCurrentDatabaseDataContext>();
+		var result = await context.ProcessMsCurrentDatabaseAsync(new MsCurrentDatabaseRequest(), TestContext.Current.CancellationToken);
+
+		Assert.False(result.TryGetValue(out _, out var errors));
+		var error = Assert.Single(errors);
+		Assert.Equal(51002, error.Number);
+		Assert.Contains("`SQuiLDatabase` names no database", error.Message);
 	}
 
 	/// <summary>

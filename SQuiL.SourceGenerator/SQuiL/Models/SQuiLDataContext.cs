@@ -145,8 +145,18 @@ public class SQuiLDataContext(
 									CancellationToken cancellationToken = default!)
 								""", () =>
 				{
+					// The generated query's `Use` always names the connection string's database (never the
+					// one the query file names), so a connection string with no database can't run: it
+					// would send `Use [];`. Return a clear error before connecting instead.
+					var requireDatabase = Sql.DatabaseDirective("SQuiL").Length == 0 ? "" : $$"""
+
+									if (string.IsNullOrEmpty(builder.InitialCatalog))
+										return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `{{Setting}}` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+
+									""";
+
 					writer.Block($$"""
-									var builder = ConnectionStringBuilder("{{Setting}}");
+									var builder = ConnectionStringBuilder("{{Setting}}");{{requireDatabase}}
 									using var connection = CreateConnection(builder.ConnectionString);
 
 									var command = connection.CreateCommand();

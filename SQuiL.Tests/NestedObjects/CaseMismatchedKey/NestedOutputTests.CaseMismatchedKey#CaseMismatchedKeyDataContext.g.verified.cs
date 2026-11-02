@@ -23,6 +23,9 @@ partial class CaseMismatchedKeyDataContext : SqlServerDataContext
 		CancellationToken cancellationToken = default!)
 	{
 		var builder = ConnectionStringBuilder("SQuiLDatabase");
+		if (string.IsNullOrEmpty(builder.InitialCatalog))
+			return new(new SQuiLError(51002, 16, 1, 0, "", "The connection string `SQuiLDatabase` names no database. Add one (for example Database=MyDb): the query runs in the connection string's database."));
+		
 		using var connection = CreateConnection(builder.ConnectionString);
 		
 		var command = connection.CreateCommand();
@@ -149,9 +152,9 @@ partial class CaseMismatchedKeyDataContext : SqlServerDataContext
 			errors.Add(CreateError(e));
 		}
 		
-		if (!isOrder) errors.Add(new(51001, 12, 1, 151, "Order", "Expected return table `Order`"));
-		if (!isCustomer) errors.Add(new(51001, 12, 1, 152, "Customer", "Expected return table `Customer`"));
-		if (!isLine) errors.Add(new(51001, 12, 1, 153, "Line", "Expected return table `Line`"));
+		if (!isOrder) errors.Add(new(51001, 12, 1, 154, "Order", "Expected return table `Order`"));
+		if (!isCustomer) errors.Add(new(51001, 12, 1, 155, "Customer", "Expected return table `Customer`"));
+		if (!isLine) errors.Add(new(51001, 12, 1, 156, "Line", "Expected return table `Line`"));
 		
 		if(errors.Count == 0)
 			return new(response);
