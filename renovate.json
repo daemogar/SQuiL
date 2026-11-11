@@ -34,6 +34,50 @@
         "major"
       ],
       "enabled": false
+    },
+    {
+      "description": "Microsoft.VisualStudio.SDK 18.x depends on packages not published to nuget.org (Microsoft.VisualStudio.Validation >= 18.7.19, Composition >= 18.9.89, ...), so restore fails with NU1102 (broke #105). Stay on 17.x until they are.",
+      "matchPackageNames": [
+        "Microsoft.VisualStudio.SDK"
+      ],
+      "allowedVersions": "<18"
+    },
+    {
+      "description": "Hold the .NET 11 runtime packages (10.0.x -> 11.0.0) until Paul decides to move to .NET 11. Patch/minor 10.x updates still flow.",
+      "matchPackageNames": [
+        "Microsoft.Data.Sqlite",
+        "Microsoft.Extensions.Configuration",
+        "Microsoft.Extensions.DependencyInjection",
+        "System.Text.Json"
+      ],
+      "allowedVersions": "<11"
+    },
+    {
+      "description": "Hold @types/node 26 with the Node 26 hold below. Patch/minor 24.x updates still flow.",
+      "matchPackageNames": [
+        "@types/node"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Hold the CI .NET SDK on 10.0.x (dotnet-version in the workflows) with the .NET 11 package hold above.",
+      "matchDepNames": [
+        "dotnet-sdk"
+      ],
+      "allowedVersions": "<11"
+    },
+    {
+      "description": "Hold CI Node on 24.x (node-version in the workflows; 26.x was proposed in #105). Patch/minor updates still flow.",
+      "matchDepNames": [
+        "node"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
     }
   ],
   "platformAutomerge": true,
