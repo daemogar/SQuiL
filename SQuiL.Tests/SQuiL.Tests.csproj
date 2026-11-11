@@ -72,6 +72,8 @@
 		         Link="ExtensionParsing\SQuiLMutationScanner.cs" />
 		<Compile Include="..\SQuiL.SsmsExtension\Parsing\SQuiLCodeActions.cs"
 		         Link="ExtensionParsing\SQuiLCodeActions.cs" />
+		<Compile Include="..\SQuiL.SsmsExtension\Preview\SQuiLPreviewGenerator.cs"
+		         Link="ExtensionParsing\SQuiLPreviewGenerator.cs" />
 	</ItemGroup>
 
 </Project>

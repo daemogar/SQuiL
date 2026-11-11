@@ -144,7 +144,7 @@ test('preview mirrors generator nullability', () => {
   assert.ok(out.includes('string LastName'), 'unmarked varchar → non-nullable string');
   assert.ok(!out.includes('string? LastName'), 'unmarked varchar must NOT be string?');
   // Scalar @Param_Name varchar(100), no null marker → non-nullable string Request property
-  assert.ok(out.includes('public string Name { get; set; };'), 'ref type scalar, unmarked → non-nullable');
+  assert.ok(out.includes('public required string Name { get; set; };'), 'ref type scalar, unmarked → non-nullable, required');
   // Request input list: List<ns.Models.X>? with = []
   assert.ok(out.includes('public List<YourNamespace.Models.People>? People { get; set; } = [];'), 'list request → List<ns.Models.X>? with = [] initializer');
   // Response output list: List<ns.Models.X>? with NO = []
@@ -386,7 +386,7 @@ test('sqlite dialect maps INTEGER/REAL/BLOB/BOOLEAN/GUID scalars to their SQLite
   const out = generateCSharpPreview(parsed, parsed.queryName ?? 'Query', undefined, false, true, 'sqlite');
   assert.ok(out.includes('public long A { get; set; }'), 'INTEGER -> long under sqlite');
   assert.ok(out.includes('public double B { get; set; }'), 'REAL -> double under sqlite');
-  assert.ok(out.includes('public byte[] C { get; set; }'), 'BLOB -> byte[] under sqlite');
+  assert.ok(out.includes('public required byte[] C { get; set; }'), 'BLOB -> required byte[] under sqlite');
   assert.ok(out.includes('public bool D { get; set; }'), 'BOOLEAN -> bool under sqlite');
   assert.ok(out.includes('public Guid E { get; set; }'), 'GUID -> Guid under sqlite');
 });
@@ -464,8 +464,33 @@ test('postgres dialect maps INT2/INT4/INT8/BYTEA/UUID/BOOL/TIMESTAMPTZ scalars t
   const out = generateCSharpPreview(parsed, parsed.queryName ?? 'Query', undefined, false, true, 'postgres');
   assert.ok(out.includes('public short A { get; set; }'), 'int2 -> short under postgres');
   assert.ok(out.includes('public long B { get; set; }'), 'int8 -> long under postgres');
-  assert.ok(out.includes('public byte[] C { get; set; }'), 'bytea -> byte[] under postgres');
+  assert.ok(out.includes('public required byte[] C { get; set; }'), 'bytea -> required byte[] under postgres');
   assert.ok(out.includes('public Guid D { get; set; }'), 'uuid -> Guid under postgres');
   assert.ok(out.includes('public bool E { get; set; }'), 'bool -> bool under postgres');
   assert.ok(out.includes('public DateTimeOffset F { get; set; }'), 'timestamptz -> DateTimeOffset under postgres');
+});
+
+// Mirrors SQuiL.Tests/RequiredRequestMemberTests: a non-nullable reference-type request scalar
+// with no default is `required` (no CS8618); nullable, defaulted, value-type and response
+// scalars are not.
+test('Request preview marks required reference-type scalars `required`', () => {
+  const out = preview([
+    '--Name: Save',
+    'Declare @Param_WorkID varchar(36);',
+    'Declare @Param_Note varchar(50) = null;',
+    "Declare @Param_Label varchar(10) = 'x';",
+    'Declare @Param_Payload varbinary(max);',
+    'Declare @Param_Count int;',
+    'Declare @Return_Name varchar(10);',
+    'Use Db;',
+    'Select @Return_Name = Name From Work Where WorkID = @Param_WorkID;',
+    'Select @Return_Name;',
+  ].join('\n'));
+
+  assert.ok(out.includes('public required string WorkID { get; set; }'), 'unmarked varchar param → required');
+  assert.ok(out.includes('public required byte[] Payload { get; set; }'), 'unmarked varbinary param → required');
+  assert.ok(!/required \S+ Note\b/.test(out), '= null param → not required');
+  assert.ok(!out.includes('required string Label'), 'defaulted param → not required');
+  assert.ok(!out.includes('required int'), 'value type → not required');
+  assert.ok(!out.includes('required string Name'), 'response scalar → not required');
 });

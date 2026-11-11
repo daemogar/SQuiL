@@ -48,6 +48,14 @@ public class SQuiLProperty(
 		return tableName;
 	}
 
+	/// <summary>
+	/// <c>true</c> when this scalar may be emitted with the <c>required</c> modifier (request side
+	/// only, and only when the consumer supports it). It is applied only when the property would
+	/// otherwise raise CS8618: a non-nullable reference type (<c>string</c> / <c>byte[]</c>) with
+	/// no default value. Value types never raise CS8618 and stay optional.
+	/// </summary>
+	public bool AllowRequired { get; init; }
+
 	/// <summary>The SQL variable base name (without the <c>@Param_</c> / <c>@Return_</c> prefix).</summary>
 	public string OriginalName => Block.Name;
 
@@ -68,7 +76,10 @@ public class SQuiLProperty(
 				? $"{RecordNamespace}.{TableName()}"
 				: TableName();
 
-			writer.Write($$"""public {{Block.CSharpType(reference)}}{{nullable}} {{Block.Name}} { get; set; }""");
+			var type = Block.CSharpType(reference);
+			var required = AllowRequired && IsRequiredReferenceType(type) ? "required " : "";
+
+			writer.Write($$"""public {{required}}{{type}}{{nullable}} {{Block.Name}} { get; set; }""");
 
 			if (Block.IsBinary) return;
 			if (GenerateTable()) return;
@@ -83,6 +94,13 @@ public class SQuiLProperty(
 		{
 			writer.WriteLine();
 		}
+
+		bool IsRequiredReferenceType(string type)
+			=> type is "string" or "byte[]"
+				&& !Block.IsTable && !Block.IsObject && !Block.IsNullable
+				// A binary default is never emitted (see the IsBinary early return), so only a
+				// non-binary default counts as an initializer.
+				&& (Block.IsBinary || Block.CSharpValue() is null);
 
 		bool GenerateObject()
 		{

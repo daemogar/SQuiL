@@ -454,7 +454,10 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 			context.ReportDuplicateTableMap(issues);
 
 		// compare all models
-		FileGenerator generator = new(ShowDebugMessages, context, tableMap);
+		FileGenerator generator = new(ShowDebugMessages, context, tableMap)
+		{
+			RequiredMembers = SupportsRequiredMembers(compilation)
+		};
 		foreach (var definition in classes.Distinct())
 		{
 			context.CancellationToken.ThrowIfCancellationRequested();
@@ -750,6 +753,17 @@ public class SQuiLGenerator(bool ShowDebugMessages) : IIncrementalGenerator
 	}
 
 	/// <summary>Writes <c>SQuiLExtensions.g.cs</c>; reports SP0046 for registration classes that would collide (TODO #30).</summary>
+	/// <summary>
+	/// <c>true</c> when the consumer can compile the <c>required</c> modifier: C# 11 or later, and
+	/// the runtime attributes the compiler emits for it are visible (they ship in .NET 7+; a
+	/// netstandard2.0 or .NET Framework consumer has them only through a polyfill). Without both,
+	/// <c>required</c> is a compile error, so the request keeps its previous shape.
+	/// </summary>
+	private static bool SupportsRequiredMembers(Compilation compilation)
+		=> compilation is CSharpCompilation { LanguageVersion: >= LanguageVersion.CSharp11 }
+			&& compilation.GetTypeByMetadataName("System.Runtime.CompilerServices.RequiredMemberAttribute") is not null
+			&& compilation.GetTypeByMetadataName("System.Runtime.CompilerServices.CompilerFeatureRequiredAttribute") is not null;
+
 	private static void EmitDependencyInjection(Compilation compilation, SourceProductionContext context,
 		IReadOnlyList<string> contexts, ImmutableArray<SQuiLRegistrationReference> references)
 	{

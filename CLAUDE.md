@@ -235,6 +235,8 @@ SQuiL/
       every context it can see (its own + every referenced SQuiL project's) as singletons. Each
       project with contexts also gets a public `AddSQuiL<Asm>()` (`<Asm>` = assembly name with
       non-identifier characters removed) and an `[assembly: SQuiL.SQuiLRegistration]` marker.
+    - a non-nullable reference-type request scalar with no default (`string`/`byte[]`) is
+      `required` (no CS8618; CS9035 if the caller omits it); value types and responses are not.
     - authoring features that exist: unified nullability rule (scalars via
       `= null` initializer, table columns via `null`/`not null` marker,
       non-nullable by default; SP0010 editor-only Hint for unmarked declares;
@@ -1060,10 +1062,18 @@ value.
 | `@Param_X int` (no `= null`) | `int X { get; set; }` (non-nullable, required) |
 | `@Param_X int = null` | `int? X { get; set; }` (nullable, no initializer) |
 | `@Param_X int = 5` (default) | `int X { get; set; } = 5` (non-nullable) |
-| `@Param_Name varchar(10)` (ref type) | `string Name { get; set; }` (never auto-`?`) |
+| `@Param_Name varchar(10)` (ref type) | `required string Name { get; set; }` (never auto-`?`) |
 | `@Param_Name varchar(10) = null` | `string? Name { get; set; }` (nullable) |
-| `@Param_X varbinary(max)` | `byte[] X { get; set; }` (never auto-`?`) |
+| `@Param_X varbinary(max)` | `required byte[] X { get; set; }` (never auto-`?`) |
 | `@Param_X varbinary(max) = null` | `byte[]? X { get; set; }` (nullable) |
+
+**`required` on request reference types (CS8618 fix).** A request scalar that would otherwise raise
+CS8618 — non-nullable `string`/`byte[]`, no default — is emitted `required`, so a caller that omits
+it gets CS9035. Value types and response properties never get it. The generator emits it only when
+the consumer has C# 11+ and `RequiredMemberAttribute`/`CompilerFeatureRequiredAttribute`
+(`SQuiLGenerator.SupportsRequiredMembers`); otherwise the plain property. The snapshot harness's
+compilation has no BCL, so snapshots never show `required`: `RequiredRequestMemberTests` compiles
+against .NET 10 references instead. Mirrored in all three previews.
 
 **Table columns** (unchanged — `null`/`not null` markers, valid T-SQL in a
 `table(...)` column list):

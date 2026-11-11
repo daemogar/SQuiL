@@ -45,6 +45,13 @@ internal static class SQuiLPreviewGenerator
     private static bool IsCollection(SQuiLVariable v) =>
         v.Role is VariableRole.Params or VariableRole.Returns;
 
+    // Mirrors SQuiLProperty.IsRequiredReferenceType: a request scalar that would raise CS8618
+    // (non-nullable string / byte[], no default) is emitted `required`. The generator drops
+    // `required` for a consumer without C# 11 + RequiredMemberAttribute; the preview assumes a
+    // modern consumer. A binary default is never emitted, so it doesn't exempt byte[].
+    private static bool IsRequiredReferenceScalar(SQuiLVariable v, string type) =>
+        type == "byte[]" || (type == "string" && !v.SqlType.Contains("="));
+
     // ── Nested-objects key graph (preview-only mirror of SQuiLKeyGraph.cs) ──
 
     /// <summary>Parent → direct children, which variables are someone's child (they leave the
@@ -428,7 +435,8 @@ internal static class SQuiLPreviewGenerator
         {
             string type = GetPropertyType(v, modelsNs, dialect);
             string initializer = (!isResponse && IsCollection(v)) ? " = []" : "";
-            lines.Add($"    public {type} {v.Name} {{ get; set; }}{initializer};");
+            string required = (!isResponse && IsRequiredReferenceScalar(v, type)) ? "required " : "";
+            lines.Add($"    public {required}{type} {v.Name} {{ get; set; }}{initializer};");
         }
 
         lines.Add("}");

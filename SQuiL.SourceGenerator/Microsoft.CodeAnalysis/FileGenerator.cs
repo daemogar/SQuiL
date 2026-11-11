@@ -24,6 +24,12 @@ public class FileGenerator(
 	SourceProductionContext Context,
 	SQuiLTableMap TableMap)
 {
+	/// <summary>
+	/// <c>true</c> when the consumer's compilation supports the <c>required</c> modifier; forwarded
+	/// to the request models (see <see cref="SQuiLModel.RequiredMembers"/>).
+	/// </summary>
+	public bool RequiredMembers { get; init; }
+
 	/// <summary>All successfully parsed query generations queued for code emission.</summary>
 	public List<SQuiLFileGeneration> Generations { get; } = [];
 
@@ -202,7 +208,7 @@ public class FileGenerator(
 				return default;
 			}
 
-			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, recordNamespace, method, blocks, TableMap, records, sql, keyGraph, inputGraph, registerTables);
+			(generation.Request, generation.Response) = SQuiLModel.Create(@namespace, recordNamespace, method, blocks, TableMap, records, sql, keyGraph, inputGraph, registerTables, RequiredMembers);
 
 			foreach (var property in generation.Request.Properties.Union(generation.Response.Properties))
 				if (property is SQuiLTable table)
