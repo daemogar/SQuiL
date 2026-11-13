@@ -66,10 +66,15 @@ The declared SQL type maps to a C# type: `int`/`bigint`/`smallint`/`tinyint` →
 | `@Param_X int` (no `= null`) | `int X { get; set; }` |
 | `@Param_X int = null` | `int? X { get; set; }` |
 | `@Param_X int = 5` (default) | `int X { get; set; } = 5` |
-| `@Param_X varchar(10)` (ref type) | `string X { get; set; }` |
+| `@Param_X varchar(10)` (ref type) | `required string X { get; set; }` |
 | `@Param_X varchar(10) = null` | `string? X { get; set; }` |
-| `@Param_X varbinary(max)` | `byte[] X { get; set; }` |
+| `@Param_X varbinary(max)` | `required byte[] X { get; set; }` |
 | `@Param_X varbinary(max) = null` | `byte[]? X { get; set; }` |
+
+A non-nullable reference-type request parameter with no default (`string` / `byte[]`) is emitted
+`required`, so object initializers must set it (CS9035 if omitted) and the generated request raises
+no CS8618. Value types, `= null` and defaulted parameters stay optional. A consumer without C# 11 and
+`RequiredMemberAttribute` (.NET 7+, or a polyfill) gets the plain property instead.
 
 **Table columns** (unchanged — `null`/`not null` markers, valid T-SQL inside `table(...)`):
 

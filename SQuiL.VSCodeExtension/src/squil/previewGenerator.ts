@@ -190,6 +190,15 @@ function getPropertyType(v: SQuiLVariable, modelsNs?: string, dialect: EditorDia
   return v.nullable ? `${cs}?` : cs;
 }
 
+// Mirrors SQuiLProperty.IsRequiredReferenceType: a request scalar that would raise CS8618
+// (non-nullable `string` / `byte[]`, no default) is emitted `required`. The generator drops
+// `required` for a consumer without C# 11 + RequiredMemberAttribute; the preview assumes a
+// modern consumer. A binary default is never emitted, so it doesn't exempt `byte[]`.
+function isRequiredReferenceScalar(v: SQuiLVariable, type: string): boolean {
+  if (type !== 'string' && type !== 'byte[]') return false;
+  return type === 'byte[]' || !v.sqlType.includes('=');
+}
+
 // ─── Main entry point ─────────────────────────────────────────────────────
 
 export function generateCSharpPreview(
@@ -462,7 +471,9 @@ function emitModelRecord(
 
   vars.forEach(v => {
     const initializer = (!isResponse && isCollectionRole(v)) ? ' = []' : '';
-    lines.push(`    public ${getPropertyType(v, modelsNs, dialect)} ${v.name} { get; set; }${initializer};`);
+    const type = getPropertyType(v, modelsNs, dialect);
+    const required = (!isResponse && isRequiredReferenceScalar(v, type)) ? 'required ' : '';
+    lines.push(`    public ${required}${type} ${v.name} { get; set; }${initializer};`);
   });
 
   lines.push(`}`);

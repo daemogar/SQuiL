@@ -384,7 +384,7 @@ nullable using different syntax — only one of the two is valid T-SQL for a sca
   <tr><td><code class="par">@Param_X</code> <code class="tp">int</code>;</td><td><code>int X { get; set; }</code> (non-nullable, required)</td></tr>
   <tr><td><code class="par">@Param_X</code> <code class="tp">int</code> = <span class="kw">null</span>;</td><td><code>int? X { get; set; }</code> (nullable)</td></tr>
   <tr><td><code class="par">@Param_X</code> <code class="tp">int</code> = 5;</td><td><code>int X { get; set; } = 5</code> (non-nullable, default)</td></tr>
-  <tr><td><code class="par">@Param_Name</code> <code class="tp">varchar(10)</code>;</td><td><code>string Name { get; set; }</code> (never auto-<code>?</code>)</td></tr>
+  <tr><td><code class="par">@Param_Name</code> <code class="tp">varchar(10)</code>;</td><td><code>required string Name { get; set; }</code> (never auto-<code>?</code>; <code>required</code> so the caller must set it, with no CS8618)</td></tr>
   <tr><td><code class="par">@Param_Name</code> <code class="tp">varchar(10)</code> = <span class="kw">null</span>;</td><td><code>string? Name { get; set; }</code> (nullable)</td></tr>
   <tr><td><code>table(Col int)</code></td><td><code>int Col</code> (non-nullable)</td></tr>
   <tr><td><code>table(Col int null)</code></td><td><code>int? Col</code> (nullable)</td></tr>

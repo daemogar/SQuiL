@@ -51,6 +51,13 @@ public class SQuiLModel(
 	/// </summary>
 	public bool RegisterTables { get; init; } = true;
 
+	/// <summary>
+	/// <c>true</c> on a request model whose consumer supports the <c>required</c> modifier: a
+	/// non-nullable reference-type scalar with no default is then emitted <c>required</c>, so the
+	/// consumer gets no CS8618 for it and a caller that omits it gets CS9035 instead.
+	/// </summary>
+	public bool RequiredMembers { get; init; }
+
 	/// <summary>All properties (scalar, table, and object) belonging to this model.</summary>
 	public List<SQuiLProperty> Properties { get; } = [];
 
@@ -87,9 +94,10 @@ public class SQuiLModel(
 		string sql = "",
 		SQuiLKeyGraph? outputGraph = null,
 		SQuiLKeyGraph? inputGraph = null,
-		bool registerTables = true)
+		bool registerTables = true,
+		bool requiredMembers = false)
 	{
-		var request = new SQuiLModel(@namespace, modelname, "Request", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql, RegisterTables = registerTables }
+		var request = new SQuiLModel(@namespace, modelname, "Request", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql, RegisterTables = registerTables, RequiredMembers = requiredMembers }
 			.Build(blocks.Where(p => (p.CodeType & CodeType.INPUT) == CodeType.INPUT), inputGraph);
 
 		var response = new SQuiLModel(@namespace, modelname, "Response", tableMap, records) { RecordNamespace = recordNamespace, Sql = sql, RegisterTables = registerTables }
@@ -198,7 +206,7 @@ public class SQuiLModel(
 				CreateTableObject(block, !inherits && !alreadyDeclared && !isChild, graph);
 			}
 			else if (!inherits)
-				Properties.Add(new(block, TableMap));
+				Properties.Add(new(block, TableMap) { AllowRequired = RequiredMembers });
 		}
 
 		return this;

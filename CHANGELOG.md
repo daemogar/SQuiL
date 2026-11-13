@@ -130,6 +130,12 @@ from 1.0.0 onward.
   `@Param_` / `@Return_` naming prefix.
 
 ### Fixed
+- **CS8618 on generated `*Request` properties.** A required reference-type parameter
+  (`Declare @Param_Name varchar(10);`, no `= null`) was emitted as
+  `public string Name { get; set; }`, which warned once per property in every consumer.
+  It is now `public required string Name { get; set; }` (same for `byte[]`), so a caller
+  that leaves it out gets CS9035 instead. Value types, `= null` and defaulted parameters
+  are unchanged. Consumers without C# 11 and `RequiredMemberAttribute` keep the old shape.
 - **SQLite/PostgreSQL: scalar inputs are readable in the body.** A one-column
   `Param_X` temp table (and a special such as `Debug`) was bound as a command
   parameter, but the generated query never created or filled its table, so a
