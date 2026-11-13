@@ -43,6 +43,13 @@
       "allowedVersions": "<18"
     },
     {
+      "description": "Microsoft.VSSDK.BuildTools 18.11+ depends on Microsoft.VisualStudio.SDK.Analyzers versions not published to nuget.org (18.12.1606 needs 17.7.179; the newest on nuget.org is 17.7.122), so restore fails with NU1102 (broke #105). 18.9.820 is the newest whose dependencies all exist.",
+      "matchPackageNames": [
+        "Microsoft.VSSDK.BuildTools"
+      ],
+      "allowedVersions": "<18.10"
+    },
+    {
       "description": "Hold the .NET 11 runtime packages (10.0.x -> 11.0.0) until Paul decides to move to .NET 11. Patch/minor 10.x updates still flow.",
       "matchPackageNames": [
         "Microsoft.Data.Sqlite",
